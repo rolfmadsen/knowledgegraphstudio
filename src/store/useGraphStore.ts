@@ -1,0 +1,484 @@
+/**
+ * useGraphStore — Core Zustand store with zundo undo/redo (Spec §4)
+ *
+ * Single source of truth for all domain data: domains, concepts, relations.
+ * Includes Cascade Rename, Orphan Cleanup, and ephemeral-field-excluded undo/redo.
+ */
+import { create } from 'zustand';
+import { temporal } from 'zundo';
+import type {
+  Domain,
+  ConceptNode,
+  ConceptRelation,
+  ConceptProperty,
+  Policy,
+  ConceptType,
+  DataClassification,
+  ElementId,
+} from '../schema/graphSchema';
+import { generateId, regenerateId } from '../core/idGenerator';
+
+// ============================================================
+// Store State
+// ============================================================
+
+export interface GraphStoreState {
+  // --- Domain Data ---
+  domains: Domain[];
+  concepts: ConceptNode[];
+  relations: ConceptRelation[];
+
+  // --- UI State (excluded from undo/redo) ---
+  selectedConceptId: ElementId | null;
+  rawYaml: string | null; // For conflict mode
+
+  // --- Domain Actions ---
+  addDomain: (name: string, description?: string) => Domain;
+  updateDomain: (id: ElementId, updates: Partial<Pick<Domain, 'name' | 'description'>>) => void;
+  deleteDomain: (id: ElementId) => void;
+
+  // --- Concept Actions ---
+  addConcept: (conceptType: ConceptType, name: string, options?: {
+    domainId?: ElementId;
+    parentId?: ElementId;
+    classification?: DataClassification;
+    definition?: string;
+    aliases?: string[];
+  }) => ConceptNode;
+  updateConcept: (id: ElementId, updates: Partial<Pick<
+    ConceptNode,
+    'name' | 'definition' | 'aliases' | 'classification' | 'lifecycleState' | 'domainId' | 'parentId' | 'conceptType'
+  >>) => void;
+  deleteConcept: (id: ElementId) => void;
+  selectConcept: (id: ElementId | null) => void;
+
+  // --- Concept Property Actions ---
+  addProperty: (conceptId: ElementId, name: string, type: string, isRequired?: boolean) => void;
+  updateProperty: (conceptId: ElementId, propertyId: ElementId, updates: Partial<Pick<ConceptProperty, 'name' | 'type' | 'isRequired'>>) => void;
+  deleteProperty: (conceptId: ElementId, propertyId: ElementId) => void;
+
+  // --- Concept Policy Actions ---
+  addPolicy: (conceptId: ElementId, policy: Omit<Policy, 'id' | 'createdAt' | 'updatedAt' | 'lifecycleState'>) => void;
+  updatePolicy: (conceptId: ElementId, policyId: ElementId, updates: Partial<Pick<Policy, 'name' | 'type' | 'given' | 'when' | 'then' | 'description'>>) => void;
+  deletePolicy: (conceptId: ElementId, policyId: ElementId) => void;
+
+  // --- Relation Actions ---
+  addRelation: (sourceId: ElementId, targetId: ElementId, name: string, options?: {
+    multiplicity?: string;
+    mappingPattern?: ConceptRelation['mappingPattern'];
+    transformationDescription?: string;
+    isDirected?: boolean;
+  }) => ConceptRelation;
+  updateRelation: (id: ElementId, updates: Partial<Pick<
+    ConceptRelation, 'name' | 'multiplicity' | 'mappingPattern' | 'transformationDescription' | 'isDirected'
+  >>) => void;
+  deleteRelation: (id: ElementId) => void;
+
+  // --- Ephemeral Layout Actions (excluded from undo) ---
+  updateNodePosition: (id: ElementId, x: number, y: number) => void;
+  batchUpdateNodePositions: (positions: Array<{ id: ElementId; x: number; y: number }>, pin?: boolean) => void;
+  unpinAll: () => void;
+  updateNodeSize: (id: ElementId, width: number, height: number) => void;
+  pinNode: (id: ElementId, fx: number | null, fy: number | null) => void;
+
+  // --- Bulk / Hydration ---
+  hydrate: (state: { domains: Domain[]; concepts: ConceptNode[]; relations: ConceptRelation[] }) => void;
+}
+
+// ============================================================
+// Helpers
+// ============================================================
+
+const now = () => Date.now();
+
+function getAllIds(state: Pick<GraphStoreState, 'domains' | 'concepts' | 'relations'>): Set<string> {
+  const ids = new Set<string>();
+  for (const d of state.domains) ids.add(d.id);
+  for (const c of state.concepts) ids.add(c.id);
+  for (const r of state.relations) ids.add(r.id);
+  return ids;
+}
+
+// ============================================================
+// Store
+// ============================================================
+
+export const useGraphStore = create<GraphStoreState>()(
+  temporal(
+    (set, get) => ({
+      // --- Initial State ---
+      domains: [],
+      concepts: [],
+      relations: [],
+      selectedConceptId: null,
+      rawYaml: null,
+
+      // ==========================================================
+      // Domain Actions
+      // ==========================================================
+
+      addDomain: (name, description) => {
+        const state = get();
+        const id = generateId('bounded_context', name, getAllIds(state));
+        const domain: Domain = {
+          id,
+          createdAt: now(),
+          updatedAt: now(),
+          lifecycleState: 'active',
+          name,
+          description,
+        };
+        set({ domains: [...state.domains, domain] });
+        return domain;
+      },
+
+      updateDomain: (id, updates) => {
+        set((state) => ({
+          domains: state.domains.map((d) =>
+            d.id === id ? { ...d, ...updates, updatedAt: now() } : d,
+          ),
+        }));
+      },
+
+      deleteDomain: (id) => {
+        set((state) => ({
+          domains: state.domains.filter((d) => d.id !== id),
+          // Clear domainId references on concepts
+          concepts: state.concepts.map((c) =>
+            c.domainId === id ? { ...c, domainId: undefined, updatedAt: now() } : c,
+          ),
+        }));
+      },
+
+      // ==========================================================
+      // Concept Actions
+      // ==========================================================
+
+      addConcept: (conceptType, name, options = {}) => {
+        const state = get();
+        const id = generateId(conceptType, name, getAllIds(state));
+        const concept: ConceptNode = {
+          id,
+          createdAt: now(),
+          updatedAt: now(),
+          lifecycleState: 'active',
+          conceptType,
+          name,
+          aliases: options.aliases ?? [],
+          definition: options.definition,
+          domainId: options.domainId,
+          parentId: options.parentId,
+          classification: options.classification,
+          properties: [],
+          policies: [],
+        };
+        set({ concepts: [...state.concepts, concept] });
+        return concept;
+      },
+
+      updateConcept: (id, updates) => {
+        const state = get();
+        const concept = state.concepts.find((c) => c.id === id);
+        if (!concept) return;
+
+        // Cascade Rename: if name changes, regenerate the slug
+        if (updates.name && updates.name !== concept.name) {
+          const allIds = getAllIds(state);
+          const newId = regenerateId(id, updates.name, allIds);
+
+          set({
+            concepts: state.concepts.map((c) =>
+              c.id === id
+                ? { ...c, ...updates, id: newId, updatedAt: now() }
+                : c,
+            ),
+            // Update all relation references
+            relations: state.relations.map((r) => {
+              let updated = false;
+              const newR = { ...r };
+              if (r.sourceConceptId === id) {
+                newR.sourceConceptId = newId;
+                updated = true;
+              }
+              if (r.targetConceptId === id) {
+                newR.targetConceptId = newId;
+                updated = true;
+              }
+              return updated ? { ...newR, updatedAt: now() } : r;
+            }),
+            selectedConceptId:
+              state.selectedConceptId === id ? newId : state.selectedConceptId,
+          });
+        } else {
+          set({
+            concepts: state.concepts.map((c) =>
+              c.id === id ? { ...c, ...updates, updatedAt: now() } : c,
+            ),
+          });
+        }
+      },
+
+      deleteConcept: (id) => {
+        set((state) => ({
+          concepts: state.concepts.filter((c) => c.id !== id),
+          // Orphan Cleanup: delete all relations referencing this concept
+          relations: state.relations.filter(
+            (r) => r.sourceConceptId !== id && r.targetConceptId !== id,
+          ),
+          selectedConceptId:
+            state.selectedConceptId === id ? null : state.selectedConceptId,
+        }));
+      },
+
+      selectConcept: (id) => {
+        set({ selectedConceptId: id });
+      },
+
+      // ==========================================================
+      // Property Actions
+      // ==========================================================
+
+      addProperty: (conceptId, name, type, isRequired) => {
+        const state = get();
+        const allIds = getAllIds(state);
+        const propId = generateId('other', name, allIds);
+        const property: ConceptProperty = {
+          id: propId,
+          createdAt: now(),
+          updatedAt: now(),
+          lifecycleState: 'active',
+          name,
+          type,
+          isRequired,
+        };
+        set({
+          concepts: state.concepts.map((c) =>
+            c.id === conceptId
+              ? { ...c, properties: [...c.properties, property], updatedAt: now() }
+              : c,
+          ),
+        });
+      },
+
+      updateProperty: (conceptId, propertyId, updates) => {
+        set((state) => ({
+          concepts: state.concepts.map((c) =>
+            c.id === conceptId
+              ? {
+                  ...c,
+                  properties: c.properties.map((p) =>
+                    p.id === propertyId ? { ...p, ...updates, updatedAt: now() } : p,
+                  ),
+                  updatedAt: now(),
+                }
+              : c,
+          ),
+        }));
+      },
+
+      deleteProperty: (conceptId, propertyId) => {
+        set((state) => ({
+          concepts: state.concepts.map((c) =>
+            c.id === conceptId
+              ? {
+                  ...c,
+                  properties: c.properties.filter((p) => p.id !== propertyId),
+                  updatedAt: now(),
+                }
+              : c,
+          ),
+        }));
+      },
+
+      // ==========================================================
+      // Policy Actions
+      // ==========================================================
+
+      addPolicy: (conceptId, policyData) => {
+        const state = get();
+        const allIds = getAllIds(state);
+        const policyId = generateId('other', policyData.name, allIds);
+        const policy: Policy = {
+          ...policyData,
+          id: policyId,
+          createdAt: now(),
+          updatedAt: now(),
+          lifecycleState: 'active',
+        };
+        set({
+          concepts: state.concepts.map((c) =>
+            c.id === conceptId
+              ? { ...c, policies: [...c.policies, policy], updatedAt: now() }
+              : c,
+          ),
+        });
+      },
+
+      updatePolicy: (conceptId, policyId, updates) => {
+        set((state) => ({
+          concepts: state.concepts.map((c) =>
+            c.id === conceptId
+              ? {
+                  ...c,
+                  updatedAt: now(),
+                  policies: c.policies.map((p) =>
+                    p.id === policyId ? { ...p, ...updates, updatedAt: now() } : p
+                  ),
+                }
+              : c
+          ),
+        }));
+      },
+
+      deletePolicy: (conceptId, policyId) => {
+        set((state) => ({
+          concepts: state.concepts.map((c) =>
+            c.id === conceptId
+              ? {
+                  ...c,
+                  updatedAt: now(),
+                  policies: c.policies.filter((p) => p.id !== policyId),
+                }
+              : c
+          ),
+        }));
+      },
+
+      // ==========================================================
+      // Relation Actions
+      // ==========================================================
+
+      addRelation: (sourceId, targetId, name, options = {}) => {
+        const state = get();
+        const allIds = getAllIds(state);
+        const id = generateId('other', name, allIds);
+        const relation: ConceptRelation = {
+          id,
+          createdAt: now(),
+          updatedAt: now(),
+          lifecycleState: 'active',
+          sourceConceptId: sourceId,
+          targetConceptId: targetId,
+          name,
+          multiplicity: options.multiplicity,
+          mappingPattern: options.mappingPattern,
+          transformationDescription: options.transformationDescription,
+          isDirected: options.isDirected,
+          policies: [],
+        };
+        set({ relations: [...state.relations, relation] });
+        return relation;
+      },
+
+      updateRelation: (id, updates) => {
+        set((state) => ({
+          relations: state.relations.map((r) =>
+            r.id === id ? { ...r, ...updates, updatedAt: now() } : r,
+          ),
+        }));
+      },
+
+      deleteRelation: (id) => {
+        set((state) => ({
+          relations: state.relations.filter((r) => r.id !== id),
+        }));
+      },
+
+      // ==========================================================
+      // Ephemeral Layout Actions
+      // ==========================================================
+
+      updateNodePosition: (id, x, y) => {
+        set((state) => {
+          const concept = state.concepts.find((c) => c.id === id);
+          if (concept && concept.x === x && concept.y === y) return state;
+          return {
+            concepts: state.concepts.map((c) =>
+              c.id === id ? { ...c, x, y } : c,
+            ),
+          };
+        });
+      },
+
+      batchUpdateNodePositions: (positions, pin = false) => {
+        set((state) => {
+          let changed = false;
+          const newConcepts = state.concepts.map((c) => {
+            const pos = positions.find((p) => p.id === c.id);
+            if (pos) {
+              const xChanged = pos.x !== c.x || pos.y !== c.y;
+              const pinChanged = pin && (c.fx !== pos.x || c.fy !== pos.y);
+              if (xChanged || pinChanged) {
+                changed = true;
+                return { 
+                  ...c, 
+                  x: pos.x, 
+                  y: pos.y, 
+                  fx: pin ? pos.x : c.fx, 
+                  fy: pin ? pos.y : c.fy 
+                };
+              }
+            }
+            return c;
+          });
+          if (!changed) return state;
+          return { concepts: newConcepts };
+        });
+      },
+
+      unpinAll: () => {
+        set((state) => ({
+          concepts: state.concepts.map((c) => ({ ...c, fx: null, fy: null })),
+        }));
+      },
+
+      updateNodeSize: (id, width, height) => {
+        set((state) => ({
+          concepts: state.concepts.map((c) =>
+            c.id === id ? { ...c, width, height } : c,
+          ),
+        }));
+      },
+
+      pinNode: (id, fx, fy) => {
+        set((state) => ({
+          concepts: state.concepts.map((c) =>
+            c.id === id ? { ...c, fx, fy } : c,
+          ),
+        }));
+      },
+
+      // ==========================================================
+      // Hydration
+      // ==========================================================
+
+      hydrate: (newState) => {
+        set({
+          domains: newState.domains,
+          concepts: newState.concepts,
+          relations: newState.relations,
+        });
+      },
+    }),
+    {
+      // zundo configuration: exclude ephemeral UI/layout state from undo/redo
+      partialize: (state) => ({
+        domains: state.domains,
+        concepts: state.concepts.map((c) => ({
+          ...c,
+          // Strip ephemeral fields from undo history
+          x: undefined,
+          y: undefined,
+          width: undefined,
+          height: undefined,
+          fx: undefined,
+          fy: undefined,
+        })),
+        relations: state.relations,
+      }),
+      // Equality check: only track changes to domain data
+      equality: (pastState, currentState) =>
+        JSON.stringify(pastState) === JSON.stringify(currentState),
+    },
+  ),
+);
