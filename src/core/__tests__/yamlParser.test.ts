@@ -93,14 +93,14 @@ describe('YAML Round-Trip', () => {
           aliases: ['Salgsmedarbejder'],
         }),
         makeConcept('process', 'Bestil', 'process:bestil'),
-        makeConcept('information', 'Ordre', 'information:ordre'),
+        makeConcept('entity', 'Ordre', 'entity:ordre'),
       ],
       relations: [
         makeRelation('actor:saelger', 'process:bestil', 'udfører', 'other:udfoerer', {
           multiplicity: '1..*',
           isDirected: true,
         }),
-        makeRelation('process:bestil', 'information:ordre', 'opretter', 'other:opretter'),
+        makeRelation('process:bestil', 'entity:ordre', 'opretter', 'other:opretter'),
       ],
     };
 
@@ -268,11 +268,11 @@ describe('Edge Cases', () => {
       concepts: [
         makeConcept('actor', 'Sælger', 'actor:saelger'),
         makeConcept('process', 'Bestil', 'process:bestil'),
-        makeConcept('information', 'Ordre', 'information:ordre'),
+        makeConcept('entity', 'Ordre', 'entity:ordre'),
       ],
       relations: [
         makeRelation('actor:saelger', 'process:bestil', 'udfører', 'other:udfoerer'),
-        makeRelation('actor:saelger', 'information:ordre', 'ejer', 'other:ejer'),
+        makeRelation('actor:saelger', 'entity:ordre', 'ejer', 'other:ejer'),
       ],
     };
 

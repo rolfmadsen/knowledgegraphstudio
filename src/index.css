@@ -4,43 +4,44 @@
    TypeGraph — Brutalist-lite Design System (Spec §5)
 
    Design principles:
-   - 0px border-radius everywhere (hard edges)
-   - 1px solid borders (no gradients, no soft shadows)
-   - Hard shadow: 4px 4px 0px 0px var(--color-text)
-   - IBM Plex Sans (UI), JetBrains Mono (data), Spectral (serif accents)
-   - Muted warmth: #F5F4F0 background, #EBEAE5 surface
+   - 0.5rem border-radius (soft edges)
+   - 1px subtle borders
+   - Soft, modern shadows
+   - Inter (UI), JetBrains Mono (data)
+   - Clean, light background: #F8F9FA
    ============================================================ */
 
 @theme {
-  /* --- Color Tokens (Spec §5.1) --- */
-  --color-primary: #065F46;
-  --color-primary-hover: #047857;
-  --color-primary-subtle: #ECFDF5;
-  --color-background: #F5F4F0;
-  --color-surface: #EBEAE5;
-  --color-surface-hover: #E2E1DC;
-  --color-text: #1C1917;
-  --color-muted: #78716C;
-  --color-border: #D6D3D1;
-  --color-border-strong: #A8A29E;
+  /* --- Color Tokens (Modern Premium) --- */
+  --color-primary: #0F172A;
+  --color-primary-hover: #1E293B;
+  --color-primary-subtle: #F1F5F9;
+  --color-background: #FFFFFF;
+  --color-surface: #F8FAFC;
+  --color-surface-hover: #F1F5F9;
+  --color-text: #0F172A;
+  --color-muted: #64748B;
+  --color-border: #E2E8F0;
+  --color-border-strong: #CBD5E1;
   --color-danger: #991B1B;
   --color-danger-bg: #FEF2F2;
   --color-warning: #92400E;
 
-  /* --- Radius: 0px everywhere (Spec §5.1) --- */
-  --radius-sm: 0px;
-  --radius-md: 0px;
-  --radius-lg: 0px;
-  --radius-xl: 0px;
+  /* --- Signal/Accent Colors (Legacy Green) --- */
+  --color-accent: #065F46;
+  --color-accent-hover: #047857;
+  --color-accent-subtle: #ECFDF5;
 
-  /* --- Typography (Spec §5.2) --- */
-  --font-sans: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+  /* --- Radius (Modern Premium) --- */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-full: 9999px;
+
+  /* --- Typography (Inter) --- */
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
-  --font-serif: 'Spectral', ui-serif, Georgia, serif;
-
-  /* --- Hard Shadow (Spec §5.2) --- */
-  --shadow-hard: 4px 4px 0px 0px var(--color-text);
-  --shadow-hard-sm: 2px 2px 0px 0px var(--color-text);
 }
 
 /* ============================================================
@@ -94,11 +95,12 @@ body {
   color: var(--color-text);
 }
 
-/* Zone 3 search field — Spectral 24px serif */
+/* Zone 3 search field — Clean Sans 24px */
 .command-search {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 24px;
-  font-weight: 400;
+  font-weight: 500;
+  letter-spacing: -0.02em;
 }
 
 /* ============================================================
@@ -131,17 +133,24 @@ body {
    ============================================================ */
 
 .graph-node {
-  background-color: var(--color-surface);
-  border: 1px solid var(--color-text);
+  width: 240px;
+  min-height: 80px;
+  padding: 1rem;
+  background-color: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  overflow: hidden;
   font-family: var(--font-sans);
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding: 8px 14px;
-  min-width: 120px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
   cursor: grab;
-  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
 .graph-node:hover {
@@ -149,9 +158,11 @@ body {
 }
 
 .graph-node--active {
-  background-color: var(--color-primary);
-  color: white;
-  border-color: var(--color-primary);
+  background-color: var(--color-background) !important;
+  color: var(--color-accent) !important;
+  border-color: var(--color-accent) !important;
+  border-width: 2px !important;
+  box-shadow: 0 10px 15px -3px rgb(6 95 70 / 0.1), 0 4px 6px -4px rgb(6 95 70 / 0.1) !important;
 }
 
 /* Edge multiplicity badge (Spec §5.2) */
@@ -165,11 +176,11 @@ body {
 
 /* React Flow Handle styling — square, brutalist */
 .react-flow__handle {
-  width: 10px !important;
-  height: 10px !important;
-  background: var(--color-surface) !important;
-  border: 1px solid var(--color-text) !important;
-  border-radius: 0px !important;
+  width: 8px !important;
+  height: 8px !important;
+  background: var(--color-background) !important;
+  border: 1.5px solid var(--color-border-strong) !important;
+  border-radius: var(--radius-full) !important;
 }
 
 .react-flow__handle:hover {
@@ -214,9 +225,10 @@ body {
 }
 
 .command-overlay-panel {
-  box-shadow: var(--shadow-hard);
-  border: 1px solid var(--color-text);
+  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  border: 1px solid var(--color-border);
   background-color: var(--color-background);
+  border-radius: var(--radius-xl);
 }
 
 /* ============================================================
@@ -387,8 +399,8 @@ body {
 }
 
 .status-dot--active {
-  background-color: var(--color-primary);
-  border-color: var(--color-primary);
+  background-color: var(--color-accent);
+  border-color: var(--color-accent);
 }
 
 .status-dot--proposed {
@@ -430,9 +442,9 @@ body {
 }
 
 .toolbar-btn--active {
-  background-color: var(--color-primary);
-  color: white;
-  border-color: var(--color-primary);
+  background-color: var(--color-accent) !important;
+  color: white !important;
+  border-color: var(--color-accent) !important;
 }
 
 /* ============================================================

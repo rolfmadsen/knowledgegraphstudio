@@ -7,9 +7,10 @@
  *
  * Design: hard shadow, 1px border, Spectral 24px serif search input
  */
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useGraphStore } from '../../store/useGraphStore';
 import type { ConceptType } from '../../schema/graphSchema';
+import Fuse from 'fuse.js';
 
 interface CommandOverlayProps {
   open: boolean;
@@ -27,12 +28,14 @@ interface CommandItem {
 }
 
 const CONCEPT_TYPES: Array<{ type: ConceptType; label: string }> = [
-  { type: 'actor', label: 'Actor' },
-  { type: 'process', label: 'Process' },
-  { type: 'information', label: 'Information' },
-  { type: 'bounded_context', label: 'Bounded Context' },
+  { type: 'domain', label: 'Domain' },
   { type: 'capability', label: 'Capability' },
+  { type: 'bounded_context', label: 'Context' },
+  { type: 'entity', label: 'Entity' },
+  { type: 'process', label: 'Process' },
+  { type: 'event', label: 'Event' },
   { type: 'system', label: 'System' },
+  { type: 'actor', label: 'Actor' },
   { type: 'other', label: 'Other' },
 ];
 
@@ -56,22 +59,22 @@ export function CommandOverlay({ open, initialQuery, onClose }: CommandOverlayPr
     }
   }, [open, initialQuery]);
 
-  // Build command list
-  const commands: CommandItem[] = useCallback(() => {
+  // Generate ALL possible command items
+  const allItems: CommandItem[] = useMemo(() => {
     const items: CommandItem[] = [];
-    const q = query.toLowerCase().trim();
 
     // --- Create commands ---
     for (const ct of CONCEPT_TYPES) {
       items.push({
         id: `create-${ct.type}`,
-        label: `New ${ct.label}`,
+        label: `Create ${ct.label}`,
         description: `Create a new ${ct.label.toLowerCase()} concept`,
         group: 'Create',
         action: () => {
-          const name = q.startsWith('new ')
-            ? query.slice(4).trim() || `New ${ct.label}`
-            : `New ${ct.label}`;
+          const q = query.toLowerCase().trim();
+          const name = q.startsWith('create ')
+            ? query.slice(7).trim() || `New ${ct.label}`
+            : (q || `New ${ct.label}`);
           const concept = addConcept(ct.type, name);
           selectConcept(concept.id);
           onClose();
@@ -83,8 +86,8 @@ export function CommandOverlay({ open, initialQuery, onClose }: CommandOverlayPr
     for (const c of concepts) {
       items.push({
         id: `nav-${c.id}`,
-        label: c.name,
-        description: `${c.conceptType} · ${c.id}`,
+        label: `${c.conceptType.charAt(0).toUpperCase() + c.conceptType.slice(1)}: ${c.name}`,
+        description: c.id,
         group: 'Navigate',
         action: () => {
           selectConcept(c.id);
@@ -93,7 +96,7 @@ export function CommandOverlay({ open, initialQuery, onClose }: CommandOverlayPr
       });
     }
 
-    // --- Connect command (Keyboard-first relation) ---
+    // --- Connect command ---
     const selectedConceptId = useGraphStore.getState().selectedConceptId;
     if (selectedConceptId) {
       const source = concepts.find((c) => c.id === selectedConceptId);
@@ -106,7 +109,7 @@ export function CommandOverlay({ open, initialQuery, onClose }: CommandOverlayPr
             description: `Connect "${source.name}" to "${target.name}"`,
             group: `Connect from "${source.name}"`,
             action: () => {
-              useGraphStore.getState().addRelation(selectedConceptId, target.id, '1:1');
+              useGraphStore.getState().addRelation(selectedConceptId, target.id, '');
               onClose();
             },
           });
@@ -129,32 +132,44 @@ export function CommandOverlay({ open, initialQuery, onClose }: CommandOverlayPr
       });
     }
 
-    // Filter by query
-    if (!q) return items;
+    return items;
+  }, [concepts, addConcept, selectConcept, deleteConcept, onClose, query]);
+
+  // Fuse.js instance for fuzzy search
+  const fuse = useMemo(() => new Fuse(allItems, {
+    keys: [
+      { name: 'label', weight: 0.9 },
+      { name: 'group', weight: 0.1 }
+    ],
+    threshold: 0.4,
+    location: 0,
+    distance: 200,
+    minMatchCharLength: 1,
+    includeScore: true,
+    useExtendedSearch: true, // Allows space-separated terms
+  }), [allItems]);
+
+  // Filtered command list
+  const commands = useMemo(() => {
+    const q = query.toLowerCase().trim();
+    if (!q) return allItems;
 
     // Special handling for "connect " prefix
     if (q.startsWith('connect ')) {
       const subQuery = q.slice(8).trim();
-      return items.filter((item) => {
-        if (item.group.startsWith('Connect from')) {
-          // In connect mode, filter by target name or description
-          return (
-            !subQuery ||
-            item.label.toLowerCase().includes(subQuery) ||
-            item.description.toLowerCase().includes(subQuery)
-          );
-        }
-        return false;
+      const connectItems = allItems.filter(item => item.group.startsWith('Connect from'));
+      if (!subQuery) return connectItems;
+      
+      const subFuse = new Fuse(connectItems, {
+        keys: ['label', 'description'],
+        threshold: 0.4
       });
+      return subFuse.search(subQuery).map(r => r.item);
     }
 
-    return items.filter(
-      (item) =>
-        item.label.toLowerCase().includes(q) ||
-        item.description.toLowerCase().includes(q) ||
-        item.group.toLowerCase().includes(q),
-    );
-  }, [query, concepts, addConcept, selectConcept, deleteConcept, onClose])();
+    // Regular fuzzy search
+    return fuse.search(q).map(r => r.item);
+  }, [query, allItems, fuse]);
 
   // Reset selection when commands change
   useEffect(() => {
@@ -214,7 +229,7 @@ export function CommandOverlay({ open, initialQuery, onClose }: CommandOverlayPr
       >
         {/* Search input */}
         <div className="flex items-center border-b border-border">
-          <span className="px-3 text-muted font-mono text-lg">/</span>
+          <span className="px-3 text-muted text-lg">/</span>
           <input
             ref={inputRef}
             type="text"
@@ -251,7 +266,7 @@ export function CommandOverlay({ open, initialQuery, onClose }: CommandOverlayPr
                         item.danger ? 'text-[var(--color-danger)]' : '',
                       ].join(' ')}
                     >
-                      <span className="font-mono text-sm flex-1">{item.label}</span>
+                      <span className="text-sm font-medium flex-1">{item.label}</span>
                       <span className="text-muted text-[10px] truncate max-w-[220px]">
                         {item.description}
                       </span>
@@ -264,10 +279,10 @@ export function CommandOverlay({ open, initialQuery, onClose }: CommandOverlayPr
         </div>
 
         {/* Footer */}
-        <div className="border-t border-border px-4 py-2 flex gap-4 text-[10px] text-muted font-mono">
-          <span><span className="kbd">↑↓</span> navigate</span>
-          <span><span className="kbd">⏎</span> select</span>
-          <span><span className="kbd">esc</span> close</span>
+        <div className="border-t border-border px-4 py-2 flex gap-4 text-[10px] text-muted">
+          <span><span className="kbd rounded">↑↓</span> navigate</span>
+          <span><span className="kbd rounded">⏎</span> select</span>
+          <span><span className="kbd rounded">esc</span> close</span>
         </div>
       </div>
     </div>

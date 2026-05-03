@@ -76,16 +76,51 @@ self.onmessage = (event: MessageEvent<LayoutRequest>) => {
       'link',
       forceLink<LayoutNode, LayoutLink>(links)
         .id((d) => d.id)
-        .distance(120)
-        .strength(0.5),
+        .distance((link) => {
+          const s = link.source as LayoutNode;
+          const t = link.target as LayoutNode;
+          const sW = s.width ?? 240;
+          const sH = s.height ?? 80;
+          const tW = t.width ?? 240;
+          const tH = t.height ?? 80;
+
+          const dx = (t.x ?? 0) - (s.x ?? 0);
+          const dy = (t.y ?? 0) - (s.y ?? 0);
+          
+          // Safety: If nodes are exactly at the same spot, return a default distance
+          if (dx === 0 && dy === 0) return 200;
+          
+          const dist = Math.sqrt(dx * dx + dy * dy);
+
+          // Function to get distance from center to rectangle boundary in a given direction
+          const getDistToEdge = (w: number, h: number, dx: number, dy: number) => {
+            const absDx = Math.abs(dx);
+            const absDy = Math.abs(dy);
+            
+            if (absDx * h > absDy * w) {
+              // Hits vertical sides
+              return (w / 2) * (dist / absDx);
+            } else {
+              // Hits horizontal sides
+              // Handle dy = 0 case just in case, though the 'if' above usually catches it
+              return absDy === 0 ? h / 2 : (h / 2) * (dist / absDy);
+            }
+          };
+
+          const sDist = getDistToEdge(sW, sH, dx, dy);
+          const tDist = getDistToEdge(tW, tH, -dx, -dy);
+          
+          return sDist + tDist + 120; // Exact 120px gap between boundaries
+        })
+        .strength(1.0),
     )
-    .force('charge', forceManyBody().strength(-300).distanceMax(400))
-    .force('center', forceCenter(width / 2, height / 2).strength(0.05))
+    .force('charge', forceManyBody().strength(-800).distanceMax(600))
+    .force('center', forceCenter(width / 2, height / 2).strength(0.5))
     .force(
       'collide',
       forceCollide<LayoutNode>()
-        .radius((d) => Math.max((d.width ?? 120) / 2, (d.height ?? 40) / 2) + 20)
-        .strength(0.7),
+        .radius((d) => Math.max((d.width ?? 120) / 2, (d.height ?? 40) / 2) + 5)
+        .strength(0.8),
     )
 
     // Send tick updates (throttled — every 3rd tick)

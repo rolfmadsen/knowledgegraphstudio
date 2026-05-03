@@ -25,7 +25,10 @@ export function NodeLedger() {
     concepts,
     relations,
     selectedConceptId,
+    selectedRelationId,
     updateConcept,
+    updateRelation,
+    deleteRelation,
     selectConcept,
     addProperty,
     updateProperty,
@@ -35,7 +38,10 @@ export function NodeLedger() {
       concepts: s.concepts,
       relations: s.relations,
       selectedConceptId: s.selectedConceptId,
+      selectedRelationId: s.selectedRelationId,
       updateConcept: s.updateConcept,
+      updateRelation: s.updateRelation,
+      deleteRelation: s.deleteRelation,
       selectConcept: s.selectConcept,
       addProperty: s.addProperty,
       updateProperty: s.updateProperty,
@@ -44,22 +50,115 @@ export function NodeLedger() {
   );
 
   const selectedConcept = concepts.find((c) => c.id === selectedConceptId);
+  const selectedRelation = relations.find((r) => r.id === selectedRelationId);
 
+  // --- Hooks must be at the top level ---
   const handleAddProperty = useCallback(() => {
-    if (!selectedConceptId) return;
-    addProperty(selectedConceptId, 'new_property', 'string');
-  }, [selectedConceptId, addProperty]);
+    if (!selectedConcept) return;
+    addProperty(selectedConcept.id, 'new_property', 'string');
+  }, [selectedConcept?.id, addProperty]);
 
-  if (!selectedConcept) {
+  // --- Auto-focus name field on selection ---
+  const nameInputRef = useCallback((node: HTMLInputElement | null) => {
+    if (node) {
+      // Focus and select text so user can immediately type
+      node.focus();
+      node.select();
+    }
+  }, [selectedConceptId, selectedRelationId]); // Trigger when selection changes
+
+  if (!selectedConcept && !selectedRelation) {
     return (
       <div className="empty-state p-8 h-full flex items-center justify-center text-center">
-        Select a concept to view properties.
+        Select a concept or relation to view properties.
       </div>
     );
   }
 
+  // --- Relation View ---
+  if (selectedRelation) {
+    const sourceNode = concepts.find(c => c.id === selectedRelation.sourceConceptId);
+    const targetNode = concepts.find(c => c.id === selectedRelation.targetConceptId);
+    
+    return (
+      <div className="flex-1 overflow-y-auto p-3 space-y-6 pb-20">
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-xs font-bold uppercase tracking-wider">Relation</h2>
+          <button 
+            onClick={() => deleteRelation(selectedRelation.id)}
+            className="text-[10px] text-red-600 hover:underline uppercase font-bold"
+          >
+            Delete
+          </button>
+        </div>
+
+        <div className="prop-section">
+          <label className="field-label">Label / Name</label>
+          <input
+            ref={nameInputRef}
+            type="text"
+            value={selectedRelation.name}
+            onChange={(e) => updateRelation(selectedRelation.id, { name: e.target.value })}
+            className="field-input"
+          />
+        </div>
+
+        <div className="prop-section">
+          <label className="field-label">Multiplicity</label>
+          <input
+            type="text"
+            value={selectedRelation.multiplicity || ''}
+            onChange={(e) => updateRelation(selectedRelation.id, { multiplicity: e.target.value })}
+            placeholder="e.g. 1..*, 0..1"
+            className="field-input"
+          />
+        </div>
+
+        <div className="prop-section">
+          <label className="field-label">Direction</label>
+          <div className="flex items-center justify-between">
+            <div className="text-[10px] font-mono text-muted flex items-center gap-2">
+              <span className="truncate max-w-[80px]" title={sourceNode?.name}>{sourceNode?.name || 'Unknown'}</span>
+              <span>→</span>
+              <span className="truncate max-w-[80px]" title={targetNode?.name}>{targetNode?.name || 'Unknown'}</span>
+            </div>
+            <button 
+              onClick={() => updateRelation(selectedRelation.id, { 
+                sourceConceptId: selectedRelation.targetConceptId,
+                targetConceptId: selectedRelation.sourceConceptId 
+              })}
+              className="text-[9px] font-mono border border-border px-1.5 py-0.5 rounded hover:bg-surface uppercase font-bold"
+            >
+              Swap
+            </button>
+          </div>
+        </div>
+
+        <div className="prop-section">
+          <label className="field-label flex items-center gap-2">
+            <input 
+              type="checkbox" 
+              checked={selectedRelation.isDirected ?? true}
+              onChange={(e) => updateRelation(selectedRelation.id, { isDirected: e.target.checked })}
+            />
+            Directed Relation
+          </label>
+        </div>
+
+        <div className="prop-section">
+          <label className="field-label font-bold mb-4 uppercase">Policies & Rules</label>
+          <PolicyEditor concept={selectedRelation as any} />
+        </div>
+      </div>
+    );
+  }
+
+
+  // --- Concept View (original) ---
+  if (!selectedConcept) return null;
+
   const rels = relations.filter(
-    (r) => r.sourceConceptId === selectedConcept.id || r.targetConceptId === selectedConcept.id
+    (r) => r.sourceConceptId === selectedConcept!.id || r.targetConceptId === selectedConcept!.id
   );
 
   return (
@@ -69,6 +168,7 @@ export function NodeLedger() {
         <div className="prop-section">
           <label className="field-label">Name</label>
           <input
+            ref={nameInputRef}
             type="text"
             value={selectedConcept.name}
             onChange={(e) => updateConcept(selectedConcept.id, { name: e.target.value })}
@@ -84,12 +184,14 @@ export function NodeLedger() {
             onChange={(e) => updateConcept(selectedConcept.id, { conceptType: e.target.value as ConceptType })}
             className="field-select"
           >
-            <option value="actor">Actor</option>
-            <option value="process">Process</option>
-            <option value="information">Information</option>
-            <option value="bounded_context">Bounded Context</option>
+            <option value="domain">Domain</option>
             <option value="capability">Capability</option>
+            <option value="bounded_context">Context</option>
+            <option value="entity">Entity</option>
+            <option value="process">Process</option>
+            <option value="event">Event</option>
             <option value="system">System</option>
+            <option value="actor">Actor</option>
             <option value="other">Other</option>
           </select>
         </div>
@@ -146,7 +248,7 @@ export function NodeLedger() {
           ) : (
             <div className="space-y-2">
               {selectedConcept.properties.map((p) => (
-                <div key={p.id} className="flex flex-col gap-1 p-2 bg-surface border border-border">
+                <div key={p.id} className="flex flex-col gap-1 p-2 bg-surface border border-border rounded-md">
                   <div className="flex items-center justify-between gap-2">
                     <input 
                       className="bg-transparent border-none text-[11px] font-bold outline-none flex-1"

@@ -40,7 +40,7 @@ describe('ElementId', () => {
   it('accepts valid semantic slugs', () => {
     expect(ElementId.parse('actor:saelger')).toBe('actor:saelger');
     expect(ElementId.parse('process:godkend-ordre')).toBe('process:godkend-ordre');
-    expect(ElementId.parse('information:faktura-data')).toBe('information:faktura-data');
+    expect(ElementId.parse('entity:faktura-data')).toBe('entity:faktura-data');
     expect(ElementId.parse('actor:saelger-2')).toBe('actor:saelger-2');
   });
 
@@ -164,7 +164,7 @@ describe('ConceptProperty', () => {
     const prop = {
       ...baseEntity('other:afdeling-ref'),
       name: 'Afdeling',
-      type: 'information:afdeling', // reference to another concept
+      type: 'entity:afdeling', // reference to another concept
     };
     expect(ConceptProperty.parse(prop)).toEqual(prop);
   });

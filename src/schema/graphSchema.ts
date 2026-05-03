@@ -19,12 +19,14 @@ export const LifecycleState = z.enum([
 export type LifecycleState = z.infer<typeof LifecycleState>;
 
 export const ConceptType = z.enum([
+  'domain',
   'capability',
   'bounded_context',
-  'actor',
+  'entity',
   'process',
-  'information',
+  'event',
   'system',
+  'actor',
   'other',
 ]);
 export type ConceptType = z.infer<typeof ConceptType>;

@@ -16,7 +16,7 @@ import type {
   DataClassification,
   ElementId,
 } from '../schema/graphSchema';
-import { generateId, regenerateId } from '../core/idGenerator';
+import { generateId } from '../core/idGenerator';
 
 // ============================================================
 // Store State
@@ -30,6 +30,7 @@ export interface GraphStoreState {
 
   // --- UI State (excluded from undo/redo) ---
   selectedConceptId: ElementId | null;
+  selectedRelationId: ElementId | null;
   rawYaml: string | null; // For conflict mode
 
   // --- Domain Actions ---
@@ -70,8 +71,9 @@ export interface GraphStoreState {
     isDirected?: boolean;
   }) => ConceptRelation;
   updateRelation: (id: ElementId, updates: Partial<Pick<
-    ConceptRelation, 'name' | 'multiplicity' | 'mappingPattern' | 'transformationDescription' | 'isDirected'
+    ConceptRelation, 'name' | 'multiplicity' | 'mappingPattern' | 'transformationDescription' | 'isDirected' | 'sourceConceptId' | 'targetConceptId'
   >>) => void;
+  selectRelation: (id: ElementId | null) => void;
   deleteRelation: (id: ElementId) => void;
 
   // --- Ephemeral Layout Actions (excluded from undo) ---
@@ -91,14 +93,6 @@ export interface GraphStoreState {
 
 const now = () => Date.now();
 
-function getAllIds(state: Pick<GraphStoreState, 'domains' | 'concepts' | 'relations'>): Set<string> {
-  const ids = new Set<string>();
-  for (const d of state.domains) ids.add(d.id);
-  for (const c of state.concepts) ids.add(c.id);
-  for (const r of state.relations) ids.add(r.id);
-  return ids;
-}
-
 // ============================================================
 // Store
 // ============================================================
@@ -111,6 +105,7 @@ export const useGraphStore = create<GraphStoreState>()(
       concepts: [],
       relations: [],
       selectedConceptId: null,
+      selectedRelationId: null,
       rawYaml: null,
 
       // ==========================================================
@@ -118,8 +113,7 @@ export const useGraphStore = create<GraphStoreState>()(
       // ==========================================================
 
       addDomain: (name, description) => {
-        const state = get();
-        const id = generateId('bounded_context', name, getAllIds(state));
+        const id = generateId('bounded_context', name);
         const domain: Domain = {
           id,
           createdAt: now(),
@@ -128,7 +122,7 @@ export const useGraphStore = create<GraphStoreState>()(
           name,
           description,
         };
-        set({ domains: [...state.domains, domain] });
+        set((state) => ({ domains: [...state.domains, domain] }));
         return domain;
       },
 
@@ -155,8 +149,8 @@ export const useGraphStore = create<GraphStoreState>()(
       // ==========================================================
 
       addConcept: (conceptType, name, options = {}) => {
+        const id = generateId(conceptType, name);
         const state = get();
-        const id = generateId(conceptType, name, getAllIds(state));
         const concept: ConceptNode = {
           id,
           createdAt: now(),
@@ -166,56 +160,26 @@ export const useGraphStore = create<GraphStoreState>()(
           name,
           aliases: options.aliases ?? [],
           definition: options.definition,
-          domainId: options.domainId,
+          domainId: options.domainId || state.domains[0]?.id,
           parentId: options.parentId,
           classification: options.classification,
           properties: [],
           policies: [],
+          x: 0,
+          y: 0,
+          fx: null,
+          fy: null,
         };
-        set({ concepts: [...state.concepts, concept] });
+        set((state) => ({ concepts: [...state.concepts, concept] }));
         return concept;
       },
 
       updateConcept: (id, updates) => {
-        const state = get();
-        const concept = state.concepts.find((c) => c.id === id);
-        if (!concept) return;
-
-        // Cascade Rename: if name changes, regenerate the slug
-        if (updates.name && updates.name !== concept.name) {
-          const allIds = getAllIds(state);
-          const newId = regenerateId(id, updates.name, allIds);
-
-          set({
-            concepts: state.concepts.map((c) =>
-              c.id === id
-                ? { ...c, ...updates, id: newId, updatedAt: now() }
-                : c,
-            ),
-            // Update all relation references
-            relations: state.relations.map((r) => {
-              let updated = false;
-              const newR = { ...r };
-              if (r.sourceConceptId === id) {
-                newR.sourceConceptId = newId;
-                updated = true;
-              }
-              if (r.targetConceptId === id) {
-                newR.targetConceptId = newId;
-                updated = true;
-              }
-              return updated ? { ...newR, updatedAt: now() } : r;
-            }),
-            selectedConceptId:
-              state.selectedConceptId === id ? newId : state.selectedConceptId,
-          });
-        } else {
-          set({
-            concepts: state.concepts.map((c) =>
-              c.id === id ? { ...c, ...updates, updatedAt: now() } : c,
-            ),
-          });
-        }
+        set((state) => ({
+          concepts: state.concepts.map((c) =>
+            c.id === id ? { ...c, ...updates, updatedAt: now() } : c,
+          ),
+        }));
       },
 
       deleteConcept: (id) => {
@@ -231,7 +195,7 @@ export const useGraphStore = create<GraphStoreState>()(
       },
 
       selectConcept: (id) => {
-        set({ selectedConceptId: id });
+        set({ selectedConceptId: id, selectedRelationId: null });
       },
 
       // ==========================================================
@@ -240,8 +204,7 @@ export const useGraphStore = create<GraphStoreState>()(
 
       addProperty: (conceptId, name, type, isRequired) => {
         const state = get();
-        const allIds = getAllIds(state);
-        const propId = generateId('other', name, allIds);
+        const propId = generateId('other', name);
         const property: ConceptProperty = {
           id: propId,
           createdAt: now(),
@@ -296,8 +259,7 @@ export const useGraphStore = create<GraphStoreState>()(
 
       addPolicy: (conceptId, policyData) => {
         const state = get();
-        const allIds = getAllIds(state);
-        const policyId = generateId('other', policyData.name, allIds);
+        const policyId = generateId('other', policyData.name);
         const policy: Policy = {
           ...policyData,
           id: policyId,
@@ -350,8 +312,28 @@ export const useGraphStore = create<GraphStoreState>()(
 
       addRelation: (sourceId, targetId, name, options = {}) => {
         const state = get();
-        const allIds = getAllIds(state);
-        const id = generateId('other', name, allIds);
+        const source = state.concepts.find(c => c.id === sourceId);
+        const target = state.concepts.find(c => c.id === targetId);
+        
+        // Generate a smart default name if none provided
+        let finalName = name;
+        if (!finalName) {
+          const sType = source?.conceptType;
+          const tType = target?.conceptType;
+          
+          if (sType === 'actor' && tType === 'process') finalName = 'performs';
+          else if (sType === 'process' && tType === 'event') finalName = 'emits';
+          else if (sType === 'event' && tType === 'process') finalName = 'triggers';
+          else if (sType === 'process' && tType === 'entity') finalName = 'updates';
+          else if (sType === 'actor' && tType === 'system') finalName = 'uses';
+          else if (sType === 'system' && tType === 'system') finalName = 'integrates';
+          else if (sType === 'capability' && tType === 'bounded_context') finalName = 'supported by';
+          else if (sType === 'bounded_context' && tType === 'bounded_context') finalName = 'depends on';
+          else if (sType === 'entity' && tType === 'capability') finalName = 'enables';
+          else finalName = 'relates to';
+        }
+
+        const id = generateId('other', finalName);
         const relation: ConceptRelation = {
           id,
           createdAt: now(),
@@ -359,14 +341,14 @@ export const useGraphStore = create<GraphStoreState>()(
           lifecycleState: 'active',
           sourceConceptId: sourceId,
           targetConceptId: targetId,
-          name,
+          name: finalName,
           multiplicity: options.multiplicity,
           mappingPattern: options.mappingPattern,
           transformationDescription: options.transformationDescription,
-          isDirected: options.isDirected,
+          isDirected: options.isDirected ?? true,
           policies: [],
         };
-        set({ relations: [...state.relations, relation] });
+        set((state) => ({ relations: [...state.relations, relation] }));
         return relation;
       },
 
@@ -378,9 +360,14 @@ export const useGraphStore = create<GraphStoreState>()(
         }));
       },
 
+      selectRelation: (id) => {
+        set({ selectedRelationId: id, selectedConceptId: null });
+      },
+
       deleteRelation: (id) => {
         set((state) => ({
           relations: state.relations.filter((r) => r.id !== id),
+          selectedRelationId: state.selectedRelationId === id ? null : state.selectedRelationId,
         }));
       },
 

@@ -88,9 +88,33 @@ export function stateToYaml(state: {
     return yamlConcept;
   });
 
+  // Derivied domains: include all concept nodes of type 'domain' 
+  // to ensure they appear in the top-level domains list
+  const derivedDomains: Domain[] = state.concepts
+    .filter(c => c.conceptType === 'domain')
+    .map(c => ({
+      id: c.id,
+      name: c.name,
+      description: c.definition,
+      createdAt: c.createdAt,
+      updatedAt: c.updatedAt,
+      lifecycleState: c.lifecycleState,
+    }));
+
+  // Combine with explicit domains, avoiding duplicates by ID
+  const allDomainIds = new Set(state.domains.map(d => d.id));
+  const finalDomains = [...state.domains];
+  
+  for (const d of derivedDomains) {
+    if (!allDomainIds.has(d.id)) {
+      finalDomains.push(d);
+      allDomainIds.add(d.id);
+    }
+  }
+
   const yamlGraph: YamlGraph = {
     version: '1.0',
-    domains: state.domains,
+    domains: finalDomains,
     concepts: yamlConcepts,
   };
 
@@ -162,9 +186,15 @@ export function yamlToState(yamlString: string): {
     // Extract and remove the nested relations
     const { relations: nestedRelations, ...conceptData } = yamlConcept;
 
+    // --- Migration Layer (Legacy → DDD) ---
+    // If we find old types, migrate them to the new schema
+    let conceptType = conceptData.conceptType as string;
+    if (conceptType === 'information') conceptType = 'entity';
+
     // Ensure required array fields exist
     const concept: ConceptNode = {
       ...conceptData,
+      conceptType: conceptType as any,
       properties: conceptData.properties ?? [],
       policies: conceptData.policies ?? [],
     };

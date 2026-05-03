@@ -12,7 +12,6 @@ import { ReactFlowProvider } from '@xyflow/react';
 import { Panel, Group, Separator } from 'react-resizable-panels';
 import { useGraphStore } from './store/useGraphStore';
 import { useShallow } from 'zustand/react/shallow';
-import { useConceptCount } from './store/selectors';
 import { useKeyboard } from './hooks/useKeyboard';
 import { ViewportContainer, type ViewMode } from './features/viewport/ViewportContainer';
 import { GraphViewport } from './features/viewport/graph/GraphViewport';
@@ -34,6 +33,7 @@ function App() {
   const [isConflict, setIsConflict] = useState(false);
   const [booted, setBooted] = useState(false);
   const [bootError, setBootError] = useState<string | null>(null);
+  const [indexWidth, setIndexWidth] = useState(300);
 
   // --- Store ---
   const {
@@ -52,8 +52,6 @@ function App() {
   );
 
   const selectedConceptId = useGraphStore((s) => s.selectedConceptId);
-
-  const conceptCount = useConceptCount();
 
   // --- Refs for zone focus ---
   const zone1Ref = useRef<HTMLElement>(null);
@@ -77,7 +75,7 @@ function App() {
   // --- Autosave to YAML ---
   useEffect(() => {
     if (!booted || isConflict) return;
-    
+
     const timer = setTimeout(() => {
       persistState().catch(console.error);
     }, 1000); // Debounce save to YAML
@@ -180,75 +178,78 @@ function App() {
   }
 
   // --- Lifecycle state helper ---
-  const stateClass = (state: string) => `status-dot status-dot--${state}`;
+  const stateClass = (state: string) => `status-dot rounded-full status-dot--${state}`;
 
   return (
     <div className="w-full h-screen bg-background text-text overflow-hidden font-sans flex flex-col">
-      <Group orientation="horizontal" style={{ width: '100%', height: '100%' }}>
+      <Group key="main-layout-v3" orientation="horizontal" style={{ width: '100%', height: '100%' }}>
         {/* ============================================================
             Zone 1: Index View (Left Panel)
             ============================================================ */}
+        {/* --- Custom Pixel Resizable Sidebar --- */}
         {indexOpen && (
-          <>
-            <Panel defaultSize="20%" minSize="2%" maxSize="40%">
-              <aside
-                id="zone-index"
-                ref={zone1Ref}
-                tabIndex={0}
-                className="h-full flex flex-col focus:outline-none"
-                onKeyDown={handleZone1KeyDown}
-              >
-                {/* Header */}
-                <header className="zone-header px-4 py-3 border-b border-border flex items-center justify-between">
-                  <span>Concepts</span>
-                  <span className="font-mono text-xs font-normal normal-case text-muted">{conceptCount}</span>
-                </header>
+          <div 
+            style={{ width: `${indexWidth}px`, minWidth: '100px', flexShrink: 0, position: 'relative' }}
+            className="h-full bg-surface border-r border-border flex flex-col"
+          >
+            <aside
+              id="zone-index"
+              ref={zone1Ref}
+              tabIndex={0}
+              className="h-full flex flex-col focus:outline-none"
+              onKeyDown={handleZone1KeyDown}
+            >
+              <header className="px-4 py-3 border-b border-border flex items-center justify-between">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-muted">Concepts</span>
+                <span className="font-mono text-[10px] text-muted">{concepts.length}</span>
+              </header>
 
-                {/* Concept list */}
-                <div className="flex-1 overflow-y-auto scrollbar-thin">
-                  {concepts.length === 0 ? (
-                    <div className="p-8 text-center text-muted text-xs font-mono">
-                      No concepts yet.
-                      <br />
-                      <br />
-                      Press <span className="kbd">/</span> to create.
-                    </div>
-                  ) : (
-                    <ul role="listbox" className="py-1">
-                      {concepts.map((concept, idx) => (
-                        <li
-                          key={concept.id}
-                          role="option"
-                          aria-selected={concept.id === selectedConceptId}
-                          className={[
-                            'index-row',
-                            idx === focusedIndex ? 'index-row--focused' : '',
-                            concept.id === selectedConceptId ? 'index-row--selected' : '',
-                          ].join(' ')}
-                          onClick={() => {
-                            selectConcept(concept.id);
-                            setFocusedIndex(idx);
-                          }}
-                        >
-                          <span className={stateClass(concept.lifecycleState)} />
-                          <span className="index-row__type">
-                            {concept.conceptType.replace('_', ' ').slice(0, 7)}
-                          </span>
-                          <span className="index-row__name">{concept.name}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
+              <div className="flex-1 overflow-y-auto scrollbar-thin p-1">
+                {concepts.map((concept) => (
+                  <div
+                    key={concept.id}
+                    className={`index-row ${concept.id === selectedConceptId ? 'index-row--selected' : ''}`}
+                    onClick={() => selectConcept(concept.id)}
+                    style={{ cursor: 'pointer', padding: '8px', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}
+                  >
+                    <span className={stateClass(concept.lifecycleState)} />
+                    <span className="text-[10px] opacity-50 uppercase font-mono w-16">
+                      {concept.conceptType.slice(0, 6)}
+                    </span>
+                    <span className="text-sm truncate font-medium">{concept.name}</span>
+                  </div>
+                ))}
+              </div>
 
-                {/* Footer with stats */}
-                <div className="border-t border-border px-4 py-2 flex items-center justify-between text-[10px] text-muted">
-                  <span className="font-mono">{concepts.length} concepts · {relations.length} relations</span>
-                </div>
-              </aside>
-            </Panel>
-            <Separator className="w-1 bg-border hover:bg-primary transition-colors cursor-col-resize" />
-          </>
+              <div className="border-t border-border px-4 py-2 text-[10px] text-muted font-mono">
+                {concepts.length} concepts
+              </div>
+            </aside>
+
+            {/* Manual Resize Handle */}
+            <div
+              className="absolute right-0 top-0 w-1 h-full cursor-col-resize hover:bg-primary transition-colors z-50"
+              onMouseDown={(e) => {
+                const startX = e.clientX;
+                const startWidth = indexWidth;
+                
+                const onMouseMove = (moveEvent: MouseEvent) => {
+                  const newWidth = Math.max(150, Math.min(600, startWidth + (moveEvent.clientX - startX)));
+                  setIndexWidth(newWidth);
+                };
+                
+                const onMouseUp = () => {
+                  document.removeEventListener('mousemove', onMouseMove);
+                  document.removeEventListener('mouseup', onMouseUp);
+                  document.body.style.cursor = 'default';
+                };
+                
+                document.addEventListener('mousemove', onMouseMove);
+                document.addEventListener('mouseup', onMouseUp);
+                document.body.style.cursor = 'col-resize';
+              }}
+            />
+          </div>
         )}
 
         {/* ============================================================
@@ -324,7 +325,7 @@ function App() {
         {ledgerOpen && (
           <>
             <Separator className="w-1 bg-border hover:bg-primary transition-colors cursor-col-resize" />
-            <Panel defaultSize={140} minSize="2%" maxSize="40%">
+            <Panel defaultSize={170} minSize="2%" maxSize="40%">
               <aside
                 id="zone-ledger"
                 ref={zone4Ref}

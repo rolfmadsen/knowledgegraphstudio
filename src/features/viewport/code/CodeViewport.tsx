@@ -79,7 +79,7 @@ export function CodeViewport({ isConflict = false }: CodeViewportProps) {
       {isConflict && localYaml && (
         <button
           onClick={handleFix}
-          className="absolute bottom-6 right-6 toolbar-btn toolbar-btn--active shadow-hard px-4 py-2 text-xs"
+          className="absolute bottom-6 right-6 toolbar-btn toolbar-btn--active shadow-lg rounded-md px-4 py-2 text-xs"
         >
           SAVE & REBOOT
         </button>

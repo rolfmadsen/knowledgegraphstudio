@@ -12,7 +12,7 @@ Enterprise Architecture & Forretningsbegreber
 
 * Workspace / Repository: Den overordnede container (fil/mappe), der indeholder hele grafen for et projekt. Oprettes automatisk et "Default Workspace" ved første start.
 
-* Concept (Begreb): Hovedbyggeklodsen i systemet. Kategoriseres altid via en ConceptType (fx Actor, Process, Information).
+* Concept (Begreb): Hovedbyggeklodsen i systemet. Kategoriseres altid via en ConceptType (fx Actor, Process, Entity, Event).
 
 * Property (Egenskab): Et semantisk dataelement, der tilhører et Concept (f.eks. "Fødselsdato").
 
@@ -20,7 +20,7 @@ Enterprise Architecture & Forretningsbegreber
 
 * Context Mapping: Beskrivelsen af, hvordan to Bounded Contexts integrerer (fx Anti-Corruption Layer).
 
-* Data Classification: Sikkerheds- og fortrolighedsniveauet for et Information Object (Niveau 0-3 i henhold til offentlige standarder).
+* Data Classification: Sikkerheds- og fortrolighedsniveauet for en Entity (Niveau 0-3 i henhold til offentlige standarder).
 
 * Policy (Forretningsregel): En adfærdskontrakt eller begrænsning knyttet til et Concept eller en Relation (Gherkin eller fritekst).
 
@@ -58,7 +58,7 @@ Enterprise Architecture & Forretningsbegreber
 
 * Layout Engine: d3-force (kørt i Web Worker med streng Alpha Decay for at undgå CPU-dræn).
 
-* Søgning: fuse.js.
+* Søgning & Fuzzy Match: fuse.js (Threshold: 0.35 for balance mellem præcision og fejl-tolerance).
 
 * Validering: Zod.
 
@@ -99,7 +99,7 @@ interface ConceptProperty extends BaseEntity {
   isRequired?: boolean;
 }
 
-type ConceptType = 'capability' | 'bounded_context' | 'actor' | 'process' | 'information' | 'system' | 'other';
+type ConceptType = 'bounded_context' | 'entity' | 'process' | 'event' | 'system' | 'actor' | 'other';
 type DataClassification = 'niveau_0_offentlig' | 'niveau_1_intern' | 'niveau_2_fortrolig' | 'niveau_3_foelsom';
 type ContextMappingPattern = 'anti-corruption-layer' | 'open-host-service' | 'published-language' | 'conformist' | 'customer-supplier' | 'shared-kernel' | 'none';
 
@@ -114,8 +114,8 @@ interface ConceptNode extends BaseEntity {
   properties: ConceptProperty[];
   policies: Policy[]; 
   
-  // Ephemeral state (udelades fra Git/YAML eksport og Undo/Redo)
-  width?: number; height?: number; x?: number; y?: number; fx?: number | null; fy?: number | null;
+  // Layout state (Initialiseres til 0, null for stabilitet. Udelades fra Git/YAML eksport)
+  x: number; y: number; fx: number | null; fy: number | null;
 }
 
 interface ConceptRelation extends BaseEntity {
@@ -169,7 +169,9 @@ interface ConceptRelation extends BaseEntity {
 * Zone 2 (Canvas): 
     * Noder er #EBEAE5 cirkler/kasser med 1px sort kant. Nodetypen skrives i noden (IBM Plex Sans 10px uppercase). Aktiv node fyldes med #065F46.
 
-* Edges & Multiplicitet: Lige 1px #78716C linjer. Har relationen en defineret multiplicity (fx "1..*"), renderes denne som en lille solid #EBEAE5 badge midt på stregen med IBM Plex Sans 10px tekst.
+* Edges & Multiplicitet: Lige 1px #78716C linjer med pilehoveder for directed relations. Relationens navn (fx "triggers") renderes som en centreret label. Multiplicitet (fx "1..*") renderes i parentes efter navnet.
+
+    *   Labels: IBM Plex Sans 10px bold, hvid baggrund med 80% opacity for læsbarhed over linjer.
 
     * Bemærk: Visuelle "diffs" (ændringer) renderes ikke på lærredet i V1. Diffs håndteres eksklusivt af Monaco Diff Editor i Code View.
 
@@ -183,7 +185,7 @@ For at sikre en ægte "keyboard-first" oplevelse, er genvejene kontekstafhængig
 
 | Genvej | Handling |
 | :--- | :--- |
-| `/` eller `Cmd/Ctrl+K` | Åbn Command Archive (Zone 3 - Global søgning) |
+| `/` eller `Cmd/Ctrl+K` | Åbn Command Archive (Fuzzy search efter noder og kommandoer) |
 | `Alt+N` | Opret nyt Concept |
 | `Ctrl+Z` / `Ctrl+Shift+Z` | Undo / Redo (Zundo state for domænedata) |
 | `Alt+B` | Toggle Node Ledger (Zone 4) |
@@ -209,6 +211,7 @@ For at sikre en ægte "keyboard-first" oplevelse, er genvejene kontekstafhængig
 2. TestD3 CPU-beskyttelse: Web Workeren skal implementere Alpha Decay. Simuleringen stoppes automatisk efter 2-3 sekunder for at forhindre browser/batteri-nedbrud.
 3. TDD på Parser: Test YAML $\rightarrow$ Zustand og Zustand $\rightarrow$ YAML logikken (inkl. Cascade Rename og Orphan Cleanup) i Vitest før UI bygges.
 4. Zod som SSOT: Data valideres via Zod schemas før opdatering af Zustand state.
+5. Stability & Idempotency Tests: Positions-opdateringer skal være idempotente. Test at gentagne opdateringer til samme koordinat (inden for 0.1px threshold) ikke trigger nye state-objekter i Zustand for at undgå UI-jitter.
  
 
 ## 8. Implementerings-faser (AI Validation Gates)
@@ -273,3 +276,17 @@ For at understøtte professionelt samarbejde skal systemet kunne synkronisere me
 ### 10.3 UI Indikatorer
 *   **Sync Status**: En diskret indikator i statusbaren (fx "Synced", "Changes Pending", "Syncing...").
 *   **Auth Status**: Visuel feedback hvis GitHub token er udløbet eller mangler.
+## 11. Smart Semantic Labeling System
+
+For at accelerere modelleringen implementerer systemet automatisk forslag til relation-navne baseret på ConceptTypes:
+
+*   **Actor → Process**: "performs"
+*   **Process → Event**: "emits"
+*   **Event → Process**: "triggers"
+*   **Process → Entity**: "updates"
+*   **Actor → System**: "uses"
+*   **Capability → Bounded Context**: "supported by"
+*   **Bounded Context → Bounded Context**: "depends on"
+*   **Entity → Capability**: "enables"
+
+Disse defaults kan altid overskrives manuelt i Node Ledger.

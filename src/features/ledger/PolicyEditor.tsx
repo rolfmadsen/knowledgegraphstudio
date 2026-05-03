@@ -6,10 +6,10 @@
  */
 import { useState } from 'react';
 import { useGraphStore } from '../../store/useGraphStore';
-import type { ConceptNode } from '../../schema/graphSchema';
+import type { ConceptNode, ConceptRelation } from '../../schema/graphSchema';
 
 interface PolicyEditorProps {
-  concept: ConceptNode;
+  concept: ConceptNode | ConceptRelation;
 }
 
 export function PolicyEditor({ concept }: PolicyEditorProps) {
