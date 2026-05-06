@@ -34,7 +34,7 @@ Enterprise Architecture & Forretningsbegreber
 
 * Zone 3 (Command Archive): Modal/Overlay. Den kontekstuelle kommandoprompt til lynhurtig oprettelse af relationer og global søgning.
 
-* Zone 4 (Node Ledger): Højre panel. Detalje- og egenskabspanelet (metadata, Gherkin-editor).
+* Zone 4 (Node Properties): Højre panel. Detalje- og egenskabspanelet (metadata, Gherkin-editor).
 
 * Focus Mode: Reducerer støj ved kun at rendere det valgte Concept og dets naboer inden for en defineret rækkevidde (focusDepth).
 
@@ -132,7 +132,7 @@ interface ConceptRelation extends BaseEntity {
 
 ## 4. Arkitektur & State Flow (SSOT & Git)
 
-* Zustand som UI Source of Truth: Brugeren interagerer kun med UI'et (Canvas, Command Archive, Node Ledger). Monaco-editoren er 100% read-only.
+* Zustand som UI Source of Truth: Brugeren interagerer kun med UI'et (Canvas, Command Archive, Node Properties). Monaco-editoren er 100% read-only.
 
 * Export Sync (Zustand $\rightarrow$ YAML): For hver ændring i Zustand oversættes den flade state til en hierarkisk YAML-struktur og skrives til VFS (lightning-fs). Relationer indlejres under deres ConceptNode for maksimal læsbarhed.
 
@@ -143,10 +143,13 @@ interface ConceptRelation extends BaseEntity {
     * Historik-rydning: Ved ethvert succesfuldt pull eller checkout skal zundo undo-historikken ryddes fuldstændigt, så brugeren ikke kan "undo" sig til en state, der konflikter med den underliggende Git-historik.
 
 * Cascade Rename & Orphan Cleanup:
-
+    * Logikken for disse operationer ligger i `src/services/GraphService.ts`.
     * Ændres navnet på en node, genberegnes dens slug. Zustand opdaterer automatisk denne slug på alle relationer.
-
     * Slettes en node, slettes alle tilknyttede relationer automatisk.
+
+* API-First & Service Layer:
+    * Al data-mutation (oprettelse, sletning, opdatering) og I/O (filsystem, Git) skal foregå via asynkrone services i `src/services/`.
+    * UI-komponenter må aldrig kalde infrastruktur-moduler (`core/*`) direkte.
 
 ## 5. UI/UX Design System & Skærm-specifikationer
 
@@ -188,7 +191,7 @@ For at sikre en ægte "keyboard-first" oplevelse, er genvejene kontekstafhængig
 | `/` eller `Cmd/Ctrl+K` | Åbn Command Archive (Fuzzy search efter noder og kommandoer) |
 | `Alt+N` | Opret nyt Concept |
 | `Ctrl+Z` / `Ctrl+Shift+Z` | Undo / Redo (Zundo state for domænedata) |
-| `Alt+B` | Toggle Node Ledger (Zone 4) |
+| `Alt+B` | Toggle Node Properties (Zone 4) |
 | `Alt+1` / `Alt+2` | Skift fokus mellem Zone 1 (Index View) og Zone 2 (Canvas) |
 | `Alt+3` | Toggle Zone 2 visning (Graf -> Read-only YAML -> Split) |
 | `Alt+D` | Toggle Code Diff Mode i Zone 2 (YAML ændringer mod Git HEAD) |
@@ -198,7 +201,7 @@ For at sikre en ægte "keyboard-first" oplevelse, er genvejene kontekstafhængig
 | Genvej | Handling |
 | :--- | :---
 | ArrowUp/Down | Skift fokus mellem elementer i Zone 1 eller Zone 3|
-| Enter| Åbn/udvid valgt element og ryk fokus til Node Ledger (Zone 4)|
+| Enter| Åbn/udvid valgt element og ryk fokus til Node Properties (Zone 4)|
 | Esc | Universal Escape: Lukker overlays, fjerner listefokus, OG frigiver fokus hvis Monaco Editor har fanget tastaturet.|
 | Delete / Backspace | Slet valgt element (kræver bekræftelse via endnu et Enter)|
 | L | Initier ny relation fra aktivt element (Åbner Zone 3). Bemærk: Oprettes relationen til et skjult element, mens Focus Mode er aktiv, udvides viewet automatisk til at vise den nye node.|
@@ -219,7 +222,7 @@ For at sikre en ægte "keyboard-first" oplevelse, er genvejene kontekstafhængig
 * Fase 1: State, Hydration & Git: Zod schemas, Zustand store, YAML stringifier/parser (Two-Way Sync ved init/pull). Opsætning af lightning-fs, isomorphic-git og automatisk oprettelse af "Default Workspace". Gate: Vitest.
 * Fase 2: Graph & Read-Only Code View: Opsætning af GraphViewport (med D3 Alpha Decay) og CodeViewport (Monaco YAML, read-only med Esc-trap escape). Implementer Monaco Diff Editor mod Git HEAD. Gate: UI opdateres fejlfrit.
 * Fase 3: UX & Design System: Implementer det redaktionelle Brutalist-lite design (0px radius, hårde skygger) over Zone 1 og 2. Gate: Visuel QA.
-* Phase 4: Zones 3 & 4 (Command & Ledger): Byg Keyboard-first search (Cmd+K) samt sidebar inkl. Gherkin editor og kontekstuelle genveje. Gate: Playwright E2E.
+* Phase 4: Zones 3 & 4 (Command & Properties): Byg Keyboard-first search (Cmd+K) samt sidebar inkl. Gherkin editor og kontekstuelle genveje. Gate: Playwright E2E.
 * Phase 5: GitHub Integration & Remote Sync: Implementer Push/Pull/Clone funktionalitet mod eksterne Git-remotes (f.eks. GitHub). Gate: Succesfuld push/pull test med mock server.
 
 ## 9. Mappestruktur (Feature-Sliced Design)
@@ -240,6 +243,10 @@ src/
 │   └── useKeyboard.ts      # Styrer global 'Esc' for at bryde ud af Monaco Focus Trap
 ├── components/             
 │   └── ui/                 # Solide Brutalist komponenter
+├── services/               # Det Interne API (Service Layer)
+│   ├── GraphService.ts     # Forretningslogik for graf-mutationer
+│   ├── PersistenceService.ts # Håndtering af filsystem og YAML sync
+│   └── GitService.ts       # Orchestration af Git operationer
 ├── features/               
 │   ├── index/              
 │   │   ├── IndexTable.tsx
@@ -254,8 +261,8 @@ src/
 │   │       └── DiffViewport.tsx
 │   ├── commands/           
 │   │   └── CommandOverlay.tsx   
-│   └── ledger/             
-│       ├── NodeLedger.tsx  
+│   └── properties/             
+│       ├── NodeProperties.tsx  
 │       └── PolicyEditor.tsx    
 └── App.tsx
 
@@ -289,4 +296,23 @@ For at accelerere modelleringen implementerer systemet automatisk forslag til re
 *   **Bounded Context → Bounded Context**: "depends on"
 *   **Entity → Capability**: "enables"
 
-Disse defaults kan altid overskrives manuelt i Node Ledger.
+Disse defaults kan altid overskrives manuelt i Node Properties.
+
+## 12. Arkitektoniske Regler (Service Layer & API-First)
+
+For at sikre en fremtidssikret kodebase, der er klar til CLI/MCP-integration, skal følgende regler overholdes:
+
+### 12.1 Streng Adskillelse af UI og Forretningslogik
+*   **Features/Components**: Må KUN håndtere præsentation, brugerinteraktion og lokal UI-tilstand (fx åbne/lukkede paneler).
+*   **Ingen Infrastruktur i UI**: Ingen feature-komponent må nogensinde importere eller kalde moduler direkte fra `src/core/` (fx `fileSystem.ts`, `gitEngine.ts` eller `yamlParser.ts`).
+
+### 12.2 Det Interne API (Service Layer)
+*   **Placering**: Al forretningslogik, filhåndtering og data-mutation pakkes ind i asynkrone funktioner i `src/services/`.
+*   **Uafhængighed**: Services skal være fuldstændig uafhængige af React (ingen hooks, ingen JSX). De udgør applikationens stabile kontrakt.
+
+### 12.3 Envejs Datastrøm (The Service Pattern)
+1.  **Bruger-interaktion**: UI-komponenten kalder en asynkron funktion i en service (fx `GraphService.addConcept(...)`).
+2.  **Service-eksekvering**: Servicen udfører I/O (fx skriver til VFS) og validerer resultatet.
+3.  **State-opdatering**: Ved succes opdaterer servicen den globale Zustand-tilstand (`src/store/useGraphStore.ts`).
+4.  **Re-render**: Den opdaterede Zustand-tilstand trigger automatisk et re-render af UI'en.
+

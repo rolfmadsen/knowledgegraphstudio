@@ -1,14 +1,20 @@
 /**
- * DiffViewport — Monaco Diff Editor comparing current YAML vs Git HEAD (Spec §5.2)
+ * DiffViewport Component (Spec §5.2)
  *
- * Shows additions/deletions against the last committed .typegraph.yaml.
- * Toggle via Ctrl+D.
+ * Renders a Monaco Diff Editor that compares the current active Knowledge Graph state 
+ * against the last committed state from the Git history (Git HEAD).
+ * 
+ * Key Architecture:
+ * 1. Git Integration: Uses the `GitService` to asynchronously fetch the raw `.yaml` 
+ *    content of the HEAD commit from the local virtual file system (VFS).
+ * 2. Visual Comparison: Passes the committed YAML as the `original` and the current 
+ *    state's stringified YAML as the `modified` document, rendering a side-by-side diff.
  */
 import { useState, useEffect, useMemo } from 'react';
 import { DiffEditor } from '@monaco-editor/react';
 import { useGraphStore } from '../../../store/useGraphStore';
-import { stateToYaml } from '../../../core/yamlParser';
-import { getHeadYaml } from '../../../core/gitEngine';
+import { PersistenceService } from '../../../services/PersistenceService';
+import { GitService } from '../../../services/GitService';
 
 export function DiffViewport() {
   const domains = useGraphStore((s) => s.domains);
@@ -19,14 +25,14 @@ export function DiffViewport() {
   const [loading, setLoading] = useState(true);
 
   const currentYaml = useMemo(
-    () => stateToYaml({ domains, concepts, relations }),
+    () => PersistenceService.stringifyCurrentState(),
     [domains, concepts, relations],
   );
 
   // Load committed YAML from Git HEAD
   useEffect(() => {
     setLoading(true);
-    getHeadYaml().then((yaml) => {
+    GitService.getHeadVersion().then((yaml) => {
       setCommittedYaml(yaml ?? '# No committed version yet\n');
       setLoading(false);
     });

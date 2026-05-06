@@ -10,7 +10,7 @@ import { useEffect, useCallback } from 'react';
 import { useGraphStore } from '../store/useGraphStore';
 
 interface KeyboardConfig {
-  onToggleLedger: () => void;
+  onToggleProperties: () => void;
   onToggleIndex: () => void;
   onToggleViewMode: () => void;
   onToggleDiffMode: () => void;
@@ -55,6 +55,16 @@ export function useKeyboard(config: KeyboardConfig) {
         return;
       }
 
+      // Ctrl+R — Open Relation Builder (Relationship Palette)
+      if (ctrl && e.key === 'r') {
+        const selectedId = useGraphStore.getState().selectedConceptId;
+        if (selectedId) {
+          e.preventDefault();
+          useGraphStore.getState().setRelationBuilderOpen(true, selectedId);
+        }
+        return;
+      }
+
       // Alt+N — New Concept
       if (e.altKey && e.key === 'n') {
         e.preventDefault();
@@ -78,10 +88,10 @@ export function useKeyboard(config: KeyboardConfig) {
         return;
       }
 
-      // Alt+B — Toggle Node Ledger (Zone 4)
+      // Alt+B — Toggle Properties Panel (Zone 4)
       if (e.altKey && e.key === 'b') {
         e.preventDefault();
-        config.onToggleLedger();
+        config.onToggleProperties();
         return;
       }
 
@@ -105,7 +115,7 @@ export function useKeyboard(config: KeyboardConfig) {
       // Alt+B / Alt+I — Toggle Side Panels
       if (e.altKey && e.key === 'b') {
         e.preventDefault();
-        config.onToggleLedger();
+        config.onToggleProperties();
         return;
       }
       if (e.altKey && e.key === 'i') {

@@ -1,15 +1,9 @@
-/**
- * CommandOverlay — Zone 3: Quick Command Archive (Spec §5.3)
- *
- * Opened via "/" or Ctrl+K. Provides:
- * - Fuzzy search across concepts
- * - Quick actions: create, navigate, connect, delete
- *
- * Design: hard shadow, 1px border, Spectral 24px serif search input
- */
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { useGraphStore } from '../../store/useGraphStore';
+import { useShallow } from 'zustand/react/shallow';
+import { GraphService } from '../../services/GraphService';
 import type { ConceptType } from '../../schema/graphSchema';
+import { Search, Terminal, Zap, Box, Trash2, Plus, ChevronRight } from 'lucide-react';
 import Fuse from 'fuse.js';
 
 interface CommandOverlayProps {
@@ -22,21 +16,22 @@ interface CommandItem {
   id: string;
   label: string;
   description: string;
-  action: () => void;
+  action: () => void | Promise<void>;
   group: string;
   danger?: boolean;
+  icon?: any;
 }
 
-const CONCEPT_TYPES: Array<{ type: ConceptType; label: string }> = [
-  { type: 'domain', label: 'Domain' },
-  { type: 'capability', label: 'Capability' },
-  { type: 'bounded_context', label: 'Context' },
-  { type: 'entity', label: 'Entity' },
-  { type: 'process', label: 'Process' },
-  { type: 'event', label: 'Event' },
-  { type: 'system', label: 'System' },
-  { type: 'actor', label: 'Actor' },
-  { type: 'other', label: 'Other' },
+const CONCEPT_TYPES: Array<{ type: ConceptType; label: string; icon: any }> = [
+  { type: 'domain', label: 'Domain', icon: <Box size={14} /> },
+  { type: 'capability', label: 'Capability', icon: <Box size={14} /> },
+  { type: 'bounded_context', label: 'Context', icon: <Box size={14} /> },
+  { type: 'entity', label: 'Entity', icon: <Box size={14} /> },
+  { type: 'process', label: 'Process', icon: <Box size={14} /> },
+  { type: 'event', label: 'Event', icon: <Zap size={14} /> },
+  { type: 'system', label: 'System', icon: <Terminal size={14} /> },
+  { type: 'actor', label: 'Actor', icon: <Box size={14} /> },
+  { type: 'other', label: 'Other', icon: <Box size={14} /> },
 ];
 
 export function CommandOverlay({ open, initialQuery, onClose }: CommandOverlayProps) {
@@ -45,10 +40,12 @@ export function CommandOverlay({ open, initialQuery, onClose }: CommandOverlayPr
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  const concepts = useGraphStore((s) => s.concepts);
-  const addConcept = useGraphStore((s) => s.addConcept);
-  const selectConcept = useGraphStore((s) => s.selectConcept);
-  const deleteConcept = useGraphStore((s) => s.deleteConcept);
+  const { concepts, selectConcept } = useGraphStore(
+    useShallow((s) => ({
+      concepts: s.concepts,
+      selectConcept: s.selectConcept,
+    })),
+  );
 
   // Focus input when opened
   useEffect(() => {
@@ -68,14 +65,15 @@ export function CommandOverlay({ open, initialQuery, onClose }: CommandOverlayPr
       items.push({
         id: `create-${ct.type}`,
         label: `Create ${ct.label}`,
-        description: `Create a new ${ct.label.toLowerCase()} concept`,
-        group: 'Create',
-        action: () => {
+        description: `ADD NEW ${ct.type.toUpperCase()}`,
+        group: 'Actions',
+        icon: <Plus size={14} />,
+        action: async () => {
           const q = query.toLowerCase().trim();
           const name = q.startsWith('create ')
             ? query.slice(7).trim() || `New ${ct.label}`
             : (q || `New ${ct.label}`);
-          const concept = addConcept(ct.type, name);
+          const concept = await GraphService.addConcept(ct.type, name);
           selectConcept(concept.id);
           onClose();
         },
@@ -86,9 +84,10 @@ export function CommandOverlay({ open, initialQuery, onClose }: CommandOverlayPr
     for (const c of concepts) {
       items.push({
         id: `nav-${c.id}`,
-        label: `${c.conceptType.charAt(0).toUpperCase() + c.conceptType.slice(1)}: ${c.name}`,
-        description: c.id,
-        group: 'Navigate',
+        label: c.name,
+        description: `NAVIGATE // ${c.conceptType.toUpperCase()}`,
+        group: 'Concepts',
+        icon: <ChevronRight size={14} />,
         action: () => {
           selectConcept(c.id);
           onClose();
@@ -96,20 +95,60 @@ export function CommandOverlay({ open, initialQuery, onClose }: CommandOverlayPr
       });
     }
 
-    // --- Connect command ---
-    const selectedConceptId = useGraphStore.getState().selectedConceptId;
-    if (selectedConceptId) {
-      const source = concepts.find((c) => c.id === selectedConceptId);
-      if (source) {
-        for (const target of concepts) {
-          if (target.id === selectedConceptId) continue;
+    // --- Delete existing concepts ---
+    for (const c of concepts) {
+      items.push({
+        id: `del-${c.id}`,
+        label: `Delete ${c.name}`,
+        description: `REMOVE ${c.conceptType.toUpperCase()}`,
+        group: 'Danger Zone',
+        danger: true,
+        icon: <Trash2 size={14} />,
+        action: () => {
+          GraphService.deleteConcept(c.id);
+          onClose();
+        },
+      });
+    }
+
+    // --- Connect to existing concepts (if a concept is selected) ---
+    const selectedId = useGraphStore.getState().selectedConceptId;
+    if (selectedId) {
+      const selectedConcept = concepts.find(c => c.id === selectedId);
+      if (selectedConcept) {
+        // Connect to existing
+        for (const c of concepts) {
+          if (c.id === selectedId) continue;
           items.push({
-            id: `connect-${target.id}`,
-            label: `→ ${target.name}`,
-            description: `Connect "${source.name}" to "${target.name}"`,
-            group: `Connect from "${source.name}"`,
+            id: `connect-${c.id}`,
+            label: `Connect to ${c.name}`,
+            description: `LINK // ${selectedConcept.name} → ${c.name}`,
+            group: 'Relations',
+            icon: <Zap size={14} />,
             action: () => {
-              useGraphStore.getState().addRelation(selectedConceptId, target.id, '');
+              GraphService.addRelation(selectedId, c.id);
+              onClose();
+            },
+          });
+        }
+
+        // Connect to NEW
+        for (const ct of CONCEPT_TYPES) {
+          items.push({
+            id: `connect-new-${ct.type}`,
+            label: `Connect to new ${ct.label}`,
+            description: `CREATE & LINK // ${selectedConcept.name} → New ${ct.label}`,
+            group: 'Relations',
+            icon: <Plus size={14} />,
+            action: async () => {
+              const q = query.toLowerCase().trim();
+              let name = `New ${ct.label}`;
+              if (q.startsWith('connect ')) name = query.slice(8).trim() || name;
+              else if (q) name = query;
+              
+              const concept = await GraphService.addConcept(ct.type, name);
+              GraphService.addRelation(selectedId, concept.id);
+              selectConcept(concept.id);
               onClose();
             },
           });
@@ -117,72 +156,29 @@ export function CommandOverlay({ open, initialQuery, onClose }: CommandOverlayPr
       }
     }
 
-    // --- Delete existing concepts ---
-    for (const c of concepts) {
-      items.push({
-        id: `del-${c.id}`,
-        label: `Delete: ${c.name}`,
-        description: `Remove ${c.conceptType} "${c.name}" and its relations`,
-        group: 'Delete',
-        danger: true,
-        action: () => {
-          deleteConcept(c.id);
-          onClose();
-        },
-      });
-    }
-
     return items;
-  }, [concepts, addConcept, selectConcept, deleteConcept, onClose, query]);
+  }, [concepts, selectConcept, onClose, query]);
 
-  // Fuse.js instance for fuzzy search
   const fuse = useMemo(() => new Fuse(allItems, {
-    keys: [
-      { name: 'label', weight: 0.9 },
-      { name: 'group', weight: 0.1 }
-    ],
-    threshold: 0.4,
-    location: 0,
-    distance: 200,
-    minMatchCharLength: 1,
-    includeScore: true,
-    useExtendedSearch: true, // Allows space-separated terms
+    keys: ['label', 'group', 'description'],
+    threshold: 0.35,
   }), [allItems]);
 
-  // Filtered command list
   const commands = useMemo(() => {
     const q = query.toLowerCase().trim();
-    if (!q) return allItems;
-
-    // Special handling for "connect " prefix
-    if (q.startsWith('connect ')) {
-      const subQuery = q.slice(8).trim();
-      const connectItems = allItems.filter(item => item.group.startsWith('Connect from'));
-      if (!subQuery) return connectItems;
-      
-      const subFuse = new Fuse(connectItems, {
-        keys: ['label', 'description'],
-        threshold: 0.4
-      });
-      return subFuse.search(subQuery).map(r => r.item);
-    }
-
-    // Regular fuzzy search
+    if (!q) return allItems.slice(0, 15);
     return fuse.search(q).map(r => r.item);
   }, [query, allItems, fuse]);
 
-  // Reset selection when commands change
   useEffect(() => {
     setSelectedIndex(0);
   }, [query]);
 
-  // Scroll selected item into view
   useEffect(() => {
     const el = listRef.current?.querySelector(`[data-index="${selectedIndex}"]`);
     el?.scrollIntoView({ block: 'nearest' });
   }, [selectedIndex]);
 
-  // Keyboard navigation
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
       e.preventDefault();
@@ -204,85 +200,96 @@ export function CommandOverlay({ open, initialQuery, onClose }: CommandOverlayPr
 
   if (!open) return null;
 
-  // Group commands for display
-  const groups = new Map<string, CommandItem[]>();
-  for (const cmd of commands) {
-    const group = groups.get(cmd.group) ?? [];
-    group.push(cmd);
-    groups.set(cmd.group, group);
-  }
-
-  let globalIndex = 0;
-
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh]"
-      onClick={onClose}
-    >
+    <div className="fixed inset-0 z-[200] flex items-start justify-center pt-[15vh]">
       {/* Backdrop */}
-      <div className="command-overlay-backdrop absolute inset-0" />
+      <div className="absolute inset-0 bg-gray-950/10 backdrop-blur-sm" onClick={onClose} />
 
-      {/* Command palette */}
-      <div
-        className="command-overlay-panel relative w-[520px] max-h-[55vh] flex flex-col"
+      {/* Palette */}
+      <div 
+        className="relative w-full max-w-[500px] bg-white border border-gray-100 flex flex-col overflow-hidden shadow-[0_32px_64px_-16px_rgba(0,0,0,0.1)]"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Search input */}
-        <div className="flex items-center border-b border-border">
-          <span className="px-3 text-muted text-lg">/</span>
-          <input
-            ref={inputRef}
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Type a command or search…"
-            className="command-search flex-1 py-3 pr-4 bg-transparent text-text outline-none placeholder:text-muted placeholder:font-sans placeholder:text-sm"
-          />
+        {/* Header - Panel Aesthetic */}
+        <div className="px-6 py-6 border-b border-gray-50 bg-[#FDFDFD]">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-primary"><Terminal size={14} strokeWidth={3} /></span>
+            <h2 className="text-[11px] font-black uppercase tracking-[0.2em] text-gray-900">Command Center</h2>
+          </div>
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Execute studio actions & navigation</p>
         </div>
 
-        {/* Results */}
-        <div ref={listRef} className="overflow-y-auto max-h-[40vh]">
+        {/* Input - Minimal */}
+        <div className="px-6 py-4">
+          <div className="flex items-center gap-3">
+            <Search className="w-4 h-4 text-gray-400" />
+            <input
+              ref={inputRef}
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Search concepts or actions..."
+              className="flex-1 bg-transparent text-[13px] font-bold text-gray-900 outline-none placeholder:text-gray-300"
+            />
+          </div>
+        </div>
+
+        {/* List - Panel Aesthetic */}
+        <div ref={listRef} className="flex-1 overflow-y-auto max-h-[400px] border-t border-gray-50">
           {commands.length === 0 ? (
-            <p className="empty-state py-6">
-              No results for "{query}"
-            </p>
+            <div className="px-6 py-12 text-center text-[10px] font-black text-gray-300 uppercase tracking-widest">
+              No results found
+            </div>
           ) : (
-            Array.from(groups.entries()).map(([groupName, items]) => (
-              <div key={groupName}>
-                <div className="zone-header text-[10px] text-muted px-4 py-1.5 bg-surface border-b border-border">
-                  {groupName}
-                </div>
-                {items.map((item) => {
-                  const idx = globalIndex++;
-                  return (
-                    <button
-                      key={item.id}
-                      data-index={idx}
-                      onClick={item.action}
-                      className={[
-                        'w-full text-left px-4 py-2 flex items-center gap-3 transition-colors',
-                        idx === selectedIndex ? 'bg-surface' : 'hover:bg-surface',
-                        item.danger ? 'text-[var(--color-danger)]' : '',
-                      ].join(' ')}
-                    >
-                      <span className="text-sm font-medium flex-1">{item.label}</span>
-                      <span className="text-muted text-[10px] truncate max-w-[220px]">
+            <div className="px-2 py-2">
+              {commands.map((item, idx) => (
+                <button
+                  key={item.id}
+                  data-index={idx}
+                  onClick={item.action}
+                  onMouseEnter={() => setSelectedIndex(idx)}
+                  className={`
+                    w-full text-left px-4 py-3 rounded-lg flex items-center justify-between transition-colors group
+                    ${idx === selectedIndex ? 'bg-gray-50' : 'hover:bg-gray-50/50'}
+                  `}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-8 h-8 rounded-md flex items-center justify-center transition-colors ${idx === selectedIndex ? 'bg-white shadow-sm border border-gray-100' : 'bg-gray-50'}`}>
+                      <span className={idx === selectedIndex ? (item.danger ? 'text-rose-500' : 'text-gray-900') : 'text-gray-300'}>
+                        {item.icon || <Zap size={14} />}
+                      </span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className={`text-[13px] font-bold ${idx === selectedIndex ? (item.danger ? 'text-rose-600' : 'text-gray-900') : 'text-gray-700'}`}>
+                        {item.label}
+                      </span>
+                      <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">
                         {item.description}
                       </span>
-                    </button>
-                  );
-                })}
-              </div>
-            ))
+                    </div>
+                  </div>
+                  {idx === selectedIndex && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Run</span>
+                      <div className="text-[10px] text-gray-300">⏎</div>
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
           )}
         </div>
 
         {/* Footer */}
-        <div className="border-t border-border px-4 py-2 flex gap-4 text-[10px] text-muted">
-          <span><span className="kbd rounded">↑↓</span> navigate</span>
-          <span><span className="kbd rounded">⏎</span> select</span>
-          <span><span className="kbd rounded">esc</span> close</span>
+        <div className="px-6 py-4 bg-[#FDFDFD] border-t border-gray-50 flex items-center justify-between">
+          <div className="flex gap-4 text-[9px] font-black text-gray-300 uppercase tracking-widest">
+            <button onClick={onClose} className="hover:text-gray-500">ESC Close</button>
+            <span>↑↓ Move</span>
+          </div>
+          <div className="text-[9px] font-black text-gray-200 uppercase tracking-widest">
+            Studio // Hub
+          </div>
         </div>
       </div>
     </div>

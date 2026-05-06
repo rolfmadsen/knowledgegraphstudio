@@ -4,26 +4,34 @@
  * Zone 1: Index View (left panel) — concept catalogue
  * Zone 2: Canvas / Code View (center) — graph + YAML
  * Zone 3: Command Archive (modal overlay) — "/" or Ctrl+K
- * Zone 4: Node Ledger (right panel) — detail panel
+ * Zone 4: Properties panel (right panel) — detail panel
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import './index.css';
 import { ReactFlowProvider } from '@xyflow/react';
-import { Panel, Group, Separator } from 'react-resizable-panels';
-import { useGraphStore } from './store/useGraphStore';
+import { useGraphStore, useTemporalStore } from './store/useGraphStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useKeyboard } from './hooks/useKeyboard';
-import { ViewportContainer, type ViewMode } from './features/viewport/ViewportContainer';
+import { ViewportContainer } from './features/viewport/ViewportContainer';
+import { type ViewMode } from './types/view';
 import { GraphViewport } from './features/viewport/graph/GraphViewport';
 import { CodeViewport } from './features/viewport/code/CodeViewport';
 import { DiffViewport } from './features/viewport/code/DiffViewport';
 import { CommandOverlay } from './features/commands/CommandOverlay';
-import { NodeLedger } from './features/ledger/NodeLedger';
-import { bootstrap, persistState } from './store/bootstrapper';
+import { Inspector } from './features/properties/Inspector';
+import { Navigator } from './features/navigation/Navigator';
+import { PersistenceService } from './services/PersistenceService';
+import { GraphService } from './services/GraphService';
+import { RelationBuilder } from './features/relations/RelationBuilder';
+import { RefinedToolbar } from './components/ui/RefinedToolbar';
+import { Group, Panel, Separator } from 'react-resizable-panels';
+import { LayoutGrid, Code2, Columns2, Search } from 'lucide-react';
+
+// Resizable components are imported directly from the high-precision panels library
 
 function App() {
   // --- App State ---
-  const [ledgerOpen, setLedgerOpen] = useState(true);
+  const [propertiesOpen, setPropertiesOpen] = useState(true);
   const [indexOpen, setIndexOpen] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>('graph');
   const [diffMode, setDiffMode] = useState(false);
@@ -33,34 +41,41 @@ function App() {
   const [isConflict, setIsConflict] = useState(false);
   const [booted, setBooted] = useState(false);
   const [bootError, setBootError] = useState<string | null>(null);
-  const [indexWidth, setIndexWidth] = useState(300);
 
   // --- Store ---
   const {
     concepts,
     relations,
-    selectConcept,
-    deleteConcept,
+    unpinAll,
+    triggerLayout
   } = useGraphStore(
     useShallow((s) => ({
       concepts: s.concepts,
       relations: s.relations,
-      selectConcept: s.selectConcept,
-      deleteConcept: s.deleteConcept,
-      addProperty: s.addProperty,
+      unpinAll: s.unpinAll,
+      triggerLayout: s.triggerLayout
+    })),
+  );
+
+  // Access zundo temporal store (reactive)
+  const { undo, redo, pastStates, futureStates } = useTemporalStore(
+    useShallow((s) => ({
+      undo: s.undo,
+      redo: s.redo,
+      pastStates: s.pastStates,
+      futureStates: s.futureStates,
     })),
   );
 
   const selectedConceptId = useGraphStore((s) => s.selectedConceptId);
 
   // --- Refs for zone focus ---
-  const zone1Ref = useRef<HTMLElement>(null);
-  const zone2Ref = useRef<HTMLElement>(null);
-  const zone4Ref = useRef<HTMLElement>(null);
+  const zone2Ref = useRef<HTMLDivElement>(null);
+  const zone4Ref = useRef<HTMLDivElement>(null); // Properties
 
   // --- Bootstrap on mount ---
   useEffect(() => {
-    bootstrap().then((result) => {
+    PersistenceService.bootstrap().then((result) => {
       setBooted(true);
       if (result.isConflict) {
         setIsConflict(true);
@@ -75,15 +90,10 @@ function App() {
   // --- Autosave to YAML ---
   useEffect(() => {
     if (!booted || isConflict) return;
-
-    const timer = setTimeout(() => {
-      persistState().catch(console.error);
-    }, 1000); // Debounce save to YAML
-
-    return () => clearTimeout(timer);
+    PersistenceService.scheduleAutoSave();
   }, [concepts, relations, booted, isConflict]);
 
-  // --- View mode cycling: Graph → Code → Split → Graph ---
+  // --- View mode cycling ---
   const cycleViewMode = useCallback(() => {
     setDiffMode(false);
     setViewMode((prev) => {
@@ -95,7 +105,7 @@ function App() {
 
   // --- Keyboard shortcuts ---
   useKeyboard({
-    onToggleLedger: () => setLedgerOpen((prev) => !prev),
+    onToggleProperties: () => setPropertiesOpen((prev) => !prev),
     onToggleIndex: () => setIndexOpen((prev) => !prev),
     onToggleViewMode: cycleViewMode,
     onToggleDiffMode: () => setDiffMode((prev) => !prev),
@@ -105,11 +115,9 @@ function App() {
     },
     onToggleFocusMode: () => setFocusMode((prev) => !prev),
     onFocusZone: (zone) => {
-      if (zone === 1) zone1Ref.current?.focus();
       if (zone === 2) zone2Ref.current?.focus();
       if (zone === 4) {
         zone4Ref.current?.focus();
-        // Focus the first input in the ledger
         setTimeout(() => {
           const firstInput = zone4Ref.current?.querySelector('input, select, textarea') as HTMLElement;
           firstInput?.focus();
@@ -118,191 +126,124 @@ function App() {
     },
     onAddProperty: () => {
       if (selectedConceptId) {
-        useGraphStore.getState().addProperty(selectedConceptId, 'new_property', 'string');
-        if (!ledgerOpen) setLedgerOpen(true);
-        // Focus the ledger to edit the new property
-        setTimeout(() => {
-          const inputs = zone4Ref.current?.querySelectorAll('input');
-          if (inputs && inputs.length > 0) {
-            const lastInput = inputs[inputs.length - 1];
-            lastInput?.focus();
-            lastInput?.select();
-          }
-        }, 100);
+        GraphService.addProperty(selectedConceptId, 'new_property', 'string');
+        if (!propertiesOpen) setPropertiesOpen(true);
       }
     },
   });
 
-  // --- Zone 1: Keyboard navigation ---
-  const [focusedIndex, setFocusedIndex] = useState(0);
-
-  const handleZone1KeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        setFocusedIndex((i) => Math.min(i + 1, concepts.length - 1));
-      }
-      if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        setFocusedIndex((i) => Math.max(i - 1, 0));
-      }
-      if (e.key === 'Enter' && concepts[focusedIndex]) {
-        e.preventDefault();
-        const cid = concepts[focusedIndex].id;
-        selectConcept(cid);
-        if (!ledgerOpen) setLedgerOpen(true);
-        // Focus the ledger (Zone 4)
-        setTimeout(() => {
-          const firstInput = zone4Ref.current?.querySelector('input, select, textarea') as HTMLElement;
-          firstInput?.focus();
-        }, 100);
-      }
-      if ((e.key === 'Delete' || e.key === 'Backspace') && concepts[focusedIndex]) {
-        e.preventDefault();
-        deleteConcept(concepts[focusedIndex].id);
-      }
-    },
-    [concepts, focusedIndex, selectConcept, deleteConcept, ledgerOpen],
-  );
-
   // --- Loading state ---
   if (!booted) {
     return (
-      <div className="flex w-full h-full items-center justify-center bg-background text-text">
-        <div className="text-center">
-          <div className="zone-header text-base mb-2">TypeGraph</div>
-          <p className="text-muted text-sm font-mono">Initializing workspace…</p>
+      <div className="flex w-full h-full items-center justify-center bg-white">
+        <div className="flex flex-col items-center gap-6 animate-in fade-in duration-700">
+           <div className="w-16 h-16 bg-primary rounded-[24px] flex items-center justify-center text-white text-3xl shadow-2xl shadow-primary/20">
+              TG
+           </div>
+           <div className="flex flex-col items-center gap-1">
+              <h1 className="text-xl font-black uppercase tracking-[0.2em] text-gray-900">TypeGraph</h1>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest animate-pulse">Initializing Studio...</p>
+           </div>
         </div>
       </div>
     );
   }
 
-  // --- Lifecycle state helper ---
-  const stateClass = (state: string) => `status-dot rounded-full status-dot--${state}`;
-
   return (
-    <div className="w-full h-screen bg-background text-text overflow-hidden font-sans flex flex-col">
-      <Group key="main-layout-v3" orientation="horizontal" style={{ width: '100%', height: '100%' }}>
-        {/* ============================================================
-            Zone 1: Index View (Left Panel)
-            ============================================================ */}
-        {/* --- Custom Pixel Resizable Sidebar --- */}
-        {indexOpen && (
-          <div 
-            style={{ width: `${indexWidth}px`, minWidth: '100px', flexShrink: 0, position: 'relative' }}
-            className="h-full bg-surface border-r border-border flex flex-col"
-          >
-            <aside
-              id="zone-index"
-              ref={zone1Ref}
-              tabIndex={0}
-              className="h-full flex flex-col focus:outline-none"
-              onKeyDown={handleZone1KeyDown}
+    <div className="w-full h-screen bg-white text-gray-900 overflow-hidden font-sans flex flex-col">
+      <RefinedToolbar 
+        undo={undo}
+        redo={redo}
+        canUndo={pastStates.length > 0}
+        canRedo={futureStates.length > 0}
+        onAddConcept={() => GraphService.addConcept('actor', 'New Node')}
+        onUnpinAll={unpinAll}
+        onTriggerLayout={triggerLayout}
+        onToggleFocusMode={() => setFocusMode(!focusMode)}
+        focusMode={focusMode}
+      />
+      <div className="flex-1 flex overflow-hidden">
+        <Group orientation="horizontal" className="w-full h-full" style={{ height: '100%' }}>
+          {indexOpen && !focusMode && (
+            <Panel 
+              id="library-panel"
+              defaultSize={300} 
+              minSize={250} 
+              maxSize={800} 
+              className="bg-white"
             >
-              <header className="px-4 py-3 border-b border-border flex items-center justify-between">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-muted">Concepts</span>
-                <span className="font-mono text-[10px] text-muted">{concepts.length}</span>
-              </header>
+              <Navigator />
+            </Panel>
+          )}
+          {indexOpen && !focusMode && (
+            <Separator className="w-1.5 group relative transition-colors hover:bg-primary/10 cursor-col-resize">
+              <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-[1px] bg-gray-100 group-hover:bg-primary/30" />
+            </Separator>
+          )}
 
-              <div className="flex-1 overflow-y-auto scrollbar-thin p-1">
-                {concepts.map((concept) => (
-                  <div
-                    key={concept.id}
-                    className={`index-row ${concept.id === selectedConceptId ? 'index-row--selected' : ''}`}
-                    onClick={() => selectConcept(concept.id)}
-                    style={{ cursor: 'pointer', padding: '8px', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}
-                  >
-                    <span className={stateClass(concept.lifecycleState)} />
-                    <span className="text-[10px] opacity-50 uppercase font-mono w-16">
-                      {concept.conceptType.slice(0, 6)}
-                    </span>
-                    <span className="text-sm truncate font-medium">{concept.name}</span>
-                  </div>
-                ))}
-              </div>
-
-              <div className="border-t border-border px-4 py-2 text-[10px] text-muted font-mono">
-                {concepts.length} concepts
-              </div>
-            </aside>
-
-            {/* Manual Resize Handle */}
-            <div
-              className="absolute right-0 top-0 w-1 h-full cursor-col-resize hover:bg-primary transition-colors z-50"
-              onMouseDown={(e) => {
-                const startX = e.clientX;
-                const startWidth = indexWidth;
-                
-                const onMouseMove = (moveEvent: MouseEvent) => {
-                  const newWidth = Math.max(150, Math.min(600, startWidth + (moveEvent.clientX - startX)));
-                  setIndexWidth(newWidth);
-                };
-                
-                const onMouseUp = () => {
-                  document.removeEventListener('mousemove', onMouseMove);
-                  document.removeEventListener('mouseup', onMouseUp);
-                  document.body.style.cursor = 'default';
-                };
-                
-                document.addEventListener('mousemove', onMouseMove);
-                document.addEventListener('mouseup', onMouseUp);
-                document.body.style.cursor = 'col-resize';
-              }}
-            />
-          </div>
-        )}
-
-        {/* ============================================================
-            Zone 2: Viewport (Center)
-            ============================================================ */}
-        <Panel>
-          <main
-            id="zone-viewport"
-            ref={zone2Ref}
-            tabIndex={0}
-            className="h-full flex flex-col min-w-0 focus:outline-none"
+          {/* Center: Viewport */}
+          <Panel 
+            id="viewport-panel"
+            defaultSize={800} 
+            minSize={400}
           >
-            {/* Toolbar */}
-            <div className="flex items-center gap-1 px-3 py-1 border-b border-border bg-background">
-              {(['graph', 'code', 'split'] as ViewMode[]).map((mode) => (
-                <button
-                  key={mode}
-                  disabled={isConflict && mode !== 'code'}
-                  onClick={() => { setViewMode(mode); setDiffMode(false); }}
-                  className={[
-                    'toolbar-btn',
-                    viewMode === mode && !diffMode ? 'toolbar-btn--active' : '',
-                    isConflict && mode !== 'code' ? 'opacity-30 cursor-not-allowed' : '',
-                  ].join(' ')}
-                >
-                  {mode}
-                </button>
-              ))}
-              <span className="w-px h-4 bg-border mx-1" />
-              <button
-                onClick={() => setDiffMode((prev) => !prev)}
-                className={[
-                  'toolbar-btn',
-                  diffMode ? 'toolbar-btn--active' : '',
-                ].join(' ')}
+            <main
+              id="zone-viewport"
+              ref={zone2Ref}
+              tabIndex={0}
+              className="h-full flex flex-col min-w-0 focus:outline-none relative bg-[#F9FAFB]"
+            >
+              {/* Floating View Switcher */}
+              <div 
+                className="absolute left-1/2 -translate-x-1/2 z-50 flex items-center" 
+                style={{ top: '24px', gap: '24px' }}
               >
-                diff
-              </button>
-              <div className="flex-1" />
-              {focusMode && (
-                <span className="text-[10px] font-mono font-bold text-primary mr-2 border border-primary px-1">FOCUS</span>
-              )}
-              <span className="text-[10px] text-muted font-mono">
-                <span className="kbd">/</span> command
-                <span className="mx-2">·</span>
-                <span className="kbd">F</span> focus
-                <span className="mx-2">·</span>
-                <span className="kbd">C</span> connect
-              </span>
-            </div>
+                {[
+                  { id: 'graph', icon: LayoutGrid, label: 'Graph' },
+                  { id: 'code', icon: Code2, label: 'Code' },
+                  { id: 'split', icon: Columns2, label: 'Split' }
+                ].map((mode) => (
+                  <button
+                    key={mode.id}
+                    disabled={isConflict && mode.id !== 'code'}
+                    onClick={() => { setViewMode(mode.id as ViewMode); setDiffMode(false); }}
+                    className={`
+                      flex items-center rounded-full text-[12px] font-bold transition-all shadow-sm border
+                      ${viewMode === mode.id && !diffMode ? 'bg-white text-primary border-primary/30 shadow-md scale-105 ring-4 ring-primary/5' : 'bg-white/80 backdrop-blur-md text-gray-500 hover:text-gray-800 hover:bg-gray-50 border-gray-200'}
+                      ${isConflict && mode.id !== 'code' ? 'opacity-20 cursor-not-allowed' : ''}
+                    `}
+                    style={{ padding: '10px 24px', gap: '10px' }}
+                    title={mode.label}
+                  >
+                    <mode.icon size={15} strokeWidth={2.5} />
+                    <span className="tracking-widest uppercase">{mode.label}</span>
+                  </button>
+                ))}
+                
+                <div className="w-px bg-gray-300" style={{ height: '24px', margin: '0 8px' }} />
+                
+                <button
+                  onClick={() => setDiffMode(!diffMode)}
+                  className={`
+                    flex items-center rounded-full text-[12px] font-bold transition-all border shadow-sm
+                    ${diffMode ? 'bg-white text-rose-600 border-rose-300 shadow-md scale-105 ring-4 ring-rose-100' : 'bg-white/80 backdrop-blur-md text-gray-500 hover:text-gray-800 hover:bg-gray-50 border-gray-200'}
+                  `}
+                  style={{ padding: '10px 24px', gap: '10px' }}
+                >
+                  <span className="tracking-widest uppercase">Diff</span>
+                </button>
+              </div>
 
-            {/* Viewport content */}
-            <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+              {/* Navigation Hint */}
+              <div className="absolute top-6 right-6 z-40 flex items-center gap-2 bg-white/80 backdrop-blur-md px-3 py-2 rounded-xl border border-gray-200 shadow-sm text-gray-500 pointer-events-none select-none">
+                <Search size={14} className="text-gray-400" />
+                <div className="flex gap-1 items-center">
+                  <kbd className="kbd text-[10px]">Ctrl</kbd>
+                  <span className="text-[10px] font-bold text-gray-400">+</span>
+                  <kbd className="kbd text-[10px]">K</kbd>
+                </div>
+              </div>
+
               <ViewportContainer
                 viewMode={viewMode}
                 diffMode={diffMode}
@@ -315,43 +256,31 @@ function App() {
                 codeViewport={<CodeViewport isConflict={isConflict} />}
                 diffViewport={<DiffViewport />}
               />
-            </div>
-          </main>
-        </Panel>
+            </main>
+          </Panel>
 
-        {/* ============================================================
-            Zone 4: Node Ledger (Right Panel)
-            ============================================================ */}
-        {ledgerOpen && (
-          <>
-            <Separator className="w-1 bg-border hover:bg-primary transition-colors cursor-col-resize" />
-            <Panel defaultSize={170} minSize="2%" maxSize="40%">
-              <aside
-                id="zone-ledger"
-                ref={zone4Ref}
-                tabIndex={0}
-                className="h-full flex flex-col focus:outline-none bg-background border-l border-border"
-              >
-                <header className="zone-header px-4 py-3 border-b border-border flex items-center justify-between">
-                  <span>Properties</span>
-                  <button
-                    onClick={() => setLedgerOpen(false)}
-                    className="text-muted hover:text-text text-xs"
-                    aria-label="Close properties panel"
-                  >
-                    ✕
-                  </button>
-                </header>
-                <NodeLedger />
-              </aside>
+          {propertiesOpen && !focusMode && (
+            <Separator className="w-1.5 group relative transition-colors hover:bg-primary/10 cursor-col-resize">
+              <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-[1px] bg-gray-100 group-hover:bg-primary/30" />
+            </Separator>
+          )}
+          {propertiesOpen && !focusMode && (
+            <Panel 
+              id="properties-panel"
+              defaultSize={300} 
+              minSize={250} 
+              maxSize={800} 
+              className="bg-white"
+            >
+              <div ref={zone4Ref} tabIndex={0} className="h-full focus:outline-none">
+                <Inspector />
+              </div>
             </Panel>
-          </>
-        )}
-      </Group>
+          )}
+        </Group>
+      </div>
 
-      {/* ============================================================
-          Zone 3: Command Archive (Modal Overlay)
-          ============================================================ */}
+      {/* Modals & Palettes */}
       <CommandOverlay
         open={commandOpen}
         initialQuery={initialCommandQuery}
@@ -360,11 +289,12 @@ function App() {
           setInitialCommandQuery('');
         }}
       />
+      <RelationBuilder />
 
-      {/* Boot error indicator */}
+      {/* Errors */}
       {bootError && (
-        <div className="fixed bottom-4 right-4 bg-text text-background px-4 py-2 text-xs font-mono z-50">
-          ⚠ {bootError}
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-rose-500 text-white px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest z-[200] shadow-2xl shadow-rose-500/20 animate-in slide-in-from-bottom-4">
+          ⚠ System Error: {bootError}
         </div>
       )}
     </div>

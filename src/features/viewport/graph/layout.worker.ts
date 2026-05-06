@@ -1,8 +1,16 @@
 /**
  * D3 Force Layout Web Worker (Spec §7.2)
  *
- * Runs d3-force simulation in a Web Worker with strict Alpha Decay
- * to prevent CPU drain. Simulation auto-stops after ~2-3 seconds.
+ * This Web Worker completely offloads the computationally heavy D3-force graph
+ * simulation from the main UI thread. This ensures the React interface remains
+ * 60FPS fluid even when calculating layouts for thousands of nodes.
+ *
+ * Key Design Principles:
+ * 1. Strict Alpha Decay: The simulation is purposefully designed to decay quickly
+ *    and stop within ~2-3 seconds, preventing persistent CPU drain.
+ * 2. Rectangular Collision: The `distance` and `collide` forces mathematically 
+ *    account for the exact width/height of the ReactFlow DOM nodes to prevent 
+ *    overlaps and maintain a clean "grid-like" spacing without edge-bumping.
  */
 import {
   forceSimulation,
@@ -67,7 +75,7 @@ self.onmessage = (event: MessageEvent<LayoutRequest>) => {
   // Create force simulation with strict Alpha Decay
   simulation = forceSimulation<LayoutNode>(nodes)
     // Alpha Decay: simulation decays quickly → stops after ~2-3 seconds
-    .alphaDecay(0.05)
+    .alphaDecay(0.03)
     .alphaMin(0.001)
     .velocityDecay(0.3)
 
