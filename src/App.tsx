@@ -25,7 +25,8 @@ import { GraphService } from './services/GraphService';
 import { RelationBuilder } from './features/relations/RelationBuilder';
 import { RefinedToolbar } from './components/ui/RefinedToolbar';
 import { Group, Panel, Separator } from 'react-resizable-panels';
-import { LayoutGrid, Code2, Columns2, Search } from 'lucide-react';
+import { LayoutGrid, Code2, Columns2, HelpCircle } from 'lucide-react';
+import { KeyboardHelp } from './features/help/KeyboardHelp';
 
 // Resizable components are imported directly from the high-precision panels library
 
@@ -46,14 +47,10 @@ function App() {
   const {
     concepts,
     relations,
-    unpinAll,
-    triggerLayout
   } = useGraphStore(
     useShallow((s) => ({
       concepts: s.concepts,
       relations: s.relations,
-      unpinAll: s.unpinAll,
-      triggerLayout: s.triggerLayout
     })),
   );
 
@@ -103,6 +100,8 @@ function App() {
     });
   }, []);
 
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
+
   // --- Keyboard shortcuts ---
   useKeyboard({
     onToggleProperties: () => setPropertiesOpen((prev) => !prev),
@@ -132,17 +131,31 @@ function App() {
     },
   });
 
+  // Global '?' shortcut for help
+  useEffect(() => {
+    const handleHelp = (e: KeyboardEvent) => {
+      if (e.key === '?' && !(document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA' || (document.activeElement as HTMLElement)?.isContentEditable)) {
+        setIsHelpOpen(prev => !prev);
+      }
+      if (e.key === 'Escape' && isHelpOpen) {
+        setIsHelpOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleHelp);
+    return () => window.removeEventListener('keydown', handleHelp);
+  }, [isHelpOpen]);
+
   // --- Loading state ---
   if (!booted) {
     return (
-      <div className="flex w-full h-full items-center justify-center bg-white">
-        <div className="flex flex-col items-center gap-6 animate-in fade-in duration-700">
-           <div className="w-16 h-16 bg-primary rounded-[24px] flex items-center justify-center text-white text-3xl shadow-2xl shadow-primary/20">
+      <div className="flex w-full h-full items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-10">
+           <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center text-white text-3xl font-black shadow-lg shadow-primary/20">
               TG
            </div>
-           <div className="flex flex-col items-center gap-1">
-              <h1 className="text-xl font-black uppercase tracking-[0.2em] text-gray-900">TypeGraph</h1>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest animate-pulse">Initializing Studio...</p>
+           <div className="flex flex-col items-center gap-3">
+              <h1 className="text-2xl font-bold tracking-tight text-slate-900">TypeGraph Studio</h1>
+              <p className="text-[11px] font-medium text-slate-400 uppercase tracking-widest animate-pulse">Initializing Workspace...</p>
            </div>
         </div>
       </div>
@@ -150,15 +163,15 @@ function App() {
   }
 
   return (
-    <div className="w-full h-screen bg-white text-gray-900 overflow-hidden font-sans flex flex-col">
+    <div className="w-full h-screen bg-background text-slate-900 overflow-hidden font-sans flex flex-col">
       <RefinedToolbar 
         undo={undo}
         redo={redo}
         canUndo={pastStates.length > 0}
         canRedo={futureStates.length > 0}
         onAddConcept={() => GraphService.addConcept('actor', 'New Node')}
-        onUnpinAll={unpinAll}
-        onTriggerLayout={triggerLayout}
+        onUnpinAll={() => GraphService.unpinAll()}
+        onTriggerLayout={() => GraphService.triggerLayout()}
         onToggleFocusMode={() => setFocusMode(!focusMode)}
         focusMode={focusMode}
       />
@@ -170,33 +183,34 @@ function App() {
               defaultSize={300} 
               minSize={250} 
               maxSize={800} 
-              className="bg-white"
+              className="bg-slate-50 border-r border-slate-200"
             >
               <Navigator />
             </Panel>
           )}
           {indexOpen && !focusMode && (
-            <Separator className="w-1.5 group relative transition-colors hover:bg-primary/10 cursor-col-resize">
-              <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-[1px] bg-gray-100 group-hover:bg-primary/30" />
+            <Separator className="w-1 group relative transition-colors hover:bg-primary/10 cursor-col-resize">
+              <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-[1px] bg-slate-200 group-hover:bg-slate-400" />
             </Separator>
           )}
 
-          {/* Center: Viewport */}
-          <Panel 
-            id="viewport-panel"
-            defaultSize={800} 
-            minSize={400}
-          >
+          {/* Center: Viewport (Visible in 'graph' and 'split' modes) */}
+          {viewMode !== 'code' && !diffMode && (
+            <Panel 
+              id="viewport-panel"
+              defaultSize={viewMode === 'split' ? 60 : 800} 
+              minSize={400}
+            >
             <main
               id="zone-viewport"
               ref={zone2Ref}
               tabIndex={0}
-              className="h-full flex flex-col min-w-0 focus:outline-none relative bg-[#F9FAFB]"
+              className="h-full flex flex-col min-w-0 focus:outline-none relative bg-slate-50"
             >
-              {/* Floating View Switcher */}
+              {/* Individual Pill Switcher (Modern Pro Refined - Elegant Balance) */}
               <div 
-                className="absolute left-1/2 -translate-x-1/2 z-50 flex items-center" 
-                style={{ top: '24px', gap: '24px' }}
+                className="absolute left-1/2 -translate-x-1/2 z-50 flex items-center gap-4" 
+                style={{ top: '32px' }}
               >
                 {[
                   { id: 'graph', icon: LayoutGrid, label: 'Graph' },
@@ -208,41 +222,32 @@ function App() {
                     disabled={isConflict && mode.id !== 'code'}
                     onClick={() => { setViewMode(mode.id as ViewMode); setDiffMode(false); }}
                     className={`
-                      flex items-center rounded-full text-[12px] font-bold transition-all shadow-sm border
-                      ${viewMode === mode.id && !diffMode ? 'bg-white text-primary border-primary/30 shadow-md scale-105 ring-4 ring-primary/5' : 'bg-white/80 backdrop-blur-md text-gray-500 hover:text-gray-800 hover:bg-gray-50 border-gray-200'}
+                      flex items-center text-[11px] font-bold uppercase tracking-wider transition-all px-8 py-2.5 gap-2.5 rounded-full border
+                      ${viewMode === mode.id && !diffMode 
+                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-xl shadow-emerald-100' 
+                        : 'bg-white/95 backdrop-blur-xl text-slate-500 border-slate-200 hover:text-slate-900 hover:bg-white hover:border-slate-300 shadow-sm'}
                       ${isConflict && mode.id !== 'code' ? 'opacity-20 cursor-not-allowed' : ''}
                     `}
-                    style={{ padding: '10px 24px', gap: '10px' }}
                     title={mode.label}
                   >
-                    <mode.icon size={15} strokeWidth={2.5} />
-                    <span className="tracking-widest uppercase">{mode.label}</span>
+                    <mode.icon size={13} strokeWidth={2.5} />
+                    <span className="tracking-tight">{mode.label}</span>
                   </button>
                 ))}
-                
-                <div className="w-px bg-gray-300" style={{ height: '24px', margin: '0 8px' }} />
                 
                 <button
                   onClick={() => setDiffMode(!diffMode)}
                   className={`
-                    flex items-center rounded-full text-[12px] font-bold transition-all border shadow-sm
-                    ${diffMode ? 'bg-white text-rose-600 border-rose-300 shadow-md scale-105 ring-4 ring-rose-100' : 'bg-white/80 backdrop-blur-md text-gray-500 hover:text-gray-800 hover:bg-gray-50 border-gray-200'}
+                    flex items-center text-[11px] font-bold uppercase tracking-wider transition-all px-8 py-2.5 gap-2.5 rounded-full border
+                    ${diffMode 
+                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-xl shadow-emerald-100' 
+                      : 'bg-white/95 backdrop-blur-xl text-slate-500 border-slate-200 hover:text-slate-900 hover:bg-white hover:border-slate-300 shadow-sm'}
                   `}
-                  style={{ padding: '10px 24px', gap: '10px' }}
                 >
-                  <span className="tracking-widest uppercase">Diff</span>
+                  <span className="tracking-tight">Diff</span>
                 </button>
               </div>
 
-              {/* Navigation Hint */}
-              <div className="absolute top-6 right-6 z-40 flex items-center gap-2 bg-white/80 backdrop-blur-md px-3 py-2 rounded-xl border border-gray-200 shadow-sm text-gray-500 pointer-events-none select-none">
-                <Search size={14} className="text-gray-400" />
-                <div className="flex gap-1 items-center">
-                  <kbd className="kbd text-[10px]">Ctrl</kbd>
-                  <span className="text-[10px] font-bold text-gray-400">+</span>
-                  <kbd className="kbd text-[10px]">K</kbd>
-                </div>
-              </div>
 
               <ViewportContainer
                 viewMode={viewMode}
@@ -253,15 +258,53 @@ function App() {
                     <GraphViewport focusMode={focusMode} />
                   </ReactFlowProvider>
                 }
-                codeViewport={<CodeViewport isConflict={isConflict} />}
                 diffViewport={<DiffViewport />}
               />
+
+              {/* Floating Help Trigger (Bottom Right of Canvas) */}
+              <button
+                onClick={() => setIsHelpOpen(true)}
+                className="absolute bottom-8 right-8 z-50 w-12 h-12 bg-emerald-600 text-white rounded-full flex items-center justify-center shadow-xl shadow-emerald-200 hover:bg-emerald-700 hover:scale-110 transition-all active:scale-95 group"
+                title="Keyboard Shortcuts (?)"
+              >
+                <HelpCircle size={24} strokeWidth={2.5} className="group-hover:rotate-12 transition-transform" />
+              </button>
             </main>
           </Panel>
+          )}
+
+          {/* New dedicated Code View Panel (Internal Zone 3) */}
+          {(viewMode === 'split' || viewMode === 'code') && !diffMode && !focusMode && (
+            <>
+              <Separator className="w-1 group relative transition-colors hover:bg-emerald-500/10 cursor-col-resize">
+                <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-[1px] bg-slate-200 group-hover:bg-emerald-300" />
+              </Separator>
+              <Panel 
+                id="code-panel"
+                defaultSize={viewMode === 'code' ? 100 : 40}
+                minSize={20}
+                className="bg-white border-l border-slate-200 flex flex-col"
+              >
+                <div className="zone-header px-6 py-4 border-b border-slate-100 shrink-0 flex items-center justify-between bg-white">
+                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
+                    YAML {isConflict ? '(CONFLICT MODE - EDITABLE)' : '(Read-Only)'}
+                  </span>
+                  {isConflict && (
+                    <span className="px-2 py-0.5 bg-red-50 text-red-500 text-[9px] font-bold rounded-md border border-red-100 animate-pulse">
+                      ⚠ INVALID YAML
+                    </span>
+                  )}
+                </div>
+                <div className="flex-1 min-h-0 relative">
+                  <CodeViewport isConflict={isConflict} />
+                </div>
+              </Panel>
+            </>
+          )}
 
           {propertiesOpen && !focusMode && (
-            <Separator className="w-1.5 group relative transition-colors hover:bg-primary/10 cursor-col-resize">
-              <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-[1px] bg-gray-100 group-hover:bg-primary/30" />
+            <Separator className="w-1 group relative transition-colors hover:bg-primary/10 cursor-col-resize">
+              <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-[1px] bg-slate-200 group-hover:bg-slate-400" />
             </Separator>
           )}
           {propertiesOpen && !focusMode && (
@@ -270,7 +313,7 @@ function App() {
               defaultSize={300} 
               minSize={250} 
               maxSize={800} 
-              className="bg-white"
+              className="bg-slate-50 border-l border-slate-200"
             >
               <div ref={zone4Ref} tabIndex={0} className="h-full focus:outline-none">
                 <Inspector />
@@ -280,7 +323,6 @@ function App() {
         </Group>
       </div>
 
-      {/* Modals & Palettes */}
       <CommandOverlay
         open={commandOpen}
         initialQuery={initialCommandQuery}
@@ -288,13 +330,23 @@ function App() {
           setCommandOpen(false);
           setInitialCommandQuery('');
         }}
+        onFocusInspector={() => {
+          // Explicitly focus Zone 4 (Inspector) after creation
+          setTimeout(() => {
+            zone4Ref.current?.focus();
+            const firstInput = zone4Ref.current?.querySelector('input, select, textarea') as HTMLElement;
+            firstInput?.focus();
+            if (firstInput instanceof HTMLInputElement) firstInput.select();
+          }, 100);
+        }}
       />
       <RelationBuilder />
+      <KeyboardHelp isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
 
-      {/* Errors */}
+      {/* Errors (Modern Pro) */}
       {bootError && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-rose-500 text-white px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest z-[200] shadow-2xl shadow-rose-500/20 animate-in slide-in-from-bottom-4">
-          ⚠ System Error: {bootError}
+        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-red-50 text-red-600 px-6 py-3 rounded-xl border border-red-200 shadow-xl z-[200] flex items-center gap-3">
+          <span className="text-sm font-bold">System Error: {bootError}</span>
         </div>
       )}
     </div>

@@ -10,6 +10,7 @@ interface CommandOverlayProps {
   open: boolean;
   initialQuery?: string;
   onClose: () => void;
+  onFocusInspector?: () => void;
 }
 
 interface CommandItem {
@@ -34,16 +35,15 @@ const CONCEPT_TYPES: Array<{ type: ConceptType; label: string; icon: any }> = [
   { type: 'other', label: 'Other', icon: <Box size={14} /> },
 ];
 
-export function CommandOverlay({ open, initialQuery, onClose }: CommandOverlayProps) {
+export function CommandOverlay({ open, initialQuery, onClose, onFocusInspector }: CommandOverlayProps) {
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  const { concepts, selectConcept } = useGraphStore(
+  const { concepts } = useGraphStore(
     useShallow((s) => ({
       concepts: s.concepts,
-      selectConcept: s.selectConcept,
     })),
   );
 
@@ -64,8 +64,8 @@ export function CommandOverlay({ open, initialQuery, onClose }: CommandOverlayPr
     for (const ct of CONCEPT_TYPES) {
       items.push({
         id: `create-${ct.type}`,
-        label: `Create ${ct.label}`,
-        description: `ADD NEW ${ct.type.toUpperCase()}`,
+        label: `CREATE ${ct.label.toUpperCase()}`,
+        description: `ADD NEW ${ct.type.toUpperCase()} TO GRAPH`,
         group: 'Actions',
         icon: <Plus size={14} />,
         action: async () => {
@@ -74,8 +74,9 @@ export function CommandOverlay({ open, initialQuery, onClose }: CommandOverlayPr
             ? query.slice(7).trim() || `New ${ct.label}`
             : (q || `New ${ct.label}`);
           const concept = await GraphService.addConcept(ct.type, name);
-          selectConcept(concept.id);
+          GraphService.selectConcept(concept.id);
           onClose();
+          onFocusInspector?.();
         },
       });
     }
@@ -89,7 +90,7 @@ export function CommandOverlay({ open, initialQuery, onClose }: CommandOverlayPr
         group: 'Concepts',
         icon: <ChevronRight size={14} />,
         action: () => {
-          selectConcept(c.id);
+          GraphService.selectConcept(c.id);
           onClose();
         },
       });
@@ -99,8 +100,8 @@ export function CommandOverlay({ open, initialQuery, onClose }: CommandOverlayPr
     for (const c of concepts) {
       items.push({
         id: `del-${c.id}`,
-        label: `Delete ${c.name}`,
-        description: `REMOVE ${c.conceptType.toUpperCase()}`,
+        label: `DELETE ${c.name.toUpperCase()}`,
+        description: `PERMANENTLY REMOVE ${c.conceptType.toUpperCase()}`,
         group: 'Danger Zone',
         danger: true,
         icon: <Trash2 size={14} />,
@@ -121,7 +122,7 @@ export function CommandOverlay({ open, initialQuery, onClose }: CommandOverlayPr
           if (c.id === selectedId) continue;
           items.push({
             id: `connect-${c.id}`,
-            label: `Connect to ${c.name}`,
+            label: `CONNECT TO ${c.name.toUpperCase()}`,
             description: `LINK // ${selectedConcept.name} → ${c.name}`,
             group: 'Relations',
             icon: <Zap size={14} />,
@@ -136,7 +137,7 @@ export function CommandOverlay({ open, initialQuery, onClose }: CommandOverlayPr
         for (const ct of CONCEPT_TYPES) {
           items.push({
             id: `connect-new-${ct.type}`,
-            label: `Connect to new ${ct.label}`,
+            label: `CONNECT TO NEW ${ct.label.toUpperCase()}`,
             description: `CREATE & LINK // ${selectedConcept.name} → New ${ct.label}`,
             group: 'Relations',
             icon: <Plus size={14} />,
@@ -148,8 +149,9 @@ export function CommandOverlay({ open, initialQuery, onClose }: CommandOverlayPr
               
               const concept = await GraphService.addConcept(ct.type, name);
               GraphService.addRelation(selectedId, concept.id);
-              selectConcept(concept.id);
+              GraphService.selectConcept(concept.id);
               onClose();
+              onFocusInspector?.();
             },
           });
         }
@@ -157,10 +159,10 @@ export function CommandOverlay({ open, initialQuery, onClose }: CommandOverlayPr
     }
 
     return items;
-  }, [concepts, selectConcept, onClose, query]);
+  }, [concepts, onClose, query]);
 
   const fuse = useMemo(() => new Fuse(allItems, {
-    keys: ['label', 'group', 'description'],
+    keys: ['label', 'description'],
     threshold: 0.35,
   }), [allItems]);
 
@@ -202,47 +204,51 @@ export function CommandOverlay({ open, initialQuery, onClose }: CommandOverlayPr
 
   return (
     <div className="fixed inset-0 z-[200] flex items-start justify-center pt-[15vh]">
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-gray-950/10 backdrop-blur-sm" onClick={onClose} />
+      {/* Backdrop - Premium Depth */}
+      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-md" onClick={onClose} />
 
-      {/* Palette */}
+      {/* Palette Container - Modern Pro Refined */}
       <div 
-        className="relative w-full max-w-[500px] bg-white border border-gray-100 flex flex-col overflow-hidden shadow-[0_32px_64px_-16px_rgba(0,0,0,0.1)]"
+        className="relative w-full max-w-[640px] bg-white/95 backdrop-blur-2xl rounded-[2.5rem] flex flex-col overflow-hidden shadow-2xl shadow-emerald-900/20 border border-white/20"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header - Panel Aesthetic */}
-        <div className="px-6 py-6 border-b border-gray-50 bg-[#FDFDFD]">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-primary"><Terminal size={14} strokeWidth={3} /></span>
-            <h2 className="text-[11px] font-black uppercase tracking-[0.2em] text-gray-900">Command Center</h2>
+        {/* Header - Studio Style */}
+        <div className="px-10 py-10 border-b border-slate-100 bg-emerald-50/30">
+          <div className="flex items-center gap-4 mb-3">
+            <div className="w-10 h-10 bg-emerald-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-emerald-100">
+              <Terminal size={20} strokeWidth={2.5} />
+            </div>
+            <div className="flex flex-col">
+              <h2 className="text-[14px] font-black uppercase tracking-widest text-slate-900">Command Hub</h2>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Studio Operations & Navigation</p>
+            </div>
           </div>
-          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Execute studio actions & navigation</p>
         </div>
 
-        {/* Input - Minimal */}
-        <div className="px-6 py-4">
-          <div className="flex items-center gap-3">
-            <Search className="w-4 h-4 text-gray-400" />
+        {/* Input - Elegant Search */}
+        <div className="px-10 py-6 border-b border-slate-50 bg-white">
+          <div className="flex items-center gap-5">
+            <Search className="w-5 h-5 text-emerald-500" strokeWidth={2.5} />
             <input
               ref={inputRef}
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Search concepts or actions..."
-              className="flex-1 bg-transparent text-[13px] font-bold text-gray-900 outline-none placeholder:text-gray-300"
+              placeholder="What would you like to do?"
+              className="flex-1 bg-transparent text-[16px] font-bold text-slate-800 outline-none placeholder:text-slate-300 tracking-tight"
             />
           </div>
         </div>
 
-        {/* List - Panel Aesthetic */}
-        <div ref={listRef} className="flex-1 overflow-y-auto max-h-[400px] border-t border-gray-50">
+        {/* List - Smooth & Spacious */}
+        <div ref={listRef} className="flex-1 overflow-y-auto max-h-[480px] bg-white/50 custom-scrollbar">
           {commands.length === 0 ? (
-            <div className="px-6 py-12 text-center text-[10px] font-black text-gray-300 uppercase tracking-widest">
-              No results found
+            <div className="px-10 py-20 text-center text-[11px] font-bold text-slate-400 uppercase tracking-[0.2em]">
+              No matching commands found
             </div>
           ) : (
-            <div className="px-2 py-2">
+            <div className="p-4 flex flex-col gap-1.5">
               {commands.map((item, idx) => (
                 <button
                   key={item.id}
@@ -250,29 +256,29 @@ export function CommandOverlay({ open, initialQuery, onClose }: CommandOverlayPr
                   onClick={item.action}
                   onMouseEnter={() => setSelectedIndex(idx)}
                   className={`
-                    w-full text-left px-4 py-3 rounded-lg flex items-center justify-between transition-colors group
-                    ${idx === selectedIndex ? 'bg-gray-50' : 'hover:bg-gray-50/50'}
+                    w-full text-left px-6 py-4 rounded-2xl transition-all flex items-center justify-between group
+                    ${idx === selectedIndex 
+                      ? 'bg-emerald-600 text-white shadow-xl shadow-emerald-200 -translate-y-0.5' 
+                      : 'bg-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-900'}
                   `}
                 >
-                  <div className="flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-md flex items-center justify-center transition-colors ${idx === selectedIndex ? 'bg-white shadow-sm border border-gray-100' : 'bg-gray-50'}`}>
-                      <span className={idx === selectedIndex ? (item.danger ? 'text-rose-500' : 'text-gray-900') : 'text-gray-300'}>
-                        {item.icon || <Zap size={14} />}
-                      </span>
+                  <div className="flex items-center gap-5">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${idx === selectedIndex ? 'bg-emerald-500/20 text-white' : 'bg-slate-50 text-slate-400 group-hover:bg-white group-hover:shadow-sm'}`}>
+                      {item.icon || <Zap size={16} strokeWidth={2.5} />}
                     </div>
                     <div className="flex flex-col">
-                      <span className={`text-[13px] font-bold ${idx === selectedIndex ? (item.danger ? 'text-rose-600' : 'text-gray-900') : 'text-gray-700'}`}>
+                      <span className={`text-[14px] font-bold tracking-tight ${idx === selectedIndex ? 'text-white' : 'text-slate-800'}`}>
                         {item.label}
                       </span>
-                      <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">
+                      <span className={`text-[10px] font-bold uppercase tracking-widest mt-1 ${idx === selectedIndex ? 'text-emerald-100/80' : 'text-slate-400'}`}>
                         {item.description}
                       </span>
                     </div>
                   </div>
                   {idx === selectedIndex && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Run</span>
-                      <div className="text-[10px] text-gray-300">⏎</div>
+                    <div className="flex items-center gap-3 pr-2">
+                      <span className="text-[9px] font-black uppercase tracking-widest text-emerald-100">Execute</span>
+                      <div className="w-6 h-6 bg-emerald-500/30 rounded-lg flex items-center justify-center text-[11px] font-bold text-white border border-emerald-400/30 shadow-inner">↵</div>
                     </div>
                   )}
                 </button>
@@ -281,14 +287,14 @@ export function CommandOverlay({ open, initialQuery, onClose }: CommandOverlayPr
           )}
         </div>
 
-        {/* Footer */}
-        <div className="px-6 py-4 bg-[#FDFDFD] border-t border-gray-50 flex items-center justify-between">
-          <div className="flex gap-4 text-[9px] font-black text-gray-300 uppercase tracking-widest">
-            <button onClick={onClose} className="hover:text-gray-500">ESC Close</button>
-            <span>↑↓ Move</span>
+        {/* Footer - Professional Detail */}
+        <div className="px-10 py-6 bg-slate-50/80 border-t border-slate-100 flex items-center justify-between">
+          <div className="flex gap-8 text-[9px] font-black text-slate-400 uppercase tracking-widest">
+            <div className="flex items-center gap-2"><kbd className="px-1.5 py-0.5 bg-white border border-slate-200 rounded text-slate-500 shadow-sm">ESC</kbd> CLOSE</div>
+            <div className="flex items-center gap-2"><kbd className="px-1.5 py-0.5 bg-white border border-slate-200 rounded text-slate-500 shadow-sm">↑↓</kbd> NAVIGATE</div>
           </div>
-          <div className="text-[9px] font-black text-gray-200 uppercase tracking-widest">
-            Studio // Hub
+          <div className="text-[9px] font-black text-emerald-600/50 uppercase tracking-[0.3em] font-mono">
+            KNOWLEDGE GRAPH ENGINE
           </div>
         </div>
       </div>

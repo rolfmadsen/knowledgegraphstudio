@@ -28,7 +28,6 @@ import {
   type NodeTypes,
   type OnConnect,
   type NodeMouseHandler,
-  type NodeProps,
   Controls,
   MarkerType,
   type InternalNode,
@@ -108,9 +107,10 @@ function FloatingEdge({ id, source, target, markerEnd, style, label, labelStyle,
         markerEnd={markerEnd}
         style={{
           ...style,
-          stroke: selected ? '#064E3B' : '#E2E8F0',
-          strokeWidth: selected ? 3 : 1.5,
-          transition: 'all 0.2s ease'
+          stroke: selected ? '#10b981' : '#cbd5e1',
+          strokeWidth: selected ? 2.5 : 1.5,
+          transition: 'all 0.2s ease',
+          strokeDasharray: selected ? 'none' : '4 4'
         }}
       />
       {label && (
@@ -119,34 +119,36 @@ function FloatingEdge({ id, source, target, markerEnd, style, label, labelStyle,
           className="nodrag nopan"
           onClick={(e) => {
             e.stopPropagation();
-            useGraphStore.getState().selectRelation(id);
+            GraphService.selectRelation(id);
           }}
           style={{ cursor: 'pointer' }}
         >
           <rect
-            x={-(label.length * 3 + 12)}
-            y={-10}
-            width={label.length * 6 + 24}
-            height={20}
-            rx={10}
+            x={-(label.length * 3 + 14)}
+            y={-12}
+            width={label.length * 6 + 28}
+            height={24}
+            rx={12}
+            ry={12}
             fill="white"
-            stroke={selected ? '#064E3B' : '#F1F5F9'}
-            strokeWidth={1}
-            style={{ pointerEvents: 'all', cursor: 'pointer', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.02))' }}
+            stroke={selected ? '#10b981' : '#f1f5f9'}
+            strokeWidth={1.5}
+            className="shadow-sm"
+            style={{ pointerEvents: 'all', cursor: 'pointer' }}
           />
           <text
             y={4}
             style={{
               ...labelStyle,
-              fontSize: 9,
-              fontFamily: 'var(--font-sans)',
-              fontWeight: 700,
-              fill: selected ? '#064E3B' : '#94A3B8',
+              fontSize: 8,
+              fontFamily: 'var(--font-mono)',
+              fontWeight: 800,
+              fill: selected ? '#065f46' : '#64748b',
               textAnchor: 'middle',
               pointerEvents: 'none',
               userSelect: 'none',
               textTransform: 'uppercase',
-              letterSpacing: '0.02em'
+              letterSpacing: '0.1em'
             }}
           >
             {label}
@@ -157,29 +159,30 @@ function FloatingEdge({ id, source, target, markerEnd, style, label, labelStyle,
   );
 }
 
-function ConceptNodeComponent({ data, selected }: NodeProps) {
-  const d = data as Record<string, unknown>;
-  const type = d.conceptType as string;
-
+function ConceptNodeComponent({ data, selected }: { data: any; selected: boolean }) {
   return (
-    <div
-      className={`
-        px-6 py-4 rounded-[20px] bg-white border transition-all duration-300 flex flex-col items-center gap-1.5
-        ${selected
-          ? 'border-primary shadow-[0_20px_40px_-15px_rgba(15,23,42,0.15)] ring-2 ring-primary/5 -translate-y-1'
-          : 'border-gray-100 shadow-sm hover:border-gray-200 hover:shadow-md'}
-      `}
-      style={{ minWidth: 120, maxWidth: 260 }}
-    >
+    <div className={`
+      relative min-w-[220px] min-h-[80px] px-8 py-6 bg-white/95 backdrop-blur-md border-2 transition-all rounded-[2rem] flex flex-col justify-center
+      ${selected 
+        ? 'border-emerald-500 shadow-2xl shadow-emerald-200/50 -translate-y-1' 
+        : 'border-slate-100 shadow-xl shadow-slate-200/30'}
+    `}>
       <Handle type="target" position={Position.Top} style={{ visibility: 'hidden', top: '50%', left: '50%' }} />
       <Handle type="source" position={Position.Bottom} style={{ visibility: 'hidden', top: '50%', left: '50%' }} />
-
-      <span className={`text-[8px] font-black uppercase tracking-[0.2em] px-2 py-0.5 rounded-full border mb-0.5 ${selected ? 'bg-primary/10 text-primary border-primary/20' : 'bg-gray-50 text-gray-400 border-gray-100'}`}>
-        {type}
-      </span>
-      <span className={`text-[13px] font-bold tracking-tight text-center break-words text-balance w-full ${selected ? 'text-gray-950' : 'text-gray-700'}`}>
-        {d.label as string}
-      </span>
+      
+      <div className="flex flex-col gap-2 w-full">
+        <div className="flex items-center justify-between gap-4 w-full">
+           <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] font-mono">{data.type || 'CONCEPT'}</span>
+           {data.lifecycle && data.lifecycle !== 'active' && (
+             <span className="text-[8px] font-black px-3 py-1 bg-slate-50 text-slate-500 uppercase rounded-full border border-slate-100 tracking-wider">
+               {data.lifecycle}
+             </span>
+           )}
+        </div>
+        <div className="text-[15px] font-black text-slate-800 leading-tight break-words tracking-tight">
+          {data.name || 'Untitled Node'}
+        </div>
+      </div>
     </div>
   );
 }
@@ -195,18 +198,10 @@ interface GraphViewportProps {
 export function GraphViewport({ focusMode = false }: GraphViewportProps) {
   const { concepts, relations } = useFocusedGraph(focusMode);
   const {
-    selectConcept,
-    selectRelation,
-    updateNodePosition,
-    batchUpdateNodePositions,
     selectedConceptId,
     selectedRelationId,
   } = useGraphStore(
     useShallow((s) => ({
-      selectConcept: s.selectConcept,
-      selectRelation: s.selectRelation,
-      updateNodePosition: s.updateNodePosition,
-      batchUpdateNodePositions: s.batchUpdateNodePositions,
       selectedConceptId: s.selectedConceptId,
       selectedRelationId: s.selectedRelationId,
     })),
@@ -223,7 +218,11 @@ export function GraphViewport({ focusMode = false }: GraphViewportProps) {
       type: 'conceptNode',
       position: { x: c.x ?? 0, y: c.y ?? 0 },
       selected: c.id === selectedConceptId,
-      data: { label: c.name, conceptType: c.conceptType.replace('_', ' ') },
+      data: { 
+        name: c.name, 
+        type: c.conceptType.replace('_', ' '),
+        lifecycle: c.lifecycleState
+      },
     })),
     [concepts, selectedConceptId],
   );
@@ -239,7 +238,7 @@ export function GraphViewport({ focusMode = false }: GraphViewportProps) {
       markerEnd: (r.isDirected !== false) ? {
         type: MarkerType.ArrowClosed,
         width: 15, height: 15,
-        color: r.id === selectedRelationId ? '#064E3B' : '#CBD5E1',
+        color: r.id === selectedRelationId ? '#1C1917' : '#D6D3D1',
       } : undefined,
     })),
     [relations, selectedRelationId],
@@ -257,21 +256,27 @@ export function GraphViewport({ focusMode = false }: GraphViewportProps) {
         if (s.id === activeDraggingNode.current && existingNode) return existingNode;
 
         const storePos = { x: s.x ?? 0, y: s.y ?? 0 };
-        const label = s.name;
-        const conceptType = s.conceptType.replace('_', ' ');
+        const name = s.name;
+        const type = s.conceptType.replace('_', ' ');
+        const lifecycle = s.lifecycleState;
         const isSelected = s.id === selectedConceptId;
+
+        const newData = { name, type, lifecycle };
 
         if (existingNode) {
           const changed = Math.abs(existingNode.position.x - storePos.x) > 0.1 ||
             Math.abs(existingNode.position.y - storePos.y) > 0.1 ||
-            existingNode.data.label !== label ||
+            existingNode.data.name !== name ||
+            existingNode.data.type !== type ||
+            existingNode.data.lifecycle !== lifecycle ||
             existingNode.selected !== isSelected;
+          
           if (!changed) return existingNode;
           hasChanges = true;
-          return { ...existingNode, position: storePos, selected: isSelected, data: { label, conceptType } };
+          return { ...existingNode, position: storePos, selected: isSelected, data: newData };
         }
         hasChanges = true;
-        return { id: s.id, type: 'conceptNode', position: storePos, selected: isSelected, data: { label, conceptType } };
+        return { id: s.id, type: 'conceptNode', position: storePos, selected: isSelected, data: newData };
       });
       if (currentNodes.length !== concepts.length) hasChanges = true;
       return hasChanges ? nextNodes : currentNodes;
@@ -336,7 +341,7 @@ export function GraphViewport({ focusMode = false }: GraphViewportProps) {
           const h = rfNode?.measured?.height ?? 80;
           return { id: ln.id, x: ln.x - w / 2, y: ln.y - h / 2 };
         });
-        batchUpdateNodePositions(updates, false);
+        GraphService.batchUpdateNodePositions(updates, false);
         if (isFirstFit.current) {
           setTimeout(() => fitView({ duration: 400 }), 100);
           isFirstFit.current = false;
@@ -356,18 +361,18 @@ export function GraphViewport({ focusMode = false }: GraphViewportProps) {
 
   const onSelectionChange = useCallback(({ nodes: selectedNodes }: { nodes: Node[] }) => {
     const newId = selectedNodes.length > 0 ? selectedNodes[0].id : null;
-    if (newId !== useGraphStore.getState().selectedConceptId) selectConcept(newId);
-  }, [selectConcept]);
+    if (newId !== useGraphStore.getState().selectedConceptId) GraphService.selectConcept(newId);
+  }, []);
 
   const onNodeDragStart = useCallback((_: any, node: Node) => { activeDraggingNode.current = node.id; }, []);
   const onNodeDragStop = useCallback((_: any, node: Node) => {
     activeDraggingNode.current = null;
-    updateNodePosition(node.id, node.position.x, node.position.y);
-  }, [updateNodePosition]);
+    GraphService.updateNodePosition(node.id, node.position.x, node.position.y);
+  }, []);
 
   const onNodeClick: NodeMouseHandler = useCallback((_, node) => {
-    selectConcept(node.id);
-  }, [selectConcept]);
+    GraphService.selectConcept(node.id);
+  }, []);
 
   useEffect(() => {
     if (selectedConceptId) {
@@ -409,8 +414,8 @@ export function GraphViewport({ focusMode = false }: GraphViewportProps) {
           onNodeClick={onNodeClick}
           onNodeDragStart={onNodeDragStart}
           onNodeDragStop={onNodeDragStop}
-          onEdgeClick={(_e, edge) => selectRelation(edge.id)}
-          onPaneClick={() => { selectConcept(null); selectRelation(null); }}
+          onEdgeClick={(_e, edge) => GraphService.selectRelation(edge.id)}
+          onPaneClick={() => { GraphService.selectConcept(null); GraphService.selectRelation(null); }}
           onSelectionChange={onSelectionChange}
           edgeTypes={edgeTypes}
           deleteKeyCode={['Backspace', 'Delete']}
@@ -421,8 +426,8 @@ export function GraphViewport({ focusMode = false }: GraphViewportProps) {
           panOnScroll={true}
           zoomActivationKeyCode={['Control', 'Meta', 'Command']}
         >
-          <Background variant={BackgroundVariant.Dots} color="#000" gap={24} size={1} style={{ opacity: 0.03 }} />
-          <Controls showInteractive={false} className="!bg-white !border !border-gray-100 !shadow-sm !rounded-lg !mb-6 !ml-6 p-0.5 flex flex-col gap-0.5" />
+          <Background variant={BackgroundVariant.Dots} color="#1C1917" gap={24} size={1} style={{ opacity: 0.05 }} />
+          <Controls showInteractive={false} className="!bg-white !border-slate-200 !shadow-studio !rounded-xl !mb-6 !ml-6 p-1 flex flex-col gap-1 overflow-hidden" />
         </ReactFlow>
       </div>
     </div>

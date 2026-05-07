@@ -105,8 +105,8 @@ export function RelationBuilder() {
     if (q && !results.find(r => r.name.toLowerCase() === q.toLowerCase())) {
       finalOptions.unshift({
         id: 'new',
-        label: `Create "${q}"`,
-        description: 'New concept',
+        label: `CREATE "${q.toUpperCase()}"`,
+        description: 'NEW CONCEPT ARCHETYPE',
         isNew: true
       });
     }
@@ -213,73 +213,73 @@ export function RelationBuilder() {
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-6">
       {/* Backdrop */}
       <div 
-        className="absolute inset-0 bg-gray-950/10 backdrop-blur-sm transition-opacity" 
+        className="absolute inset-0 bg-stone-900/40 backdrop-blur-sm transition-opacity" 
         onClick={() => setOpen(false)}
       />
 
-      {/* Palette Container */}
+      {/* Palette Container (Brutalist) */}
       <div 
-        className="relative w-full max-w-[600px] bg-white border border-gray-100 flex flex-col overflow-hidden shadow-[0_48px_96px_-24px_rgba(0,0,0,0.12)] rounded-[32px] p-10"
+        className="relative w-full max-w-[650px] bg-white border-2 border-stone-800 flex flex-col overflow-hidden shadow-[12px_12px_0px_0px_rgba(0,0,0,1)] p-12"
       >
         
-        {/* Header - Matches Navigator/Inspector Header Aesthetic */}
-        <div className="mb-10">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-3">
-              <span className="text-primary bg-primary/10 p-2 rounded-xl"><Plus size={16} strokeWidth={3} /></span>
-              <h2 className="text-[12px] font-black uppercase tracking-[0.25em] text-gray-900">
-                {step === 'target' ? 'Select Target' : step === 'type' ? 'Define Archetype' : 'Establish Link'}
+        {/* Header - Editorial Style */}
+        <div className="mb-12">
+          <div className="flex items-center justify-between mb-3 border-b border-stone-800 pb-4">
+            <div className="flex items-center gap-4">
+              <span className="text-white bg-[#065F46] border border-stone-800 p-2"><Plus size={18} strokeWidth={3} /></span>
+              <h2 className="text-[14px] font-black uppercase tracking-[0.4em] text-stone-900 font-sans">
+                {step === 'target' ? '01 // TARGET' : step === 'type' ? '02 // ARCHETYPE' : '03 // RELATION'}
               </h2>
             </div>
           </div>
-          <div className="flex items-center gap-2 text-[11px] font-bold text-gray-400 uppercase tracking-widest ml-12">
-            <span className="text-gray-400">{sourceNode.name}</span>
-            <ArrowRight size={12} className="text-gray-200" />
+          <div className="flex items-center gap-3 text-[11px] font-bold text-stone-500 uppercase tracking-widest font-mono">
+            <span className="text-stone-900 px-2 py-0.5 bg-stone-100 border border-stone-200">{sourceNode.name}</span>
+            <ArrowRight size={14} className="text-stone-300" />
             {step !== 'target' ? (
-               <span className="text-primary">{isNewTarget ? targetIdOrName : concepts.find(c => c.id === targetIdOrName)?.name}</span>
+               <span className="text-[#065F46] font-black">{isNewTarget ? targetIdOrName.toUpperCase() : concepts.find(c => c.id === targetIdOrName)?.name.toUpperCase()}</span>
             ) : (
-               <span className="text-gray-300">New Connection</span>
+               <span className="text-stone-300 italic">PENDING_CONNECTION</span>
             )}
           </div>
         </div>
 
-        {/* Input Area - Clean & Minimal */}
-        <div className="mb-6">
+        {/* Input Area - Minimal & Sharp */}
+        <div className="mb-8">
           {step === 'target' ? (
-            <div className="flex items-center gap-3 px-2">
-              <Search className="w-4 h-4 text-gray-400" />
+            <div className="flex items-center gap-4 border-b-2 border-stone-800 py-2">
+              <Search className="w-5 h-5 text-stone-300" />
               <input
                 ref={inputRef}
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Search concepts..."
-                className="flex-1 bg-transparent text-[13px] font-bold text-gray-900 outline-none placeholder:text-gray-300"
+                placeholder="SEARCH CONCEPTS..."
+                className="flex-1 bg-transparent text-[16px] font-bold text-stone-900 outline-none placeholder:text-stone-200 font-mono"
               />
             </div>
           ) : step === 'type' ? (
-            <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-2">Choosing type for "{targetIdOrName}"</div>
+            <div className="text-[10px] font-bold text-stone-400 uppercase tracking-widest font-sans">Assign archetype to "{targetIdOrName}"</div>
           ) : (
-            <div className="flex items-center gap-3 px-2">
-              <ArrowRight className="w-4 h-4 text-primary" />
+            <div className="flex items-center gap-4 border-b-2 border-stone-800 py-2">
+              <ArrowRight className="w-5 h-5 text-[#065F46]" />
               <input
                 ref={inputRef}
                 type="text"
                 value={label}
                 onChange={(e) => setLabel(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Relation name..."
-                className="flex-1 bg-transparent text-[13px] font-bold text-gray-900 outline-none placeholder:text-gray-300"
+                placeholder="RELATION LABEL..."
+                className="flex-1 bg-transparent text-[16px] font-bold text-stone-900 outline-none placeholder:text-stone-200 font-mono"
               />
             </div>
           )}
         </div>
 
-        {/* Content Area - Uses same list aesthetic as Navigator */}
-        <div className="flex flex-col max-h-[400px] overflow-hidden">
+        {/* Content Area - Sharp Grid/List */}
+        <div className="flex flex-col max-h-[450px] overflow-hidden">
           {step === 'target' ? (
-            <div ref={listRef} className="overflow-y-auto custom-scrollbar">
+            <div ref={listRef} className="overflow-y-auto custom-scrollbar flex flex-col gap-1">
               {options.map((opt, idx) => (
                 <button
                   key={opt.id === 'new' ? `new-${query}` : opt.id}
@@ -292,32 +292,34 @@ export function RelationBuilder() {
                   }}
                   onMouseEnter={() => setSelectedIndex(idx)}
                   className={`
-                    w-full text-left px-6 py-4 rounded-xl flex items-center justify-between transition-colors group mb-1
-                    ${idx === selectedIndex ? 'bg-gray-50' : 'hover:bg-gray-50/50'}
+                    w-full text-left px-6 py-4 border transition-all flex items-center justify-between group
+                    ${idx === selectedIndex 
+                      ? 'bg-white border-stone-800 shadow-[4px_4px_0px_0px_#1C1917]' 
+                      : 'bg-transparent border-transparent text-stone-400 hover:bg-stone-200/20'}
                   `}
                 >
-                  <div className="flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-md flex items-center justify-center transition-colors ${idx === selectedIndex ? 'bg-white shadow-sm border border-gray-100' : 'bg-gray-50'}`}>
-                      {opt.isNew ? <Plus size={14} className="text-primary" /> : <Box size={14} className={idx === selectedIndex ? 'text-gray-900' : 'text-gray-300'} />}
+                  <div className="flex items-center gap-4">
+                    <div className={`w-9 h-9 border flex items-center justify-center transition-all ${idx === selectedIndex ? 'bg-[#EBEAE5] border-stone-800' : 'bg-transparent border-transparent text-stone-300'}`}>
+                      {opt.isNew ? <Plus size={16} className="text-[#065F46]" /> : <Box size={16} className={idx === selectedIndex ? 'text-stone-900' : 'text-stone-200'} />}
                     </div>
                     <div className="flex flex-col">
-                      <span className={`text-[13px] font-bold ${idx === selectedIndex ? 'text-gray-900' : 'text-gray-700'}`}>{opt.label}</span>
-                      <span className="text-[10px] font-medium text-gray-400 uppercase tracking-widest">
-                        {opt.isNew ? 'New' : opt.description}
+                      <span className={`text-[13px] font-bold font-mono tracking-tight ${idx === selectedIndex ? 'text-stone-900' : 'text-stone-600'}`}>{opt.label}</span>
+                      <span className="text-[10px] font-bold text-stone-400 uppercase tracking-[0.15em] font-sans mt-0.5">
+                        {opt.isNew ? 'PROPOSE NEW' : opt.description.toUpperCase()}
                       </span>
                     </div>
                   </div>
                   {idx === selectedIndex && (
-                    <div className="flex items-center gap-2">
-                       <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Select</span>
-                       <div className="text-[10px] text-gray-300">⏎</div>
+                    <div className="flex items-center gap-3">
+                       <span className="text-[9px] font-bold text-stone-400 uppercase tracking-widest">Select</span>
+                       <div className="w-5 h-5 border border-stone-800 flex items-center justify-center text-[10px] font-bold">↵</div>
                     </div>
                   )}
                 </button>
               ))}
             </div>
           ) : step === 'type' ? (
-            <div className="p-2 grid grid-cols-3 gap-3 overflow-y-auto custom-scrollbar">
+            <div className="p-1 grid grid-cols-3 gap-4 overflow-y-auto custom-scrollbar">
               {CONCEPT_TYPES.map((ct, idx) => (
                 <button
                   key={ct.type}
@@ -327,52 +329,52 @@ export function RelationBuilder() {
                   }}
                   onMouseEnter={() => setSelectedIndex(idx)}
                   className={`
-                    text-left p-5 rounded-xl border transition-all flex flex-col gap-3 bg-white
+                    text-left p-6 border transition-all flex flex-col gap-4 bg-white
                     ${idx === selectedIndex 
-                      ? 'border-primary shadow-sm ring-1 ring-primary/5' 
-                      : 'border-gray-100 hover:border-gray-200'}
+                      ? 'border-stone-800 shadow-[4px_4px_0px_0px_#1C1917] -translate-x-1 -translate-y-1' 
+                      : 'border-stone-200 hover:border-stone-400'}
                   `}
                 >
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${idx === selectedIndex ? 'bg-primary text-white' : 'bg-gray-50 text-gray-300'}`}>
+                  <div className={`w-10 h-10 border flex items-center justify-center transition-all ${idx === selectedIndex ? 'bg-[#065F46] text-white border-stone-800' : 'bg-stone-50 text-stone-300 border-stone-200'}`}>
                     {ct.icon}
                   </div>
                   <div className="flex flex-col">
-                    <span className={`text-[9px] uppercase font-black tracking-widest ${idx === selectedIndex ? 'text-primary' : 'text-gray-400'}`}>
+                    <span className={`text-[10px] uppercase font-bold tracking-[0.2em] font-sans ${idx === selectedIndex ? 'text-[#065F46]' : 'text-stone-400'}`}>
                       {ct.type}
                     </span>
-                    <span className="text-[12px] font-bold text-gray-900">{ct.label}</span>
+                    <span className="text-[13px] font-bold text-stone-900 font-mono">{ct.label.toUpperCase()}</span>
                   </div>
                 </button>
               ))}
             </div>
           ) : (
-            <div className="p-8 flex flex-col gap-8 items-center">
-               <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center text-primary shadow-sm border border-gray-100">
-                  <Zap size={24} strokeWidth={2.5} />
+            <div className="p-10 flex flex-col gap-10 items-center bg-[#F5F4F0] border border-stone-200">
+               <div className="w-20 h-20 bg-[#1C1917] flex items-center justify-center text-white border-2 border-stone-800 shadow-[6px_6px_0px_0px_#065F46]">
+                  <Zap size={32} strokeWidth={2.5} />
                </div>
                <div className="text-center">
-                  <h4 className="text-[11px] font-black uppercase tracking-[0.2em] text-gray-900">Finalize Connection</h4>
-                  <p className="text-[12px] font-medium text-gray-400 mt-2">Establish the relationship link.</p>
+                  <h4 className="text-[12px] font-black uppercase tracking-[0.3em] text-stone-900 font-sans">Establish Relation</h4>
+                  <p className="text-[11px] font-bold text-stone-500 mt-3 font-mono">LINKING {sourceNode.name.toUpperCase()} → {isNewTarget ? targetIdOrName.toUpperCase() : concepts.find(c => c.id === targetIdOrName)?.name.toUpperCase()}</p>
                </div>
                <button 
                   onClick={handleFinish}
-                  className="w-full py-4 bg-gray-900 text-white font-black uppercase tracking-[0.2em] rounded-xl hover:bg-black transition-all shadow-lg shadow-gray-200 text-[10px] flex items-center justify-center gap-3"
+                  className="w-full py-5 bg-[#065F46] text-white font-black uppercase tracking-[0.3em] border-2 border-stone-900 hover:bg-[#047857] transition-all shadow-[6px_6px_0px_0px_#1C1917] text-[11px] flex items-center justify-center gap-4"
                 >
-                  Confirm <span className="opacity-40 font-normal">⏎</span>
+                  Confirm Lineage <span className="text-[14px]">↵</span>
                 </button>
             </div>
           )}
         </div>
 
         {/* Footer */}
-        <div className="mt-8 pt-6 border-t border-gray-50 flex items-center justify-between">
-          <div className="flex gap-6 text-[9px] font-black text-gray-300 uppercase tracking-widest">
-            <button onClick={() => setOpen(false)} className="hover:text-gray-500">ESC Cancel</button>
-            <span>↑↓ Navigate</span>
+        <div className="mt-12 pt-8 border-t border-stone-800 flex items-center justify-between font-sans">
+          <div className="flex gap-8 text-[9px] font-bold text-stone-400 uppercase tracking-widest">
+            <button onClick={() => setOpen(false)} className="hover:text-stone-800 border-b border-transparent hover:border-stone-800">ESC Cancel</button>
+            <div className="flex items-center gap-2">↑↓ Navigate</div>
           </div>
-          <div className="flex items-center gap-1.5 text-[9px] font-black text-gray-400 uppercase tracking-widest">
-             <div className="w-1 h-1 rounded-full bg-emerald-400" />
-             Active
+          <div className="flex items-center gap-2 text-[10px] font-black text-stone-900 uppercase tracking-[0.2em]">
+             <div className="w-2 h-2 bg-[#065F46] border border-stone-800" />
+             Studio_Session_Active
           </div>
         </div>
       </div>

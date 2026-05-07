@@ -153,32 +153,33 @@ interface ConceptRelation extends BaseEntity {
 
 ## 5. UI/UX Design System & Skærm-specifikationer
 
-Æstetikken er et skarpt, redaktionelt interface (Brutalist-lite) med høj datatæthed, optimeret til keyboard-first. Ingen bløde skygger.
+Æstetikken er et premium, luftigt og professionelt interface (Modern Pro) med høj datatæthed, optimeret til keyboard-first. Designet vægter "Breathe" (masser af hvid plads) og visuel elegance frem for rå funktionalisme.
 
 ### 5.1 Design Tokens
 
-*   Primary: #065F46
-*   Background: #F5F4F0
-*   Surface: #EBEAE5
-*   Text: #1C1917
-*   Muted: #78716C
-*   Border: #D6D3D1
-*   Radius: 0px overalt.
+*   Primary (Signal Green): #059669 (Emerald 600)
+*   Background: #F8FAFC (Slate 50)
+*   Surface: #FFFFFF (White / Glass)
+*   Text: #1E293B (Slate 800)
+*   Muted: #94A3B8 (Slate 400)
+*   Border: #E2E8F0 (Slate 200)
+*   Radius: rounded-3xl (24px) for paneler, rounded-full for knapper/pills.
+*   Shadows: Bløde, flerlagede skygger (emerald-tinted til aktive elementer).
 
 ### 5.2 Typografi & Skærme
 
-* Zoner 1 & 4 (Paneler): IBM Plex Sans (12px bold uppercase til headers), JetBrains Mono til data. 1px hårde rammer.
+* Zoner 1 & 4 (Paneler): Inter / IBM Plex Sans (Bold uppercase til headers), JetBrains Mono til metadata. Baggrunde er Slate 50 for at skabe dybde mod det hvide lærred.
 
 * Zone 2 (Canvas): 
-    * Noder er #EBEAE5 cirkler/kasser med 1px sort kant. Nodetypen skrives i noden (IBM Plex Sans 10px uppercase). Aktiv node fyldes med #065F46.
+    * Noder (Concepts): "Pills" med rounded-[2rem] geometri. Glassmorphic hvid baggrund (bg-white/95 backdrop-blur-md). 2px emerald-500 kant ved selektion. Navnet skrives med font-black og tracking-tight.
+    * Baggrund: Dot-grid mønster (1px dots, 24px gap) med 5% opacity.
 
-* Edges & Multiplicitet: Lige 1px #78716C linjer med pilehoveder for directed relations. Relationens navn (fx "triggers") renderes som en centreret label. Multiplicitet (fx "1..*") renderes i parentes efter navnet.
+* Edges & Relationer: 
+    * Idle: 1.5px dashed slate-300 linjer.
+    * Aktiv: 2.5px solid emerald-500 linjer med bløde kurver.
+    * Labels: "Floating Pills" med rounded-full, hvid baggrund og font-mono. Emerald-grøn tekst ved selektion.
 
-    *   Labels: IBM Plex Sans 10px bold, hvid baggrund med 80% opacity for læsbarhed over linjer.
-
-    * Bemærk: Visuelle "diffs" (ændringer) renderes ikke på lærredet i V1. Diffs håndteres eksklusivt af Monaco Diff Editor i Code View.
-
-* Zone 3 (Command Archive): Centreret modal, slører lærred med 50% #F5F4F0. Hård sort skygge (4px 4px 0px 0px #1C1917). Spectral 24px serif til søgefeltet.
+* Zone 3 (Command Hub): Centreret modal med rounded-[2.5rem] hjørner. Glassmorphic (bg-white/95 backdrop-blur-2xl). Bløde emerald-skygger. Inter font til søgefeltet. List-items bruger rounded-2xl for selektions-tilstande.
 
 ## 6. Keyboard Shortcuts Specifikation (Kontekstafhængige)
 
@@ -221,7 +222,7 @@ For at sikre en ægte "keyboard-first" oplevelse, er genvejene kontekstafhængig
 
 * Fase 1: State, Hydration & Git: Zod schemas, Zustand store, YAML stringifier/parser (Two-Way Sync ved init/pull). Opsætning af lightning-fs, isomorphic-git og automatisk oprettelse af "Default Workspace". Gate: Vitest.
 * Fase 2: Graph & Read-Only Code View: Opsætning af GraphViewport (med D3 Alpha Decay) og CodeViewport (Monaco YAML, read-only med Esc-trap escape). Implementer Monaco Diff Editor mod Git HEAD. Gate: UI opdateres fejlfrit.
-* Fase 3: UX & Design System: Implementer det redaktionelle Brutalist-lite design (0px radius, hårde skygger) over Zone 1 og 2. Gate: Visuel QA.
+* Fase 3: UX & Design System: Implementer det professionelle Modern Pro design (rounded-3xl, bløde emerald skygger) over Zone 1 og 2. Gate: Visuel QA.
 * Phase 4: Zones 3 & 4 (Command & Properties): Byg Keyboard-first search (Cmd+K) samt sidebar inkl. Gherkin editor og kontekstuelle genveje. Gate: Playwright E2E.
 * Phase 5: GitHub Integration & Remote Sync: Implementer Push/Pull/Clone funktionalitet mod eksterne Git-remotes (f.eks. GitHub). Gate: Succesfuld push/pull test med mock server.
 
@@ -242,7 +243,7 @@ src/
 ├── hooks/                  
 │   └── useKeyboard.ts      # Styrer global 'Esc' for at bryde ud af Monaco Focus Trap
 ├── components/             
-│   └── ui/                 # Solide Brutalist komponenter
+│   └── ui/                 # Premium Modern Pro komponenter
 ├── services/               # Det Interne API (Service Layer)
 │   ├── GraphService.ts     # Forretningslogik for graf-mutationer
 │   ├── PersistenceService.ts # Håndtering af filsystem og YAML sync

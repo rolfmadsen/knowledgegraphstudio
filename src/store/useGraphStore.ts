@@ -31,16 +31,8 @@ export interface GraphStoreState {
   selectRelation: (id: ElementId | null) => void;
   setRelationBuilderOpen: (open: boolean, sourceId?: ElementId | null) => void;
 
-  // --- Ephemeral Layout Actions (excluded from undo) ---
-  updateNodePosition: (id: ElementId, x: number, y: number) => void;
-  batchUpdateNodePositions: (positions: Array<{ id: ElementId; x: number; y: number }>, pin?: boolean) => void;
-  unpinAll: () => void;
-  updateNodeSize: (id: ElementId, width: number, height: number) => void;
-  pinNode: (id: ElementId, fx: number | null, fy: number | null) => void;
-
   // --- Bulk / Hydration ---
   layoutVersion: number;
-  triggerLayout: () => void;
   hydrate: (state: { domains: Domain[]; concepts: ConceptNode[]; relations: ConceptRelation[] }) => void;
 }
 
@@ -56,77 +48,15 @@ export const useGraphStore = create<GraphStoreState>()(
       rawYaml: null,
       isRelationBuilderOpen: false,
       relationBuilderSourceId: null,
+      layoutVersion: 0,
 
-      // --- Selection ---
-      selectConcept: (id) => {
-        set({ selectedConceptId: id, selectedRelationId: null });
-      },
-      selectRelation: (id) => set({ selectedRelationId: id, selectedConceptId: null }),
+      // --- UI Actions (State only) ---
+      selectConcept: (id) => set({ selectedConceptId: id, selectedRelationId: null }),
+      selectRelation: (id) => set({ selectedRelationId: id }),
       setRelationBuilderOpen: (open, sourceId = null) => set({ 
         isRelationBuilderOpen: open, 
         relationBuilderSourceId: sourceId 
       }),
-
-      // --- Layout ---
-      updateNodePosition: (id, x, y) => {
-        set((state) => ({
-          concepts: state.concepts.map((c) =>
-            c.id === id ? { ...c, x, y } : c,
-          ),
-        }));
-      },
-
-      batchUpdateNodePositions: (positions, pin = false) => {
-        set((state) => {
-          let changed = false;
-          const newConcepts = state.concepts.map((c) => {
-            const pos = positions.find((p) => p.id === c.id);
-            if (pos) {
-              const xChanged = pos.x !== c.x || pos.y !== c.y;
-              const pinChanged = pin && (c.fx !== pos.x || c.fy !== pos.y);
-              if (xChanged || pinChanged) {
-                changed = true;
-                return { 
-                  ...c, 
-                  x: pos.x, 
-                  y: pos.y, 
-                  fx: pin ? pos.x : c.fx, 
-                  fy: pin ? pos.y : c.fy 
-                };
-              }
-            }
-            return c;
-          });
-          if (!changed) return state;
-          return { concepts: newConcepts };
-        });
-      },
-
-      unpinAll: () => {
-        set((state) => ({
-          concepts: state.concepts.map((c) => ({ ...c, fx: null, fy: null })),
-        }));
-      },
-
-      updateNodeSize: (id, width, height) => {
-        set((state) => ({
-          concepts: state.concepts.map((c) =>
-            c.id === id ? { ...c, width, height } : c,
-          ),
-        }));
-      },
-
-      pinNode: (id, fx, fy) => {
-        set((state) => ({
-          concepts: state.concepts.map((c) =>
-            c.id === id ? { ...c, fx, fy } : c,
-          ),
-        }));
-      },
-
-      // --- Bulk / Layout ---
-      layoutVersion: 0,
-      triggerLayout: () => set((state) => ({ layoutVersion: state.layoutVersion + 1 })),
 
       // --- Hydration ---
       hydrate: (newState) => {

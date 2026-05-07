@@ -1,73 +1,60 @@
-# React + TypeScript + Vite
+# 🌐 Knowledge Graph Studio
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A premium, local-first, and keyboard-navigable spatial modeling environment for structured knowledge.
 
-Currently, two official plugins are available:
+![Knowledge Graph Studio](https://img.shields.io/badge/Status-Beta-emerald)
+![Tech Stack](https://img.shields.io/badge/Stack-React_%7C_TS_%7C_Vite-blue)
+![Design](https://img.shields.io/badge/Design-Modern_Pro-white)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## ✨ The Vision
 
-## React Compiler
+Knowledge Graph Studio is designed for architects and modelers who value **speed**, **precision**, and **local-first privacy**. It transforms complex domain relationships into an elegant, navigable spatial graph, backed by a deterministic YAML schema and local Git versioning.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## 🚀 Key Features
 
-## Expanding the ESLint configuration
+### 🎮 Keyboard-First Modeling
+*   **Spatial Walking**: Navigate concepts using `Arrow` keys; traverse relationships using `Alt + Arrows`.
+*   **Command Hub**: Global fuzzy search and action palette via `Ctrl + K`.
+*   **Drill & Edit**: `Enter` to instantly focus the Inspector; `Tab` to cycle through every property field.
+*   **Universal Escape**: `Esc` reliably returns focus to the canvas from any panel or editor.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+### 📐 Multi-Dimensional Viewports
+*   **Graph View**: High-performance canvas powered by **React Flow** and **D3-Force** with Alpha Decay for battery-efficient layout.
+*   **Code View**: Full-featured **Monaco Editor** for direct YAML manipulation.
+*   **Split Mode**: Resizable side-by-side view for simultaneous visual and structural editing.
+*   **Diff Mode**: Built-in Git diffing to track changes against the local HEAD.
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+### 💾 Local-First Persistence
+*   **IndexedDB VFS**: A virtual file system running entirely in your browser via `lightning-fs`.
+*   **Embedded Git**: Full version control history using `isomorphic-git`, enabling local commits and future remote synchronization.
+*   **Auto-Save**: Debounced persistence ensures your work is always safe without interrupting your flow.
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+## 🛠 Tech Stack
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+- **Core**: React 19, TypeScript, Vite
+- **Visuals**: React Flow, D3-Force, Tailwind CSS (Modern Pro Theme)
+- **Editor**: Monaco Editor (YAML)
+- **Persistence**: lightning-fs, isomorphic-git, Dexie (IndexedDB)
+- **State**: Zustand (with Zundo for history)
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## 🏁 Getting Started
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+1.  **Clone the Repository**:
+    ```bash
+    git clone https://github.com/rolfmadsen/knowledgegraphstudio.git
+    cd knowledgegraphstudio
+    ```
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+2.  **Install Dependencies**:
+    ```bash
+    npm install
+    ```
+
+3.  **Launch the Studio**:
+    ```bash
+    npm run dev
+    ```
+
+---
+
+*Built with precision for the modern knowledge architect.*

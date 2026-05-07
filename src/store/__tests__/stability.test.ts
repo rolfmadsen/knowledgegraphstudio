@@ -5,18 +5,15 @@ import { GraphService } from '../../services/GraphService';
 describe('Graph Store Stability', () => {
   it('should avoid redundant state updates for identical positions', async () => {
     const concept = await GraphService.addConcept('entity', 'StabilityTest');
-    const { updateNodePosition } = useGraphStore.getState();
-    
     const initialState = useGraphStore.getState();
     const nodeBefore = initialState.concepts.find(c => c.id === concept.id);
-    expect(nodeBefore?.x).toBe(0);
+    expect(nodeBefore?.x).toBeUndefined(); // New nodes don't have x/y initially
     
-    // Update to same position
-    updateNodePosition(concept.id, 0, 0);
+    // Update to same position (treating undefined as 0 for this check in service)
+    GraphService.updateNodePosition(concept.id, 0, 0);
     
     const stateAfter = useGraphStore.getState();
-    // In Zustand, if we return the same state object (or a branch), 
-    // subscribers shouldn't necessarily see a "change" depending on equality.
+    // Identity check: should be the exact same object because GraphService returned early
     expect(stateAfter).toBe(initialState);
   });
 
@@ -24,8 +21,7 @@ describe('Graph Store Stability', () => {
     const concept = await GraphService.addConcept('entity', 'PropertyTest');
     await GraphService.updateConcept(concept.id, { definition: 'Stay here' });
     
-    const { updateNodePosition } = useGraphStore.getState();
-    updateNodePosition(concept.id, 100, 200);
+    GraphService.updateNodePosition(concept.id, 100, 200);
     
     const node = useGraphStore.getState().concepts.find(c => c.id === concept.id);
     expect(node?.x).toBe(100);
@@ -37,12 +33,15 @@ describe('Graph Store Stability', () => {
     const c1 = await GraphService.addConcept('entity', 'Batch1');
     const c2 = await GraphService.addConcept('entity', 'Batch2');
     
-    const { batchUpdateNodePositions } = useGraphStore.getState();
+    // Set initial positions
+    GraphService.updateNodePosition(c1.id, 10, 10);
+    GraphService.updateNodePosition(c2.id, 20, 20);
+    
     const initialState = useGraphStore.getState();
     
-    batchUpdateNodePositions([
-      { id: c1.id, x: 0, y: 0 },
-      { id: c2.id, x: 0, y: 0 }
+    GraphService.batchUpdateNodePositions([
+      { id: c1.id, x: 10, y: 10 },
+      { id: c2.id, x: 20, y: 20 }
     ]);
     
     expect(useGraphStore.getState()).toBe(initialState);

@@ -377,6 +377,217 @@ export class GraphService {
   }
 
   /**
+   * Selection: Select a concept.
+   */
+  static selectConcept(id: ElementId | null): void {
+    useGraphStore.setState({ selectedConceptId: id, selectedRelationId: null });
+  }
+
+  /**
+   * Selection: Select a relation.
+   */
+  static selectRelation(id: ElementId | null): void {
+    useGraphStore.setState({ selectedRelationId: id, selectedConceptId: null });
+  }
+
+  /**
+   * Layout: Update a single node position.
+   */
+  static updateNodePosition(id: ElementId, x: number, y: number): void {
+    const concept = useGraphStore.getState().concepts.find(c => c.id === id);
+    if (!concept) return;
+
+    // Idempotency check: Don't update if coordinates are effectively identical
+    if (Math.abs((concept.x ?? 0) - x) < 0.01 && Math.abs((concept.y ?? 0) - y) < 0.01) return;
+
+    useGraphStore.setState((state) => ({
+      concepts: state.concepts.map((c) =>
+        c.id === id ? { ...c, x, y, updatedAt: Date.now() } : c,
+      ),
+    }));
+    PersistenceService.scheduleAutoSave();
+  }
+
+  /**
+   * Layout: Batch update node positions.
+   */
+  static batchUpdateNodePositions(positions: Array<{ id: ElementId; x: number; y: number }>, pin = false): void {
+    useGraphStore.setState((state) => {
+      let changed = false;
+      const now = Date.now();
+      const newConcepts = state.concepts.map((c) => {
+        const pos = positions.find((p) => p.id === c.id);
+        if (pos) {
+          const xChanged = pos.x !== c.x || pos.y !== c.y;
+          const pinChanged = pin && (c.fx !== pos.x || c.fy !== pos.y);
+          if (xChanged || pinChanged) {
+            changed = true;
+            return { 
+              ...c, 
+              x: pos.x, 
+              y: pos.y, 
+              fx: pin ? pos.x : c.fx, 
+              fy: pin ? pos.y : c.fy,
+              updatedAt: now
+            };
+          }
+        }
+        return c;
+      });
+      if (!changed) return state;
+      return { concepts: newConcepts };
+    });
+    PersistenceService.scheduleAutoSave();
+  }
+
+  /**
+   * Layout: Pin or unpin a node.
+   */
+  static pinNode(id: ElementId, fx: number | null, fy: number | null): void {
+    useGraphStore.setState((state) => ({
+      concepts: state.concepts.map((c) =>
+        c.id === id ? { ...c, fx, fy, updatedAt: Date.now() } : c,
+      ),
+    }));
+    PersistenceService.scheduleAutoSave();
+  }
+
+  /**
+   * Layout: Unpin all nodes.
+   */
+  static unpinAll(): void {
+    useGraphStore.setState((state) => ({
+      concepts: state.concepts.map((c) => ({ ...c, fx: null, fy: null, updatedAt: Date.now() })),
+    }));
+    PersistenceService.scheduleAutoSave();
+  }
+
+  /**
+   * Layout: Update node size (measured from UI).
+   */
+  static updateNodeSize(id: ElementId, width: number, height: number): void {
+    useGraphStore.setState((state) => ({
+      concepts: state.concepts.map((c) =>
+        c.id === id ? { ...c, width, height, updatedAt: Date.now() } : c,
+      ),
+    }));
+    // Note: size updates usually don't need immediate persistence in YAML
+    // but we'll trigger it for consistency if desired.
+  }
+
+  /**
+   * Layout: Trigger a re-layout simulation.
+   */
+  static triggerLayout(): void {
+    const store = useGraphStore.getState();
+    useGraphStore.setState({ layoutVersion: store.layoutVersion + 1 });
+  }
+
+  /**
+   * Navigation: Select the nearest node in a spatial direction.
+   * Uses Euclidean distance with directional weighting.
+   */
+  static selectNearestNode(direction: 'up' | 'down' | 'left' | 'right'): void {
+    const state = useGraphStore.getState();
+    const currentId = state.selectedConceptId;
+    if (!currentId) {
+      // If nothing selected, pick the first concept
+      if (state.concepts.length > 0) this.selectConcept(state.concepts[0].id);
+      return;
+    }
+
+    const current = state.concepts.find(c => c.id === currentId);
+    if (!current) return;
+
+    let candidates = state.concepts.filter(c => c.id !== currentId);
+    
+    // Filter by direction
+    if (direction === 'up') candidates = candidates.filter(c => (c.y ?? 0) < (current.y ?? 0));
+    if (direction === 'down') candidates = candidates.filter(c => (c.y ?? 0) > (current.y ?? 0));
+    if (direction === 'left') candidates = candidates.filter(c => (c.x ?? 0) < (current.x ?? 0));
+    if (direction === 'right') candidates = candidates.filter(c => (c.x ?? 0) > (current.x ?? 0));
+
+    if (candidates.length === 0) return;
+
+    // Scoring heuristic: Euclidean distance + penalty for off-axis deviation
+    const scored = candidates.map(c => {
+      const dx = (c.x ?? 0) - (current.x ?? 0);
+      const dy = (c.y ?? 0) - (current.y ?? 0);
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      
+      let penalty = 1;
+      if (direction === 'left' || direction === 'right') {
+        penalty = 1 + (Math.abs(dy) / Math.abs(dx)); // Penalize vertical deviation
+      } else {
+        penalty = 1 + (Math.abs(dx) / Math.abs(dy)); // Penalize horizontal deviation
+      }
+
+      return { id: c.id, score: dist * penalty };
+    });
+
+    scored.sort((a, b) => a.score - b.score);
+    this.selectConcept(scored[0].id);
+  }
+
+  /**
+   * Navigation: Select the nearest edge connected to the current node in a spatial direction.
+   */
+  static selectNearestEdge(direction: 'up' | 'down' | 'left' | 'right'): void {
+    const state = useGraphStore.getState();
+    const currentId = state.selectedConceptId;
+    if (!currentId) return;
+
+    const current = state.concepts.find(c => c.id === currentId);
+    if (!current) return;
+
+    // Find all edges connected to this node
+    const connectedEdges = state.relations.filter(r => 
+      r.sourceConceptId === currentId || r.targetConceptId === currentId
+    );
+    if (connectedEdges.length === 0) return;
+
+    // Find the neighbor nodes for these edges
+    const neighborData = connectedEdges.map(edge => {
+      const neighborId = edge.sourceConceptId === currentId ? edge.targetConceptId : edge.sourceConceptId;
+      const neighbor = state.concepts.find(c => c.id === neighborId);
+      return { edge, neighbor };
+    }).filter(d => !!d.neighbor);
+
+    // Filter neighbors by direction relative to current node
+    let candidates = neighborData;
+    if (direction === 'up') candidates = candidates.filter(d => (d.neighbor!.y ?? 0) < (current.y ?? 0));
+    if (direction === 'down') candidates = candidates.filter(d => (d.neighbor!.y ?? 0) > (current.y ?? 0));
+    if (direction === 'left') candidates = candidates.filter(d => (d.neighbor!.x ?? 0) < (current.x ?? 0));
+    if (direction === 'right') candidates = candidates.filter(d => (d.neighbor!.x ?? 0) > (current.x ?? 0));
+
+    if (candidates.length === 0) {
+      // If no edges in that direction, maybe just cycle them?
+      // For now, let's just pick the first connected edge if none match direction
+      // But actually, it's better to do nothing to keep it spatial.
+      return;
+    }
+
+    // Score candidates by distance and axis alignment
+    const scored = candidates.map(d => {
+      const dx = (d.neighbor!.x ?? 0) - (current.x ?? 0);
+      const dy = (d.neighbor!.y ?? 0) - (current.y ?? 0);
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      
+      let penalty = 1;
+      if (direction === 'left' || direction === 'right') {
+        penalty = 1 + (Math.abs(dy) / Math.abs(dx));
+      } else {
+        penalty = 1 + (Math.abs(dx) / Math.abs(dy));
+      }
+
+      return { edgeId: d.edge.id, score: dist * penalty };
+    });
+
+    scored.sort((a, b) => a.score - b.score);
+    this.selectRelation(scored[0].edgeId);
+  }
+
+  /**
    * Clear the entire graph (Destructive).
    */
   static async clearGraph(): Promise<void> {
