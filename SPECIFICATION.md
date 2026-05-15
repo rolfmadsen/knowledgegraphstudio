@@ -262,28 +262,167 @@ src/
 │   │       └── DiffViewport.tsx
 │   ├── commands/           
 │   │   └── CommandOverlay.tsx   
+│   ├── statusbar/          # §10.4 — Git sync indikator
+│   │   └── StatusBar.tsx        
+│   ├── conflicts/          # §10.3 — Semantisk konfliktløsning
+│   │   ├── ConflictResolverModal.tsx
+│   │   └── RemoteConfigModal.tsx
 │   └── properties/             
 │       ├── NodeProperties.tsx  
 │       └── PolicyEditor.tsx    
+├── services/
+│   ├── GitService.ts       # Push/Pull/Clone + auto-fetch timer
+│   ├── CredentialService.ts # PAT + RemoteConfig via Dexie.js IndexedDB
+│   └── PersistenceService.ts
 └── App.tsx
 
 ## 10. GitHub Integration & Remote Sync
 
 For at understøtte professionelt samarbejde skal systemet kunne synkronisere med eksterne Git-remotes (GitHub, GitLab, etc.).
 
+**Scope:** Kun `origin` remote og `main` branch understøttes i MVP.
+
 ### 10.1 Remote Configuration
-*   **Remote URL**: Brugeren kan konfigurere en `origin` remote via Command Archive.
-*   **Authentication**: Understøttelse af Personal Access Tokens (PAT). Tokens gemmes sikkert i browserens `localStorage` eller `IndexedDB`.
-*   **Clone workflow**: Mulighed for at starte et nyt workspace ved at clone en eksisterende repository URL.
+
+*   **Remote URL**: Brugeren konfigurerer én `origin` remote via Command Archive eller Remote Config modal (`Ctrl+Shift+G`). Kun HTTPS-URLs accepteres (`http://` afvises).
+*   **Authentication**: Personal Access Tokens (PAT) gemmes i **IndexedDB via Dexie.js** i en dedikeret `credentials` tabel (nøgle: `github_pat`). PAT skrives **aldrig** til VFS, `.typegraph.yaml` eller nogen committed fil.
+*   **CredentialService** (`src/services/CredentialService.ts`): Indkapsler al læsning/skrivning af PAT og `RemoteConfig`. `GitService` bruger `CredentialService` direkte — ingen separat `useAuthStore` er nødvendig.
+*   **Clone workflow**: Clone åbner altid som et **nyt navngivet workspace** sideløbende med det aktive. Det aktive workspace berøres ikke. Trin: (1) bruger angiver URL og workspace-navn → (2) nyt VFS-namespace oprettes → (3) `git clone` via isomorphic-git → (4) Zustand hydrateres → (5) zundo-historik ryddes.
+*   **CORS Proxy**: Browser-baseret Git-kommunikation kræver en CORS-proxy. Standard: `https://cors.isomorphic-git.org`. Kan overrides via `RemoteConfig.corsProxy` for self-hosting.
 
 ### 10.2 Sync Operations
-*   **Push**: Manuel handling fra Command Archive. Stager, committer og pusher lokale ændringer.
-*   **Pull**: Henter ændringer fra remote. Hvis der opstår konflikter, skiftes der automatisk til "Git Conflict Mode" i Zone 2.
-*   **Auto-Sync**: (Valgfrit) Systemet kan konfigureres til at auto-committe lokale ændringer ved hver save og periodisk fetche fra remote.
 
-### 10.3 UI Indikatorer
-*   **Sync Status**: En diskret indikator i statusbaren (fx "Synced", "Changes Pending", "Syncing...").
-*   **Auth Status**: Visuel feedback hvis GitHub token er udløbet eller mangler.
+| Operation | Trigger | Trin | Fejl → |
+| :--- | :--- | :--- | :--- |
+| **Push** | Command Archive / `Ctrl+Shift+P` | Auto-commit hvis dirty → `git push` via proxy | Toast: auth-fejl / netværksfejl |
+| **Pull** | Command Archive / `Ctrl+Shift+L` | `git fetch` → fast-forward merge → hydrate Zustand → ryd zundo | Semantisk Conflict Resolver hvis non-FF |
+| **Clone** | Onboarding / Command Archive | Nyt VFS-namespace → `git clone` → hydrate | Fejlskærm med ren tekst |
+| **Auto-fetch** | Timer: hvert 5. minut (aktiv når remote er konfigureret) | `git fetch` kun — ingen merge | StatusBar: "↓N commits tilgængeligt" |
+
+*   **Succesfuldt pull**: Zustand hydrateres og zundo-historikken ryddes fuldstændigt (per §4 Historik-rydning).
+*   **Auto-commit**: Lokale ændringer committes automatisk inden push med beskeden `"Auto-commit: [timestamp]"`.
+
+### 10.3 Semantisk Konfliktløsning (Non-Technical UX)
+
+Systemet må **aldrig** eksponere rå git-konfliktmarkører (`<<<<<<< HEAD`) for brugeren. I stedet bruges en semantisk tilgang, fordi systemet ejer datamodellen (YAML + Zod).
+
+**Forløb ved non-fast-forward merge:**
+
+1. `gitEngine.gitPull()` registrerer divergent historik og returnerer to YAML-strenge: `localYaml` og `remoteYaml`.
+2. `PersistenceService.computeSemanticDiff(localYaml, remoteYaml)` parser begge via `yamlToState()` og beregner en konceptniveau-diff: hvilke begreber er tilføjet, slettet eller ændret på hver side.
+3. Elementer der er identiske på begge sider **auto-merges stille** uden brugerinteraktion.
+4. Den fulde **Semantisk Conflict Resolver** (`ConflictResolverModal.tsx`) åbnes — ikke en kodeeditor, men et visuelt kortbaseret interface:
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│  ⚠ Synkroniseringskonflikt                                  [? Hjælp] │
+│  "Din version" og "Remote version" har begge ændringer.                │
+│  Vælg hvilken version af hvert begreb du vil beholde.                  │
+├───────────────────────────────────┬────────────────────────────────────┤
+│  📍 DIN VERSION                   │  ☁  REMOTE VERSION                 │
+├───────────────────────────────────┼────────────────────────────────────┤
+│  [●] Kunde (Actor)                │  [ ] Kunde (Actor)                  │
+│       Alias: Klient               │       Alias: Client                 │
+├───────────────────────────────────┼────────────────────────────────────┤
+│  [ ] —                            │  [●] Ny Proces: Godkend Ordre       │
+│       (ikke til stede)            │       (ny fra remote)               │
+├───────────────────────────────────┴────────────────────────────────────┤
+│   [Behold alle mine]   [Behold alle remote]       [Løs Konflikt →]     │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+**Regler:**
+*   Kun konfliktende elementer vises — identiske elementer merges automatisk.
+*   Elementer der kun findes på én side er pre-valgte (brugeren bekræfter blot).
+*   "Løs Konflikt" merger de valgte elementer til ny YAML, validerer via Zod, skriver til VFS, committer og re-hydraterer Zustand.
+*   Hvis det mergede resultat fejler Zod-validering, vises en inline fejl og modalen lukker ikke.
+
+**Fallback** (hvis YAML ikke kan parses): Modalen viser en klartekstbesked: *"Vi kunne ikke automatisk fortolke ændringerne. Din fil er åbnet i teksteditor — ret fejlene og gem."* og falder tilbage til Monaco i redigerbar tilstand.
+
+### 10.4 UI Indikatorer & StatusBar
+
+En **StatusBar** komponent (`src/features/statusbar/StatusBar.tsx`) tilføjes fast i bunden af app-layoutet (under de 4 zoner).
+
+*   **Position**: Fast, bund. Højde: 28px. Stil: `bg-slate-900 text-slate-300 text-[10px]`.
+*   **Venstre slot**: `[branch-ikon] main · origin/main` — eller `[unlinked-ikon] Kun lokalt` hvis ingen remote er konfigureret.
+*   **Center slot**: Commit-tæller (`↑2 commits foran` / `↓1 commit bagud`). Skjult ved `idle`.
+*   **Højre slot**: Sync-status pill:
+    *   `✓ Synkroniseret` (grøn)
+    *   `● Ændringer afventer` (amber)
+    *   `⟳ Synkroniserer...` (blå, animeret)
+    *   `⚠ Auth fejl — klik for at opdatere token` (rød, klikbar)
+*   **Auth Status**: Klikbar pill navigerer til Remote Config modal.
+
+### 10.5 Data Model Extensions
+
+```typescript
+interface RemoteConfig {
+  url: string;        // "https://github.com/user/repo.git"
+  corsProxy: string;  // "https://cors.isomorphic-git.org"
+  branch: 'main';     // Låst til main i MVP
+  label: 'origin';    // Låst til origin i MVP
+}
+
+type SyncStatus =
+  | 'idle'        // Ingen remote konfigureret
+  | 'synced'      // HEAD matcher remote
+  | 'pending'     // Uncommitted lokale ændringer
+  | 'pushing'     // Push i gang
+  | 'pulling'     // Pull/fetch i gang
+  | 'behind'      // Remote har commits vi ikke har (efter fetch)
+  | 'conflict'    // Non-FF merge forsøgt — Conflict Resolver åben
+  | 'auth_error'; // 401/403 fra remote
+
+interface GitSyncState {
+  remoteConfig: RemoteConfig | null;
+  syncStatus: SyncStatus;
+  aheadBy: number;           // Lokale commits ikke på remote
+  behindBy: number;          // Remote commits ikke lokalt (efter fetch)
+  lastSyncedAt: number | null; // Unix ms
+}
+```
+
+`GitSyncState` tilføjes til `useGraphStore` som **non-temporal UI state** (ekskluderet fra zundo, ligesom `selectedConceptId`).
+
+### 10.6 Service Layer Contract
+
+**Nye funktioner i `src/core/gitEngine.ts`:**
+*   `gitClone(url, corsProxy, onProgress)` → wrapper for `git.clone`
+*   `gitPush(url, corsProxy, pat)` → wrapper for `git.push`
+*   `gitFetch(url, corsProxy, pat)` → wrapper for `git.fetch`; returnerer `{ aheadBy, behindBy }`
+*   `gitMergeFastForward()` → forsøger FF-merge; kaster `MergeConflictError` med `{ localYaml, remoteYaml }` ved divergens
+
+**Nye metoder på `src/services/GitService.ts`:**
+*   `GitService.push()` — henter PAT → kalder `gitPush` → opdaterer `SyncStatus`
+*   `GitService.pull()` — henter PAT → `gitFetch` → `gitMergeFastForward` → hydrate eller åbn Conflict Resolver
+*   `GitService.clone(url, workspaceName)` — nyt VFS-namespace → `gitClone` → hydrate
+
+**Ny service `src/services/CredentialService.ts`:**
+*   `CredentialService.savePAT(pat: string)` — skriver til Dexie.js `credentials` tabel
+*   `CredentialService.loadPAT()` — læser fra Dexie.js
+*   `CredentialService.saveRemoteConfig(config: RemoteConfig)`
+*   `CredentialService.loadRemoteConfig()`
+*   `CredentialService.clearAll()`
+
+### 10.7 Keyboard Shortcuts (tillæg til §6)
+
+| Genvej | Handling |
+| :--- | :--- |
+| `Ctrl+Shift+P` | Push til remote |
+| `Ctrl+Shift+L` | Pull fra remote |
+| `Ctrl+Shift+G` | Åbn Remote Config modal |
+
+Alle tre registreres i `useKeyboard.ts` og eksponeres som søgbare kommandoer i Command Archive.
+
+### 10.8 Sikkerhedsregler
+
+*   PAT **skrives aldrig** til `lightning-fs` VFS, `.typegraph.yaml` eller nogen committed fil.
+*   PAT gemmes udelukkende i en Dexie.js IndexedDB-post (tabel `credentials`).
+*   Remote URL gemmes i `RemoteConfig` (IndexedDB) men committes ikke til Git.
+*   Kun HTTPS-remotes accepteres (`http://` URLs afvises med brugervenlig fejl).
+*   Brugeren advares hvis PAT-scopet er `public_repo` ved push til privat repository.
+
+
 ## 11. Smart Semantic Labeling System
 
 For at accelerere modelleringen implementerer systemet automatisk forslag til relation-navne baseret på ConceptTypes:

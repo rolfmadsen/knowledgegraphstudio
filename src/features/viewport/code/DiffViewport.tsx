@@ -17,9 +17,9 @@ import { PersistenceService } from '../../../services/PersistenceService';
 import { GitService } from '../../../services/GitService';
 
 export function DiffViewport() {
-  const domains = useGraphStore((s) => s.domains);
-  const concepts = useGraphStore((s) => s.concepts);
-  const relations = useGraphStore((s) => s.relations);
+  const domains = useGraphStore((s) => s?.domains || []);
+  const concepts = useGraphStore((s) => s?.concepts || []);
+  const relations = useGraphStore((s) => s?.relations || []);
 
   const [committedYaml, setCommittedYaml] = useState<string>('');
   const [loading, setLoading] = useState(true);

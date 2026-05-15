@@ -40,9 +40,14 @@ export class GraphService {
    * Update an existing domain.
    */
   static async updateDomain(id: ElementId, updates: Partial<Pick<Domain, 'name' | 'description' | 'lifecycleState'>>): Promise<void> {
+    const now = Date.now();
     useGraphStore.setState((state) => ({
       domains: state.domains.map((d) =>
-        d.id === id ? { ...d, ...updates, updatedAt: Date.now() } : d
+        d.id === id ? { ...d, ...updates, updatedAt: now } : d
+      ),
+      // Also update the concept representation if it exists
+      concepts: state.concepts.map((c) =>
+        c.id === id ? { ...c, ...updates, updatedAt: now } : c
       ),
     }));
     PersistenceService.scheduleAutoSave();
@@ -54,9 +59,11 @@ export class GraphService {
   static async deleteDomain(id: ElementId): Promise<void> {
     useGraphStore.setState((state) => ({
       domains: state.domains.filter((d) => d.id !== id),
-      concepts: state.concepts.map((c) =>
-        c.domainId === id ? { ...c, domainId: undefined } : c
-      ),
+      concepts: state.concepts
+        .filter((c) => c.id !== id)
+        .map((c) =>
+          c.domainId === id ? { ...c, domainId: undefined } : c
+        ),
     }));
     PersistenceService.scheduleAutoSave();
   }
@@ -109,9 +116,14 @@ export class GraphService {
     ConceptNode,
     'name' | 'definition' | 'aliases' | 'classification' | 'lifecycleState' | 'domainId' | 'parentId' | 'conceptType' | 'x' | 'y'
   >>): Promise<void> {
+    const now = Date.now();
     useGraphStore.setState((state) => ({
       concepts: state.concepts.map((c) =>
-        c.id === id ? { ...c, ...updates, updatedAt: Date.now() } : c,
+        c.id === id ? { ...c, ...updates, updatedAt: now } : c,
+      ),
+      // Also update the domain representation if it exists
+      domains: state.domains.map((d) =>
+        d.id === id ? { ...d, ...updates, updatedAt: now } : d
       ),
     }));
 

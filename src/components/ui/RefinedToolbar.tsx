@@ -4,18 +4,20 @@ import {
   Plus,
   Maximize2,
   RefreshCw,
-  Layers
+  Layers,
+  GitBranch
 } from 'lucide-react';
 
 interface RefinedToolbarProps {
-  undo: () => void;
-  redo: () => void;
+  undo: (steps?: number) => void;
+  redo: (steps?: number) => void;
   canUndo: boolean;
   canRedo: boolean;
   onAddConcept: () => void;
   onUnpinAll: () => void;
   onTriggerLayout: () => void;
   onToggleFocusMode: () => void;
+  onOpenRemoteConfig: () => void;
   focusMode: boolean;
 }
 
@@ -28,6 +30,7 @@ export function RefinedToolbar({
   onUnpinAll,
   onTriggerLayout,
   onToggleFocusMode,
+  onOpenRemoteConfig,
   focusMode
 }: RefinedToolbarProps) {
   return (
@@ -41,7 +44,7 @@ export function RefinedToolbar({
           <div className="flex gap-3">
             <button
               disabled={!canUndo}
-              onClick={undo}
+              onClick={() => undo()}
               className="w-11 h-11 flex items-center justify-center rounded-xl border border-slate-200 text-slate-600 disabled:opacity-30 transition-all hover:bg-slate-50 hover:border-slate-300 active:scale-95 shadow-sm"
               title="Undo (Ctrl+Z)"
             >
@@ -49,7 +52,7 @@ export function RefinedToolbar({
             </button>
             <button
               disabled={!canRedo}
-              onClick={redo}
+              onClick={() => redo()}
               className="w-11 h-11 flex items-center justify-center rounded-xl border border-slate-200 text-slate-600 disabled:opacity-30 transition-all hover:bg-slate-50 hover:border-slate-300 active:scale-95 shadow-sm"
               title="Redo (Ctrl+Shift+Z)"
             >
@@ -78,13 +81,20 @@ export function RefinedToolbar({
             >
               <Maximize2 size={18} strokeWidth={2.5} />
             </button>
-
             <button
               onClick={() => { onUnpinAll(); onTriggerLayout(); }}
               className="w-11 h-11 flex items-center justify-center rounded-xl border border-slate-200 text-slate-600 bg-white hover:bg-slate-50 hover:border-slate-300 active:scale-95 shadow-sm transition-all"
               title="Re-layout"
             >
               <RefreshCw size={18} strokeWidth={2.5} />
+            </button>
+
+            <button
+              onClick={onOpenRemoteConfig}
+              className="w-11 h-11 flex items-center justify-center rounded-xl border border-slate-200 text-slate-600 bg-white hover:bg-slate-50 hover:border-slate-300 active:scale-95 shadow-sm transition-all"
+              title="Git Sync Settings"
+            >
+              <GitBranch size={18} strokeWidth={2.5} />
             </button>
           </div>
 

@@ -19,6 +19,10 @@ interface KeyboardConfig {
   onToggleFocusMode?: () => void;
   onFocusZone: (zone: 1 | 2 | 4) => void;
   onAddProperty?: () => void;
+  // Git shortcuts (Spec §10.7)
+  onGitPush?: () => void;
+  onGitPull?: () => void;
+  onOpenRemoteConfig?: () => void;
 }
 
 /**
@@ -73,6 +77,27 @@ export function useKeyboard(config: KeyboardConfig) {
       if (ctrl && e.key === 'k') {
         e.preventDefault();
         config.onOpenCommandArchive();
+        return;
+      }
+
+      // Ctrl+Shift+P — Git Push
+      if (ctrl && shift && e.key === 'P') {
+        e.preventDefault();
+        config.onGitPush?.();
+        return;
+      }
+
+      // Ctrl+Shift+L — Git Pull
+      if (ctrl && shift && e.key === 'L') {
+        e.preventDefault();
+        config.onGitPull?.();
+        return;
+      }
+
+      // Ctrl+Shift+G — Open Remote Config
+      if (ctrl && shift && e.key === 'G') {
+        e.preventDefault();
+        config.onOpenRemoteConfig?.();
         return;
       }
 

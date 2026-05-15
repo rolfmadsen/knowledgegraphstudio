@@ -12,6 +12,21 @@ import type {
   ConceptRelation,
   ElementId,
 } from '../schema/graphSchema';
+import type { RemoteConfig } from '../services/CredentialService';
+
+// ============================================================
+// Sync Status (Spec §10.5)
+// ============================================================
+
+export type SyncStatus =
+  | 'idle'        // No remote configured
+  | 'synced'      // HEAD matches remote
+  | 'pending'     // Uncommitted local changes
+  | 'pushing'     // Push in progress
+  | 'pulling'     // Pull/fetch in progress
+  | 'behind'      // Remote has commits we don't have (after fetch)
+  | 'conflict'    // Non-FF merge attempted — Conflict Resolver open
+  | 'auth_error'; // 401/403 from remote
 
 export interface GraphStoreState {
   // --- Domain Data ---
@@ -25,6 +40,13 @@ export interface GraphStoreState {
   rawYaml: string | null; // For conflict mode
   isRelationBuilderOpen: boolean;
   relationBuilderSourceId: ElementId | null;
+
+  // --- Git Sync State (Spec §10.5, excluded from zundo) ---
+  remoteConfig: RemoteConfig | null;
+  syncStatus: SyncStatus;
+  aheadBy: number;
+  behindBy: number;
+  lastSyncedAt: number | null;
 
   // --- Selection Actions ---
   selectConcept: (id: ElementId | null) => void;
@@ -50,6 +72,13 @@ export const useGraphStore = create<GraphStoreState>()(
       relationBuilderSourceId: null,
       layoutVersion: 0,
 
+      // --- Git Sync State (initial) ---
+      remoteConfig: null,
+      syncStatus: 'idle' as SyncStatus,
+      aheadBy: 0,
+      behindBy: 0,
+      lastSyncedAt: null,
+
       // --- UI Actions (State only) ---
       selectConcept: (id) => set({ selectedConceptId: id, selectedRelationId: null }),
       selectRelation: (id) => set({ selectedRelationId: id }),
@@ -69,8 +98,8 @@ export const useGraphStore = create<GraphStoreState>()(
     }),
     {
       partialize: (state) => ({
-        domains: state.domains,
-        concepts: state.concepts.map((c) => ({
+        domains: state.domains || [],
+        concepts: (state.concepts || []).map((c) => ({
           ...c,
           x: undefined,
           y: undefined,
@@ -79,7 +108,9 @@ export const useGraphStore = create<GraphStoreState>()(
           fx: undefined,
           fy: undefined,
         })),
-        relations: state.relations,
+        relations: state.relations || [],
+        // NOTE: Git sync state (remoteConfig, syncStatus, aheadBy, behindBy,
+        // lastSyncedAt) is intentionally excluded from zundo history.
       }),
       equality: (pastState, currentState) =>
         JSON.stringify(pastState) === JSON.stringify(currentState),

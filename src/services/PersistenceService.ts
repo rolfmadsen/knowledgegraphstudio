@@ -12,6 +12,14 @@ export interface BootstrapResult {
 
 export class PersistenceService {
   private static saveTimeout: ReturnType<typeof setTimeout> | null = null;
+  
+  /**
+   * Get the current workspace state as a YAML string.
+   */
+  static async getYaml(): Promise<string> {
+    const state = useGraphStore.getState();
+    return stateToYaml(state);
+  }
 
   /**
    * Bootstrap the application: ensure FS, Repo, and Load/Create YAML.

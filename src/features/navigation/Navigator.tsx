@@ -25,10 +25,10 @@ const typeIcon = (type: ConceptType) => {
 export function Navigator() {
   const { concepts, relations, selectedConceptId, selectedRelationId } = useGraphStore(
     useShallow((s) => ({
-      concepts: s.concepts,
-      relations: s.relations,
-      selectedConceptId: s.selectedConceptId,
-      selectedRelationId: s.selectedRelationId,
+      concepts: s?.concepts || [],
+      relations: s?.relations || [],
+      selectedConceptId: s?.selectedConceptId,
+      selectedRelationId: s?.selectedRelationId,
     }))
   );
 

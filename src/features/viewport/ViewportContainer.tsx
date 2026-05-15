@@ -14,21 +14,15 @@
 
 import { type ReactNode } from 'react';
 
-import { type ViewMode } from '../../types/view';
 
 /**
  * Props for the ViewportContainer
- * @param viewMode - The standard viewing mode: 'graph', 'code', or 'split'
  * @param diffMode - If true, overrides viewMode to show the Git History diff editor
- * @param isConflict - Flags if the current YAML is invalid/conflicted, highlighting errors
  * @param graphViewport - The React element for the semantic graph (ReactFlow)
- * @param codeViewport - The React element for the raw YAML editor
  * @param diffViewport - The React element for the Git history differential viewer
  */
 interface ViewportContainerProps {
-  viewMode: ViewMode;
   diffMode: boolean;
-  isConflict: boolean;
   graphViewport: ReactNode;
   diffViewport: ReactNode;
 }

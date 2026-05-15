@@ -8,8 +8,8 @@
  * Key Architecture:
  * 1. Node State Synchronization: Subscribes to the zustand store and updates ReactFlow's internal
  *    nodes/edges via strict shallow comparison to avoid infinite loops and unnecessary re-renders.
- * 2. Asynchronous Layout Worker: D3-force simulation is offloaded to a WebWorker (`layout.worker.ts`).
- *    This ensures that calculating coordinates for thousands of nodes does not block the UI thread.
+ * 2. Asynchronous Layout Worker: Hierarchical layout calculation is offloaded to a WebWorker (`layout.worker.ts`).
+ *    This ensures that calculating coordinates using Dagre does not block the UI thread.
  * 3. Geometry Intersections: Implements a custom line-to-rectangle geometry intersection calculation
  *    to guarantee edges stop perfectly at the boundaries of the rectangular concept nodes.
  */
@@ -25,7 +25,6 @@ import {
   useEdgesState,
   type Node,
   type Edge,
-  type NodeTypes,
   type OnConnect,
   type NodeMouseHandler,
   Controls,
@@ -187,15 +186,13 @@ function ConceptNodeComponent({ data, selected }: { data: any; selected: boolean
   );
 }
 
-const edgeTypes = { floating: FloatingEdge };
-const nodeTypes: NodeTypes = { conceptNode: ConceptNodeComponent };
-
-
 interface GraphViewportProps {
   focusMode?: boolean;
 }
 
 export function GraphViewport({ focusMode = false }: GraphViewportProps) {
+  const nodeTypes = useMemo(() => ({ conceptNode: ConceptNodeComponent }), []);
+  const edgeTypes = useMemo(() => ({ floating: FloatingEdge }), []);
   const { concepts, relations } = useFocusedGraph(focusMode);
   const {
     selectedConceptId,
@@ -294,9 +291,6 @@ export function GraphViewport({ focusMode = false }: GraphViewportProps) {
 
   const runLayout = useCallback(() => {
     if (!workerRef.current || latestData.current.concepts.length === 0) return;
-    const rect = containerRef.current?.getBoundingClientRect();
-    const width = rect?.width || 800;
-    const height = rect?.height || 600;
     const { concepts: cData, relations: rData, nodes: nData } = latestData.current;
 
     workerRef.current.postMessage({
@@ -307,15 +301,11 @@ export function GraphViewport({ focusMode = false }: GraphViewportProps) {
         const h = rfNode?.measured?.height ?? 80;
         return {
           id: c.id,
-          x: (c.x ?? width / 2) + (Math.random() - 0.5) * 10,
-          y: (c.y ?? height / 2) + (Math.random() - 0.5) * 10,
-          width: w, height: h,
-          fx: c.fx != null ? c.fx + w / 2 : null,
-          fy: c.fy != null ? c.fy + h / 2 : null,
+          width: w, 
+          height: h,
         };
       }),
       links: rData.map((r) => ({ id: r.id, source: r.sourceConceptId, target: r.targetConceptId })),
-      width, height,
     });
   }, []);
 
@@ -323,25 +313,34 @@ export function GraphViewport({ focusMode = false }: GraphViewportProps) {
     workerRef.current = new Worker(new URL('./layout.worker.ts', import.meta.url), { type: 'module' });
     workerRef.current.onmessage = (event: MessageEvent<LayoutResult>) => {
       const { type, nodes: layoutNodes } = event.data;
-      if (type === 'tick' || type === 'end') {
+      
+      if (type === 'end') {
+        // Update local ReactFlow nodes with new positions
         setNodes((prev) => prev.map((node) => {
           const layoutNode = layoutNodes.find((n) => n.id === node.id);
           if (!layoutNode) return node;
+          
+          // Respect pinned nodes (fx/fy)
           const concept = conceptsRef.current.find((c) => c.id === node.id);
           if (concept?.fx != null || concept?.fy != null) return node;
+          
           const w = node.measured?.width ?? 200;
           const h = node.measured?.height ?? 80;
+          
+          // Dagre returns center coordinates, ReactFlow expects top-left
           return { ...node, position: { x: layoutNode.x - w / 2, y: layoutNode.y - h / 2 } };
         }));
-      }
-      if (type === 'end') {
+
+        // Batch update global store
         const updates = layoutNodes.map(ln => {
           const rfNode = nodesRef.current.find(n => n.id === ln.id);
           const w = rfNode?.measured?.width ?? 200;
           const h = rfNode?.measured?.height ?? 80;
           return { id: ln.id, x: ln.x - w / 2, y: ln.y - h / 2 };
         });
+        
         GraphService.batchUpdateNodePositions(updates, false);
+        
         if (isFirstFit.current) {
           setTimeout(() => fitView({ duration: 400 }), 100);
           isFirstFit.current = false;

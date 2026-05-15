@@ -12,8 +12,19 @@ import LightningFS from '@isomorphic-git/lightning-fs';
 
 const REPO_NAME = 'typegraph';
 const YAML_FILENAME = '.typegraph.yaml';
-const REPO_DIR = '/workspace';
-const YAML_PATH = `${REPO_DIR}/${YAML_FILENAME}`;
+
+// Dynamic repository directory (can be switched via setRepoDir)
+export let REPO_DIR = '/workspace';
+export let YAML_PATH = `${REPO_DIR}/${YAML_FILENAME}`;
+
+/**
+ * Switch the active repository directory.
+ */
+export function setRepoDir(newDir: string) {
+  REPO_DIR = newDir;
+  YAML_PATH = `${newDir}/${YAML_FILENAME}`;
+  console.log(`[FileSystem] Switched REPO_DIR to: ${REPO_DIR}`);
+}
 
 let _fs: LightningFS | null = null;
 
@@ -48,6 +59,27 @@ export async function ensureWorkspaceDir(): Promise<void> {
     await pfs.stat(REPO_DIR);
   } catch {
     await pfs.mkdir(REPO_DIR);
+  }
+}
+
+/**
+ * Recursively delete a directory or file.
+ */
+export async function recursiveDelete(path: string): Promise<void> {
+  const pfs = getFSPromises();
+  try {
+    const stats = await pfs.stat(path);
+    if (stats.isDirectory()) {
+      const files = await pfs.readdir(path);
+      for (const file of files) {
+        await recursiveDelete(`${path}/${file}`);
+      }
+      await pfs.rmdir(path);
+    } else {
+      await pfs.unlink(path);
+    }
+  } catch (err) {
+    // Ignore if already deleted
   }
 }
 
@@ -95,4 +127,4 @@ export async function yamlExists(): Promise<boolean> {
 // Exports for Git Engine
 // ============================================================
 
-export { REPO_DIR, YAML_FILENAME, YAML_PATH, REPO_NAME };
+export { YAML_FILENAME, REPO_NAME };

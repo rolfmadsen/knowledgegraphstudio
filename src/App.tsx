@@ -22,13 +22,21 @@ import { Inspector } from './features/properties/Inspector';
 import { Navigator } from './features/navigation/Navigator';
 import { PersistenceService } from './services/PersistenceService';
 import { GraphService } from './services/GraphService';
+import { GitService, type PullResult } from './services/GitService';
+import { CredentialService } from './services/CredentialService';
 import { RelationBuilder } from './features/relations/RelationBuilder';
 import { RefinedToolbar } from './components/ui/RefinedToolbar';
 import { Group, Panel, Separator } from 'react-resizable-panels';
 import { LayoutGrid, Code2, Columns2, HelpCircle } from 'lucide-react';
-import { KeyboardHelp } from './features/help/KeyboardHelp';
+import { HelpCenter } from './features/help/HelpCenter';
+import { StatusBar } from './features/statusbar/StatusBar';
+import { ConflictResolverModal } from './features/conflicts/ConflictResolverModal';
+import { RemoteConfigModal } from './features/conflicts/RemoteConfigModal';
 
 // Resizable components are imported directly from the high-precision panels library
+
+const EMPTY_GRAPH = { concepts: [], relations: [] };
+const EMPTY_HISTORY = { pastStates: [], futureStates: [] };
 
 function App() {
   // --- App State ---
@@ -43,28 +51,41 @@ function App() {
   const [booted, setBooted] = useState(false);
   const [bootError, setBootError] = useState<string | null>(null);
 
+  // --- Git / Remote State ---
+  const [remoteConfigOpen, setRemoteConfigOpen] = useState(false);
+  const [conflictData, setConflictData] = useState<{
+    localYaml: string | null;
+    remoteYaml: string | null;
+  } | null>(null);
+  const [gitToast, setGitToast] = useState<string | null>(null);
+
+  const showGitToast = (msg: string) => {
+    setGitToast(msg);
+    setTimeout(() => setGitToast(null), 4000);
+  };
+
   // --- Store ---
   const {
     concepts,
     relations,
   } = useGraphStore(
-    useShallow((s) => ({
+    useShallow((s) => s ? {
       concepts: s.concepts,
       relations: s.relations,
-    })),
+    } : EMPTY_GRAPH),
   );
 
   // Access zundo temporal store (reactive)
   const { undo, redo, pastStates, futureStates } = useTemporalStore(
-    useShallow((s) => ({
+    useShallow((s) => s ? {
       undo: s.undo,
       redo: s.redo,
       pastStates: s.pastStates,
       futureStates: s.futureStates,
-    })),
+    } : { undo: () => {}, redo: () => {}, ...EMPTY_HISTORY }),
   );
 
-  const selectedConceptId = useGraphStore((s) => s.selectedConceptId);
+  const selectedConceptId = useGraphStore((s) => s?.selectedConceptId);
 
   // --- Refs for zone focus ---
   const zone2Ref = useRef<HTMLDivElement>(null);
@@ -82,6 +103,16 @@ function App() {
         setBootError(result.error);
       }
     });
+
+    // Load stored remote config into Zustand + start auto-fetch
+    CredentialService.loadRemoteConfig().then((config) => {
+      if (config) {
+        useGraphStore.setState({ remoteConfig: config, syncStatus: 'pending' });
+        GitService.startAutoFetch();
+      }
+    });
+
+    return () => GitService.stopAutoFetch();
   }, []);
 
   // --- Autosave to YAML ---
@@ -101,6 +132,37 @@ function App() {
   }, []);
 
   const [isHelpOpen, setIsHelpOpen] = useState(false);
+
+  // --- Git Handlers ---
+  const handleGitPush = useCallback(async () => {
+    try {
+      const result = await GitService.push();
+      if (result.success) {
+        showGitToast('✓ Push gennemført');
+      } else {
+        const { localYaml, remoteYaml } = result as Extract<PullResult, { success: false }>;
+        setConflictData({ localYaml, remoteYaml });
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Push fejlede';
+      showGitToast(`⚠ ${msg}`);
+    }
+  }, []);
+
+  const handleGitPull = useCallback(async () => {
+    try {
+      const result: PullResult = await GitService.pull();
+      if (result.success) {
+        showGitToast('✓ Pull gennemført');
+      } else {
+        const { localYaml, remoteYaml } = result as Extract<PullResult, { success: false }>;
+        setConflictData({ localYaml, remoteYaml });
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Pull fejlede';
+      showGitToast(`⚠ ${msg}`);
+    }
+  }, []);
 
   // --- Keyboard shortcuts ---
   useKeyboard({
@@ -129,6 +191,10 @@ function App() {
         if (!propertiesOpen) setPropertiesOpen(true);
       }
     },
+    // Git shortcuts
+    onGitPush: handleGitPush,
+    onGitPull: handleGitPull,
+    onOpenRemoteConfig: () => setRemoteConfigOpen(true),
   });
 
   // Global '?' shortcut for help
@@ -173,6 +239,7 @@ function App() {
         onUnpinAll={() => GraphService.unpinAll()}
         onTriggerLayout={() => GraphService.triggerLayout()}
         onToggleFocusMode={() => setFocusMode(!focusMode)}
+        onOpenRemoteConfig={() => setRemoteConfigOpen(true)}
         focusMode={focusMode}
       />
       <div className="flex-1 flex overflow-hidden">
@@ -194,74 +261,91 @@ function App() {
             </Separator>
           )}
 
-          {/* Center: Viewport (Visible in 'graph' and 'split' modes) */}
-          {viewMode !== 'code' && !diffMode && (
+          {/* Center Zone: Contains Viewport, Code and the View Switcher */}
+          {!focusMode && (
             <Panel 
-              id="viewport-panel"
+              id="center-zone"
               defaultSize={viewMode === 'split' ? 60 : 800} 
               minSize={400}
+              className="relative flex flex-col bg-slate-50 min-w-0 focus:outline-none"
             >
-            <main
-              id="zone-viewport"
-              ref={zone2Ref}
-              tabIndex={0}
-              className="h-full flex flex-col min-w-0 focus:outline-none relative bg-slate-50"
-            >
-              {/* Individual Pill Switcher (Modern Pro Refined - Elegant Balance) */}
+              {/* Global View Switcher - Always Visible */}
               <div 
-                className="absolute left-1/2 -translate-x-1/2 z-50 flex items-center gap-4" 
-                style={{ top: '32px' }}
+                className="absolute left-1/2 -translate-x-1/2 z-[100] flex items-center gap-3" 
+                style={{ top: '24px' }}
               >
-                {[
-                  { id: 'graph', icon: LayoutGrid, label: 'Graph' },
-                  { id: 'code', icon: Code2, label: 'Code' },
-                  { id: 'split', icon: Columns2, label: 'Split' }
-                ].map((mode) => (
+                <div className="flex items-center gap-1.5 p-1.5 bg-white/95 backdrop-blur-xl border border-slate-200 rounded-full shadow-2xl shadow-slate-200/50">
+                  {[
+                    { id: 'graph', icon: LayoutGrid, label: 'Graph' },
+                    { id: 'code', icon: Code2, label: 'Code' },
+                    { id: 'split', icon: Columns2, label: 'Split' }
+                  ].map((mode) => (
+                    <button
+                      key={mode.id}
+                      disabled={isConflict && mode.id !== 'code'}
+                      onClick={() => { setViewMode(mode.id as ViewMode); setDiffMode(false); }}
+                      className={`
+                        flex items-center text-[10px] font-black uppercase tracking-wider transition-all px-6 py-2 gap-2 rounded-full
+                        ${viewMode === mode.id && !diffMode 
+                          ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-200' 
+                          : 'text-slate-400 hover:text-slate-900 hover:bg-slate-50'}
+                        ${isConflict && mode.id !== 'code' ? 'opacity-20 cursor-not-allowed' : ''}
+                      `}
+                      title={mode.label}
+                    >
+                      <mode.icon size={12} strokeWidth={3} />
+                      <span>{mode.label}</span>
+                    </button>
+                  ))}
+                  
+                  <div className="w-[1px] h-4 bg-slate-200 mx-1" />
+
                   <button
-                    key={mode.id}
-                    disabled={isConflict && mode.id !== 'code'}
-                    onClick={() => { setViewMode(mode.id as ViewMode); setDiffMode(false); }}
+                    onClick={() => setDiffMode(!diffMode)}
                     className={`
-                      flex items-center text-[11px] font-bold uppercase tracking-wider transition-all px-8 py-2.5 gap-2.5 rounded-full border
-                      ${viewMode === mode.id && !diffMode 
-                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-xl shadow-emerald-100' 
-                        : 'bg-white/95 backdrop-blur-xl text-slate-500 border-slate-200 hover:text-slate-900 hover:bg-white hover:border-slate-300 shadow-sm'}
-                      ${isConflict && mode.id !== 'code' ? 'opacity-20 cursor-not-allowed' : ''}
+                      flex items-center text-[10px] font-black uppercase tracking-wider transition-all px-6 py-2 gap-2 rounded-full
+                      ${diffMode 
+                        ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-200' 
+                        : 'text-slate-400 hover:text-slate-900 hover:bg-slate-50'}
                     `}
-                    title={mode.label}
                   >
-                    <mode.icon size={13} strokeWidth={2.5} />
-                    <span className="tracking-tight">{mode.label}</span>
+                    <span>Diff</span>
                   </button>
-                ))}
-                
-                <button
-                  onClick={() => setDiffMode(!diffMode)}
-                  className={`
-                    flex items-center text-[11px] font-bold uppercase tracking-wider transition-all px-8 py-2.5 gap-2.5 rounded-full border
-                    ${diffMode 
-                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-xl shadow-emerald-100' 
-                      : 'bg-white/95 backdrop-blur-xl text-slate-500 border-slate-200 hover:text-slate-900 hover:bg-white hover:border-slate-300 shadow-sm'}
-                  `}
-                >
-                  <span className="tracking-tight">Diff</span>
-                </button>
+                </div>
               </div>
 
+              {/* Main Content Area: Toggles between Graph and Diff using the Container */}
+              <div 
+                className="flex-1 relative flex flex-col min-h-0"
+                style={{ display: viewMode !== 'code' || diffMode ? 'flex' : 'none' }}
+              >
+                <ViewportContainer
+                  diffMode={diffMode}
+                  graphViewport={
+                    <ReactFlowProvider>
+                      <GraphViewport focusMode={focusMode} />
+                    </ReactFlowProvider>
+                  }
+                  diffViewport={<DiffViewport />}
+                />
+              </div>
 
-              <ViewportContainer
-                viewMode={viewMode}
-                diffMode={diffMode}
-                isConflict={isConflict}
-                graphViewport={
-                  <ReactFlowProvider>
-                    <GraphViewport focusMode={focusMode} />
-                  </ReactFlowProvider>
-                }
-                diffViewport={<DiffViewport />}
-              />
+              {/* Individual Code View - Only visible in CODE mode (when not in split) */}
+              <div 
+                className="flex-1 relative flex flex-col min-h-0"
+                style={{ display: viewMode === 'code' && !diffMode ? 'flex' : 'none' }}
+              >
+                <div className="zone-header px-6 py-4 border-b border-slate-100 shrink-0 flex items-center justify-between bg-white mt-16">
+                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
+                    YAML {isConflict ? '(CONFLICT MODE - EDITABLE)' : '(Live Sync)'}
+                  </span>
+                </div>
+                <div className="flex-1 min-h-0 relative">
+                  <CodeViewport isConflict={isConflict} />
+                </div>
+              </div>
 
-              {/* Floating Help Trigger (Bottom Right of Canvas) */}
+              {/* Floating Help Trigger */}
               <button
                 onClick={() => setIsHelpOpen(true)}
                 className="absolute bottom-8 right-8 z-50 w-12 h-12 bg-emerald-600 text-white rounded-full flex items-center justify-center shadow-xl shadow-emerald-200 hover:bg-emerald-700 hover:scale-110 transition-all active:scale-95 group"
@@ -269,31 +353,29 @@ function App() {
               >
                 <HelpCircle size={24} strokeWidth={2.5} className="group-hover:rotate-12 transition-transform" />
               </button>
-            </main>
-          </Panel>
+            </Panel>
           )}
 
-          {/* New dedicated Code View Panel (Internal Zone 3) */}
-          {(viewMode === 'split' || viewMode === 'code') && !diffMode && !focusMode && (
+          {/* Dedicated Split-Mode Code Panel (The right-hand side in Split view) */}
+          {!focusMode && (
             <>
-              <Separator className="w-1 group relative transition-colors hover:bg-emerald-500/10 cursor-col-resize">
+              <Separator 
+                className="w-1 group relative transition-colors hover:bg-emerald-500/10 cursor-col-resize"
+                style={{ display: viewMode === 'split' && !diffMode ? 'block' : 'none' }}
+              >
                 <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-[1px] bg-slate-200 group-hover:bg-emerald-300" />
               </Separator>
               <Panel 
-                id="code-panel"
-                defaultSize={viewMode === 'code' ? 100 : 40}
+                id="split-code-panel"
+                defaultSize={40}
                 minSize={20}
                 className="bg-white border-l border-slate-200 flex flex-col"
+                style={{ display: viewMode === 'split' && !diffMode ? 'flex' : 'none' }}
               >
-                <div className="zone-header px-6 py-4 border-b border-slate-100 shrink-0 flex items-center justify-between bg-white">
+                <div className="zone-header px-6 py-4 border-b border-slate-100 shrink-0 flex items-center justify-between bg-white mt-16">
                   <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
-                    YAML {isConflict ? '(CONFLICT MODE - EDITABLE)' : '(Read-Only)'}
+                    YAML {isConflict ? '(CONFLICT MODE - EDITABLE)' : '(Live Sync)'}
                   </span>
-                  {isConflict && (
-                    <span className="px-2 py-0.5 bg-red-50 text-red-500 text-[9px] font-bold rounded-md border border-red-100 animate-pulse">
-                      ⚠ INVALID YAML
-                    </span>
-                  )}
                 </div>
                 <div className="flex-1 min-h-0 relative">
                   <CodeViewport isConflict={isConflict} />
@@ -323,6 +405,9 @@ function App() {
         </Group>
       </div>
 
+      {/* StatusBar — 28px bottom bar (Spec §10.4) */}
+      <StatusBar onOpenRemoteConfig={() => setRemoteConfigOpen(true)} />
+
       <CommandOverlay
         open={commandOpen}
         initialQuery={initialCommandQuery}
@@ -339,9 +424,45 @@ function App() {
             if (firstInput instanceof HTMLInputElement) firstInput.select();
           }, 100);
         }}
+        onGitPush={handleGitPush}
+        onGitPull={handleGitPull}
+        onOpenRemoteConfig={() => setRemoteConfigOpen(true)}
       />
       <RelationBuilder />
-      <KeyboardHelp isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
+      <HelpCenter isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
+
+      {/* Remote Config Modal */}
+      {remoteConfigOpen && (
+        <RemoteConfigModal
+          onClose={() => setRemoteConfigOpen(false)}
+          onTriggerPush={handleGitPush}
+          onTriggerPull={handleGitPull}
+        />
+      )}
+
+      {/* Semantic Conflict Resolver */}
+      {conflictData && (
+        <ConflictResolverModal
+          localYaml={conflictData.localYaml}
+          remoteYaml={conflictData.remoteYaml}
+          onResolved={() => {
+            setConflictData(null);
+            showGitToast('✓ Konflikt løst og synkroniseret');
+          }}
+          onFallbackToEditor={() => {
+            setConflictData(null);
+            setIsConflict(true);
+            setViewMode('code');
+          }}
+        />
+      )}
+
+      {/* Git Toast Notifications */}
+      {gitToast && (
+        <div className="fixed bottom-12 left-1/2 -translate-x-1/2 z-[400] px-6 py-3 rounded-2xl bg-slate-900 text-white text-sm font-medium shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-bottom-2">
+          {gitToast}
+        </div>
+      )}
 
       {/* Errors (Modern Pro) */}
       {bootError && (

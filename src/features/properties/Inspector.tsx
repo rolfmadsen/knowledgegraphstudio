@@ -14,10 +14,10 @@ import { LifecycleState, ConceptType } from '../../schema/graphSchema';
 export function Inspector() {
   const { concepts, relations, selectedConceptId, selectedRelationId } = useGraphStore(
     useShallow((s) => ({
-      concepts: s.concepts,
-      relations: s.relations,
-      selectedConceptId: s.selectedConceptId,
-      selectedRelationId: s.selectedRelationId,
+      concepts: s?.concepts || [],
+      relations: s?.relations || [],
+      selectedConceptId: s?.selectedConceptId,
+      selectedRelationId: s?.selectedRelationId,
     }))
   );
 

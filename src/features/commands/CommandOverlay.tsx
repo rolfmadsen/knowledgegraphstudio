@@ -3,7 +3,7 @@ import { useGraphStore } from '../../store/useGraphStore';
 import { useShallow } from 'zustand/react/shallow';
 import { GraphService } from '../../services/GraphService';
 import type { ConceptType } from '../../schema/graphSchema';
-import { Search, Terminal, Zap, Box, Trash2, Plus, ChevronRight } from 'lucide-react';
+import { Search, Terminal, Zap, Box, Trash2, Plus, ChevronRight, GitBranch, Upload, Download } from 'lucide-react';
 import Fuse from 'fuse.js';
 
 interface CommandOverlayProps {
@@ -11,6 +11,9 @@ interface CommandOverlayProps {
   initialQuery?: string;
   onClose: () => void;
   onFocusInspector?: () => void;
+  onGitPush?: () => void;
+  onGitPull?: () => void;
+  onOpenRemoteConfig?: () => void;
 }
 
 interface CommandItem {
@@ -35,7 +38,7 @@ const CONCEPT_TYPES: Array<{ type: ConceptType; label: string; icon: any }> = [
   { type: 'other', label: 'Other', icon: <Box size={14} /> },
 ];
 
-export function CommandOverlay({ open, initialQuery, onClose, onFocusInspector }: CommandOverlayProps) {
+export function CommandOverlay({ open, initialQuery, onClose, onFocusInspector, onGitPush, onGitPull, onOpenRemoteConfig }: CommandOverlayProps) {
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -158,8 +161,43 @@ export function CommandOverlay({ open, initialQuery, onClose, onFocusInspector }
       }
     }
 
+    // --- Git commands ---
+    items.push({
+      id: 'git-push',
+      label: 'GIT PUSH',
+      description: 'PUSH LOCAL CHANGES TO REMOTE // Ctrl+Shift+P',
+      group: 'Git',
+      icon: <Upload size={14} />,
+      action: () => {
+        onClose();
+        onGitPush?.();
+      },
+    });
+    items.push({
+      id: 'git-pull',
+      label: 'GIT PULL',
+      description: 'FETCH & MERGE FROM REMOTE // Ctrl+Shift+L',
+      group: 'Git',
+      icon: <Download size={14} />,
+      action: () => {
+        onClose();
+        onGitPull?.();
+      },
+    });
+    items.push({
+      id: 'git-config',
+      label: 'CONFIGURE REMOTE',
+      description: 'SET GITHUB URL & TOKEN // Ctrl+Shift+G',
+      group: 'Git',
+      icon: <GitBranch size={14} />,
+      action: () => {
+        onClose();
+        onOpenRemoteConfig?.();
+      },
+    });
+
     return items;
-  }, [concepts, onClose, query]);
+  }, [concepts, onClose, query, onGitPush, onGitPull, onOpenRemoteConfig]);
 
   const fuse = useMemo(() => new Fuse(allItems, {
     keys: ['label', 'description'],
