@@ -5,19 +5,22 @@ import { GraphService } from '../../services/GraphService';
 import { 
   Plus, 
   Trash2,
-  Info,
   ChevronDown,
+  Focus,
+  Info,
   ArrowUpDown
 } from 'lucide-react';
 import { LifecycleState, ConceptType } from '../../schema/graphSchema';
 
 export function Inspector() {
-  const { concepts, relations, selectedConceptId, selectedRelationId } = useGraphStore(
+  const { concepts, relations, selectedConceptId, selectedRelationId, focusMode, setFocusMode } = useGraphStore(
     useShallow((s) => ({
       concepts: s?.concepts || [],
       relations: s?.relations || [],
       selectedConceptId: s?.selectedConceptId,
       selectedRelationId: s?.selectedRelationId,
+      focusMode: s?.focusMode,
+      setFocusMode: s?.setFocusMode,
     }))
   );
 
@@ -92,12 +95,15 @@ export function Inspector() {
 
   if (!concept && !relation) {
     return (
-      <div className="h-full flex items-center justify-center p-8 text-center px-4 bg-slate-50">
-        <div className="flex flex-col items-center gap-5">
-          <div className="w-14 h-14 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-slate-300 shadow-sm">
-             <Info size={24} />
+      <div className="h-full flex items-center justify-center p-8 text-center px-4 bg-white/50 backdrop-blur-sm">
+        <div className="flex flex-col items-center gap-6">
+          <div className="w-16 h-16 rounded-[24px] bg-white border border-slate-200/60 flex items-center justify-center text-slate-300 shadow-xl shadow-slate-100 animate-in fade-in zoom-in duration-500">
+             <Info size={28} strokeWidth={1.5} />
           </div>
-          <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest">Select an element to inspect</p>
+          <div className="space-y-1.5">
+            <h3 className="text-[13px] font-black text-slate-900 tracking-tight">Ingen valgt</h3>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] max-w-[160px] leading-relaxed">Vælg et element på grafen for at se detaljer</p>
+          </div>
         </div>
       </div>
     );
@@ -106,10 +112,29 @@ export function Inspector() {
   return (
     <div 
         id="inspector-root"
-        className="flex-1 flex flex-col min-h-0 overflow-y-auto custom-scrollbar bg-slate-50 outline-none"
+        className="flex-1 flex flex-col min-h-0 overflow-y-auto custom-scrollbar bg-slate-50/30 backdrop-blur-sm outline-none"
         tabIndex={-1}
         style={{ padding: '32px' }}
     >
+      {/* Header Section */}
+      <div className="mb-10 flex items-center justify-between border-b border-slate-200 pb-4">
+        <span className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-800">Properties</span>
+        <button 
+          onClick={() => setFocusMode(!focusMode)}
+          disabled={!selectedConceptId}
+          className={`
+            w-8 h-8 rounded-xl border flex items-center justify-center transition-all shadow-sm group/focus active:scale-90
+            ${focusMode 
+              ? 'bg-emerald-600 border-emerald-600 text-white shadow-lg shadow-emerald-100' 
+              : 'bg-white border-slate-200 text-slate-400 hover:text-emerald-600 hover:border-emerald-200 hover:bg-emerald-50'}
+            disabled:opacity-20 disabled:cursor-not-allowed
+          `}
+          title={focusMode ? "Vis alle noder (F)" : "Fokuser på valgte node (F)"}
+        >
+           <Focus size={14} strokeWidth={2.5} className={`${focusMode ? 'scale-110' : 'group-hover/focus:scale-110'} transition-transform`} />
+        </button>
+      </div>
+
       <div className="flex flex-col gap-8">
         {concept && (
             <>

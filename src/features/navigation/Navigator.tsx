@@ -38,11 +38,11 @@ export function Navigator() {
         style={{ padding: '24px' }}
     >
       {/* Header Section */}
-      <div className="mb-10 flex items-center justify-between border-b border-slate-200 pb-3">
-        <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-800">Catalogue</span>
+      <div className="mb-10 flex items-center justify-between border-b border-slate-200 pb-4">
+        <span className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-800">Catalogue</span>
         <button 
           onClick={() => GraphService.addConcept('actor', 'New Node')}
-          className="p-1.5 text-slate-400 hover:text-primary transition-colors bg-white rounded-lg border border-slate-200 shadow-sm hover:border-primary/30"
+          className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-emerald-600 transition-all bg-white rounded-xl border border-slate-200 shadow-sm hover:border-emerald-200 hover:bg-emerald-50 active:scale-90"
         >
             <Plus size={14} strokeWidth={3} />
         </button>
@@ -98,16 +98,16 @@ function NavItem({ label, icon, isActive, onClick }: NavItemProps) {
         <button
             onClick={onClick}
             className={`
-                w-full flex items-center gap-3 py-2 px-3 transition-all group rounded-lg border
+                w-full flex items-center gap-4 py-2.5 px-4 transition-all group rounded-xl border
                 ${isActive 
-                  ? 'bg-white border-primary shadow-sm text-slate-900 ring-1 ring-primary/10' 
+                  ? 'bg-emerald-600 border-emerald-600 shadow-lg shadow-emerald-100 text-white' 
                   : 'bg-transparent border-transparent text-slate-500 hover:text-slate-900 hover:bg-white hover:border-slate-200 hover:shadow-sm'}
             `}
         >
-            <span className={`shrink-0 transition-colors ${isActive ? 'text-primary' : 'text-slate-300 group-hover:text-slate-400'}`}>
+            <span className={`shrink-0 transition-colors ${isActive ? 'text-white' : 'text-slate-300 group-hover:text-emerald-500'}`}>
                 {icon}
             </span>
-            <span className="text-[11px] font-semibold truncate flex-1 text-left">{label}</span>
+            <span className={`text-[12px] font-bold tracking-tight truncate flex-1 text-left ${isActive ? 'text-white' : 'text-slate-600'}`}>{label}</span>
         </button>
     );
 }

@@ -141,6 +141,29 @@ export async function gitCommit(
 }
 
 /**
+ * Hard reset to a specific ref (e.g. 'HEAD~1')
+ */
+export async function gitReset(ref: string): Promise<void> {
+  const fs = getFS();
+  await git.checkout({
+    fs,
+    dir: REPO_DIR,
+    ref,
+    force: true
+  });
+  
+  // Also update the branch head
+  const oid = await git.resolveRef({ fs, dir: REPO_DIR, ref });
+  await git.writeRef({
+    fs,
+    dir: REPO_DIR,
+    ref: 'refs/heads/main',
+    value: oid,
+    force: true
+  });
+}
+
+/**
  * Get the status of .typegraph.yaml.
  *
  * Returns one of: 'absent', 'unmodified', 'modified', 'added', 'deleted'

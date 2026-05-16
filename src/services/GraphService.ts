@@ -546,7 +546,14 @@ export class GraphService {
    */
   static selectNearestEdge(direction: 'up' | 'down' | 'left' | 'right'): void {
     const state = useGraphStore.getState();
-    const currentId = state.selectedConceptId;
+    let currentId = state.selectedConceptId;
+
+    // If an edge is selected, use its source as the pivot for navigating to other edges
+    if (!currentId && state.selectedRelationId) {
+      const rel = state.relations.find(r => r.id === state.selectedRelationId);
+      if (rel) currentId = rel.sourceConceptId;
+    }
+
     if (!currentId) return;
 
     const current = state.concepts.find(c => c.id === currentId);
@@ -597,6 +604,18 @@ export class GraphService {
 
     scored.sort((a, b) => a.score - b.score);
     this.selectRelation(scored[0].edgeId);
+  }
+
+  /**
+   * Delete the currently selected element (concept or relation).
+   */
+  static async deleteSelected(): Promise<void> {
+    const state = useGraphStore.getState();
+    if (state.selectedConceptId) {
+      await this.deleteConcept(state.selectedConceptId);
+    } else if (state.selectedRelationId) {
+      await this.deleteRelation(state.selectedRelationId);
+    }
   }
 
   /**

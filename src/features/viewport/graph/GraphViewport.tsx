@@ -197,10 +197,12 @@ export function GraphViewport({ focusMode = false }: GraphViewportProps) {
   const {
     selectedConceptId,
     selectedRelationId,
+    centerSelectionCount,
   } = useGraphStore(
     useShallow((s) => ({
       selectedConceptId: s.selectedConceptId,
       selectedRelationId: s.selectedRelationId,
+      centerSelectionCount: s.centerSelectionCount
     })),
   );
 
@@ -388,7 +390,7 @@ export function GraphViewport({ focusMode = false }: GraphViewportProps) {
       }, 50);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedConceptId]);
+  }, [selectedConceptId, centerSelectionCount]);
 
   const onNodesDelete = useCallback((deletedNodes: Node[]) => {
     for (const node of deletedNodes) GraphService.deleteConcept(node.id);

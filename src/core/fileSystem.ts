@@ -11,19 +11,45 @@ import LightningFS from '@isomorphic-git/lightning-fs';
 // ============================================================
 
 const REPO_NAME = 'typegraph';
+const STORAGE_KEY = 'tg_active_workspace';
 const YAML_FILENAME = '.typegraph.yaml';
 
-// Dynamic repository directory (can be switched via setRepoDir)
-export let REPO_DIR = '/workspace';
+// Initialize REPO_DIR from localStorage or default to '/workspace'
+export let REPO_DIR = localStorage.getItem(STORAGE_KEY) || '/workspace';
 export let YAML_PATH = `${REPO_DIR}/${YAML_FILENAME}`;
 
 /**
- * Switch the active repository directory.
+ * Switch the active repository directory and persist to localStorage.
  */
 export function setRepoDir(newDir: string) {
-  REPO_DIR = newDir;
-  YAML_PATH = `${newDir}/${YAML_FILENAME}`;
-  console.log(`[FileSystem] Switched REPO_DIR to: ${REPO_DIR}`);
+  REPO_DIR = newDir.startsWith('/') ? newDir : `/${newDir}`;
+  YAML_PATH = `${REPO_DIR}/${YAML_FILENAME}`;
+  localStorage.setItem(STORAGE_KEY, REPO_DIR);
+  console.log(`[FileSystem] Active workspace set to: ${REPO_DIR}`);
+}
+
+/**
+ * List all directories in the root that look like workspaces (start with /workspace)
+ */
+export async function listWorkspaces(): Promise<string[]> {
+  const pfs = getFSPromises();
+  try {
+    const entries = await pfs.readdir('/');
+    // Filter for items starting with 'workspace'
+    const workspaces = entries
+      .filter(e => e.startsWith('workspace'))
+      .map(e => e.startsWith('/') ? e : `/${e}`);
+    
+    // Ensure the default /workspace is always in the list
+    if (!workspaces.includes('/workspace')) {
+      workspaces.unshift('/workspace');
+    }
+    
+    return Array.from(new Set(workspaces));
+  } catch (err) {
+    console.warn('[FileSystem] Could not list workspaces:', err);
+    return ['/workspace'];
+  }
 }
 
 let _fs: LightningFS | null = null;
@@ -121,6 +147,56 @@ export async function yamlExists(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/**
+ * Check if a directory contains a .git folder.
+ */
+export async function hasGitRepo(dir: string): Promise<boolean> {
+  const pfs = getFSPromises();
+  try {
+    const stats = await pfs.stat(`${dir}/.git`);
+    return stats.isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Get the origin remote URL for a given directory.
+ */
+export async function getRemoteUrl(dir: string): Promise<string | null> {
+  const pfs = getFSPromises();
+  try {
+    // We read the .git/config file directly to avoid loading full isomorphic-git
+    const configPath = `${dir}/.git/config`;
+    const content = await pfs.readFile(configPath, { encoding: 'utf8' });
+    const match = (content as string).match(/url\s*=\s*(.+)/);
+    return match ? match[1].trim() : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Rename a workspace directory.
+ */
+export async function renameWorkspace(oldDir: string, newName: string): Promise<string> {
+  const pfs = getFSPromises();
+  const newDir = `/workspace-${newName.trim().replace(/\s+/g, '-')}`;
+  
+  if (oldDir === newDir) return oldDir;
+  
+  // Check if target exists
+  try {
+    await pfs.stat(newDir);
+    throw new Error('Et projekt med dette navn findes allerede.');
+  } catch (err: any) {
+    if (err.code !== 'ENOENT') throw err;
+  }
+
+  await pfs.rename(oldDir, newDir);
+  return newDir;
 }
 
 // ============================================================

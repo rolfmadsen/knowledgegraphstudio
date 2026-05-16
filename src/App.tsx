@@ -8,7 +8,6 @@
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import './index.css';
-import { ReactFlowProvider } from '@xyflow/react';
 import { useGraphStore, useTemporalStore } from './store/useGraphStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useKeyboard } from './hooks/useKeyboard';
@@ -25,18 +24,61 @@ import { GraphService } from './services/GraphService';
 import { GitService, type PullResult } from './services/GitService';
 import { CredentialService } from './services/CredentialService';
 import { RelationBuilder } from './features/relations/RelationBuilder';
+import { NodeCreator } from './features/concepts/NodeCreator';
 import { RefinedToolbar } from './components/ui/RefinedToolbar';
-import { Group, Panel, Separator } from 'react-resizable-panels';
 import { LayoutGrid, Code2, Columns2, HelpCircle } from 'lucide-react';
 import { HelpCenter } from './features/help/HelpCenter';
 import { StatusBar } from './features/statusbar/StatusBar';
 import { ConflictResolverModal } from './features/conflicts/ConflictResolverModal';
 import { RemoteConfigModal } from './features/conflicts/RemoteConfigModal';
-
-// Resizable components are imported directly from the high-precision panels library
+import { WorkspaceSwitcherModal } from './features/navigation/WorkspaceSwitcherModal';
 
 const EMPTY_GRAPH = { concepts: [], relations: [] };
 const EMPTY_HISTORY = { pastStates: [], futureStates: [] };
+
+// --- Unified Resizing Hook ---
+const useResizable = (config: {
+  initialWidth: number;
+  minWidth: number;
+  maxWidth: number;
+  direction: 'ltr' | 'rtl';
+  offset?: number;
+}) => {
+  const [width, setWidth] = useState(config.initialWidth);
+  const [isResizing, setIsResizing] = useState(false);
+
+  const startResizing = useCallback((e: React.MouseEvent) => {
+    setIsResizing(true);
+    e.preventDefault();
+  }, []);
+
+  const stopResizing = useCallback(() => setIsResizing(false), []);
+
+  const resize = useCallback((e: MouseEvent) => {
+    if (isResizing) {
+      let newWidth;
+      if (config.direction === 'ltr') {
+        newWidth = e.clientX;
+      } else {
+        newWidth = window.innerWidth - e.clientX - (config.offset || 0);
+      }
+      setWidth(Math.max(config.minWidth, Math.min(config.maxWidth, newWidth)));
+    }
+  }, [isResizing, config.direction, config.minWidth, config.maxWidth, config.offset]);
+
+  useEffect(() => {
+    if (isResizing) {
+      window.addEventListener('mousemove', resize);
+      window.addEventListener('mouseup', stopResizing);
+    }
+    return () => {
+      window.removeEventListener('mousemove', resize);
+      window.removeEventListener('mouseup', stopResizing);
+    };
+  }, [isResizing, resize, stopResizing]);
+
+  return { width, isResizing, startResizing };
+};
 
 function App() {
   // --- App State ---
@@ -44,36 +86,54 @@ function App() {
   const [indexOpen, setIndexOpen] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>('graph');
   const [diffMode, setDiffMode] = useState(false);
-  const [commandOpen, setCommandOpen] = useState(false);
-  const [initialCommandQuery, setInitialCommandQuery] = useState('');
-  const [focusMode, setFocusMode] = useState(false);
   const [isConflict, setIsConflict] = useState(false);
   const [booted, setBooted] = useState(false);
   const [bootError, setBootError] = useState<string | null>(null);
 
-  // --- Git / Remote State ---
   const [remoteConfigOpen, setRemoteConfigOpen] = useState(false);
+  const [workspacesOpen, setWorkspacesOpen] = useState(false);
   const [conflictData, setConflictData] = useState<{
     localYaml: string | null;
     remoteYaml: string | null;
   } | null>(null);
   const [gitToast, setGitToast] = useState<string | null>(null);
 
-  const showGitToast = (msg: string) => {
-    setGitToast(msg);
-    setTimeout(() => setGitToast(null), 4000);
-  };
-
   // --- Store ---
   const {
     concepts,
     relations,
+    focusMode,
+    setFocusMode,
+    isQuickFindOpen,
+    setQuickFindOpen,
   } = useGraphStore(
     useShallow((s) => s ? {
       concepts: s.concepts,
       relations: s.relations,
-    } : EMPTY_GRAPH),
+      focusMode: s.focusMode,
+      setFocusMode: s.setFocusMode,
+      isQuickFindOpen: s.isQuickFindOpen,
+      setQuickFindOpen: s.setQuickFindOpen,
+    } : { ...EMPTY_GRAPH, focusMode: false, setFocusMode: () => { }, isQuickFindOpen: false, setQuickFindOpen: () => { } }),
   );
+
+  // --- Layout Resizers ---
+  const lib = useResizable({ initialWidth: 250, minWidth: 200, maxWidth: 500, direction: 'ltr' });
+  const prop = useResizable({ initialWidth: 200, minWidth: 200, maxWidth: 500, direction: 'rtl' });
+
+  const splitOffset = (propertiesOpen && !focusMode) ? prop.width : 0;
+  const split = useResizable({
+    initialWidth: 350,
+    minWidth: 200,
+    maxWidth: 1200,
+    direction: 'rtl',
+    offset: splitOffset
+  });
+
+  const showGitToast = (msg: string) => {
+    setGitToast(msg);
+    setTimeout(() => setGitToast(null), 4000);
+  };
 
   // Access zundo temporal store (reactive)
   const { undo, redo, pastStates, futureStates } = useTemporalStore(
@@ -82,7 +142,7 @@ function App() {
       redo: s.redo,
       pastStates: s.pastStates,
       futureStates: s.futureStates,
-    } : { undo: () => {}, redo: () => {}, ...EMPTY_HISTORY }),
+    } : { undo: () => { }, redo: () => { }, ...EMPTY_HISTORY }),
   );
 
   const selectedConceptId = useGraphStore((s) => s?.selectedConceptId);
@@ -113,6 +173,15 @@ function App() {
     });
 
     return () => GitService.stopAutoFetch();
+  }, []);
+
+  // --- Force Save on Refresh/Close ---
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      PersistenceService.flush();
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, []);
 
   // --- Autosave to YAML ---
@@ -149,6 +218,23 @@ function App() {
     }
   }, []);
 
+  // --- Focus Return (Spec §5) ---
+  // Ensure focus returns to Zone 2 (Canvas) when any global modal closes
+  const { isNodeCreatorOpen, isRelationBuilderOpen } = useGraphStore(useShallow(s => ({
+    isNodeCreatorOpen: s?.isNodeCreatorOpen,
+    isRelationBuilderOpen: s?.isRelationBuilderOpen
+  })));
+
+  useEffect(() => {
+    const isAnyModalOpen = isNodeCreatorOpen || isQuickFindOpen || isRelationBuilderOpen || remoteConfigOpen || workspacesOpen;
+    if (!isAnyModalOpen) {
+      // Small delay to ensure DOM has updated and modal is gone
+      setTimeout(() => {
+        zone2Ref.current?.focus();
+      }, 50);
+    }
+  }, [isNodeCreatorOpen, isQuickFindOpen, isRelationBuilderOpen, remoteConfigOpen, workspacesOpen]);
+
   const handleGitPull = useCallback(async () => {
     try {
       const result: PullResult = await GitService.pull();
@@ -170,11 +256,7 @@ function App() {
     onToggleIndex: () => setIndexOpen((prev) => !prev),
     onToggleViewMode: cycleViewMode,
     onToggleDiffMode: () => setDiffMode((prev) => !prev),
-    onOpenCommandArchive: (initialQuery?: string) => {
-      setInitialCommandQuery(initialQuery || '');
-      setCommandOpen(true);
-    },
-    onToggleFocusMode: () => setFocusMode((prev) => !prev),
+    onToggleFocusMode: () => setFocusMode(!focusMode),
     onFocusZone: (zone) => {
       if (zone === 2) zone2Ref.current?.focus();
       if (zone === 4) {
@@ -211,18 +293,18 @@ function App() {
     return () => window.removeEventListener('keydown', handleHelp);
   }, [isHelpOpen]);
 
-  // --- Loading state ---
+
   if (!booted) {
     return (
       <div className="flex w-full h-full items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-10">
-           <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center text-white text-3xl font-black shadow-lg shadow-primary/20">
-              TG
-           </div>
-           <div className="flex flex-col items-center gap-3">
-              <h1 className="text-2xl font-bold tracking-tight text-slate-900">TypeGraph Studio</h1>
-              <p className="text-[11px] font-medium text-slate-400 uppercase tracking-widest animate-pulse">Initializing Workspace...</p>
-           </div>
+          <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center text-white text-3xl font-black shadow-lg shadow-primary/20">
+            TG
+          </div>
+          <div className="flex flex-col items-center gap-3">
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900">TypeGraph Studio</h1>
+            <p className="text-[11px] font-medium text-slate-400 uppercase tracking-widest animate-pulse">Initializing Workspace...</p>
+          </div>
         </div>
       </div>
     );
@@ -230,7 +312,7 @@ function App() {
 
   return (
     <div className="w-full h-screen bg-background text-slate-900 overflow-hidden font-sans flex flex-col">
-      <RefinedToolbar 
+      <RefinedToolbar
         undo={undo}
         redo={redo}
         canUndo={pastStates.length > 0}
@@ -240,196 +322,172 @@ function App() {
         onTriggerLayout={() => GraphService.triggerLayout()}
         onToggleFocusMode={() => setFocusMode(!focusMode)}
         onOpenRemoteConfig={() => setRemoteConfigOpen(true)}
+        onOpenWorkspaces={() => setWorkspacesOpen(true)}
         focusMode={focusMode}
       />
-      <div className="flex-1 flex overflow-hidden">
-        <Group orientation="horizontal" className="w-full h-full" style={{ height: '100%' }}>
-          {indexOpen && !focusMode && (
-            <Panel 
-              id="library-panel"
-              defaultSize={300} 
-              minSize={250} 
-              maxSize={800} 
-              className="bg-slate-50 border-r border-slate-200"
+      <div className="flex-1 flex overflow-hidden bg-slate-50">
+        {/* Left Side: Catalogue/Navigator */}
+        {indexOpen && !focusMode && (
+          <>
+            <aside
+              className="border-r border-slate-200 bg-slate-50 flex flex-col shrink-0 overflow-hidden"
+              style={{ width: `${lib.width}px` }}
             >
               <Navigator />
-            </Panel>
-          )}
-          {indexOpen && !focusMode && (
-            <Separator className="w-1 group relative transition-colors hover:bg-primary/10 cursor-col-resize">
-              <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-[1px] bg-slate-200 group-hover:bg-slate-400" />
-            </Separator>
-          )}
+            </aside>
+            <div
+              onMouseDown={lib.startResizing}
+              className={`w-1 hover:bg-emerald-500/30 cursor-col-resize transition-colors shrink-0 z-50 ${lib.isResizing ? 'bg-emerald-500/50' : ''}`}
+            />
+          </>
+        )}
 
-          {/* Center Zone: Contains Viewport, Code and the View Switcher */}
-          {!focusMode && (
-            <Panel 
-              id="center-zone"
-              defaultSize={viewMode === 'split' ? 60 : 800} 
-              minSize={400}
-              className="relative flex flex-col bg-slate-50 min-w-0 focus:outline-none"
-            >
-              {/* Global View Switcher - Always Visible */}
-              <div 
-                className="absolute left-1/2 -translate-x-1/2 z-[100] flex items-center gap-3" 
-                style={{ top: '24px' }}
-              >
-                <div className="flex items-center gap-1.5 p-1.5 bg-white/95 backdrop-blur-xl border border-slate-200 rounded-full shadow-2xl shadow-slate-200/50">
-                  {[
-                    { id: 'graph', icon: LayoutGrid, label: 'Graph' },
-                    { id: 'code', icon: Code2, label: 'Code' },
-                    { id: 'split', icon: Columns2, label: 'Split' }
-                  ].map((mode) => (
-                    <button
-                      key={mode.id}
-                      disabled={isConflict && mode.id !== 'code'}
-                      onClick={() => { setViewMode(mode.id as ViewMode); setDiffMode(false); }}
-                      className={`
-                        flex items-center text-[10px] font-black uppercase tracking-wider transition-all px-6 py-2 gap-2 rounded-full
-                        ${viewMode === mode.id && !diffMode 
-                          ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-200' 
-                          : 'text-slate-400 hover:text-slate-900 hover:bg-slate-50'}
-                        ${isConflict && mode.id !== 'code' ? 'opacity-20 cursor-not-allowed' : ''}
-                      `}
-                      title={mode.label}
-                    >
-                      <mode.icon size={12} strokeWidth={3} />
-                      <span>{mode.label}</span>
-                    </button>
-                  ))}
-                  
-                  <div className="w-[1px] h-4 bg-slate-200 mx-1" />
-
-                  <button
-                    onClick={() => setDiffMode(!diffMode)}
-                    className={`
+        {/* Center Zone: Viewport & View Switcher */}
+        <main className="flex-1 min-w-0 relative flex flex-col bg-slate-50">
+          {/* Global View Switcher */}
+          <div
+            className="absolute left-1/2 -translate-x-1/2 z-[100] flex items-center gap-3"
+            style={{ top: '24px' }}
+          >
+            <div className="flex items-center gap-1.5 p-1.5 bg-white/95 backdrop-blur-xl border border-slate-200 rounded-full shadow-2xl shadow-slate-200/50">
+              {[
+                { id: 'graph', icon: LayoutGrid, label: 'Graph' },
+                { id: 'code', icon: Code2, label: 'Code' },
+                { id: 'split', icon: Columns2, label: 'Split' }
+              ].map((mode) => (
+                <button
+                  key={mode.id}
+                  disabled={isConflict && mode.id !== 'code'}
+                  onClick={() => { setViewMode(mode.id as ViewMode); setDiffMode(false); }}
+                  className={`
                       flex items-center text-[10px] font-black uppercase tracking-wider transition-all px-6 py-2 gap-2 rounded-full
-                      ${diffMode 
-                        ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-200' 
-                        : 'text-slate-400 hover:text-slate-900 hover:bg-slate-50'}
+                      ${viewMode === mode.id && !diffMode
+                      ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-200'
+                      : 'text-slate-400 hover:text-slate-900 hover:bg-slate-50'}
+                      ${isConflict && mode.id !== 'code' ? 'opacity-20 cursor-not-allowed' : ''}
                     `}
-                  >
-                    <span>Diff</span>
-                  </button>
-                </div>
-              </div>
+                  title={mode.label}
+                >
+                  <mode.icon size={12} strokeWidth={3} />
+                  <span>{mode.label}</span>
+                </button>
+              ))}
 
-              {/* Main Content Area: Toggles between Graph and Diff using the Container */}
-              <div 
-                className="flex-1 relative flex flex-col min-h-0"
-                style={{ display: viewMode !== 'code' || diffMode ? 'flex' : 'none' }}
-              >
-                <ViewportContainer
-                  diffMode={diffMode}
-                  graphViewport={
-                    <ReactFlowProvider>
-                      <GraphViewport focusMode={focusMode} />
-                    </ReactFlowProvider>
-                  }
-                  diffViewport={<DiffViewport />}
-                />
-              </div>
+              <div className="w-[1px] h-4 bg-slate-200 mx-1" />
 
-              {/* Individual Code View - Only visible in CODE mode (when not in split) */}
-              <div 
-                className="flex-1 relative flex flex-col min-h-0"
-                style={{ display: viewMode === 'code' && !diffMode ? 'flex' : 'none' }}
-              >
-                <div className="zone-header px-6 py-4 border-b border-slate-100 shrink-0 flex items-center justify-between bg-white mt-16">
-                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
-                    YAML {isConflict ? '(CONFLICT MODE - EDITABLE)' : '(Live Sync)'}
-                  </span>
-                </div>
-                <div className="flex-1 min-h-0 relative">
-                  <CodeViewport isConflict={isConflict} />
-                </div>
-              </div>
-
-              {/* Floating Help Trigger */}
               <button
-                onClick={() => setIsHelpOpen(true)}
-                className="absolute bottom-8 right-8 z-50 w-12 h-12 bg-emerald-600 text-white rounded-full flex items-center justify-center shadow-xl shadow-emerald-200 hover:bg-emerald-700 hover:scale-110 transition-all active:scale-95 group"
-                title="Keyboard Shortcuts (?)"
+                onClick={() => setDiffMode(!diffMode)}
+                className={`
+                    flex items-center text-[10px] font-black uppercase tracking-wider transition-all px-6 py-2 gap-2 rounded-full
+                    ${diffMode
+                    ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-200'
+                    : 'text-slate-400 hover:text-slate-900 hover:bg-slate-50'}
+                  `}
               >
-                <HelpCircle size={24} strokeWidth={2.5} className="group-hover:rotate-12 transition-transform" />
+                <span>Diff</span>
               </button>
-            </Panel>
-          )}
+            </div>
+          </div>
 
-          {/* Dedicated Split-Mode Code Panel (The right-hand side in Split view) */}
-          {!focusMode && (
-            <>
-              <Separator 
-                className="w-1 group relative transition-colors hover:bg-emerald-500/10 cursor-col-resize"
-                style={{ display: viewMode === 'split' && !diffMode ? 'block' : 'none' }}
-              >
-                <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-[1px] bg-slate-200 group-hover:bg-emerald-300" />
-              </Separator>
-              <Panel 
-                id="split-code-panel"
-                defaultSize={40}
-                minSize={20}
-                className="bg-white border-l border-slate-200 flex flex-col"
-                style={{ display: viewMode === 'split' && !diffMode ? 'flex' : 'none' }}
-              >
-                <div className="zone-header px-6 py-4 border-b border-slate-100 shrink-0 flex items-center justify-between bg-white mt-16">
-                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
-                    YAML {isConflict ? '(CONFLICT MODE - EDITABLE)' : '(Live Sync)'}
-                  </span>
-                </div>
-                <div className="flex-1 min-h-0 relative">
-                  <CodeViewport isConflict={isConflict} />
-                </div>
-              </Panel>
-            </>
-          )}
+          {/* Main Content Area */}
+          <div
+            className="flex-1 relative flex flex-col min-h-0"
+            style={{ display: viewMode !== 'code' || diffMode ? 'flex' : 'none' }}
+          >
+            <ViewportContainer
+              diffMode={diffMode}
+              graphViewport={<GraphViewport focusMode={focusMode} />}
+              diffViewport={<DiffViewport />}
+            />
+          </div>
 
-          {propertiesOpen && !focusMode && (
-            <Separator className="w-1 group relative transition-colors hover:bg-primary/10 cursor-col-resize">
-              <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-[1px] bg-slate-200 group-hover:bg-slate-400" />
-            </Separator>
-          )}
-          {propertiesOpen && !focusMode && (
-            <Panel 
-              id="properties-panel"
-              defaultSize={300} 
-              minSize={250} 
-              maxSize={800} 
-              className="bg-slate-50 border-l border-slate-200"
+          {/* Individual Code View (when not in split) */}
+          <div
+            className="flex-1 relative flex flex-col min-h-0"
+            style={{ display: viewMode === 'code' && !diffMode ? 'flex' : 'none' }}
+          >
+            <div className="zone-header px-6 py-4 border-b border-slate-100 shrink-0 flex items-center justify-between bg-white mt-16">
+              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
+                YAML {isConflict ? '(CONFLICT MODE - EDITABLE)' : '(Live Sync)'}
+              </span>
+            </div>
+            <div className="flex-1 min-h-0 relative">
+              <CodeViewport isConflict={isConflict} />
+            </div>
+          </div>
+
+          {/* Floating Help Trigger */}
+          <button
+            onClick={() => setIsHelpOpen(true)}
+            className="absolute bottom-8 right-8 z-50 w-12 h-12 bg-emerald-600 text-white rounded-full flex items-center justify-center shadow-xl shadow-emerald-200 hover:bg-emerald-700 hover:scale-110 transition-all active:scale-95 group"
+            title="Keyboard Shortcuts (?)"
+          >
+            <HelpCircle size={24} strokeWidth={2.5} className="group-hover:rotate-12 transition-transform" />
+          </button>
+        </main>
+
+        {/* Right Side: Split View Code OR Properties */}
+        {viewMode === 'split' && !diffMode && !focusMode && (
+          <>
+            <div
+              onMouseDown={split.startResizing}
+              className={`w-1 hover:bg-emerald-500/30 cursor-col-resize transition-colors shrink-0 z-50 ${split.isResizing ? 'bg-emerald-500/50' : ''}`}
+            />
+            <aside
+              style={{ width: `${split.width}px` }}
+              className="border-l border-slate-200 bg-white flex flex-col shrink-0 overflow-hidden"
             >
-              <div ref={zone4Ref} tabIndex={0} className="h-full focus:outline-none">
-                <Inspector />
+              <div className="zone-header px-6 py-4 border-b border-slate-100 shrink-0 flex items-center justify-between bg-white mt-16">
+                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
+                  YAML {isConflict ? '(CONFLICT MODE - EDITABLE)' : '(Live Sync)'}
+                </span>
               </div>
-            </Panel>
-          )}
-        </Group>
+              <div className="flex-1 min-h-0 relative">
+                <CodeViewport isConflict={isConflict} />
+              </div>
+            </aside>
+          </>
+        )}
+
+        {propertiesOpen && !focusMode && (
+          <div
+            onMouseDown={prop.startResizing}
+            className={`w-1 hover:bg-emerald-500/30 cursor-col-resize transition-colors shrink-0 z-50 ${prop.isResizing ? 'bg-emerald-500/50' : ''}`}
+          />
+        )}
+
+        <aside
+          className="border-l border-slate-200 bg-white flex flex-col shrink-0 overflow-hidden"
+          style={{
+            width: propertiesOpen && !focusMode ? `${prop.width}px` : '0px',
+            borderLeft: propertiesOpen && !focusMode ? '1px solid #e2e8f0' : 'none'
+          }}
+        >
+          <div ref={zone4Ref} tabIndex={0} className="h-full focus:outline-none">
+            <Inspector />
+          </div>
+        </aside>
       </div>
 
       {/* StatusBar — 28px bottom bar (Spec §10.4) */}
       <StatusBar onOpenRemoteConfig={() => setRemoteConfigOpen(true)} />
 
       <CommandOverlay
-        open={commandOpen}
-        initialQuery={initialCommandQuery}
-        onClose={() => {
-          setCommandOpen(false);
-          setInitialCommandQuery('');
-        }}
-        onFocusInspector={() => {
-          // Explicitly focus Zone 4 (Inspector) after creation
-          setTimeout(() => {
-            zone4Ref.current?.focus();
-            const firstInput = zone4Ref.current?.querySelector('input, select, textarea') as HTMLElement;
-            firstInput?.focus();
-            if (firstInput instanceof HTMLInputElement) firstInput.select();
-          }, 100);
-        }}
+        open={isQuickFindOpen}
+        onClose={() => setQuickFindOpen(false)}
         onGitPush={handleGitPush}
         onGitPull={handleGitPull}
         onOpenRemoteConfig={() => setRemoteConfigOpen(true)}
       />
+      <NodeCreator />
       <RelationBuilder />
       <HelpCenter isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
+
+      {/* Workspace Switcher */}
+      <WorkspaceSwitcherModal
+        isOpen={workspacesOpen}
+        onClose={() => setWorkspacesOpen(false)}
+      />
 
       {/* Remote Config Modal */}
       {remoteConfigOpen && (

@@ -168,7 +168,7 @@ export function HelpCenter({ isOpen, onClose }: { isOpen: boolean; onClose: () =
                   shortcuts={[
                     { keys: ['Enter'], label: 'Drill In', description: 'Focus Inspector & select name' },
                     { keys: ['Esc'], label: 'Universal Return', description: 'Release focus to Canvas' },
-                    { keys: ['Alt', 'B / I'], label: 'Toggle Panels', description: 'Show/hide Inspector or Navigator' }
+                    { keys: ['Alt', 'P / C'], label: 'Toggle Panels', description: 'Show/hide Properties or Catalogue' }
                   ]}
                 />
 

@@ -15,7 +15,7 @@ interface KeyboardConfig {
   onToggleIndex: () => void;
   onToggleViewMode: () => void;
   onToggleDiffMode: () => void;
-  onOpenCommandArchive: (initialQuery?: string) => void;
+  onOpenCommandArchive?: (initialQuery?: string) => void;
   onToggleFocusMode?: () => void;
   onFocusZone: (zone: 1 | 2 | 4) => void;
   onAddProperty?: () => void;
@@ -64,47 +64,40 @@ export function useKeyboard(config: KeyboardConfig) {
         return;
       }
 
-      // ==========================================================
-      // Global Shortcuts (always active)
-      // ==========================================================
-
-      // / or Ctrl+K — Open Command Archive
-      if (e.key === '/' && !isInputFocused()) {
-        e.preventDefault();
-        config.onOpenCommandArchive();
-        return;
-      }
-      if (ctrl && e.key === 'k') {
-        e.preventDefault();
-        config.onOpenCommandArchive();
-        return;
-      }
-
-      // Ctrl+Shift+P — Git Push
-      if (ctrl && shift && e.key === 'P') {
-        e.preventDefault();
-        config.onGitPush?.();
-        return;
-      }
-
-      // Ctrl+Shift+L — Git Pull
-      if (ctrl && shift && e.key === 'L') {
-        e.preventDefault();
-        config.onGitPull?.();
-        return;
-      }
-
-      // Ctrl+Shift+G — Open Remote Config
-      if (ctrl && shift && e.key === 'G') {
-        e.preventDefault();
-        config.onOpenRemoteConfig?.();
-        return;
-      }
-
-      // Alt+N — New Concept
+      // Alt+N — New Concept (Specialized UI)
       if (alt && e.key === 'n') {
         e.preventDefault();
-        config.onOpenCommandArchive('new ');
+        useGraphStore.getState().setNodeCreatorOpen(true);
+        return;
+      }
+
+      // Alt+E — New Edge (Specialized UI)
+      if (alt && e.key === 'e') {
+        const selectedId = useGraphStore.getState().selectedConceptId;
+        if (selectedId) {
+          e.preventDefault();
+          useGraphStore.getState().setRelationBuilderOpen(true, selectedId);
+        }
+        return;
+      }
+
+      // Alt+F — Quick Find (Specialized UI)
+      if (alt && e.key === 'f') {
+        e.preventDefault();
+        useGraphStore.getState().setQuickFindOpen(true);
+        return;
+      }
+
+      // Delete — Delete Selected
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        // Only if not in input
+        if (!isInputFocused()) {
+          const state = useGraphStore.getState();
+          if (state.selectedConceptId || state.selectedRelationId) {
+            e.preventDefault();
+            GraphService.deleteSelected();
+          }
+        }
         return;
       }
 
@@ -120,11 +113,21 @@ export function useKeyboard(config: KeyboardConfig) {
       // ==========================================================
       if (isInputFocused()) return;
 
-      // Arrows — Spatial Navigation
-      if (e.key === 'ArrowUp') { e.preventDefault(); GraphService.selectNearestNode('up'); return; }
-      if (e.key === 'ArrowDown') { e.preventDefault(); GraphService.selectNearestNode('down'); return; }
-      if (e.key === 'ArrowLeft') { e.preventDefault(); GraphService.selectNearestNode('left'); return; }
-      if (e.key === 'ArrowRight') { e.preventDefault(); GraphService.selectNearestNode('right'); return; }
+      // Arrows — Spatial Node Navigation (only if no alt/ctrl)
+      if (!alt && !ctrl) {
+        if (e.key === 'ArrowUp') { e.preventDefault(); e.stopPropagation(); GraphService.selectNearestNode('up'); return; }
+        if (e.key === 'ArrowDown') { e.preventDefault(); e.stopPropagation(); GraphService.selectNearestNode('down'); return; }
+        if (e.key === 'ArrowLeft') { e.preventDefault(); e.stopPropagation(); GraphService.selectNearestNode('left'); return; }
+        if (e.key === 'ArrowRight') { e.preventDefault(); e.stopPropagation(); GraphService.selectNearestNode('right'); return; }
+      }
+
+      // Alt + Arrows — Spatial Edge Navigation
+      if (alt && !ctrl) {
+        if (e.key === 'ArrowUp') { e.preventDefault(); e.stopPropagation(); GraphService.selectNearestEdge('up'); return; }
+        if (e.key === 'ArrowDown') { e.preventDefault(); e.stopPropagation(); GraphService.selectNearestEdge('down'); return; }
+        if (e.key === 'ArrowLeft') { e.preventDefault(); e.stopPropagation(); GraphService.selectNearestEdge('left'); return; }
+        if (e.key === 'ArrowRight') { e.preventDefault(); e.stopPropagation(); GraphService.selectNearestEdge('right'); return; }
+      }
 
       // Enter — Drill into Inspector
       if (e.key === 'Enter') {
@@ -152,16 +155,6 @@ export function useKeyboard(config: KeyboardConfig) {
         return;
       }
 
-      // Ctrl+R — Open Relation Builder
-      if (ctrl && e.key === 'r') {
-        const selectedId = useGraphStore.getState().selectedConceptId;
-        if (selectedId) {
-          e.preventDefault();
-          useGraphStore.getState().setRelationBuilderOpen(true, selectedId);
-        }
-        return;
-      }
-
       // Undo/Redo
       if (ctrl && e.key === 'z') {
         e.preventDefault();
@@ -170,30 +163,13 @@ export function useKeyboard(config: KeyboardConfig) {
         return;
       }
 
-      // Arrows — Spatial Node Navigation (only if no alt/ctrl)
-      if (!alt && !ctrl) {
-        if (e.key === 'ArrowUp') { e.preventDefault(); e.stopPropagation(); GraphService.selectNearestNode('up'); return; }
-        if (e.key === 'ArrowDown') { e.preventDefault(); e.stopPropagation(); GraphService.selectNearestNode('down'); return; }
-        if (e.key === 'ArrowLeft') { e.preventDefault(); e.stopPropagation(); GraphService.selectNearestNode('left'); return; }
-        if (e.key === 'ArrowRight') { e.preventDefault(); e.stopPropagation(); GraphService.selectNearestNode('right'); return; }
-      }
-
-      // Alt + Arrows — Spatial Edge Navigation
-      if (alt && !ctrl) {
-        if (e.key === 'ArrowUp') { e.preventDefault(); e.stopPropagation(); GraphService.selectNearestEdge('up'); return; }
-        if (e.key === 'ArrowDown') { e.preventDefault(); e.stopPropagation(); GraphService.selectNearestEdge('down'); return; }
-        if (e.key === 'ArrowLeft') { e.preventDefault(); e.stopPropagation(); GraphService.selectNearestEdge('left'); return; }
-        if (e.key === 'ArrowRight') { e.preventDefault(); e.stopPropagation(); GraphService.selectNearestEdge('right'); return; }
-      }
-
       // Other Toggles
-      if (alt && e.key === 'b') { e.preventDefault(); config.onToggleProperties(); return; }
-      if (alt && e.key === 'i') { e.preventDefault(); config.onToggleIndex(); return; }
+      if (alt && e.key === 'p') { e.preventDefault(); config.onToggleProperties(); return; }
+      if (alt && e.key === 'c') { e.preventDefault(); config.onToggleIndex(); return; }
       if (alt && e.key === '3') { e.preventDefault(); config.onToggleViewMode(); return; }
       if (alt && e.key === 'd') { e.preventDefault(); config.onToggleDiffMode(); return; }
       if (e.key === 'f') { e.preventDefault(); config.onToggleFocusMode?.(); return; }
       if (e.key === 'a') { e.preventDefault(); config.onAddProperty?.(); return; }
-      if (e.key === 'l' || e.key === 'c') { e.preventDefault(); config.onOpenCommandArchive('connect '); return; }
     },
     [config],
   );

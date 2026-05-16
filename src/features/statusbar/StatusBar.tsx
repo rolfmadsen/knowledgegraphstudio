@@ -40,7 +40,8 @@ export function StatusBar({ onOpenRemoteConfig }: StatusBarProps) {
         return {
           icon: <Clock size={10} />,
           label: 'Ændringer afventer',
-          cls: 'text-amber-400',
+          cls: 'text-amber-400 cursor-pointer hover:text-amber-300',
+          onClick: onOpenRemoteConfig,
         };
       case 'pushing':
         return {
@@ -58,7 +59,8 @@ export function StatusBar({ onOpenRemoteConfig }: StatusBarProps) {
         return {
           icon: <Cloud size={10} />,
           label: `↓${behindBy} commits tilgængeligt`,
-          cls: 'text-sky-400',
+          cls: 'text-sky-400 cursor-pointer hover:text-sky-300',
+          onClick: onOpenRemoteConfig,
         };
       case 'conflict':
         return {

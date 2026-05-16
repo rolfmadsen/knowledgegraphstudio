@@ -39,7 +39,11 @@ export interface GraphStoreState {
   selectedRelationId: ElementId | null;
   rawYaml: string | null; // For conflict mode
   isRelationBuilderOpen: boolean;
+  isNodeCreatorOpen: boolean;
+  isQuickFindOpen: boolean;
   relationBuilderSourceId: ElementId | null;
+  centerSelectionCount: number;
+  focusMode: boolean;
 
   // --- Git Sync State (Spec §10.5, excluded from zundo) ---
   remoteConfig: RemoteConfig | null;
@@ -51,7 +55,11 @@ export interface GraphStoreState {
   // --- Selection Actions ---
   selectConcept: (id: ElementId | null) => void;
   selectRelation: (id: ElementId | null) => void;
+  centerSelectedNode: () => void;
+  setFocusMode: (focus: boolean) => void;
   setRelationBuilderOpen: (open: boolean, sourceId?: ElementId | null) => void;
+  setNodeCreatorOpen: (open: boolean) => void;
+  setQuickFindOpen: (open: boolean) => void;
 
   // --- Bulk / Hydration ---
   layoutVersion: number;
@@ -69,8 +77,12 @@ export const useGraphStore = create<GraphStoreState>()(
       selectedRelationId: null,
       rawYaml: null,
       isRelationBuilderOpen: false,
+      isNodeCreatorOpen: false,
+      isQuickFindOpen: false,
       relationBuilderSourceId: null,
       layoutVersion: 0,
+      centerSelectionCount: 0,
+      focusMode: false,
 
       // --- Git Sync State (initial) ---
       remoteConfig: null,
@@ -82,10 +94,14 @@ export const useGraphStore = create<GraphStoreState>()(
       // --- UI Actions (State only) ---
       selectConcept: (id) => set({ selectedConceptId: id, selectedRelationId: null }),
       selectRelation: (id) => set({ selectedRelationId: id }),
+      centerSelectedNode: () => set((s) => ({ centerSelectionCount: s.centerSelectionCount + 1 })),
+      setFocusMode: (focus) => set({ focusMode: focus }),
       setRelationBuilderOpen: (open, sourceId = null) => set({ 
         isRelationBuilderOpen: open, 
         relationBuilderSourceId: sourceId 
       }),
+      setNodeCreatorOpen: (open) => set({ isNodeCreatorOpen: open }),
+      setQuickFindOpen: (open) => set({ isQuickFindOpen: open }),
 
       // --- Hydration ---
       hydrate: (newState) => {

@@ -38,35 +38,39 @@ export function DiffViewport() {
     });
   }, []);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full bg-surface">
-        <p className="zone-data text-muted text-sm">Loading diff...</p>
-      </div>
-    );
-  }
-
   return (
-    <DiffEditor
-      height="100%"
-      language="yaml"
-      original={committedYaml}
-      modified={currentYaml}
-      theme="vs-light"
-      options={{
-        readOnly: true,
-        minimap: { enabled: false },
-        scrollBeyondLastLine: false,
-        fontSize: 13,
-        fontFamily: "'JetBrains Mono', monospace",
-        renderSideBySide: true,
-        originalEditable: false,
-        scrollbar: {
-          verticalScrollbarSize: 6,
-          horizontalScrollbarSize: 6,
-        },
-        padding: { top: 12 },
-      }}
-    />
+    <div className="w-full h-full relative overflow-hidden">
+      <DiffEditor
+        height="100%"
+        language="yaml"
+        original={committedYaml}
+        modified={currentYaml}
+        theme="vs-light"
+        options={{
+          readOnly: true,
+          minimap: { enabled: false },
+          scrollBeyondLastLine: false,
+          fontSize: 13,
+          fontFamily: "'JetBrains Mono', monospace",
+          renderSideBySide: true,
+          originalEditable: false,
+          scrollbar: {
+            verticalScrollbarSize: 6,
+            horizontalScrollbarSize: 6,
+          },
+          padding: { top: 12 },
+        }}
+      />
+      
+      {/* Loading Overlay - Stays on top without unmounting the editor below */}
+      {loading && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/80 backdrop-blur-[2px] animate-in fade-in duration-300">
+          <div className="flex flex-col items-center gap-3">
+             <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+             <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Comparing Versions...</p>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
