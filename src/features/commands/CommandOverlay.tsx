@@ -19,7 +19,7 @@ interface CommandItem {
   description: string;
   action: () => void | Promise<void>;
   group: string;
-  icon?: any;
+  icon?: React.ReactNode;
 }
 
 export function CommandOverlay({ open, onClose, onGitPush, onGitPull, onOpenRemoteConfig }: QuickFindProps) {

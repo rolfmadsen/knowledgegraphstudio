@@ -1,4 +1,15 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+
+vi.hoisted(() => {
+  const store: Record<string, string> = {};
+  const localStorageMock = {
+    getItem: vi.fn((key: string) => store[key] || null),
+    setItem: vi.fn((key: string, value: string) => { store[key] = value; }),
+    clear: vi.fn(() => { for (const key in store) delete store[key]; })
+  };
+  vi.stubGlobal('localStorage', localStorageMock);
+});
+
 import { useGraphStore } from '../useGraphStore';
 import { GraphService } from '../../services/GraphService';
 

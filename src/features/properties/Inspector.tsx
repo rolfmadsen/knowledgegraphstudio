@@ -10,7 +10,7 @@ import {
   Info,
   ArrowUpDown
 } from 'lucide-react';
-import { LifecycleState, ConceptType } from '../../schema/graphSchema';
+import { LifecycleState, ConceptType, type ConceptProperty } from '../../schema/graphSchema';
 
 export function Inspector() {
   const { concepts, relations, selectedConceptId, selectedRelationId, focusMode, setFocusMode } = useGraphStore(
@@ -180,7 +180,7 @@ export function Inspector() {
 
                 <InspectorSection title="Attributes">
                     <div className="flex flex-col gap-3">
-                        {concept.properties.map((p: any) => (
+                        {concept.properties.map((p: ConceptProperty) => (
                             <div key={p.id} className="flex gap-2 group">
                                 <div className="flex-1">
                                     <PropertyField 

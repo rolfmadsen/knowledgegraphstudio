@@ -163,6 +163,11 @@ export function useKeyboard(config: KeyboardConfig) {
         return;
       }
 
+      // Git Shortcuts
+      if (ctrl && shift && e.key.toLowerCase() === 'p') { e.preventDefault(); config.onGitPush?.(); return; }
+      if (ctrl && shift && e.key.toLowerCase() === 'l') { e.preventDefault(); config.onGitPull?.(); return; }
+      if (ctrl && shift && e.key.toLowerCase() === 'g') { e.preventDefault(); config.onOpenRemoteConfig?.(); return; }
+
       // Other Toggles
       if (alt && e.key === 'p') { e.preventDefault(); config.onToggleProperties(); return; }
       if (alt && e.key === 'c') { e.preventDefault(); config.onToggleIndex(); return; }

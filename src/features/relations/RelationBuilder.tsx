@@ -14,11 +14,9 @@ import {
   Database,
   Box,
   Layers,
-  Settings,
   X,
   ChevronRight,
-  Shield,
-  ArrowDown
+  Shield
 } from 'lucide-react';
 import Fuse from 'fuse.js';
 
@@ -29,7 +27,7 @@ interface RelationOption {
   isNew: boolean;
 }
 
-const CONCEPT_TYPES: Array<{ type: ConceptType; label: string; icon: any }> = [
+const CONCEPT_TYPES: Array<{ type: ConceptType; label: string; icon: React.ReactNode }> = [
   { type: 'domain', label: 'Domain', icon: <Database size={20} /> },
   { type: 'process', label: 'Process', icon: <Activity size={20} /> },
   { type: 'system', label: 'System', icon: <Workflow size={20} /> },

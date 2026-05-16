@@ -259,7 +259,11 @@ export class GraphService {
   /**
    * Update a property on a concept.
    */
-  static async updateProperty(conceptId: ElementId, propertyId: ElementId, updates: any): Promise<void> {
+  static async updateProperty(
+    conceptId: ElementId, 
+    propertyId: ElementId, 
+    updates: Partial<Pick<ConceptNode['properties'][0], 'name' | 'type' | 'isRequired' | 'lifecycleState'>>
+  ): Promise<void> {
     const now = Date.now();
     useGraphStore.setState((state) => ({
       concepts: state.concepts.map((c) =>
@@ -300,7 +304,10 @@ export class GraphService {
   /**
    * Add a policy to a concept.
    */
-  static async addPolicy(conceptId: ElementId, policyData: any): Promise<void> {
+  static async addPolicy(
+    conceptId: ElementId, 
+    policyData: Omit<ConceptNode['policies'][0], 'id' | 'createdAt' | 'updatedAt' | 'lifecycleState'>
+  ): Promise<void> {
     const policyId = generateId('other', policyData.name);
     const now = Date.now();
     const policy = {
@@ -325,7 +332,11 @@ export class GraphService {
   /**
    * Update a policy on a concept.
    */
-  static async updatePolicy(conceptId: ElementId, policyId: ElementId, updates: any): Promise<void> {
+  static async updatePolicy(
+    conceptId: ElementId, 
+    policyId: ElementId, 
+    updates: Partial<Pick<ConceptNode['policies'][0], 'name' | 'description' | 'lifecycleState'>>
+  ): Promise<void> {
     const now = Date.now();
     useGraphStore.setState((state) => ({
       concepts: state.concepts.map((c) =>

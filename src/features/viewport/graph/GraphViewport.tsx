@@ -32,6 +32,8 @@ import {
   type InternalNode,
   useInternalNode,
   BackgroundVariant,
+  type EdgeProps,
+  type NodeProps,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { useGraphStore } from '../../../store/useGraphStore';
@@ -81,7 +83,7 @@ function getEdgeParams(source: InternalNode, target: InternalNode) {
   };
 }
 
-function FloatingEdge({ id, source, target, markerEnd, style, label, labelStyle, selected }: any) {
+function FloatingEdge({ id, source, target, markerEnd, style, label, labelStyle, selected }: EdgeProps) {
   const sourceNode = useInternalNode(source);
   const targetNode = useInternalNode(target);
 
@@ -123,9 +125,9 @@ function FloatingEdge({ id, source, target, markerEnd, style, label, labelStyle,
           style={{ cursor: 'pointer' }}
         >
           <rect
-            x={-(label.length * 3 + 14)}
+            x={-(String(label).length * 3 + 14)}
             y={-12}
-            width={label.length * 6 + 28}
+            width={String(label).length * 6 + 28}
             height={24}
             rx={12}
             ry={12}
@@ -158,28 +160,28 @@ function FloatingEdge({ id, source, target, markerEnd, style, label, labelStyle,
   );
 }
 
-function ConceptNodeComponent({ data, selected }: { data: any; selected: boolean }) {
+function ConceptNodeComponent({ data, selected }: NodeProps) {
   return (
     <div className={`
       relative min-w-[220px] min-h-[80px] px-8 py-6 bg-white/95 backdrop-blur-md border-2 transition-all rounded-[2rem] flex flex-col justify-center
-      ${selected 
-        ? 'border-emerald-500 shadow-2xl shadow-emerald-200/50 -translate-y-1' 
+      ${selected
+        ? 'border-emerald-500 shadow-2xl shadow-emerald-200/50 -translate-y-1'
         : 'border-slate-100 shadow-xl shadow-slate-200/30'}
     `}>
       <Handle type="target" position={Position.Top} style={{ visibility: 'hidden', top: '50%', left: '50%' }} />
       <Handle type="source" position={Position.Bottom} style={{ visibility: 'hidden', top: '50%', left: '50%' }} />
-      
+
       <div className="flex flex-col gap-2 w-full">
         <div className="flex items-center justify-between gap-4 w-full">
-           <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] font-mono">{data.type || 'CONCEPT'}</span>
-           {data.lifecycle && data.lifecycle !== 'active' && (
-             <span className="text-[8px] font-black px-3 py-1 bg-slate-50 text-slate-500 uppercase rounded-full border border-slate-100 tracking-wider">
-               {data.lifecycle}
-             </span>
-           )}
+          <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] font-mono">{String(data.type || 'CONCEPT')}</span>
+          {data.lifecycle && data.lifecycle !== 'active' && (
+            <span className="text-[8px] font-black px-3 py-1 bg-slate-50 text-slate-500 uppercase rounded-full border border-slate-100 tracking-wider">
+              {String(data.lifecycle)}
+            </span>
+          )}
         </div>
         <div className="text-[15px] font-black text-slate-800 leading-tight break-words tracking-tight">
-          {data.name || 'Untitled Node'}
+          {String(data.name || 'Untitled Node')}
         </div>
       </div>
     </div>
@@ -217,8 +219,8 @@ export function GraphViewport({ focusMode = false }: GraphViewportProps) {
       type: 'conceptNode',
       position: { x: c.x ?? 0, y: c.y ?? 0 },
       selected: c.id === selectedConceptId,
-      data: { 
-        name: c.name, 
+      data: {
+        name: c.name,
         type: c.conceptType.replace('_', ' '),
         lifecycle: c.lifecycleState
       },
@@ -269,7 +271,7 @@ export function GraphViewport({ focusMode = false }: GraphViewportProps) {
             existingNode.data.type !== type ||
             existingNode.data.lifecycle !== lifecycle ||
             existingNode.selected !== isSelected;
-          
+
           if (!changed) return existingNode;
           hasChanges = true;
           return { ...existingNode, position: storePos, selected: isSelected, data: newData };
@@ -303,7 +305,7 @@ export function GraphViewport({ focusMode = false }: GraphViewportProps) {
         const h = rfNode?.measured?.height ?? 80;
         return {
           id: c.id,
-          width: w, 
+          width: w,
           height: h,
         };
       }),
@@ -315,20 +317,20 @@ export function GraphViewport({ focusMode = false }: GraphViewportProps) {
     workerRef.current = new Worker(new URL('./layout.worker.ts', import.meta.url), { type: 'module' });
     workerRef.current.onmessage = (event: MessageEvent<LayoutResult>) => {
       const { type, nodes: layoutNodes } = event.data;
-      
+
       if (type === 'end') {
         // Update local ReactFlow nodes with new positions
         setNodes((prev) => prev.map((node) => {
           const layoutNode = layoutNodes.find((n) => n.id === node.id);
           if (!layoutNode) return node;
-          
+
           // Respect pinned nodes (fx/fy)
           const concept = conceptsRef.current.find((c) => c.id === node.id);
           if (concept?.fx != null || concept?.fy != null) return node;
-          
+
           const w = node.measured?.width ?? 200;
           const h = node.measured?.height ?? 80;
-          
+
           // Dagre returns center coordinates, ReactFlow expects top-left
           return { ...node, position: { x: layoutNode.x - w / 2, y: layoutNode.y - h / 2 } };
         }));
@@ -340,11 +342,11 @@ export function GraphViewport({ focusMode = false }: GraphViewportProps) {
           const h = rfNode?.measured?.height ?? 80;
           return { id: ln.id, x: ln.x - w / 2, y: ln.y - h / 2 };
         });
-        
+
         GraphService.batchUpdateNodePositions(updates, false);
-        
+
         if (isFirstFit.current) {
-          setTimeout(() => fitView({ duration: 400 }), 100);
+          setTimeout(() => fitView({ duration: 400, maxZoom: 1.0 }), 100);
           isFirstFit.current = false;
         }
       }
@@ -365,8 +367,8 @@ export function GraphViewport({ focusMode = false }: GraphViewportProps) {
     if (newId !== useGraphStore.getState().selectedConceptId) GraphService.selectConcept(newId);
   }, []);
 
-  const onNodeDragStart = useCallback((_: any, node: Node) => { activeDraggingNode.current = node.id; }, []);
-  const onNodeDragStop = useCallback((_: any, node: Node) => {
+  const onNodeDragStart = useCallback((_: React.MouseEvent, node: Node) => { activeDraggingNode.current = node.id; }, []);
+  const onNodeDragStop = useCallback((_: React.MouseEvent, node: Node) => {
     activeDraggingNode.current = null;
     GraphService.updateNodePosition(node.id, node.position.x, node.position.y);
   }, []);
@@ -424,6 +426,7 @@ export function GraphViewport({ focusMode = false }: GraphViewportProps) {
           snapGrid={[24, 24]}
           proOptions={{ hideAttribution: true }}
           fitView
+          fitViewOptions={{ maxZoom: 0.5 }}
           panOnScroll={true}
           zoomActivationKeyCode={['Control', 'Meta', 'Command']}
         >

@@ -152,10 +152,11 @@ export function HelpCenter({ isOpen, onClose }: { isOpen: boolean; onClose: () =
                   title="Search & Creation"
                   icon={<Search size={14} strokeWidth={3} />}
                   shortcuts={[
-                    { keys: ['Ctrl', 'K'], label: 'Command Hub', description: 'Universal search & commands' },
+                    { keys: ['Alt', 'F'], label: 'Command Hub', description: 'Universal search & commands' },
                     { keys: ['Alt', 'N'], label: 'New Concept', description: 'Quick-create node modal' },
-                    { keys: ['Ctrl', 'R'], label: 'Relation Builder', description: 'Link concepts visually' },
-                    { keys: ['A'], label: 'Add Property', description: 'Insert attribute to selection' }
+                    { keys: ['Alt', 'E'], label: 'Relation Builder', description: 'Link concepts visually' },
+                    { keys: ['A'], label: 'Add Property', description: 'Insert attribute to selection' },
+                    { keys: ['Del'], label: 'Delete Selection', description: 'Delete selected node or edge' }
                   ]}
                 />
               </div>
@@ -168,7 +169,8 @@ export function HelpCenter({ isOpen, onClose }: { isOpen: boolean; onClose: () =
                   shortcuts={[
                     { keys: ['Enter'], label: 'Drill In', description: 'Focus Inspector & select name' },
                     { keys: ['Esc'], label: 'Universal Return', description: 'Release focus to Canvas' },
-                    { keys: ['Alt', 'P / C'], label: 'Toggle Panels', description: 'Show/hide Properties or Catalogue' }
+                    { keys: ['Alt', 'P / C'], label: 'Toggle Panels', description: 'Show/hide Properties or Catalogue' },
+                    { keys: ['Alt', '1 / 2 / 4'], label: 'Focus Zone', description: 'Jump to Index / Canvas / Props' }
                   ]}
                 />
 
@@ -177,6 +179,7 @@ export function HelpCenter({ isOpen, onClose }: { isOpen: boolean; onClose: () =
                   icon={<Layers size={14} strokeWidth={3} />}
                   shortcuts={[
                     { keys: ['Alt', '3'], label: 'Cycle View', description: 'Graph / YAML / Split' },
+                    { keys: ['Alt', 'D'], label: 'Toggle Diff', description: 'Toggle side-by-side diff mode' },
                     { keys: ['F'], label: 'Focus Mode', description: 'Isolate selection & neighbors' },
                     { keys: ['Ctrl', 'Z'], label: 'Undo Action', description: 'Reverse last graph change' },
                     { keys: ['?'], label: 'Help Modal', description: 'Toggle this help center' }

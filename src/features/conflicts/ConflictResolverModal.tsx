@@ -32,8 +32,8 @@ interface ConflictItem {
   id: string;
   label: string;
   type: 'concept' | 'relation' | 'domain';
-  localVersion: any | null;
-  remoteVersion: any | null;
+  localVersion: ConceptNode | Domain | null;
+  remoteVersion: ConceptNode | Domain | null;
   /** List of field names that differ between local and remote */
   changedFields: string[];
   /** Auto-merged (identical) — no user action needed */
@@ -101,7 +101,7 @@ function buildConflictItems(local: ParsedState, remote: ParsedState): ConflictIt
   return items;
 }
 
-function getDiffFields(l: any, r: any, fields: string[]): string[] {
+function getDiffFields(l: Record<string, unknown> | null, r: Record<string, unknown> | null, fields: string[]): string[] {
   if (!l || !r) return fields; // All fields are "different" if one side is missing
   return fields.filter(f => JSON.stringify(l[f]) !== JSON.stringify(r[f]));
 }

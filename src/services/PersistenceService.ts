@@ -1,6 +1,7 @@
 import { useGraphStore } from '../store/useGraphStore';
 import { stateToYaml, yamlToState, YamlParseError } from '../core/yamlParser';
 import { readYaml, writeYaml, yamlExists, ensureWorkspaceDir, setRepoDir } from '../core/fileSystem';
+import { GraphState } from '../schema/graphSchema';
 import { GitService } from './GitService';
 import { GraphService } from './GraphService';
 
@@ -138,7 +139,7 @@ export class PersistenceService {
   /**
    * Parse YAML string to graph state.
    */
-  static parse(yaml: string): any {
+  static parse(yaml: string): GraphState {
     return yamlToState(yaml);
   }
 

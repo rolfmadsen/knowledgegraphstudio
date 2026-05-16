@@ -115,15 +115,7 @@ export const useGraphStore = create<GraphStoreState>()(
     {
       partialize: (state) => ({
         domains: state.domains || [],
-        concepts: (state.concepts || []).map((c) => ({
-          ...c,
-          x: undefined,
-          y: undefined,
-          width: undefined,
-          height: undefined,
-          fx: undefined,
-          fy: undefined,
-        })),
+        concepts: (state.concepts || []).map(({ x, y, width, height, fx, fy, ...c }) => c),
         relations: state.relations || [],
         // NOTE: Git sync state (remoteConfig, syncStatus, aheadBy, behindBy,
         // lastSyncedAt) is intentionally excluded from zundo history.

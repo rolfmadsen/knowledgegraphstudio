@@ -302,4 +302,60 @@ concepts:
     expect(state.concepts[0].name).toBe('Test');
     expect(state.relations).toHaveLength(0);
   });
+
+  it('migrates legacy "information" type to "entity"', () => {
+    const legacyYaml = `
+version: "1.0"
+domains: []
+concepts:
+  - id: "info:test"
+    name: "Legacy Info"
+    conceptType: "information"
+    createdAt: 1000
+    updatedAt: 1000
+    lifecycleState: "active"
+    aliases: []
+    properties: []
+    policies: []
+`;
+    const state = yamlToState(legacyYaml);
+    expect(state.concepts[0].conceptType).toBe('entity');
+  });
+
+  it('correctly derives domains from concepts of type "domain"', () => {
+    const state = {
+      domains: [makeDomain('Existing Domain', 'bounded_context:existing')],
+      concepts: [
+        makeConcept('domain', 'New Domain', 'bounded_context:new'),
+        makeConcept('actor', 'User', 'actor:user'),
+      ],
+      relations: [],
+    };
+
+    const yaml = stateToYaml(state);
+    const hydrated = yamlToState(yaml);
+
+    // Should have both domains
+    expect(hydrated.domains).toHaveLength(2);
+    expect(hydrated.domains.map(d => d.name)).toContain('Existing Domain');
+    expect(hydrated.domains.map(d => d.name)).toContain('New Domain');
+  });
+
+  it('does not duplicate domains if they exist in both lists', () => {
+    const domainId = 'bounded_context:shared' as any;
+    const state = {
+      domains: [makeDomain('Shared Domain', domainId)],
+      concepts: [
+        makeConcept('domain', 'Shared Domain', domainId),
+      ],
+      relations: [],
+    };
+
+    const yaml = stateToYaml(state);
+    const hydrated = yamlToState(yaml);
+
+    // Should only have 1 domain in the hydrated state
+    expect(hydrated.domains).toHaveLength(1);
+    expect(hydrated.domains[0].id).toBe(domainId);
+  });
 });
