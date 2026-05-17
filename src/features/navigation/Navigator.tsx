@@ -6,7 +6,6 @@ import {
   Box,
   User,
   Activity,
-  Workflow,
   Database,
   Link2,
   Gem,
