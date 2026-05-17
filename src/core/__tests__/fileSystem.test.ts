@@ -20,7 +20,6 @@ import {
   setRepoDir, 
   writeYaml, 
   readYaml, 
-  ensureWorkspaceDir,
   listWorkspaces
 } from '../fileSystem';
 

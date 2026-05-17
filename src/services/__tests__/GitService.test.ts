@@ -19,7 +19,6 @@ import * as gitEngine from '../../core/gitEngine';
 import { CredentialService } from '../CredentialService';
 import { useGraphStore } from '../../store/useGraphStore';
 import { PersistenceService } from '../PersistenceService';
-import git from 'isomorphic-git';
 
 // ============================================================
 // Mocks
@@ -132,7 +131,7 @@ describe('GitService', () => {
     });
 
     it('detects conflicts and updates status', async () => {
-      (gitEngine.gitMergeFastForward as any).mockRejectedValue(new gitEngine.MergeConflictError('conflict'));
+      (gitEngine.gitMergeFastForward as any).mockRejectedValue(new gitEngine.MergeConflictError('conflict_local', 'conflict_remote'));
       
       const result = await GitService.pull();
       

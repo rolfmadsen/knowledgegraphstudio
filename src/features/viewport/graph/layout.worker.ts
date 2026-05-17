@@ -1,11 +1,12 @@
 /**
  * Dagre Hierarchical Layout Web Worker
  *
- * This Web Worker offloads the deterministic Directed Acyclic Graph (DAG) layout
- * calculation using the Dagre engine. It replaces the physics-based d3-force
+ * This Web Worker offloads the * calculation using the Dagre engine. It replaces the physics-based d3-force
+ * to prevent UI jitter and ensure a structured hierarchical flow.
  * to prevent UI jitter and ensure a structured hierarchical flow.
  */
-import dagre from 'dagre';
+// @ts-ignore - The modern @dagrejs/dagre package lacks a matching @types package
+import * as dagre from '@dagrejs/dagre';
 
 // ============================================================
 // Message Types

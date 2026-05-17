@@ -6,7 +6,7 @@
  * Zone 3: Command Archive (modal overlay) — "/" or Ctrl+K
  * Zone 4: Properties panel (right panel) — detail panel
  */
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import './index.css';
 import { useGraphStore, useTemporalStore } from './store/useGraphStore';
 import { useShallow } from 'zustand/react/shallow';
@@ -14,24 +14,26 @@ import { useKeyboard } from './hooks/useKeyboard';
 import { ViewportContainer } from './features/viewport/ViewportContainer';
 import { type ViewMode } from './types/view';
 import { GraphViewport } from './features/viewport/graph/GraphViewport';
-import { CodeViewport } from './features/viewport/code/CodeViewport';
-import { DiffViewport } from './features/viewport/code/DiffViewport';
-import { CommandOverlay } from './features/commands/CommandOverlay';
 import { Inspector } from './features/properties/Inspector';
 import { Navigator } from './features/navigation/Navigator';
 import { PersistenceService } from './services/PersistenceService';
 import { GraphService } from './services/GraphService';
 import { GitService, type PullResult } from './services/GitService';
 import { CredentialService } from './services/CredentialService';
-import { RelationBuilder } from './features/relations/RelationBuilder';
-import { NodeCreator } from './features/concepts/NodeCreator';
 import { RefinedToolbar } from './components/ui/RefinedToolbar';
 import { LayoutGrid, Code2, Columns2, HelpCircle } from 'lucide-react';
-import { HelpCenter } from './features/help/HelpCenter';
 import { StatusBar } from './features/statusbar/StatusBar';
-import { ConflictResolverModal } from './features/conflicts/ConflictResolverModal';
-import { RemoteConfigModal } from './features/conflicts/RemoteConfigModal';
-import { WorkspaceSwitcherModal } from './features/navigation/WorkspaceSwitcherModal';
+
+// Lazy load heavy views and modals for code splitting
+const CodeViewport = lazy(() => import('./features/viewport/code/CodeViewport').then(m => ({ default: m.CodeViewport })));
+const DiffViewport = lazy(() => import('./features/viewport/code/DiffViewport').then(m => ({ default: m.DiffViewport })));
+const CommandOverlay = lazy(() => import('./features/commands/CommandOverlay').then(m => ({ default: m.CommandOverlay })));
+const RelationBuilder = lazy(() => import('./features/relations/RelationBuilder').then(m => ({ default: m.RelationBuilder })));
+const NodeCreator = lazy(() => import('./features/concepts/NodeCreator').then(m => ({ default: m.NodeCreator })));
+const HelpCenter = lazy(() => import('./features/help/HelpCenter').then(m => ({ default: m.HelpCenter })));
+const ConflictResolverModal = lazy(() => import('./features/conflicts/ConflictResolverModal').then(m => ({ default: m.ConflictResolverModal })));
+const RemoteConfigModal = lazy(() => import('./features/conflicts/RemoteConfigModal').then(m => ({ default: m.RemoteConfigModal })));
+const WorkspaceSwitcherModal = lazy(() => import('./features/navigation/WorkspaceSwitcherModal').then(m => ({ default: m.WorkspaceSwitcherModal })));
 
 const EMPTY_GRAPH = { concepts: [], relations: [] };
 const EMPTY_HISTORY = { pastStates: [], futureStates: [] };
@@ -355,7 +357,11 @@ function App() {
             <ViewportContainer
               diffMode={diffMode}
               graphViewport={<GraphViewport focusMode={focusMode} />}
-              diffViewport={<DiffViewport />}
+              diffViewport={
+                <Suspense fallback={<div className="flex-1 flex items-center justify-center"><div className="animate-pulse text-xs text-slate-400">Loading Diff...</div></div>}>
+                  <DiffViewport />
+                </Suspense>
+              }
             />
           </div>
 
@@ -370,7 +376,9 @@ function App() {
               </span>
             </div>
             <div className="flex-1 min-h-0 relative">
-              <CodeViewport isConflict={isConflict} />
+              <Suspense fallback={<div className="flex-1 flex items-center justify-center"><div className="animate-pulse text-xs text-slate-400">Loading Code Editor...</div></div>}>
+                <CodeViewport isConflict={isConflict} />
+              </Suspense>
             </div>
           </div>
 
@@ -401,7 +409,9 @@ function App() {
                 </span>
               </div>
               <div className="flex-1 min-h-0 relative">
-                <CodeViewport isConflict={isConflict} />
+                <Suspense fallback={<div className="flex-1 flex items-center justify-center"><div className="animate-pulse text-xs text-slate-400">Loading Code Editor...</div></div>}>
+                  <CodeViewport isConflict={isConflict} />
+                </Suspense>
               </div>
             </aside>
           </>
@@ -430,48 +440,50 @@ function App() {
       {/* StatusBar — 28px bottom bar (Spec §10.4) */}
       <StatusBar onOpenRemoteConfig={() => setRemoteConfigOpen(true)} />
 
-      <CommandOverlay
-        open={isQuickFindOpen}
-        onClose={() => setQuickFindOpen(false)}
-        onGitPush={handleGitPush}
-        onGitPull={handleGitPull}
-        onOpenRemoteConfig={() => setRemoteConfigOpen(true)}
-      />
-      <NodeCreator />
-      <RelationBuilder />
-      <HelpCenter isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
-
-      {/* Workspace Switcher */}
-      <WorkspaceSwitcherModal
-        isOpen={workspacesOpen}
-        onClose={() => setWorkspacesOpen(false)}
-      />
-
-      {/* Remote Config Modal */}
-      {remoteConfigOpen && (
-        <RemoteConfigModal
-          onClose={() => setRemoteConfigOpen(false)}
-          onTriggerPush={handleGitPush}
-          onTriggerPull={handleGitPull}
+      <Suspense fallback={null}>
+        <CommandOverlay
+          open={isQuickFindOpen}
+          onClose={() => setQuickFindOpen(false)}
+          onGitPush={handleGitPush}
+          onGitPull={handleGitPull}
+          onOpenRemoteConfig={() => setRemoteConfigOpen(true)}
         />
-      )}
+        <NodeCreator />
+        <RelationBuilder />
+        <HelpCenter isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
 
-      {/* Semantic Conflict Resolver */}
-      {conflictData && (
-        <ConflictResolverModal
-          localYaml={conflictData.localYaml}
-          remoteYaml={conflictData.remoteYaml}
-          onResolved={() => {
-            setConflictData(null);
-            showGitToast('✓ Konflikt løst og synkroniseret');
-          }}
-          onFallbackToEditor={() => {
-            setConflictData(null);
-            setIsConflict(true);
-            setViewMode('code');
-          }}
+        {/* Workspace Switcher */}
+        <WorkspaceSwitcherModal
+          isOpen={workspacesOpen}
+          onClose={() => setWorkspacesOpen(false)}
         />
-      )}
+
+        {/* Remote Config Modal */}
+        {remoteConfigOpen && (
+          <RemoteConfigModal
+            onClose={() => setRemoteConfigOpen(false)}
+            onTriggerPush={handleGitPush}
+            onTriggerPull={handleGitPull}
+          />
+        )}
+
+        {/* Semantic Conflict Resolver */}
+        {conflictData && (
+          <ConflictResolverModal
+            localYaml={conflictData.localYaml}
+            remoteYaml={conflictData.remoteYaml}
+            onResolved={() => {
+              setConflictData(null);
+              showGitToast('✓ Konflikt løst og synkroniseret');
+            }}
+            onFallbackToEditor={() => {
+              setConflictData(null);
+              setIsConflict(true);
+              setViewMode('code');
+            }}
+          />
+        )}
+      </Suspense>
 
       {/* Git Toast Notifications */}
       {gitToast && (

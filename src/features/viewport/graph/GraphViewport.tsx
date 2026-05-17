@@ -160,7 +160,15 @@ function FloatingEdge({ id, source, target, markerEnd, style, label, labelStyle,
   );
 }
 
-function ConceptNodeComponent({ data, selected }: NodeProps) {
+interface ConceptNodeData extends Record<string, unknown> {
+  name: string;
+  type: string;
+  lifecycle?: string;
+}
+
+type ConceptNodeType = Node<ConceptNodeData, 'conceptNode'>;
+
+function ConceptNodeComponent({ data, selected }: NodeProps<ConceptNodeType>) {
   return (
     <div className={`
       relative min-w-[220px] min-h-[80px] px-8 py-6 bg-white/95 backdrop-blur-md border-2 transition-all rounded-[2rem] flex flex-col justify-center

@@ -335,7 +335,7 @@ export class GraphService {
   static async updatePolicy(
     conceptId: ElementId, 
     policyId: ElementId, 
-    updates: Partial<Pick<ConceptNode['policies'][0], 'name' | 'description' | 'lifecycleState'>>
+    updates: Partial<Omit<ConceptNode['policies'][0], 'id' | 'createdAt' | 'updatedAt'>>
   ): Promise<void> {
     const now = Date.now();
     useGraphStore.setState((state) => ({
