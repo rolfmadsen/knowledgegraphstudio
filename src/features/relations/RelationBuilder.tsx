@@ -3,9 +3,9 @@ import { useGraphStore } from '../../store/useGraphStore';
 import { useShallow } from 'zustand/react/shallow';
 import { GraphService } from '../../services/GraphService';
 import type { ConceptType } from '../../schema/graphSchema';
-import { 
-  Search, 
-  Plus, 
+import {
+  Search,
+  Plus,
   ArrowRight,
   Zap,
   User,
@@ -61,11 +61,11 @@ const CONTEXTUAL_RELATIONS: Record<string, string[]> = {
 };
 
 export function RelationBuilder() {
-  const { 
-    open, 
-    sourceId, 
-    concepts, 
-    setOpen 
+  const {
+    open,
+    sourceId,
+    concepts,
+    setOpen
   } = useGraphStore(
     useShallow((s) => ({
       open: s.isRelationBuilderOpen,
@@ -115,12 +115,12 @@ export function RelationBuilder() {
   const options = useMemo(() => {
     const q = query.trim();
     const filtered = concepts.filter(c => c.id !== sourceId);
-    
+
     const fuse = new Fuse(filtered, {
       keys: ['name', 'conceptType'],
       threshold: 0.4,
     });
-    
+
     const results = q ? fuse.search(q).map(r => r.item) : filtered.slice(0, 10);
 
     const finalOptions: RelationOption[] = results.map(c => ({
@@ -146,8 +146,8 @@ export function RelationBuilder() {
   const filteredTypes = useMemo(() => {
     const q = typeSearch.trim().toLowerCase();
     if (!q) return CONCEPT_TYPES;
-    return CONCEPT_TYPES.filter(ct => 
-      ct.label.toLowerCase().includes(q) || 
+    return CONCEPT_TYPES.filter(ct =>
+      ct.label.toLowerCase().includes(q) ||
       ct.type.toLowerCase().includes(q)
     );
   }, [typeSearch]);
@@ -155,25 +155,25 @@ export function RelationBuilder() {
   // Common relations filtered by label query AND context
   const filteredRelations = useMemo(() => {
     if (step !== 'label' || !sourceNode) return [];
-    
+
     const sourceT = sourceNode.conceptType;
     const targetT = isNewTarget ? selectedType : targetNode?.conceptType;
     const contextKey = `${sourceT}->${targetT}`;
-    
+
     const contextualLabels = CONTEXTUAL_RELATIONS[contextKey] || [];
-    
+
     // Create base list: Contextual first, then defaults
     const baseList = [
-      ...contextualLabels.map(l => ({ 
-        id: `ctx-${l}`, 
-        label: l, 
+      ...contextualLabels.map(l => ({
+        id: `ctx-${l}`,
+        label: l,
         icon: <Zap size={14} className="text-amber-500" />,
-        isContextual: true 
+        isContextual: true
       })),
       ...DEFAULT_RELATIONS.filter(d => !contextualLabels.includes(d.label))
     ];
 
-    return baseList.filter(r => 
+    return baseList.filter(r =>
       r.label.toLowerCase().includes(label.toLowerCase())
     );
   }, [label, step, sourceNode, targetNode, isNewTarget, selectedType]);
@@ -199,7 +199,7 @@ export function RelationBuilder() {
   const handleFinish = async (finalLabel?: string) => {
     const actualLabel = finalLabel || label.trim() || 'relateret til';
     if (!sourceId || !targetIdOrName || !actualLabel) return;
-    
+
     await GraphService.createQuickRelation({
       sourceId,
       targetIdOrName,
@@ -207,7 +207,7 @@ export function RelationBuilder() {
       targetType: selectedType,
       label: actualLabel
     });
-    
+
     setOpen(false);
   };
 
@@ -222,7 +222,7 @@ export function RelationBuilder() {
       const focusableElements = containerRef.current?.querySelectorAll(
         'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
       );
-      
+
       if (focusableElements && focusableElements.length > 0) {
         const firstElement = focusableElements[0] as HTMLElement;
         const lastElement = focusableElements[focusableElements.length - 1] as HTMLElement;
@@ -307,9 +307,9 @@ export function RelationBuilder() {
         // If we have a selection in the list, use it. Otherwise use input or default.
         const selectedRel = filteredRelations[selectedIndex];
         if (selectedRel && label.trim() === '') {
-           handleFinish(selectedRel.label);
+          handleFinish(selectedRel.label);
         } else {
-           handleFinish();
+          handleFinish();
         }
       }
       if (e.key === 'Backspace' && !label) {
@@ -342,17 +342,17 @@ export function RelationBuilder() {
   return (
     <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 sm:p-12">
       {/* Backdrop */}
-      <div 
-        className="absolute inset-0 bg-slate-900/20 backdrop-blur-sm transition-opacity" 
+      <div
+        className="absolute inset-0 bg-slate-900/20 backdrop-blur-sm transition-opacity"
         onClick={() => setOpen(false)}
       />
 
       {/* Palette Container (Modern Pro) */}
-      <div 
+      <div
         ref={containerRef}
         className="relative w-full max-w-[700px] bg-slate-50/95 backdrop-blur-2xl rounded-[2.5rem] border border-white shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in duration-300"
       >
-        
+
         {/* Header Section */}
         <div className="px-10 pt-10 pb-6 border-b border-slate-200/50">
           <div className="flex items-center justify-between mb-8">
@@ -389,14 +389,13 @@ export function RelationBuilder() {
               const canGoTo = (s.id === 'target') || (s.id === 'type' && isNewTarget) || (s.id === 'label' && targetIdOrName);
 
               return (
-                <button 
+                <button
                   key={s.id}
                   onClick={() => canGoTo && setStep(s.id)}
                   disabled={!canGoTo}
-                  className={`flex-1 h-1.5 rounded-full transition-all duration-500 outline-none ${
-                    isActive ? 'bg-emerald-600 shadow-[0_0_8px_rgba(5,150,105,0.4)]' : 
-                    isPast ? 'bg-emerald-200 hover:bg-emerald-300' : 'bg-slate-200'
-                  } ${canGoTo ? 'cursor-pointer' : 'cursor-not-allowed'}`}
+                  className={`flex-1 h-1.5 rounded-full transition-all duration-500 outline-none ${isActive ? 'bg-emerald-600 shadow-[0_0_8px_rgba(5,150,105,0.4)]' :
+                      isPast ? 'bg-emerald-200 hover:bg-emerald-300' : 'bg-slate-200'
+                    } ${canGoTo ? 'cursor-pointer' : 'cursor-not-allowed'}`}
                 />
               );
             })}
@@ -407,14 +406,14 @@ export function RelationBuilder() {
         <div className="px-10 py-6 bg-slate-100/50 border-b border-slate-200/30">
           <div className="flex items-center justify-between gap-4">
             {/* Source Side */}
-            <button 
-               onClick={() => setOpen(false)}
-               className="flex items-center gap-3 min-w-0 hover:bg-white/50 p-1 rounded-lg transition-colors group"
+            <button
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-3 min-w-0 hover:bg-white/50 p-1 rounded-lg transition-colors group"
             >
               <div className="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-400 shrink-0 shadow-sm group-hover:border-emerald-200 group-hover:text-emerald-500 transition-all">
-                {sourceNode.conceptType === 'actor' ? <User size={14} /> : 
-                 sourceNode.conceptType === 'process' ? <Activity size={14} /> : 
-                 <Box size={14} />}
+                {sourceNode.conceptType === 'actor' ? <User size={14} /> :
+                  sourceNode.conceptType === 'process' ? <Activity size={14} /> :
+                    <Box size={14} />}
               </div>
               <div className="flex flex-col min-w-0 text-left">
                 <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Source</span>
@@ -432,19 +431,18 @@ export function RelationBuilder() {
                   <ChevronRight size={14} />
                 </div>
               </div>
-              <button 
+              <button
                 onClick={() => targetIdOrName && setStep('label')}
                 disabled={!targetIdOrName}
-                className={`mt-2 px-3 py-1 rounded-full border text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${
-                label ? 'bg-emerald-600 text-white border-emerald-500 shadow-md scale-110' : 
-                targetIdOrName ? 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100' : 'bg-white text-slate-400 border-slate-200'
-              }`}>
+                className={`mt-2 px-3 py-1 rounded-full border text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${label ? 'bg-emerald-600 text-white border-emerald-500 shadow-md scale-110' :
+                    targetIdOrName ? 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100' : 'bg-white text-slate-400 border-slate-200'
+                  }`}>
                 {label || (step === 'label' ? 'Defining...' : '...')}
               </button>
             </div>
 
             {/* Target Side */}
-            <button 
+            <button
               onClick={() => setStep('target')}
               className={`flex items-center gap-3 min-w-0 transition-all duration-500 hover:bg-white/50 p-1 rounded-lg group ${step === 'target' ? 'opacity-40' : 'opacity-100'}`}
             >
@@ -459,9 +457,8 @@ export function RelationBuilder() {
                   </span>
                 </div>
               </div>
-              <div className={`w-8 h-8 rounded-lg border flex items-center justify-center shrink-0 shadow-sm transition-all group-hover:scale-110 ${
-                targetIdOrName ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'bg-white border-slate-100 text-slate-200'
-              }`}>
+              <div className={`w-8 h-8 rounded-lg border flex items-center justify-center shrink-0 shadow-sm transition-all group-hover:scale-110 ${targetIdOrName ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'bg-white border-slate-100 text-slate-200'
+                }`}>
                 {isNewTarget ? <Plus size={14} /> : targetNode ? <Box size={14} /> : <Search size={14} />}
               </div>
             </button>
@@ -529,8 +526,8 @@ export function RelationBuilder() {
                     onMouseEnter={() => setSelectedIndex(idx)}
                     className={`
                       w-full flex items-center justify-between p-4 rounded-[1.25rem] border transition-all duration-200 group outline-none
-                      ${idx === selectedIndex 
-                        ? 'bg-white border-emerald-500 shadow-lg shadow-emerald-200/20 translate-x-1 ring-1 ring-emerald-500/10' 
+                      ${idx === selectedIndex
+                        ? 'bg-white border-emerald-500 shadow-lg shadow-emerald-200/20 translate-x-1 ring-1 ring-emerald-500/10'
                         : 'bg-transparent border-transparent hover:bg-white/50 hover:border-slate-200'}
                     `}
                   >
@@ -547,8 +544,8 @@ export function RelationBuilder() {
                     </div>
                     {idx === selectedIndex && (
                       <div className="flex items-center gap-2 pr-2">
-                         <span className="text-[10px] font-black text-emerald-600/50 uppercase tracking-widest">Select</span>
-                         <ChevronRight size={14} className="text-emerald-500" />
+                        <span className="text-[10px] font-black text-emerald-600/50 uppercase tracking-widest">Select</span>
+                        <ChevronRight size={14} className="text-emerald-500" />
                       </div>
                     )}
                   </button>
@@ -566,8 +563,8 @@ export function RelationBuilder() {
                     onMouseEnter={() => setSelectedIndex(idx)}
                     className={`
                       flex flex-col gap-4 p-5 rounded-[1.25rem] border transition-all duration-300 group outline-none
-                      ${idx === selectedIndex 
-                        ? 'bg-white border-emerald-500 shadow-lg shadow-emerald-200/20 translate-y--1 ring-1 ring-emerald-500/10' 
+                      ${idx === selectedIndex
+                        ? 'bg-white border-emerald-500 shadow-lg shadow-emerald-200/20 translate-y--1 ring-1 ring-emerald-500/10'
                         : 'bg-white/40 border-slate-100 hover:bg-white hover:border-slate-200'}
                     `}
                   >
@@ -594,8 +591,8 @@ export function RelationBuilder() {
                       onMouseEnter={() => setSelectedIndex(idx)}
                       className={`
                         w-full flex items-center justify-between p-4 rounded-[1.25rem] border transition-all duration-200 group outline-none
-                        ${idx === selectedIndex 
-                          ? 'bg-white border-emerald-500 shadow-lg shadow-emerald-200/20 translate-x-1 ring-1 ring-emerald-500/10' 
+                        ${idx === selectedIndex
+                          ? 'bg-white border-emerald-500 shadow-lg shadow-emerald-200/20 translate-x-1 ring-1 ring-emerald-500/10'
                           : 'bg-transparent border-transparent hover:bg-white/50 hover:border-slate-200'}
                       `}
                     >
@@ -609,8 +606,8 @@ export function RelationBuilder() {
                       </div>
                       {idx === selectedIndex && (
                         <div className="flex items-center gap-2 pr-2">
-                           <span className="text-[10px] font-black text-emerald-600/50 uppercase tracking-widest">Use</span>
-                           <ChevronRight size={14} className="text-emerald-500" />
+                          <span className="text-[10px] font-black text-emerald-600/50 uppercase tracking-widest">Use</span>
+                          <ChevronRight size={14} className="text-emerald-500" />
                         </div>
                       )}
                     </button>
@@ -620,12 +617,12 @@ export function RelationBuilder() {
                 <div className="flex flex-col items-center gap-6 pt-4 border-t border-slate-100">
                   <div className="text-center">
                     <p className="text-[12px] font-medium text-slate-500 leading-relaxed">
-                      Connecting <span className="px-1.5 py-0.5 bg-slate-100 text-slate-700 rounded-md font-bold uppercase text-[10px]">{sourceNode.name}</span> 
+                      Connecting <span className="px-1.5 py-0.5 bg-slate-100 text-slate-700 rounded-md font-bold uppercase text-[10px]">{sourceNode.name}</span>
                       <span className="mx-2 text-slate-300">→</span>
                       <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 rounded-md font-bold uppercase text-[10px]">{isNewTarget ? targetIdOrName : concepts.find(c => c.id === targetIdOrName)?.name}</span>
                     </p>
                   </div>
-                  <button 
+                  <button
                     ref={createBtnRef}
                     onClick={() => handleFinish()}
                     className="w-full bg-slate-900 hover:bg-slate-800 text-white rounded-2xl py-4 font-bold text-[14px] shadow-xl shadow-slate-900/20 focus:ring-[6px] focus:ring-emerald-500 focus:scale-[1.01] outline-none transition-all flex items-center justify-center gap-2"
@@ -656,8 +653,8 @@ export function RelationBuilder() {
             </div>
           </div>
           <div className="flex items-center gap-2 text-[10px] font-black text-emerald-600 uppercase tracking-widest">
-             <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-             Active Session
+            <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+            Active Session
           </div>
         </div>
       </div>

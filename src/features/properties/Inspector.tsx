@@ -6,21 +6,19 @@ import {
   Plus, 
   Trash2,
   ChevronDown,
-  Focus,
+  Copy,
   Info,
   ArrowUpDown
 } from 'lucide-react';
 import { LifecycleState, ConceptType, type ConceptProperty } from '../../schema/graphSchema';
 
 export function Inspector() {
-  const { concepts, relations, selectedConceptId, selectedRelationId, focusMode, setFocusMode } = useGraphStore(
+  const { concepts, relations, selectedConceptId, selectedRelationId } = useGraphStore(
     useShallow((s) => ({
       concepts: s?.concepts || [],
       relations: s?.relations || [],
       selectedConceptId: s?.selectedConceptId,
       selectedRelationId: s?.selectedRelationId,
-      focusMode: s?.focusMode,
-      setFocusMode: s?.setFocusMode,
     }))
   );
 
@@ -101,8 +99,8 @@ export function Inspector() {
              <Info size={28} strokeWidth={1.5} />
           </div>
           <div className="space-y-1.5">
-            <h3 className="text-[13px] font-black text-slate-900 tracking-tight">Ingen valgt</h3>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] max-w-[160px] leading-relaxed">Vælg et element på grafen for at se detaljer</p>
+            <h3 className="text-[13px] font-black text-slate-900 tracking-tight">Nothing Selected</h3>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] max-w-[160px] leading-relaxed">Select an element on the graph to see details</p>
           </div>
         </div>
       </div>
@@ -119,20 +117,18 @@ export function Inspector() {
       {/* Header Section */}
       <div className="mb-10 flex items-center justify-between border-b border-slate-200 pb-4">
         <span className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-800">Properties</span>
-        <button 
-          onClick={() => setFocusMode(!focusMode)}
-          disabled={!selectedConceptId}
-          className={`
-            w-8 h-8 rounded-xl border flex items-center justify-center transition-all shadow-sm group/focus active:scale-90
-            ${focusMode 
-              ? 'bg-emerald-600 border-emerald-600 text-white shadow-lg shadow-emerald-100' 
-              : 'bg-white border-slate-200 text-slate-400 hover:text-emerald-600 hover:border-emerald-200 hover:bg-emerald-50'}
-            disabled:opacity-20 disabled:cursor-not-allowed
-          `}
-          title={focusMode ? "Vis alle noder (F)" : "Fokuser på valgte node (F)"}
-        >
-           <Focus size={14} strokeWidth={2.5} className={`${focusMode ? 'scale-110' : 'group-hover/focus:scale-110'} transition-transform`} />
-        </button>
+        {(concept || relation) && (
+            <button 
+              onClick={() => {
+                  const idToCopy = concept?.id || relation?.id;
+                  if (idToCopy) navigator.clipboard.writeText(idToCopy);
+              }}
+              className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-emerald-600 transition-all bg-white rounded-xl border border-slate-200 shadow-sm hover:border-emerald-200 hover:bg-emerald-50 active:scale-90"
+              title="Copy UUID"
+            >
+              <Copy size={14} strokeWidth={2.5} />
+            </button>
+        )}
       </div>
 
       <div className="flex flex-col gap-8">
@@ -323,6 +319,7 @@ function PropertyField({ label, value, onChange, readOnly, inputRef }: { label: 
                 value={value} 
                 readOnly={readOnly}
                 onChange={(e) => onChange?.(e.target.value)}
+                onFocus={(e) => e.target.select()}
                 className={`w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[12px] font-semibold text-slate-700 hover:border-slate-300 focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/5 outline-none transition-all ${readOnly ? 'opacity-60 cursor-not-allowed' : ''}`}
             />
         </div>

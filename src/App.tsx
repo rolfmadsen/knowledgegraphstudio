@@ -21,7 +21,7 @@ import { GraphService } from './services/GraphService';
 import { GitService, type PullResult } from './services/GitService';
 import { CredentialService } from './services/CredentialService';
 import { RefinedToolbar } from './components/ui/RefinedToolbar';
-import { LayoutGrid, Code2, Columns2, HelpCircle } from 'lucide-react';
+import { LayoutGrid, Code2, Columns2, HelpCircle, Copy } from 'lucide-react';
 import { StatusBar } from './features/statusbar/StatusBar';
 
 // Lazy load heavy views and modals for code splitting
@@ -277,7 +277,6 @@ function App() {
         redo={redo}
         canUndo={pastStates.length > 0}
         canRedo={futureStates.length > 0}
-        onAddConcept={() => GraphService.addConcept('actor', 'New Node')}
         onUnpinAll={() => GraphService.unpinAll()}
         onTriggerLayout={() => GraphService.triggerLayout()}
         onToggleFocusMode={() => setFocusMode(!focusMode)}
@@ -303,7 +302,7 @@ function App() {
         )}
 
         {/* Center Zone: Viewport & View Switcher */}
-        <main className="flex-1 min-w-0 relative flex flex-col bg-slate-50">
+        <main ref={zone2Ref} tabIndex={-1} className="flex-1 min-w-0 relative flex flex-col bg-slate-50 focus:outline-none">
           {/* Global View Switcher */}
           <div
             className="absolute left-1/2 -translate-x-1/2 z-[100] flex items-center gap-3"
@@ -311,9 +310,9 @@ function App() {
           >
             <div className="flex items-center gap-1.5 p-1.5 bg-white/95 backdrop-blur-xl border border-slate-200 rounded-full shadow-2xl shadow-slate-200/50">
               {[
-                { id: 'graph', icon: LayoutGrid, label: 'Graph' },
-                { id: 'code', icon: Code2, label: 'Code' },
-                { id: 'split', icon: Columns2, label: 'Split' }
+                { id: 'graph', icon: LayoutGrid, label: 'Graph', tooltip: 'Show visual graph' },
+                { id: 'code', icon: Code2, label: 'Code', tooltip: 'Show YAML source' },
+                { id: 'split', icon: Columns2, label: 'Split', tooltip: 'Show graph and YAML side-by-side' }
               ].map((mode) => (
                 <button
                   key={mode.id}
@@ -326,7 +325,7 @@ function App() {
                       : 'text-slate-400 hover:text-slate-900 hover:bg-slate-50'}
                       ${isConflict && mode.id !== 'code' ? 'opacity-20 cursor-not-allowed' : ''}
                     `}
-                  title={mode.label}
+                  title={mode.tooltip}
                 >
                   <mode.icon size={12} strokeWidth={3} />
                   <span>{mode.label}</span>
@@ -343,6 +342,7 @@ function App() {
                     ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-200'
                     : 'text-slate-400 hover:text-slate-900 hover:bg-slate-50'}
                   `}
+                title="Show changes (Diff)"
               >
                 <span>Diff</span>
               </button>
@@ -370,10 +370,20 @@ function App() {
             className="flex-1 relative flex flex-col min-h-0"
             style={{ display: viewMode === 'code' && !diffMode ? 'flex' : 'none' }}
           >
-            <div className="zone-header px-6 py-4 border-b border-slate-100 shrink-0 flex items-center justify-between bg-white mt-16">
-              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
+            <div className="zone-header px-6 pt-6 pb-4 border-b border-slate-200 shrink-0 flex items-center justify-between bg-white">
+              <span className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-800">
                 YAML {isConflict ? '(CONFLICT MODE - EDITABLE)' : '(Live Sync)'}
               </span>
+              <button 
+                onClick={() => {
+                  const yamlToCopy = isConflict && conflictData.localYaml ? conflictData.localYaml : PersistenceService.stringifyCurrentState();
+                  navigator.clipboard.writeText(yamlToCopy);
+                }}
+                className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-emerald-600 transition-all bg-white rounded-xl border border-slate-200 shadow-sm hover:border-emerald-200 hover:bg-emerald-50 active:scale-90"
+                title="Copy YAML"
+              >
+                <Copy size={14} strokeWidth={2.5} />
+              </button>
             </div>
             <div className="flex-1 min-h-0 relative">
               <Suspense fallback={<div className="flex-1 flex items-center justify-center"><div className="animate-pulse text-xs text-slate-400">Loading Code Editor...</div></div>}>
@@ -403,10 +413,20 @@ function App() {
               style={{ width: `${split.width}px` }}
               className="border-l border-slate-200 bg-white flex flex-col shrink-0 overflow-hidden"
             >
-              <div className="zone-header px-6 py-4 border-b border-slate-100 shrink-0 flex items-center justify-between bg-white mt-16">
-                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
+              <div className="zone-header px-6 pt-6 pb-4 border-b border-slate-200 shrink-0 flex items-center justify-between bg-white">
+                <span className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-800">
                   YAML {isConflict ? '(CONFLICT MODE - EDITABLE)' : '(Live Sync)'}
                 </span>
+                <button 
+                  onClick={() => {
+                    const yamlToCopy = isConflict && conflictData.localYaml ? conflictData.localYaml : PersistenceService.stringifyCurrentState();
+                    navigator.clipboard.writeText(yamlToCopy);
+                  }}
+                  className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-emerald-600 transition-all bg-white rounded-xl border border-slate-200 shadow-sm hover:border-emerald-200 hover:bg-emerald-50 active:scale-90"
+                  title="Copy YAML"
+                >
+                  <Copy size={14} strokeWidth={2.5} />
+                </button>
               </div>
               <div className="flex-1 min-h-0 relative">
                 <Suspense fallback={<div className="flex-1 flex items-center justify-center"><div className="animate-pulse text-xs text-slate-400">Loading Code Editor...</div></div>}>

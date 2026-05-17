@@ -442,6 +442,29 @@ export function GraphViewport({ focusMode = false }: GraphViewportProps) {
           <Controls showInteractive={false} className="!bg-white !border-slate-200 !shadow-studio !rounded-xl !mb-6 !ml-6 p-1 flex flex-col gap-1 overflow-hidden" />
         </ReactFlow>
       </div>
+
+      {/* Spatial Navigation Keyboard Hint */}
+      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-2 px-3 py-1.5 bg-white/95 backdrop-blur-sm border border-slate-200 rounded-xl shadow-lg pointer-events-none select-none">
+        <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Navigate Nodes:</span>
+        <div className="flex gap-0.5">
+          <kbd className="px-1.5 py-0.5 text-[9px] font-black text-slate-500 bg-slate-100 border border-slate-200 rounded">▲</kbd>
+          <kbd className="px-1.5 py-0.5 text-[9px] font-black text-slate-500 bg-slate-100 border border-slate-200 rounded">▼</kbd>
+          <kbd className="px-1.5 py-0.5 text-[9px] font-black text-slate-500 bg-slate-100 border border-slate-200 rounded">◀</kbd>
+          <kbd className="px-1.5 py-0.5 text-[9px] font-black text-slate-500 bg-slate-100 border border-slate-200 rounded">▶</kbd>
+        </div>
+        <div className="w-[1px] h-3 bg-slate-200 mx-2" />
+        <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Navigate Edges:</span>
+        <div className="flex items-center gap-1">
+          <kbd className="px-1.5 py-0.5 text-[9px] font-black text-slate-500 bg-slate-100 border border-slate-200 rounded">Alt</kbd>
+          <span className="text-[9px] font-bold text-slate-400">+</span>
+          <div className="flex gap-0.5">
+            <kbd className="px-1.5 py-0.5 text-[9px] font-black text-slate-500 bg-slate-100 border border-slate-200 rounded">▲</kbd>
+            <kbd className="px-1.5 py-0.5 text-[9px] font-black text-slate-500 bg-slate-100 border border-slate-200 rounded">▼</kbd>
+            <kbd className="px-1.5 py-0.5 text-[9px] font-black text-slate-500 bg-slate-100 border border-slate-200 rounded">◀</kbd>
+            <kbd className="px-1.5 py-0.5 text-[9px] font-black text-slate-500 bg-slate-100 border border-slate-200 rounded">▶</kbd>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

@@ -109,22 +109,20 @@ export function HelpCenter({ isOpen, onClose }: { isOpen: boolean; onClose: () =
           <div className="flex gap-2 mb-4">
             <button
               onClick={() => setActiveTab('shortcuts')}
-              className={`px-6 py-2.5 rounded-xl text-[12px] font-black transition-all flex items-center gap-2 ${
-                activeTab === 'shortcuts'
+              className={`px-6 py-2.5 rounded-xl text-[12px] font-black transition-all flex items-center gap-2 ${activeTab === 'shortcuts'
                   ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-200'
                   : 'text-slate-400 hover:text-slate-700 hover:bg-white'
-              }`}
+                }`}
             >
               <Keyboard size={14} />
               Shortcuts
             </button>
             <button
               onClick={() => setActiveTab('git')}
-              className={`px-6 py-2.5 rounded-xl text-[12px] font-black transition-all flex items-center gap-2 ${
-                activeTab === 'git'
+              className={`px-6 py-2.5 rounded-xl text-[12px] font-black transition-all flex items-center gap-2 ${activeTab === 'git'
                   ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-200'
                   : 'text-slate-400 hover:text-slate-700 hover:bg-white'
-              }`}
+                }`}
             >
               <GitBranch size={14} />
               Git Guide
@@ -138,7 +136,7 @@ export function HelpCenter({ isOpen, onClose }: { isOpen: boolean; onClose: () =
             <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
               {/* Left Column */}
               <div className="flex flex-col gap-12">
-                <ShortcutGroup 
+                <ShortcutGroup
                   title="Spatial Navigation"
                   icon={<Move size={14} strokeWidth={3} />}
                   shortcuts={[
@@ -148,13 +146,13 @@ export function HelpCenter({ isOpen, onClose }: { isOpen: boolean; onClose: () =
                   ]}
                 />
 
-                <ShortcutGroup 
+                <ShortcutGroup
                   title="Search & Creation"
                   icon={<Search size={14} strokeWidth={3} />}
                   shortcuts={[
                     { keys: ['Alt', 'F'], label: 'Command Hub', description: 'Universal search & commands' },
                     { keys: ['Alt', 'N'], label: 'New Concept', description: 'Quick-create node modal' },
-                    { keys: ['Alt', 'E'], label: 'Relation Builder', description: 'Link concepts visually' },
+                    { keys: ['Alt', 'E'], label: 'Relation Builder', description: 'Link nodes via edges' },
                     { keys: ['A'], label: 'Add Property', description: 'Insert attribute to selection' },
                     { keys: ['Del'], label: 'Delete Selection', description: 'Delete selected node or edge' }
                   ]}
@@ -163,7 +161,7 @@ export function HelpCenter({ isOpen, onClose }: { isOpen: boolean; onClose: () =
 
               {/* Right Column */}
               <div className="flex flex-col gap-12">
-                <ShortcutGroup 
+                <ShortcutGroup
                   title="Context Switching"
                   icon={<Zap size={14} strokeWidth={3} />}
                   shortcuts={[
@@ -174,7 +172,7 @@ export function HelpCenter({ isOpen, onClose }: { isOpen: boolean; onClose: () =
                   ]}
                 />
 
-                <ShortcutGroup 
+                <ShortcutGroup
                   title="View & Flow"
                   icon={<Layers size={14} strokeWidth={3} />}
                   shortcuts={[

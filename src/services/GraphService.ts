@@ -117,15 +117,42 @@ export class GraphService {
     'name' | 'definition' | 'aliases' | 'classification' | 'lifecycleState' | 'domainId' | 'parentId' | 'conceptType' | 'x' | 'y'
   >>): Promise<void> {
     const now = Date.now();
-    useGraphStore.setState((state) => ({
-      concepts: state.concepts.map((c) =>
-        c.id === id ? { ...c, ...updates, updatedAt: now } : c,
-      ),
-      // Also update the domain representation if it exists
-      domains: state.domains.map((d) =>
-        d.id === id ? { ...d, ...updates, updatedAt: now } : d
-      ),
-    }));
+    
+    useGraphStore.setState((state) => {
+      let newId = id;
+      const targetConcept = state.concepts.find(c => c.id === id);
+      
+      // If the conceptType is changing, we must update the ID prefix to maintain semantic correctness
+      if (updates.conceptType && targetConcept && targetConcept.conceptType !== updates.conceptType) {
+        const parts = id.split(':');
+        if (parts.length === 2) {
+          const uuid = parts[1];
+          newId = `${updates.conceptType}:${uuid}` as ElementId;
+        }
+      }
+
+      const idChanged = newId !== id;
+
+      return {
+        concepts: state.concepts.map((c) =>
+          c.id === id ? { ...c, ...updates, id: newId, updatedAt: now } : c,
+        ),
+        // Update the domain representation if it exists
+        domains: state.domains.map((d) =>
+          d.id === id ? { ...d, ...updates, id: newId, updatedAt: now } : d
+        ),
+        // Cascade ID update to all relations
+        relations: idChanged 
+          ? state.relations.map((r) => ({
+              ...r,
+              sourceConceptId: r.sourceConceptId === id ? newId : r.sourceConceptId,
+              targetConceptId: r.targetConceptId === id ? newId : r.targetConceptId
+            }))
+          : state.relations,
+        // Update selection if necessary
+        selectedConceptId: state.selectedConceptId === id ? newId : state.selectedConceptId
+      };
+    });
 
     PersistenceService.scheduleAutoSave();
   }

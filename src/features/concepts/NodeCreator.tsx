@@ -99,37 +99,46 @@ export const NodeCreator: React.FC = () => {
           }
         }
       }
+      return;
     }
 
-    // Arrow Keys for Type selection
-    // We allow arrow keys if we are in the type input OR if we are just "somewhere" in the modal (but not the name input)
-    if (isInModal && !isEditingName) {
-      if (e.key === 'ArrowDown') {
+    // Enter Key Actions
+    if (e.key === 'Enter') {
+      const isFocusingTypeOption = active?.tagName === 'BUTTON' && active !== createBtnRef.current && active !== closeBtnRef.current;
+      
+      if (isEditingType || isFocusingTypeOption) {
+        if (filteredTypes.length > 0) {
+          e.preventDefault();
+          const selected = filteredTypes[selectedIndex];
+          setType(selected.id as ConceptType);
+          setTypeQuery(''); 
+          
+          requestAnimationFrame(() => {
+            createBtnRef.current?.focus();
+          });
+        }
+      } else {
+        // Trigger main creation
         e.preventDefault();
-        setSelectedIndex(prev => (prev + 1) % Math.max(1, filteredTypes.length));
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        setSelectedIndex(prev => (prev - 1 + filteredTypes.length) % Math.max(1, filteredTypes.length));
-      } else if (e.key === 'Enter' && filteredTypes.length > 0 && (isEditingType || active?.tagName === 'BUTTON')) {
-        // Only trigger "Select Type" if we are in the type input or on a list button
-        // This avoids conflicting with the main handleCreate
-        e.preventDefault();
-        const selected = filteredTypes[selectedIndex];
-        setType(selected.id as ConceptType);
-        setTypeQuery(''); 
-        
-        requestAnimationFrame(() => {
-          createBtnRef.current?.focus();
-        });
+        handleCreate();
       }
-    } else if (isEditingName && e.key === 'ArrowDown') {
-      // Convenience: ArrowDown from Name jumps to Type search
-      e.preventDefault();
-      typeInputRef.current?.focus();
-    } else if (e.key === 'Enter') {
-      if (active === createBtnRef.current) return;
-      e.preventDefault();
-      handleCreate();
+      return;
+    }
+
+    // Arrow Key Navigation
+    if (isInModal) {
+      if (isEditingName && e.key === 'ArrowDown') {
+        e.preventDefault();
+        typeInputRef.current?.focus();
+      } else if (!isEditingName) {
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          setSelectedIndex(prev => (prev + 1) % Math.max(1, filteredTypes.length));
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          setSelectedIndex(prev => (prev - 1 + filteredTypes.length) % Math.max(1, filteredTypes.length));
+        }
+      }
     }
   };
 

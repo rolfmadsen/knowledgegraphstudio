@@ -1,7 +1,6 @@
 import {
   Undo2,
   Redo2,
-  Plus,
   Maximize2,
   RefreshCw,
   Layers,
@@ -14,7 +13,6 @@ interface RefinedToolbarProps {
   redo: (steps?: number) => void;
   canUndo: boolean;
   canRedo: boolean;
-  onAddConcept: () => void;
   onUnpinAll: () => void;
   onTriggerLayout: () => void;
   onToggleFocusMode: () => void;
@@ -28,7 +26,6 @@ export function RefinedToolbar({
   redo,
   canUndo,
   canRedo,
-  onAddConcept,
   onUnpinAll,
   onTriggerLayout,
   onToggleFocusMode,
@@ -65,7 +62,7 @@ export function RefinedToolbar({
         </div>
 
         <div className="hidden xl:flex flex-1 justify-center">
-          <div className="text-[10px] font-black text-slate-300 uppercase tracking-[0.8em] flex items-center gap-3 select-none transition-colors hover:text-slate-400">
+          <div className="text-[14px] font-black text-slate-400 uppercase tracking-[0.6em] flex items-center gap-3 select-none transition-colors hover:text-slate-700">
             Knowledge Graph Studio
           </div>
         </div>
@@ -108,14 +105,6 @@ export function RefinedToolbar({
               <GitBranch size={16} strokeWidth={2.5} />
             </button>
           </div>
-
-          <button
-            onClick={onAddConcept}
-            className="bg-emerald-600 text-white text-[11px] font-black uppercase tracking-[0.15em] rounded-[14px] hover:bg-emerald-500 hover:shadow-xl hover:shadow-emerald-200/40 transition-all active:scale-95 shadow-lg shadow-emerald-100 flex items-center h-11 px-8 gap-3"
-          >
-            <Plus size={18} strokeWidth={3} />
-            <span>New Concept</span>
-          </button>
         </div>
       </div>
     </header>
