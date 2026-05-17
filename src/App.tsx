@@ -376,7 +376,7 @@ function App() {
               </span>
               <button 
                 onClick={() => {
-                  const yamlToCopy = isConflict && conflictData.localYaml ? conflictData.localYaml : PersistenceService.stringifyCurrentState();
+                  const yamlToCopy = isConflict && conflictData && conflictData.localYaml ? conflictData.localYaml : PersistenceService.stringifyCurrentState();
                   navigator.clipboard.writeText(yamlToCopy);
                 }}
                 className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-emerald-600 transition-all bg-white rounded-xl border border-slate-200 shadow-sm hover:border-emerald-200 hover:bg-emerald-50 active:scale-90"
@@ -419,7 +419,7 @@ function App() {
                 </span>
                 <button 
                   onClick={() => {
-                    const yamlToCopy = isConflict && conflictData.localYaml ? conflictData.localYaml : PersistenceService.stringifyCurrentState();
+                    const yamlToCopy = isConflict && conflictData && conflictData.localYaml ? conflictData.localYaml : PersistenceService.stringifyCurrentState();
                     navigator.clipboard.writeText(yamlToCopy);
                   }}
                   className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-emerald-600 transition-all bg-white rounded-xl border border-slate-200 shadow-sm hover:border-emerald-200 hover:bg-emerald-50 active:scale-90"
