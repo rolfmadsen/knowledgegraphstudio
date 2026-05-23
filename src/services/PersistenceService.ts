@@ -1,30 +1,110 @@
-import { useGraphStore } from '../store/useGraphStore';
-import { stateToYaml, yamlToState, YamlParseError } from '../core/yamlParser';
-import { readYaml, writeYaml, yamlExists, ensureWorkspaceDir, setRepoDir } from '../core/fileSystem';
-import { GraphState } from '../schema/graphSchema';
+import {
+  stateToYaml,
+  yamlToState,
+  viewsToYaml,
+  yamlToViews,
+  YamlParseError,
+} from '../core/yamlParser';
+import {
+  readYaml,
+  writeModelYaml,
+  writeViewsYaml,
+  readModelYaml,
+  readViewsYaml,
+  yamlExists,
+  modelYamlExists,
+  ensureWorkspaceDir,
+  setRepoDir,
+} from '../core/fileSystem';
+import type { GraphState } from '../schema/graphSchema';
 import { GitService } from './GitService';
-import { GraphService } from './GraphService';
+
+export type PersistableState = Pick<GraphState, 'domains' | 'concepts' | 'relations' | 'views'>;
 
 export interface BootstrapResult {
   isFirstRun: boolean;
   isConflict: boolean;
+  state?: GraphState;
+  rawYaml?: string;
   error?: string;
 }
 
 export class PersistenceService {
   private static isBootstrapped = false;
   private static saveTimeout: ReturnType<typeof setTimeout> | null = null;
+  private static pendingState: PersistableState | null = null;
 
   /**
-   * Get the current workspace state as a YAML string.
+   * Get the current model state as a YAML string (semantic only).
    */
-  static async getYaml(): Promise<string> {
-    const state = useGraphStore.getState();
+  static async getYaml(state: PersistableState): Promise<string> {
     return stateToYaml(state);
   }
 
+  // ============================================================
+  // Internal Helpers
+  // ============================================================
+
+  /**
+   * Load model + views from the new split-file format.
+   * model.typegraph.yaml → domains/concepts/relations
+   * views.typegraph.yaml → view node positions
+   */
+  private static async loadSplitFiles(): Promise<GraphState | null> {
+    const modelYaml = await readModelYaml();
+    if (!modelYaml) return null;
+
+    const modelState = yamlToState(modelYaml);
+    const viewsYaml = await readViewsYaml();
+    const views = viewsYaml ? yamlToViews(viewsYaml) : [];
+
+    console.log(
+      `[PersistenceService] Loaded split files: ${modelState.concepts.length} concepts, ${views.length} views`,
+    );
+    return { ...modelState, views };
+  }
+
+  /**
+   * Load from legacy single .typegraph.yaml (migration path).
+   * After successful read, we immediately write to the split format.
+   */
+  private static async loadAndMigrateLegacy(): Promise<GraphState | null> {
+    const legacyYaml = await readYaml();
+    if (!legacyYaml) return null;
+
+    console.log('[PersistenceService] 🔄 Migrating from legacy .typegraph.yaml to split format...');
+    const state = yamlToState(legacyYaml);
+    const fullState: GraphState = { ...state, views: [] };
+
+    // Write to the new split format immediately
+    await writeModelYaml(stateToYaml(fullState));
+    await writeViewsYaml(viewsToYaml([]));
+    console.log('[PersistenceService] ✅ Migration complete. model.typegraph.yaml + views.typegraph.yaml written.');
+
+    return fullState;
+  }
+
+  /**
+   * Write both YAML files atomically.
+   * model.typegraph.yaml ← semantic data
+   * views.typegraph.yaml ← ViewNode positions
+   */
+  private static async writeSplitFiles(state: PersistableState): Promise<void> {
+    await writeModelYaml(stateToYaml(state));
+    await writeViewsYaml(viewsToYaml(state.views));
+  }
+
+  // ============================================================
+  // Public API
+  // ============================================================
+
   /**
    * Bootstrap the application: ensure FS, Repo, and Load/Create YAML.
+   *
+   * File resolution order:
+   *  1. model.typegraph.yaml (new split format)
+   *  2. .typegraph.yaml (legacy → auto-migrated to split format)
+   *  3. First run: create default workspace
    */
   static async bootstrap(): Promise<BootstrapResult> {
     if (this.isBootstrapped) {
@@ -32,58 +112,70 @@ export class PersistenceService {
     }
 
     try {
-      // 1. Ensure workspace directory and git repo
       await ensureWorkspaceDir();
       await GitService.ensureRepo();
 
-      // 2. Try to read existing YAML
-      if (await yamlExists()) {
-        const yaml = await readYaml();
-        if (yaml === null) {
-          throw new Error('YAML fil findes, men kunne ikke læses (FileSystem returnerede null). Bootstrap afbrudt for at beskytte din eksisterende graf mod overskrivning.');
-        }
-        
+      // --- New split format ---
+      if (await modelYamlExists()) {
         try {
-          const state = yamlToState(yaml);
-          console.log(`[PersistenceService] Hydrating store with ${state.concepts.length} concepts and ${state.relations.length} relations`);
-          
-          // CRITICAL: Set bootstrapped flag BEFORE hydrating to prevent auto-save loops
-          this.isBootstrapped = true;
-          
-          useGraphStore.getState().hydrate(state);
-          
-          // Clear undo history after hydration
-          (useGraphStore as any).temporal.getState().clear();
-          
-          // Trigger layout to ensure nodes aren't stacked
-          setTimeout(() => GraphService.triggerLayout(), 100);
-
-          return { isFirstRun: false, isConflict: false };
+          const state = await this.loadSplitFiles();
+          if (state) {
+            this.isBootstrapped = true;
+            return { isFirstRun: false, isConflict: false, state };
+          }
         } catch (err) {
           if (err instanceof YamlParseError) {
-            // Trigger Conflict Mode
-            useGraphStore.setState({ rawYaml: yaml });
-            return { isFirstRun: false, isConflict: true, error: err.message };
+            const raw = await readModelYaml();
+            return { isFirstRun: false, isConflict: true, rawYaml: raw ?? '', error: err.message };
           }
           throw err;
         }
       }
 
-      // 3. First run: create default workspace if no YAML found
-      const { domains } = useGraphStore.getState();
-      if (domains.length === 0) {
-        await GraphService.addDomain('Default', 'Automatically created default domain');
+      // --- Legacy single-file (migration path) ---
+      if (await yamlExists()) {
+        const legacyYaml = await readYaml();
+        if (legacyYaml === null) {
+          throw new Error(
+            'YAML fil findes, men kunne ikke læses. Bootstrap afbrudt for at beskytte eksisterende data.',
+          );
+        }
+        try {
+          const state = await this.loadAndMigrateLegacy();
+          if (state) {
+            this.isBootstrapped = true;
+            return { isFirstRun: false, isConflict: false, state };
+          }
+        } catch (err) {
+          if (err instanceof YamlParseError) {
+            return { isFirstRun: false, isConflict: true, rawYaml: legacyYaml, error: err.message };
+          }
+          throw err;
+        }
       }
 
-      // Write initial YAML and commit
-      this.isBootstrapped = true; // Mark as bootstrapped before first save
-      await this.saveWorkspace();
+      // --- First run: create default workspace ---
+      const defaultDomain = {
+        id: 'bounded_context:default',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        lifecycleState: 'active' as const,
+        name: 'Default',
+        description: 'Automatically created default domain',
+      };
+
+      const initialState: GraphState = {
+        domains: [defaultDomain],
+        concepts: [],
+        relations: [],
+        views: [],
+      };
+
+      this.isBootstrapped = true;
+      await this.saveWorkspace(initialState);
       await GitService.commit('Initial commit: Default Workspace');
 
-      // Clear undo history
-      (useGraphStore as any).temporal.getState().clear();
-
-      return { isFirstRun: true, isConflict: false };
+      return { isFirstRun: true, isConflict: false, state: initialState };
     } catch (err) {
       console.error('[PersistenceService] Bootstrap failed:', err);
       return {
@@ -95,41 +187,42 @@ export class PersistenceService {
   }
 
   /**
-   * Load the workspace from the .typegraph.yaml file.
+   * Load the workspace. Prefers new split format, falls back to legacy.
    */
-  static async loadWorkspace(): Promise<void> {
-    const yaml = await readYaml();
-    if (!yaml) return;
-    const state = yamlToState(yaml);
-    useGraphStore.getState().hydrate(state);
+  static async loadWorkspace(): Promise<GraphState | null> {
+    if (await modelYamlExists()) {
+      return this.loadSplitFiles();
+    }
+    // Legacy fallback (will not auto-migrate on plain load — only on bootstrap)
+    const legacyYaml = await readYaml();
+    if (!legacyYaml) return null;
+    const state = yamlToState(legacyYaml);
+    return { ...state, views: [] };
   }
 
   /**
-   * Save the current graph state to the .typegraph.yaml file.
+   * Save the current graph state.
+   * Writes model.typegraph.yaml + views.typegraph.yaml.
+   *
+   * Safety lock: if store is empty but model file has substantial data, blocks the write.
    */
-  static async saveWorkspace(): Promise<void> {
+  static async saveWorkspace(state: PersistableState): Promise<void> {
     try {
-      const state = useGraphStore.getState();
-      
-      // SAFETY LOCK: Don't save if the store is empty but we are in a session that was supposed to have data
-      // This prevents "Empty State Overwrites" during HMR or failed bootstraps.
-      if (this.isBootstrapped && state.concepts.length === 0 && await yamlExists()) {
-        const existing = await readYaml();
-        if (existing && existing.length > 50) { // If existing file has substantial data
-          console.warn('[PersistenceService] Save blocked: Store is empty but existing file has data. Protecting against silent overwrite.');
+      // SAFETY LOCK: prevent empty-state overwrites
+      if (this.isBootstrapped && state.concepts.length === 0 && await modelYamlExists()) {
+        const existing = await readModelYaml();
+        if (existing && existing.length > 50) {
+          console.warn(
+            '[PersistenceService] Save blocked: store is empty but model file has data. Protecting against silent overwrite.',
+          );
           return;
         }
       }
 
-      const data = {
-        domains: state.domains,
-        concepts: state.concepts,
-        relations: state.relations,
-      };
-
-      const yaml = stateToYaml(data);
-      await writeYaml(yaml);
-      console.log('[PersistenceService] Workspace saved to VFS');
+      await this.writeSplitFiles(state);
+      console.log(
+        `[PersistenceService] Saved: model.typegraph.yaml + views.typegraph.yaml (${state.views.length} views)`,
+      );
     } catch (error) {
       console.error('[PersistenceService] Failed to save workspace:', error);
       throw error;
@@ -137,74 +230,64 @@ export class PersistenceService {
   }
 
   /**
-   * Parse YAML string to graph state.
+   * Parse a raw YAML string to graph state (used by conflict resolver).
    */
   static parse(yaml: string): GraphState {
-    return yamlToState(yaml);
+    return { ...yamlToState(yaml), views: [] };
   }
 
   /**
-   * Convert current store state to YAML string.
+   * Convert current store state to model YAML string (semantic only).
+   * Used by the YAML preview panel.
    */
-  static stringifyCurrentState(): string {
-    const state = useGraphStore.getState();
-    return stateToYaml({
-      domains: state.domains,
-      concepts: state.concepts,
-      relations: state.relations,
-    });
+  static stringifyCurrentState(state: PersistableState): string {
+    return stateToYaml(state);
   }
 
   /**
-   * Immediately save if a timeout is pending.
+   * Immediately flush any pending auto-save.
    */
   static async flush(): Promise<void> {
     if (this.saveTimeout) {
       clearTimeout(this.saveTimeout);
       this.saveTimeout = null;
-      await this.saveWorkspace().catch(() => {});
+      if (this.pendingState) {
+        await this.saveWorkspace(this.pendingState).catch(() => {});
+        this.pendingState = null;
+      }
     }
   }
 
   /**
-   * Debounced auto-save triggered by store changes.
+   * Debounced auto-save (1s) triggered by store changes.
    */
-  static scheduleAutoSave(): void {
+  static scheduleAutoSave(state: PersistableState): void {
+    this.pendingState = state;
     if (this.saveTimeout) {
       clearTimeout(this.saveTimeout);
     }
-
     this.saveTimeout = setTimeout(() => {
-      this.saveWorkspace().catch(() => {});
+      if (this.pendingState) {
+        this.saveWorkspace(this.pendingState).catch(() => {});
+        this.pendingState = null;
+      }
       this.saveTimeout = null;
-    }, 1000); // 1s debounce
+    }, 1000);
   }
 
   /**
    * Switch the active workspace directory and reload the graph.
    */
-  static async switchWorkspace(dir: string): Promise<void> {
+  static async switchWorkspace(dir: string): Promise<BootstrapResult> {
     try {
       console.log(`[PersistenceService] Switching to workspace: ${dir}`);
-      this.isBootstrapped = false; // Allow re-bootstrap for the new directory
+      this.isBootstrapped = false;
       setRepoDir(dir);
-      
-      // Reset Git cache for new directory
+
       const { resetGitCache } = await import('../core/gitEngine');
       resetGitCache();
 
-      // Bootstrap the new directory (ensures .git exists etc)
-      const result = await this.bootstrap();
-      
-      if (result.error && !result.isConflict) {
-        throw new Error(result.error);
-      }
-
-      // Re-trigger auto-fetch if remote is configured for this workspace
-      const { GitService } = await import('./GitService');
-      GitService.startAutoFetch();
-
-      console.log(`[PersistenceService] Successfully switched to ${dir}`);
+      return await this.bootstrap();
     } catch (err) {
       console.error('[PersistenceService] Switch failed:', err);
       throw err;
@@ -213,7 +296,6 @@ export class PersistenceService {
 
   /**
    * EMERGENCY: Revert to the previous commit in history.
-   * Useful if a session was corrupted or data was lost.
    */
   static async revertToPreviousCommit(): Promise<void> {
     try {
@@ -222,11 +304,10 @@ export class PersistenceService {
       if (logs.length < 2) {
         throw new Error('Ingen historik at rulle tilbage til.');
       }
-      
       const previousSha = logs[1].oid;
       console.log(`[PersistenceService] Reverting to ${previousSha}`);
       await gitReset(previousSha);
-      console.log('[PersistenceService] Revert successful. Reloading...');
+      console.log('[PersistenceService] Revert successful.');
     } catch (err) {
       console.error('[PersistenceService] Revert failed:', err);
       throw err;

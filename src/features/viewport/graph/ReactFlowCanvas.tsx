@@ -1,0 +1,725 @@
+import { useCallback, useEffect, useRef, useMemo } from 'react';
+import {
+  ReactFlow,
+  Background,
+  useNodesState,
+  useEdgesState,
+  applyNodeChanges,
+  type Node,
+  type Edge,
+  type NodeChange,
+  type OnConnect,
+  type NodeMouseHandler,
+  Controls,
+  type InternalNode,
+  useInternalNode,
+  BackgroundVariant,
+  type EdgeProps,
+  type NodeTypes,
+} from '@xyflow/react';
+import '@xyflow/react/dist/style.css';
+import type { PluginCanvasProps } from '../../../plugins/types';
+import { PluginRegistry } from '../../../plugins/PluginRegistry';
+import { useGraphStore } from '../../../store/useGraphStore';
+import type { ConceptNode } from '../../../schema/graphSchema';
+
+// --- Padding for Grouping Containers ---
+const PADDING_TOP = 72;
+const PADDING_BOTTOM = 24;
+const PADDING_LEFT = 24;
+const PADDING_RIGHT = 24;
+
+// --- Helper: Calculate dynamic bounds for grouping containers ---
+function getGroupBounds(
+  groupId: string,
+  viewNodes: Array<{ conceptId: string; x: number; y: number; width?: number; height?: number; parentId?: string }>
+) {
+  const vn = viewNodes.find(n => n.conceptId === groupId);
+  if (!vn) return null;
+
+  const children = viewNodes.filter(n => n.parentId === groupId);
+  if (children.length === 0) {
+    return {
+      x: vn.x,
+      y: vn.y,
+      w: vn.width ?? 240,
+      h: vn.height ?? 140,
+    };
+  }
+
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+
+  children.forEach(child => {
+    const w = child.width ?? 200;
+    const h = child.height ?? 80;
+    minX = Math.min(minX, child.x);
+    minY = Math.min(minY, child.y);
+    maxX = Math.max(maxX, child.x + w);
+    maxY = Math.max(maxY, child.y + h);
+  });
+
+  return {
+    x: minX - PADDING_LEFT,
+    y: minY - PADDING_TOP,
+    w: (maxX - minX) + PADDING_LEFT + PADDING_RIGHT,
+    h: (maxY - minY) + PADDING_TOP + PADDING_BOTTOM,
+  };
+}
+
+// --- Utility: Calculate intersection of a line and a rectangle ---
+function getEdgeParams(source: InternalNode, target: InternalNode) {
+  const sourceWidth = source.measured?.width ?? 0;
+  const sourceHeight = source.measured?.height ?? 0;
+  const targetWidth = target.measured?.width ?? 0;
+  const targetHeight = target.measured?.height ?? 0;
+
+  const sx = source.internals.positionAbsolute.x + sourceWidth / 2;
+  const sy = source.internals.positionAbsolute.y + sourceHeight / 2;
+  const tx = target.internals.positionAbsolute.x + targetWidth / 2;
+  const ty = target.internals.positionAbsolute.y + targetHeight / 2;
+
+  function getIntersection(w: number, h: number, x1: number, y1: number, x2: number, y2: number) {
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+
+    if ((dx === 0 && dy === 0) || w === 0 || h === 0) {
+      return { x: x1, y: y1 };
+    }
+
+    if (Math.abs(dx) * h > Math.abs(dy) * w) {
+      const x = dx > 0 ? w / 2 : -w / 2;
+      return { x: x1 + x, y: y1 + (x * dy) / dx };
+    } else {
+      const y = dy > 0 ? h / 2 : -h / 2;
+      return { x: x1 + (y * dx) / dy, y: y1 + y };
+    }
+  }
+
+  const sourcePoint = getIntersection(sourceWidth, sourceHeight, sx, sy, tx, ty);
+  const targetPoint = getIntersection(targetWidth, targetHeight, tx, ty, sx, sy);
+
+  return {
+    sx: sourcePoint.x,
+    sy: sourcePoint.y,
+    tx: targetPoint.x,
+    ty: targetPoint.y,
+  };
+}
+
+// Custom FloatingEdge
+function FloatingEdge({ id, source, target, style, label, labelStyle, selected, data }: EdgeProps) {
+  const sourceNode = useInternalNode(source);
+  const targetNode = useInternalNode(target);
+
+  if (!sourceNode || !targetNode) return null;
+
+  const { sx, sy, tx, ty } = getEdgeParams(sourceNode as InternalNode, targetNode as InternalNode);
+  const straightPath = `M ${sx} ${sy} L ${tx} ${ty}`;
+
+  const angle = Math.atan2(ty - sy, tx - sx);
+  const angleDeg = angle * (180 / Math.PI);
+  const arrowOffset = 10;
+  const midX = (sx + tx) / 2 - Math.cos(angle) * arrowOffset;
+  const midY = (sy + ty) / 2 - Math.sin(angle) * arrowOffset;
+  const rotation = angleDeg > 90 || angleDeg < -90 ? angleDeg + 180 : angleDeg;
+
+  const selectRelation = data?.selectRelation as (id: string) => void;
+  const strokeDasharray = (data?.strokeDasharray as string) || 'none';
+  const markerEnd = data?.markerEnd as string | undefined;
+
+  return (
+    <>
+      <path
+        id={id}
+        className="react-flow__edge-path"
+        d={straightPath}
+        markerEnd={markerEnd}
+        style={{
+          ...style,
+          stroke: selected ? '#10b981' : '#64748b',
+          strokeWidth: selected ? 2.5 : 1.5,
+          transition: 'all 0.2s ease',
+          strokeDasharray: strokeDasharray,
+        }}
+      />
+      {label && (
+        <g
+          transform={`translate(${midX}, ${midY}) rotate(${rotation})`}
+          className="nodrag nopan"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (selectRelation) selectRelation(id);
+          }}
+          style={{ cursor: 'pointer' }}
+        >
+          <rect
+            x={-(String(label).length * 3 + 14)}
+            y={-12}
+            width={String(label).length * 6 + 28}
+            height={24}
+            rx={12}
+            ry={12}
+            fill="white"
+            stroke={selected ? '#10b981' : '#f1f5f9'}
+            strokeWidth={1.5}
+            className="shadow-sm"
+            style={{ pointerEvents: 'all', cursor: 'pointer' }}
+          />
+          <text
+            y={4}
+            style={{
+              ...labelStyle,
+              fontSize: 8,
+              fontFamily: 'var(--font-mono)',
+              fontWeight: 800,
+              fill: selected ? '#065f46' : '#64748b',
+              textAnchor: 'middle',
+              pointerEvents: 'none',
+              userSelect: 'none',
+              textTransform: 'uppercase',
+              letterSpacing: '0.1em'
+            }}
+          >
+            {label}
+          </text>
+        </g>
+      )}
+    </>
+  );
+}
+
+export interface ReactFlowCanvasProps extends PluginCanvasProps {
+  nodeTypes: NodeTypes;
+}
+
+export function ReactFlowCanvas({
+  view,
+  storeState,
+  onNodePositionChange,
+  onNodeSelect,
+  onRelationSelect,
+  onConnect,
+  nodeTypes,
+}: ReactFlowCanvasProps) {
+  const edgeTypes = useMemo(() => ({ floating: FloatingEdge }), []);
+  const concepts = storeState.concepts;
+  const relations = storeState.relations;
+  const selectedConceptId = storeState.selectedConceptId;
+  const selectedRelationId = storeState.selectedRelationId;
+  
+  const currentAlgo = view.layoutAlgorithm;
+  const containerRef = useRef<HTMLDivElement>(null);
+  const activeDraggingNode = useRef<string | null>(null);
+  const selectedConceptIdRef = useRef(selectedConceptId);
+  selectedConceptIdRef.current = selectedConceptId;
+
+  const { batchUpdateViewNodePositions, ungroupConcept, updateViewNodeParentId, setSelectedConceptIds, selectedConceptIds } = useGraphStore();
+
+  const selectedConceptIdsRef = useRef(selectedConceptIds);
+  selectedConceptIdsRef.current = selectedConceptIds;
+
+  const computedNodes: Node[] = useMemo(() => {
+    const viewNodes = view.nodes ?? [];
+    const nodesMap = new Map(viewNodes.map((vn) => [vn.conceptId, vn]));
+    const conceptMap = new Map(concepts.map((c) => [c.id, c]));
+
+    const groupChildrenMap = new Map<string, string[]>();
+    viewNodes.forEach((vn) => {
+      if (vn.parentId) {
+        const children = groupChildrenMap.get(vn.parentId) || [];
+        children.push(vn.conceptId);
+        groupChildrenMap.set(vn.parentId, children);
+      }
+    });
+
+    const groupBounds = new Map<string, { x: number; y: number; w: number; h: number }>();
+    viewNodes.forEach((vn) => {
+      const c = conceptMap.get(vn.conceptId);
+      if (!c || c.conceptType !== 'bounded_context') return;
+
+      const childIds = groupChildrenMap.get(vn.conceptId) || [];
+      if (childIds.length === 0) {
+        groupBounds.set(vn.conceptId, {
+          x: vn.x,
+          y: vn.y,
+          w: vn.width ?? 240,
+          h: vn.height ?? 140,
+        });
+      } else {
+        let minX = Infinity;
+        let minY = Infinity;
+        let maxX = -Infinity;
+        let maxY = -Infinity;
+
+        childIds.forEach((cid) => {
+          const childVn = nodesMap.get(cid);
+          if (!childVn) return;
+          const w = childVn.width ?? 200;
+          const h = childVn.height ?? 80;
+          minX = Math.min(minX, childVn.x);
+          minY = Math.min(minY, childVn.y);
+          maxX = Math.max(maxX, childVn.x + w);
+          maxY = Math.max(maxY, childVn.y + h);
+        });
+
+        const gx = minX - PADDING_LEFT;
+        const gy = minY - PADDING_TOP;
+        const gw = maxX - minX + PADDING_LEFT + PADDING_RIGHT;
+        const gh = maxY - minY + PADDING_TOP + PADDING_BOTTOM;
+
+        groupBounds.set(vn.conceptId, {
+          x: gx,
+          y: gy,
+          w: gw,
+          h: gh,
+        });
+      }
+    });
+
+    const mappedNodes = viewNodes.flatMap((vn) => {
+      const c = conceptMap.get(vn.conceptId);
+      if (!c) return [];
+
+      const isGroup = c.conceptType === 'bounded_context';
+      const parentId = vn.parentId && nodesMap.has(vn.parentId) && conceptMap.has(vn.parentId) ? vn.parentId : undefined;
+
+      // Calculate position
+      let position = { x: vn.x, y: vn.y };
+      let style: React.CSSProperties | undefined = undefined;
+
+      if (isGroup) {
+        const bounds = groupBounds.get(c.id);
+        if (bounds) {
+          position = { x: bounds.x, y: bounds.y };
+          style = { width: bounds.w, height: bounds.h };
+        }
+      } else if (parentId) {
+        const pBounds = groupBounds.get(parentId);
+        if (pBounds) {
+          position = { x: vn.x - pBounds.x, y: vn.y - pBounds.y };
+        }
+      }
+
+      return [{
+        id: c.id,
+        type: 'conceptNode',
+        position,
+        parentId,
+        selected: selectedConceptIds.includes(c.id as any),
+        draggable: currentAlgo === 'manual',
+        style,
+        data: {
+          name: c.name,
+          type: c.conceptType.replace('_', ' '),
+          lifecycle: c.lifecycleState,
+          concept: c,
+        },
+      }];
+    });
+
+    // Sort nodes so parent nodes (bounded_context/groups) are processed before child nodes
+    return mappedNodes.sort((a, b) => {
+      const aIsParent = a.data.concept?.conceptType === 'bounded_context';
+      const bIsParent = b.data.concept?.conceptType === 'bounded_context';
+      if (aIsParent && !bIsParent) return -1;
+      if (!aIsParent && bIsParent) return 1;
+      return 0;
+    });
+  }, [concepts, selectedConceptIds, view, currentAlgo]);
+
+  const initialEdges: Edge[] = useMemo(
+    () => relations.map((r) => {
+      const relType = (r.relationType || '').toLowerCase();
+      const relName = (r.name || '').toLowerCase();
+      let markerEndStr: string | undefined = undefined;
+      let strokeDash = 'none';
+
+      const isSelected = r.id === selectedRelationId;
+
+      const isComposition = relType === 'compositionrelationship' || relName.includes('composition') || relName === 'c';
+      const isAggregation = relType === 'aggregationrelationship' || relName.includes('aggregation') || relName === 'g';
+      const isRealization = relType === 'realizationrelationship' || relName.includes('realization') || relName === 'r';
+      const isServing = relType === 'servingrelationship' || relName.includes('serving') || relName === 'v';
+      const isAccess = relType === 'accessrelationship' || relName.includes('access') || relName === 'a';
+      const isAssociation = relType === 'associationrelationship' || relName.includes('association') || relName === 'o';
+
+      if (isComposition || isAggregation) {
+        markerEndStr = isSelected ? 'url(#diamond-selected)' : 'url(#diamond)';
+        strokeDash = 'none';
+      } else if (isRealization) {
+        markerEndStr = isSelected ? 'url(#hollow-triangle-selected)' : 'url(#hollow-triangle)';
+        strokeDash = '4 4';
+      } else if (isServing || isAccess || isAssociation) {
+        markerEndStr = isSelected ? 'url(#open-arrow-selected)' : 'url(#open-arrow)';
+        strokeDash = isAccess ? '2 2' : 'none';
+      } else {
+        // default triggered / flow / other
+        markerEndStr = isSelected ? 'url(#arrow-closed-selected)' : 'url(#arrow-closed)';
+        strokeDash = 'none';
+      }
+
+      return {
+        id: r.id,
+        source: r.sourceConceptId,
+        target: r.targetConceptId,
+        type: 'floating',
+        label: r.name + (r.multiplicity ? ` (${r.multiplicity})` : ''),
+        selected: isSelected,
+        data: {
+          selectRelation: onRelationSelect,
+          strokeDasharray: strokeDash,
+          markerEnd: markerEndStr,
+        },
+      };
+    }),
+    [relations, selectedRelationId, onRelationSelect],
+  );
+
+  const [nodes, setNodes] = useNodesState(computedNodes);
+  const [edges, setEdges] = useEdgesState(initialEdges);
+
+  // Safety filter to block ReactFlow removing nodes/edges unilaterally
+  const onNodesChange = useCallback((changes: NodeChange[]) => {
+    const safe = changes.filter((c) => c.type !== 'remove');
+    if (safe.length > 0) {
+      setNodes((prev) => {
+        const next = applyNodeChanges(safe, prev);
+        return [...next].sort((a, b) => {
+          const aIsParent = (a.data as { concept?: ConceptNode })?.concept?.conceptType === 'bounded_context';
+          const bIsParent = (b.data as { concept?: ConceptNode })?.concept?.conceptType === 'bounded_context';
+          if (aIsParent && !bIsParent) return -1;
+          if (!aIsParent && bIsParent) return 1;
+          return 0;
+        });
+      });
+    }
+  }, [setNodes]);
+
+  useEffect(() => {
+    setNodes((currentNodes) => {
+      let hasChanges = false;
+      const nextNodes = computedNodes.map((n) => {
+        const existingNode = currentNodes.find((cn) => cn.id === n.id);
+        if (n.id === activeDraggingNode.current && existingNode) {
+          return existingNode;
+        }
+
+        if (existingNode) {
+          const changed =
+            Math.abs(existingNode.position.x - n.position.x) > 0.1 ||
+            Math.abs(existingNode.position.y - n.position.y) > 0.1 ||
+            existingNode.parentId !== n.parentId ||
+            existingNode.style?.width !== n.style?.width ||
+            existingNode.style?.height !== n.style?.height ||
+            existingNode.selected !== n.selected ||
+            existingNode.draggable !== n.draggable ||
+            existingNode.data.name !== n.data.name ||
+            existingNode.data.type !== n.data.type ||
+            existingNode.data.lifecycle !== n.data.lifecycle;
+          if (!changed) return existingNode;
+          hasChanges = true;
+          return {
+            ...existingNode,
+            position: n.position,
+            parentId: n.parentId,
+            selected: n.selected,
+            draggable: n.draggable,
+            style: n.style,
+            data: n.data,
+          };
+        }
+        hasChanges = true;
+        return n;
+      });
+
+      const orderChanged =
+        currentNodes.length !== nextNodes.length ||
+        currentNodes.some((cn, idx) => nextNodes[idx] && cn.id !== nextNodes[idx].id);
+      if (orderChanged) hasChanges = true;
+
+      return hasChanges ? nextNodes : currentNodes;
+    });
+    setEdges(initialEdges);
+  }, [computedNodes, initialEdges, setNodes, setEdges]);
+
+  const onConnectHandler: OnConnect = useCallback((connection) => {
+    if (connection.source && connection.target) onConnect(connection.source, connection.target);
+  }, [onConnect]);
+
+  const isValidConnection = useCallback((connection: { source: string; target: string }) => {
+    if (connection.source === connection.target) return false;
+
+    const sourceNode = concepts.find((c) => c.id === connection.source);
+    const targetNode = concepts.find((c) => c.id === connection.target);
+    if (!sourceNode || !targetNode) return false;
+
+    const plugin = PluginRegistry.forViewType(view.type);
+    if (!plugin) return true;
+
+    if (plugin.allowedConceptTypes) {
+      if (!plugin.allowedConceptTypes.includes(sourceNode.conceptType) ||
+          !plugin.allowedConceptTypes.includes(targetNode.conceptType)) {
+        return false;
+      }
+    }
+
+    if (plugin.getAvailableRelations) {
+      const allowed = plugin.getAvailableRelations(sourceNode.conceptType, targetNode.conceptType);
+      return allowed.length > 0;
+    }
+
+    return true;
+  }, [concepts, view.type]);
+
+  const onSelectionChange = useCallback(({ nodes: selectedNodes }: { nodes: Node[] }) => {
+    const ids = selectedNodes.map((n) => n.id);
+
+    // Compare ids with selectedConceptIdsRef.current to avoid redundant state updates
+    const currentIds = selectedConceptIdsRef.current;
+    const isSame =
+      ids.length === currentIds.length &&
+      ids.every((id) => currentIds.includes(id));
+
+    if (isSame) return;
+
+    setSelectedConceptIds(ids);
+  }, [setSelectedConceptIds]);
+
+  const onNodeDragStart = useCallback((_: React.MouseEvent, node: Node) => {
+    activeDraggingNode.current = node.id;
+  }, []);
+
+  const onNodeDragStop = useCallback((_: React.MouseEvent, node: Node) => {
+    activeDraggingNode.current = null;
+    if (currentAlgo !== 'manual') return;
+
+    const viewNodes = view.nodes ?? [];
+    const nodesMap = new Map(viewNodes.map((vn) => [vn.conceptId, vn]));
+    const conceptMap = new Map(concepts.map((c) => [c.id, c]));
+
+    const draggedVn = nodesMap.get(node.id);
+    const draggedConcept = conceptMap.get(node.id);
+    if (!draggedVn || !draggedConcept) return;
+
+    const isGroup = draggedConcept.conceptType === 'bounded_context';
+
+    if (isGroup) {
+      const oldGroupX = draggedVn.x;
+      const oldGroupY = draggedVn.y;
+      const newGroupX = node.position.x;
+      const newGroupY = node.position.y;
+
+      const deltaX = newGroupX - oldGroupX;
+      const deltaY = newGroupY - oldGroupY;
+
+      const positionsToUpdate: Array<{ conceptId: string; x: number; y: number }> = [];
+      positionsToUpdate.push({
+        conceptId: node.id,
+        x: newGroupX,
+        y: newGroupY,
+      });
+
+      viewNodes.forEach((vn) => {
+        if (vn.parentId === node.id) {
+          positionsToUpdate.push({
+            conceptId: vn.conceptId,
+            x: vn.x + deltaX,
+            y: vn.y + deltaY,
+          });
+        }
+      });
+
+      batchUpdateViewNodePositions(view.id, positionsToUpdate);
+    } else {
+      const childW = node.measured?.width ?? 200;
+      const childH = node.measured?.height ?? 80;
+
+      if (draggedVn.parentId) {
+        const parentId = draggedVn.parentId;
+        const parentVn = nodesMap.get(parentId);
+        
+        if (parentVn) {
+          const bounds = getGroupBounds(parentId, viewNodes);
+          if (bounds) {
+            const childAbsX = bounds.x + node.position.x;
+            const childAbsY = bounds.y + node.position.y;
+
+            const centerX = node.position.x + childW / 2;
+            const centerY = node.position.y + childH / 2;
+
+            const isOutside = centerX < 0 || centerX > bounds.w || centerY < 0 || centerY > bounds.h;
+
+            if (isOutside) {
+              ungroupConcept(view.id, node.id);
+              onNodePositionChange(node.id, childAbsX, childAbsY);
+
+              // Check if dropped inside ANOTHER group node
+              for (const otherVn of viewNodes) {
+                const otherC = conceptMap.get(otherVn.conceptId);
+                if (!otherC || otherC.conceptType !== 'bounded_context' || otherVn.conceptId === parentId) continue;
+                
+                const otherBounds = getGroupBounds(otherVn.conceptId, viewNodes);
+                if (otherBounds) {
+                  const inNewGroup =
+                    childAbsX + childW / 2 >= otherBounds.x &&
+                    childAbsX + childW / 2 <= otherBounds.x + otherBounds.w &&
+                    childAbsY + childH / 2 >= otherBounds.y &&
+                    childAbsY + childH / 2 <= otherBounds.y + otherBounds.h;
+
+                  if (inNewGroup) {
+                    updateViewNodeParentId(view.id, node.id, otherVn.conceptId);
+                    onNodePositionChange(node.id, childAbsX, childAbsY);
+                    break;
+                  }
+                }
+              }
+            } else {
+              onNodePositionChange(node.id, childAbsX, childAbsY);
+            }
+          }
+        }
+      } else {
+        const childAbsX = node.position.x;
+        const childAbsY = node.position.y;
+
+        let foundGroup = false;
+        for (const otherVn of viewNodes) {
+          const otherC = conceptMap.get(otherVn.conceptId);
+          if (!otherC || otherC.conceptType !== 'bounded_context') continue;
+
+          const otherBounds = getGroupBounds(otherVn.conceptId, viewNodes);
+          if (otherBounds) {
+            const inside =
+              childAbsX + childW / 2 >= otherBounds.x &&
+              childAbsX + childW / 2 <= otherBounds.x + otherBounds.w &&
+              childAbsY + childH / 2 >= otherBounds.y &&
+              childAbsY + childH / 2 <= otherBounds.y + otherBounds.h;
+
+            if (inside) {
+              updateViewNodeParentId(view.id, node.id, otherVn.conceptId);
+              onNodePositionChange(node.id, childAbsX, childAbsY);
+              foundGroup = true;
+              break;
+            }
+          }
+        }
+
+        if (!foundGroup) {
+          onNodePositionChange(node.id, childAbsX, childAbsY);
+        }
+      }
+    }
+  }, [view, concepts, currentAlgo, onNodePositionChange, batchUpdateViewNodePositions, ungroupConcept, updateViewNodeParentId]);
+
+  const onNodeClick: NodeMouseHandler = useCallback((_, node) => {
+    onNodeSelect(node.id);
+  }, [onNodeSelect]);
+
+  const onKeyDown = useCallback((e: React.KeyboardEvent) => {
+    const isDelete = e.key === 'Delete' || e.key === 'Backspace';
+    if (isDelete) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  }, []);
+
+  return (
+    <div
+      ref={containerRef}
+      className="w-full h-full bg-[#F9FAFB] relative overflow-hidden"
+      tabIndex={0}
+      onKeyDown={onKeyDown}
+    >
+      {/* Custom SVG markers definitions */}
+      <svg style={{ position: 'absolute', width: 0, height: 0 }}>
+        <defs>
+          <marker id="diamond" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+            <path d="M 0 5 L 5 2 L 10 5 L 5 8 Z" fill="#64748b" stroke="#64748b" strokeWidth="1" />
+          </marker>
+          <marker id="diamond-selected" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+            <path d="M 0 5 L 5 2 L 10 5 L 5 8 Z" fill="#10b981" stroke="#10b981" strokeWidth="1" />
+          </marker>
+          <marker id="hollow-triangle" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+            <path d="M 0 1 L 10 5 L 0 9 Z" fill="white" stroke="#64748b" strokeWidth="1.5" />
+          </marker>
+          <marker id="hollow-triangle-selected" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+            <path d="M 0 1 L 10 5 L 0 9 Z" fill="white" stroke="#10b981" strokeWidth="1.5" />
+          </marker>
+          <marker id="open-arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+            <path d="M 0 1 L 10 5 L 0 9" fill="none" stroke="#64748b" strokeWidth="1.5" />
+          </marker>
+          <marker id="open-arrow-selected" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+            <path d="M 0 1 L 10 5 L 0 9" fill="none" stroke="#10b981" strokeWidth="1.5" />
+          </marker>
+          <marker id="arrow-closed" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+            <path d="M 0 1 L 10 5 L 0 9 Z" fill="#64748b" stroke="#64748b" />
+          </marker>
+          <marker id="arrow-closed-selected" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+            <path d="M 0 1 L 10 5 L 0 9 Z" fill="#10b981" stroke="#10b981" />
+          </marker>
+        </defs>
+      </svg>
+
+      <div className="absolute inset-0">
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          nodeTypes={nodeTypes}
+          nodesDraggable={currentAlgo === 'manual'}
+          onNodesChange={onNodesChange}
+          onConnect={onConnectHandler}
+          isValidConnection={isValidConnection}
+          onNodeClick={onNodeClick}
+          onNodeDragStart={onNodeDragStart}
+          onNodeDragStop={onNodeDragStop}
+          onEdgeClick={(_e, edge) => onRelationSelect(edge.id)}
+          onPaneClick={() => { onNodeSelect(null); onRelationSelect(null); }}
+          onSelectionChange={onSelectionChange}
+          edgeTypes={edgeTypes}
+          deleteKeyCode={null}
+          snapToGrid={true}
+          snapGrid={[24, 24]}
+          proOptions={{ hideAttribution: true }}
+          fitView
+          fitViewOptions={{ maxZoom: 1.0 }}
+          panOnScroll={true}
+          zoomActivationKeyCode={['Control', 'Meta', 'Command']}
+        >
+          <Background variant={BackgroundVariant.Dots} color="#1C1917" gap={24} size={1} style={{ opacity: 0.05 }} />
+          <Controls showInteractive={false} fitViewOptions={{ maxZoom: 1.0 }} className="!bg-white !border-slate-200 !shadow-studio !rounded-xl !mb-6 !ml-6 p-1 flex flex-col gap-1 overflow-hidden" />
+        </ReactFlow>
+      </div>
+
+      {/* Spatial Navigation Keyboard Hint */}
+      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-2 px-3 py-1.5 bg-white/95 backdrop-blur-sm border border-slate-200 rounded-xl shadow-lg pointer-events-none select-none">
+        <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Navigate Nodes:</span>
+        <div className="flex gap-0.5">
+          <kbd className="px-1.5 py-0.5 text-[9px] font-black text-slate-500 bg-slate-100 border border-slate-200 rounded">▲</kbd>
+          <kbd className="px-1.5 py-0.5 text-[9px] font-black text-slate-500 bg-slate-100 border border-slate-200 rounded">▼</kbd>
+          <kbd className="px-1.5 py-0.5 text-[9px] font-black text-slate-500 bg-slate-100 border border-slate-200 rounded">◀</kbd>
+          <kbd className="px-1.5 py-0.5 text-[9px] font-black text-slate-500 bg-slate-100 border border-slate-200 rounded">▶</kbd>
+        </div>
+        <div className="w-[1px] h-3 bg-slate-200 mx-2" />
+        <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Navigate Edges:</span>
+        <div className="flex items-center gap-1">
+          <kbd className="px-1.5 py-0.5 text-[9px] font-black text-slate-500 bg-slate-100 border border-slate-200 rounded">Alt</kbd>
+          <span className="text-[9px] font-bold text-slate-400">+</span>
+          <div className="flex gap-0.5">
+            <kbd className="px-1.5 py-0.5 text-[9px] font-black text-slate-500 bg-slate-100 border border-slate-200 rounded">▲</kbd>
+            <kbd className="px-1.5 py-0.5 text-[9px] font-black text-slate-500 bg-slate-100 border border-slate-200 rounded">▼</kbd>
+            <kbd className="px-1.5 py-0.5 text-[9px] font-black text-slate-500 bg-slate-100 border border-slate-200 rounded">◀</kbd>
+            <kbd className="px-1.5 py-0.5 text-[9px] font-black text-slate-500 bg-slate-100 border border-slate-200 rounded">▶</kbd>
+          </div>
+        </div>
+        <div className="w-[1px] h-3 bg-slate-200 mx-2" />
+        <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Delete:</span>
+        <div className="flex items-center gap-1">
+          <kbd className="px-1.5 py-0.5 text-[9px] font-black text-slate-500 bg-slate-100 border border-slate-200 rounded">Del</kbd>
+        </div>
+      </div>
+    </div>
+  );
+}

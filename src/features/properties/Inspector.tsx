@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { useGraphStore } from '../../store/useGraphStore';
 import { useShallow } from 'zustand/react/shallow';
-import { GraphService } from '../../services/GraphService';
+import { LifecycleState, ConceptType, type ConceptProperty, type ConceptNode, type ElementId } from '../../schema/graphSchema';
+import { PluginRegistry } from '../../plugins/PluginRegistry';
 import { 
   Plus, 
   Trash2,
@@ -10,21 +11,70 @@ import {
   Info,
   ArrowUpDown
 } from 'lucide-react';
-import { LifecycleState, ConceptType, type ConceptProperty } from '../../schema/graphSchema';
 
 export function Inspector() {
-  const { concepts, relations, selectedConceptId, selectedRelationId } = useGraphStore(
+  const { 
+    concepts, 
+    relations, 
+    selectedConceptId, 
+    selectedRelationId,
+    deleteConcept,
+    updateConcept,
+    updateProperty,
+    deleteProperty,
+    addProperty,
+    deleteRelation,
+    updateRelation,
+    views,
+    activeViewId,
+    selectedConceptIds,
+    groupConcepts,
+    ungroupConcept,
+    dissolveGroup,
+    updateViewNodeParentId,
+    setSelectedConceptIds
+  } = useGraphStore(
     useShallow((s) => ({
       concepts: s?.concepts || [],
       relations: s?.relations || [],
       selectedConceptId: s?.selectedConceptId,
       selectedRelationId: s?.selectedRelationId,
+      deleteConcept: s?.deleteConcept,
+      updateConcept: s?.updateConcept,
+      updateProperty: s?.updateProperty,
+      deleteProperty: s?.deleteProperty,
+      addProperty: s?.addProperty,
+      deleteRelation: s?.deleteRelation,
+      updateRelation: s?.updateRelation,
+      views: s?.views || [],
+      activeViewId: s?.activeViewId,
+      selectedConceptIds: s?.selectedConceptIds || [],
+      groupConcepts: s?.groupConcepts,
+      ungroupConcept: s?.ungroupConcept,
+      dissolveGroup: s?.dissolveGroup,
+      updateViewNodeParentId: s?.updateViewNodeParentId,
+      setSelectedConceptIds: s?.setSelectedConceptIds
     }))
   );
 
   const concept = concepts.find(c => c.id === selectedConceptId);
   const relation = relations.find(r => r.id === selectedRelationId);
   const nameInputRef = useRef<HTMLInputElement>(null);
+
+  const activeView = views.find((v) => v.id === activeViewId);
+  const activePlugin = activeView ? PluginRegistry.forViewType(activeView.type) : undefined;
+
+  const viewNode = activeView?.nodes.find((n) => n.conceptId === concept?.id);
+  const parentId = viewNode?.parentId;
+  const parentGroupNode = parentId ? concepts.find((c) => c.id === parentId) : undefined;
+
+  // Focus name field when selectedConceptId changes (e.g., when creating a new group)
+  useEffect(() => {
+    if (selectedConceptId && nameInputRef.current) {
+      nameInputRef.current.focus();
+      nameInputRef.current.select();
+    }
+  }, [selectedConceptId]);
 
   // Inspector Micro-Navigation: Cmd + ArrowUp/Down to jump sections
   useEffect(() => {
@@ -91,6 +141,85 @@ export function Inspector() {
     return () => window.removeEventListener('keydown', handleTabTrap);
   }, []);
 
+  if (selectedConceptIds.length > 1) {
+    const selectedConcepts = selectedConceptIds
+      .map(id => concepts.find(c => c.id === id))
+      .filter(Boolean) as ConceptNode[];
+
+    return (
+      <div 
+        id="inspector-root"
+        className="flex-1 flex flex-col min-h-0 overflow-y-auto custom-scrollbar bg-slate-50/30 backdrop-blur-sm outline-none animate-in fade-in duration-300"
+        tabIndex={-1}
+        style={{ padding: '32px' }}
+      >
+        {/* Header Section */}
+        <div className="mb-10 flex items-center justify-between border-b border-slate-200 pb-4">
+          <span className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-800">Properties</span>
+          <span className="text-[10px] font-bold px-2 py-0.5 bg-slate-100 text-slate-500 rounded-full">
+            {selectedConceptIds.length} Selected
+          </span>
+        </div>
+
+        <div className="flex flex-col gap-8">
+          <div className="flex flex-col items-center gap-5 p-6 bg-white border border-slate-200/60 rounded-[24px] shadow-sm text-center">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 shadow-sm animate-in fade-in zoom-in duration-300">
+              <Plus size={20} strokeWidth={2.5} />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-[13px] font-black text-slate-900 tracking-tight">Group Selection</h3>
+              <p className="text-[11px] text-slate-400 leading-relaxed max-w-[200px]">
+                Create a boundary container around the {selectedConceptIds.length} selected elements.
+              </p>
+            </div>
+            {activeViewId && (
+              <button
+                id="btn-group-selection"
+                onClick={() => {
+                  groupConcepts(activeViewId, selectedConceptIds, 'New Group');
+                }}
+                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-black tracking-wider uppercase rounded-xl transition-all shadow-sm hover:shadow-md hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+              >
+                Group {selectedConceptIds.length} Nodes
+              </button>
+            )}
+          </div>
+
+          <InspectorSection title={`Selected Elements (${selectedConcepts.length})`}>
+            <div className="flex flex-col gap-2 max-h-[250px] overflow-y-auto custom-scrollbar pr-1">
+              {selectedConcepts.map((c) => {
+                const customLabel = activePlugin?.conceptTypeLabels?.[c.conceptType];
+                const displayType = customLabel || c.conceptType.toUpperCase().replace('_', ' ');
+                return (
+                  <div key={c.id} className="flex items-center justify-between p-3 bg-white border border-slate-100 hover:border-slate-200 rounded-xl shadow-sm transition-all group">
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[12px] font-bold text-slate-700 truncate max-w-[150px]">
+                        {c.name}
+                      </span>
+                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider font-mono">
+                        {displayType}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        const nextIds = selectedConceptIds.filter(id => id !== c.id);
+                        setSelectedConceptIds(nextIds);
+                      }}
+                      className="p-1 text-slate-300 hover:text-red-500 rounded hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
+                      title="Deselect"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </InspectorSection>
+        </div>
+      </div>
+    );
+  }
+
   if (!concept && !relation) {
     return (
       <div className="h-full flex items-center justify-center p-8 text-center px-4 bg-white/50 backdrop-blur-sm">
@@ -137,9 +266,18 @@ export function Inspector() {
                 <InspectorSection 
                   title="General"
                   rightAction={
-                    <div className="flex gap-1">
+                    <div className="flex gap-2 items-center">
+                        {concept.conceptType === 'bounded_context' && activeViewId && (
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); dissolveGroup(activeViewId, concept.id); }}
+                                className="px-2.5 py-1 text-[9px] font-black text-amber-600 bg-amber-50 hover:bg-amber-100 hover:text-amber-700 rounded-lg border border-amber-200/50 transition-all uppercase tracking-wider shadow-sm"
+                                title="Dissolve Group"
+                            >
+                                Dissolve
+                            </button>
+                        )}
                         <button 
-                            onClick={(e) => { e.stopPropagation(); GraphService.deleteConcept(concept.id); }}
+                            onClick={(e) => { e.stopPropagation(); deleteConcept(concept.id); }}
                             className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
                             title="Delete Concept"
                         >
@@ -153,19 +291,26 @@ export function Inspector() {
                           inputRef={nameInputRef}
                           label="Name" 
                           value={concept.name} 
-                          onChange={(v) => GraphService.updateConcept(concept.id, { name: v })} 
+                          onChange={(v) => updateConcept(concept.id, { name: v })} 
                         />
                         <div className="flex flex-col gap-2">
                             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">Type</label>
                             <div className="relative">
                                 <select
                                     value={concept.conceptType}
-                                    onChange={(e) => GraphService.updateConcept(concept.id, { conceptType: e.target.value as ConceptType })}
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[12px] font-semibold text-slate-700 hover:border-slate-300 focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/5 outline-none appearance-none cursor-pointer transition-all"
+                                    onChange={(e) => updateConcept(concept.id, { conceptType: e.target.value as ConceptType })}
+                                    disabled={concept.conceptType === 'bounded_context'}
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[12px] font-semibold text-slate-700 hover:border-slate-300 focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/5 outline-none appearance-none cursor-pointer transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                                 >
-                                    {['domain', 'capability', 'bounded_context', 'entity', 'process', 'event', 'system', 'actor', 'other'].map(t => (
-                                        <option key={t} value={t}>{t.toUpperCase()}</option>
-                                    ))}
+                                    {ConceptType.options
+                                        .filter(t => !activePlugin?.allowedConceptTypes || activePlugin.allowedConceptTypes.includes(t as ConceptType))
+                                        .map(t => {
+                                            const customLabel = activePlugin?.conceptTypeLabels?.[t as ConceptType];
+                                            const displayLabel = customLabel || t.toUpperCase().replace('_', ' ');
+                                            return (
+                                                <option key={t} value={t}>{displayLabel}</option>
+                                            );
+                                        })}
                                 </select>
                                 <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400" />
                             </div>
@@ -173,42 +318,97 @@ export function Inspector() {
                     </div>
                 </InspectorSection>
 
-
-                <InspectorSection title="Attributes">
-                    <div className="flex flex-col gap-3">
-                        {concept.properties.map((p: ConceptProperty) => (
-                            <div key={p.id} className="flex gap-2 group">
-                                <div className="flex-1">
-                                    <PropertyField 
-                                        label={p.name} 
-                                        value={String(p.type)} 
-                                        onChange={(v) => GraphService.updateProperty(concept.id, p.id, { name: v })} 
-                                    />
-                                </div>
-                                <button 
-                                    onClick={() => GraphService.deleteProperty(concept.id, p.id)}
-                                    className="mt-6 p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                                >
-                                    <Trash2 size={14} />
-                                </button>
-                            </div>
-                        ))}
-                        <button 
-                            onClick={() => GraphService.addProperty(concept.id, 'New Property', 'string')}
-                            className="flex items-center justify-center gap-2 p-3 text-[10px] font-black text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all border border-dashed border-emerald-200 mt-2 tracking-widest uppercase"
+                {activeViewId && concept.conceptType !== 'bounded_context' && (
+                  <InspectorSection title="Parent Group">
+                    {parentGroupNode ? (
+                      <div className="flex flex-col gap-3">
+                        <PropertyField
+                          label="Parent Group"
+                          value={parentGroupNode.name}
+                          readOnly={true}
+                        />
+                        <button
+                          onClick={() => ungroupConcept(activeViewId, concept.id)}
+                          className="w-full py-2.5 text-[10px] font-black text-amber-600 hover:bg-amber-50 rounded-xl border border-dashed border-amber-200 hover:border-amber-300 transition-all tracking-widest uppercase cursor-pointer"
                         >
-                            <Plus size={14} strokeWidth={3} />
-                            <span>ADD PROPERTY</span>
+                          Remove from Group
                         </button>
-                    </div>
-                </InspectorSection>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-2">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">
+                          Add to Group
+                        </label>
+                        <div className="relative">
+                          <select
+                            value=""
+                            onChange={(e) => {
+                              const groupId = e.target.value;
+                              if (groupId) {
+                                updateViewNodeParentId(activeViewId, concept.id, groupId as ElementId);
+                              }
+                            }}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[12px] font-semibold text-slate-700 hover:border-slate-300 focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/5 outline-none appearance-none cursor-pointer transition-all"
+                          >
+                            <option value="">-- Select Group --</option>
+                            {activeView?.nodes
+                              .filter((vn) => {
+                                const c = concepts.find((comp) => comp.id === vn.conceptId);
+                                return c?.conceptType === 'bounded_context' && c.id !== concept.id;
+                              })
+                              .map((vn) => {
+                                const c = concepts.find((comp) => comp.id === vn.conceptId);
+                                return (
+                                  <option key={vn.conceptId} value={vn.conceptId}>
+                                    {c?.name || 'Unnamed Group'}
+                                  </option>
+                                );
+                              })}
+                          </select>
+                          <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400" />
+                        </div>
+                      </div>
+                    )}
+                  </InspectorSection>
+                )}
+
+                {concept.conceptType !== 'bounded_context' && (
+                    <InspectorSection title="Attributes">
+                        <div className="flex flex-col gap-3">
+                            {concept.properties.map((p: ConceptProperty) => (
+                                <div key={p.id} className="flex gap-2 group">
+                                    <div className="flex-1">
+                                        <PropertyField 
+                                            label={p.name} 
+                                            value={String(p.type)} 
+                                            onChange={(v) => updateProperty(concept.id, p.id, { name: v })} 
+                                        />
+                                    </div>
+                                    <button 
+                                        onClick={() => deleteProperty(concept.id, p.id)}
+                                        className="mt-6 p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                                    >
+                                        <Trash2 size={14} />
+                                    </button>
+                                </div>
+                            ))}
+                            <button 
+                                onClick={() => addProperty(concept.id, 'New Property', 'string')}
+                                className="flex items-center justify-center gap-2 p-3 text-[10px] font-black text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all border border-dashed border-emerald-200 mt-2 tracking-widest uppercase"
+                            >
+                                <Plus size={14} strokeWidth={3} />
+                                <span>ADD PROPERTY</span>
+                            </button>
+                        </div>
+                    </InspectorSection>
+                )}
 
                 <InspectorSection title="Lifecycle">
                     <div className="flex flex-col gap-3">
                         <div className="relative">
                             <select 
                                 value={concept.lifecycleState}
-                                onChange={(e) => GraphService.updateConcept(concept.id, { lifecycleState: e.target.value as LifecycleState })}
+                                onChange={(e) => updateConcept(concept.id, { lifecycleState: e.target.value as LifecycleState })}
                                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[12px] font-semibold text-slate-700 hover:border-slate-300 focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/5 outline-none appearance-none cursor-pointer transition-all"
                             >
                                 <option value="proposed">PROPOSED</option>
@@ -229,7 +429,7 @@ export function Inspector() {
                   title="General"
                   rightAction={
                     <button 
-                        onClick={() => GraphService.deleteRelation(relation.id)}
+                        onClick={() => deleteRelation(relation.id)}
                         className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
                         title="Delete Relation"
                     >
@@ -238,16 +438,61 @@ export function Inspector() {
                   }
                 >
                     <div className="flex flex-col gap-5">
+                        {(() => {
+                          const sourceNode = concepts.find(c => c.id === relation.sourceConceptId);
+                          const targetNode = concepts.find(c => c.id === relation.targetConceptId);
+                          const allowedRelations = (activePlugin?.getAvailableRelations && sourceNode && targetNode)
+                            ? activePlugin.getAvailableRelations(sourceNode.conceptType, targetNode.conceptType)
+                            : [];
+
+                          if (allowedRelations.length > 0) {
+                            return (
+                              <div className="flex flex-col gap-2">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">Type</label>
+                                <div className="relative">
+                                  <select
+                                    value={relation.relationType || ''}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      const matched = allowedRelations.find(r => r.description === val);
+                                      updateRelation(relation.id, {
+                                        relationType: val,
+                                        name: matched ? matched.label : relation.name
+                                      });
+                                    }}
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[12px] font-semibold text-slate-700 hover:border-slate-300 focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/5 outline-none transition-all appearance-none cursor-pointer"
+                                  >
+                                    <option value="">-- Select Type --</option>
+                                    {allowedRelations.map((opt) => (
+                                      <option key={opt.id} value={opt.description}>
+                                        {opt.label}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400" />
+                                </div>
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <PropertyField 
+                              label="Type" 
+                              value={relation.relationType || ''} 
+                              onChange={(v) => updateRelation(relation.id, { relationType: v })} 
+                            />
+                          );
+                        })()}
                         <PropertyField 
                           inputRef={nameInputRef}
                           label="Label" 
                           value={relation.name || ''} 
-                          onChange={(v) => GraphService.updateRelation(relation.id, { name: v })} 
+                          onChange={(v) => updateRelation(relation.id, { name: v })} 
                         />
                         <PropertyField 
                           label="Multiplicity" 
                           value={relation.multiplicity || ''} 
-                          onChange={(v) => GraphService.updateRelation(relation.id, { multiplicity: v })} 
+                          onChange={(v) => updateRelation(relation.id, { multiplicity: v })} 
                         />
                     </div>
                 </InspectorSection>
@@ -261,7 +506,7 @@ export function Inspector() {
                         
                         <div className="flex justify-center -my-2 relative z-10">
                             <button 
-                                onClick={() => GraphService.updateRelation(relation.id, { 
+                                onClick={() => updateRelation(relation.id, { 
                                     sourceConceptId: relation.targetConceptId,
                                     targetConceptId: relation.sourceConceptId 
                                 })}

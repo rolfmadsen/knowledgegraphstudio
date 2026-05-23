@@ -189,18 +189,7 @@ describe('ConceptNode', () => {
     expect(ConceptNode.parse(validConcept)).toEqual(validConcept);
   });
 
-  it('accepts concept with ephemeral layout fields', () => {
-    const withLayout = {
-      ...validConcept,
-      x: 100,
-      y: 200,
-      width: 150,
-      height: 50,
-      fx: null,
-      fy: 300,
-    };
-    expect(ConceptNode.parse(withLayout)).toEqual(withLayout);
-  });
+
 
   it('accepts concept with all optional fields', () => {
     const full = {
@@ -288,6 +277,18 @@ describe('ConceptRelation', () => {
     };
     expect(ConceptRelation.parse(relation)).toEqual(relation);
   });
+
+  it('accepts relation with relationType', () => {
+    const relation = {
+      ...baseEntity('other:salg-til-lager'),
+      sourceConceptId: 'bounded_context:salg',
+      targetConceptId: 'bounded_context:lager',
+      name: 'integrerer med',
+      relationType: 'CompositionRelationship',
+      policies: [],
+    };
+    expect(ConceptRelation.parse(relation)).toEqual(relation);
+  });
 });
 
 // ============================================================
@@ -314,12 +315,13 @@ describe('GraphState', () => {
         },
       ],
       relations: [],
+      views: [],
     };
     expect(GraphState.parse(state)).toEqual(state);
   });
 
   it('accepts empty graph state', () => {
-    const state = { domains: [], concepts: [], relations: [] };
+    const state = { domains: [], concepts: [], relations: [], views: [] };
     expect(GraphState.parse(state)).toEqual(state);
   });
 });

@@ -1,0 +1,7 @@
+- [x] Task 1: Update `src/core/gitEngine.ts` to import `MODEL_FILENAME`, `MODEL_PATH`, `VIEWS_FILENAME`, and `VIEWS_PATH` from `fileSystem.ts`.
+- [x] Task 2: Modify `getHeadYaml` and `gitStatus` in `gitEngine.ts` to target `MODEL_FILENAME`.
+- [x] Task 3: Modify `gitCommit` in `gitEngine.ts` to stage both `MODEL_FILENAME` and `VIEWS_FILENAME`.
+- [x] Task 4: Modify `gitDiffHead` and `gitMergeFastForward` in `gitEngine.ts` to point to `MODEL_PATH`/`MODEL_FILENAME`.
+- [x] Task 5: Update `GitService.push` signature in `src/services/GitService.ts` to accept `PersistableState` instead of the picked picked-state.
+- [/] Task 6: Refactor unit tests in `src/core/__tests__/gitEngine.test.ts` to expect split files.
+- [ ] Task 7: Run vitest automated tests and run build compilation check to verify correctness.

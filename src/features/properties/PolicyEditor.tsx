@@ -5,7 +5,8 @@
  * Supports Gherkin steps (Given, When, Then) with auto-expanding inputs.
  */
 import { useState } from 'react';
-import { GraphService } from '../../services/GraphService';
+import { useGraphStore } from '../../store/useGraphStore';
+import { useShallow } from 'zustand/react/shallow';
 import type { ConceptNode, ConceptRelation } from '../../schema/graphSchema';
 
 interface PolicyEditorProps {
@@ -13,14 +14,20 @@ interface PolicyEditorProps {
 }
 
 export function PolicyEditor({ concept }: PolicyEditorProps) {
-  // We still use store for selectors if needed, but here we only need GraphService for actions
+  const { addPolicy, updatePolicy, deletePolicy } = useGraphStore(
+    useShallow((s) => ({
+      addPolicy: s?.addPolicy,
+      updatePolicy: s?.updatePolicy,
+      deletePolicy: s?.deletePolicy,
+    }))
+  );
 
   const [isAdding, setIsAdding] = useState(false);
   const [newPolicyName, setNewPolicyName] = useState('');
 
   const handleAddPolicy = () => {
     if (!newPolicyName.trim()) return;
-    GraphService.addPolicy(concept.id, {
+    addPolicy(concept.id, {
       name: newPolicyName.trim(),
       type: 'gherkin',
       tags: [],
@@ -45,12 +52,12 @@ export function PolicyEditor({ concept }: PolicyEditorProps) {
                 <input
                   type="text"
                   value={policy.name}
-                  onChange={(e) => GraphService.updatePolicy(concept.id, policy.id, { name: e.target.value })}
+                  onChange={(e) => updatePolicy(concept.id, policy.id, { name: e.target.value })}
                   className="flex-1 bg-transparent border-none font-sans font-bold text-xs outline-none focus:text-primary"
                   placeholder="Policy Name"
                 />
                 <button
-                  onClick={() => GraphService.deletePolicy(concept.id, policy.id)}
+                  onClick={() => deletePolicy(concept.id, policy.id)}
                   className="text-muted hover:text-danger text-[10px] font-mono"
                 >
                   DELETE
@@ -62,17 +69,17 @@ export function PolicyEditor({ concept }: PolicyEditorProps) {
                 <GherkinSection
                   label="GIVEN"
                   steps={policy.given || []}
-                  onUpdate={(steps) => GraphService.updatePolicy(concept.id, policy.id, { given: steps })}
+                  onUpdate={(steps) => updatePolicy(concept.id, policy.id, { given: steps })}
                 />
                 <GherkinSection
                   label="WHEN"
                   steps={policy.when || []}
-                  onUpdate={(steps) => GraphService.updatePolicy(concept.id, policy.id, { when: steps })}
+                  onUpdate={(steps) => updatePolicy(concept.id, policy.id, { when: steps })}
                 />
                 <GherkinSection
                   label="THEN"
                   steps={policy.then || []}
-                  onUpdate={(steps) => GraphService.updatePolicy(concept.id, policy.id, { then: steps })}
+                  onUpdate={(steps) => updatePolicy(concept.id, policy.id, { then: steps })}
                 />
               </div>
             </div>

@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { useGraphStore } from '../../store/useGraphStore';
 import { useShallow } from 'zustand/react/shallow';
-import { GraphService } from '../../services/GraphService';
 import { Search, Zap, ChevronRight, GitBranch, Upload, Download } from 'lucide-react';
 import Fuse from 'fuse.js';
 
@@ -28,9 +27,11 @@ export function CommandOverlay({ open, onClose, onGitPush, onGitPull, onOpenRemo
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  const { concepts } = useGraphStore(
+  const { concepts, selectConcept, centerSelectedNode } = useGraphStore(
     useShallow((s) => ({
       concepts: s.concepts,
+      selectConcept: s.selectConcept,
+      centerSelectedNode: s.centerSelectedNode,
     })),
   );
 
@@ -56,7 +57,8 @@ export function CommandOverlay({ open, onClose, onGitPush, onGitPull, onOpenRemo
         group: 'Concepts',
         icon: <ChevronRight size={14} />,
         action: () => {
-          GraphService.selectConcept(c.id);
+          selectConcept(c.id);
+          centerSelectedNode();
           onClose();
         },
       });

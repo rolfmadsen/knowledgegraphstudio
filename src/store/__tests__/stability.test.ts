@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.hoisted(() => {
   const store: Record<string, string> = {};
@@ -11,46 +11,73 @@ vi.hoisted(() => {
 });
 
 import { useGraphStore } from '../useGraphStore';
-import { GraphService } from '../../services/GraphService';
 
 describe('Graph Store Stability', () => {
+  beforeEach(() => {
+    useGraphStore.setState({
+      domains: [],
+      concepts: [],
+      relations: [],
+      views: [],
+      activeViewId: null,
+    });
+  });
+
   it('should avoid redundant state updates for identical positions', async () => {
-    const concept = await GraphService.addConcept('entity', 'StabilityTest');
-    const initialState = useGraphStore.getState();
-    const nodeBefore = initialState.concepts.find(c => c.id === concept.id);
-    expect(nodeBefore?.x).toBeUndefined(); // New nodes don't have x/y initially
+    // Add concept when there is no active view (so it doesn't get auto-positioned in a view)
+    useGraphStore.getState().addConcept('entity', 'StabilityTest');
+    const concept = useGraphStore.getState().concepts[0];
     
-    // Update to same position (treating undefined as 0 for this check in service)
-    GraphService.updateNodePosition(concept.id, 0, 0);
+    // Create view and add the concept manually with 0, 0 position
+    const view = useGraphStore.getState().createView('Test View');
+    useGraphStore.getState().addConceptToView(view.id, concept.id, 0, 0);
+
+    const initialState = useGraphStore.getState();
+    
+    // Update to same position
+    useGraphStore.getState().updateNodePosition(concept.id, 0, 0);
     
     const stateAfter = useGraphStore.getState();
-    // Identity check: should be the exact same object because GraphService returned early
+    // Identity check: should be the exact same object because updateViewNodePosition returned early
     expect(stateAfter).toBe(initialState);
   });
 
   it('should preserve properties when updating position', async () => {
-    const concept = await GraphService.addConcept('entity', 'PropertyTest');
-    await GraphService.updateConcept(concept.id, { definition: 'Stay here' });
+    // Add concept when there is no active view
+    useGraphStore.getState().addConcept('entity', 'PropertyTest');
+    const concept = useGraphStore.getState().concepts.find(c => c.name === 'PropertyTest')!;
+    useGraphStore.getState().updateConcept(concept.id, { definition: 'Stay here' });
     
-    GraphService.updateNodePosition(concept.id, 100, 200);
+    const view = useGraphStore.getState().createView('Test View');
+    useGraphStore.getState().addConceptToView(view.id, concept.id, 0, 0);
     
-    const node = useGraphStore.getState().concepts.find(c => c.id === concept.id);
+    useGraphStore.getState().updateNodePosition(concept.id, 100, 200);
+    
+    const updatedView = useGraphStore.getState().views.find(v => v.id === view.id)!;
+    const node = updatedView.nodes.find(n => n.conceptId === concept.id);
     expect(node?.x).toBe(100);
     expect(node?.y).toBe(200);
-    expect(node?.definition).toBe('Stay here');
+    
+    const conceptAfter = useGraphStore.getState().concepts.find(c => c.id === concept.id);
+    expect(conceptAfter?.definition).toBe('Stay here');
   });
 
   it('should handle batch updates idempotently', async () => {
-    const c1 = await GraphService.addConcept('entity', 'Batch1');
-    const c2 = await GraphService.addConcept('entity', 'Batch2');
+    // Add concepts when there is no active view
+    useGraphStore.getState().addConcept('entity', 'Batch1');
+    useGraphStore.getState().addConcept('entity', 'Batch2');
+    const c1 = useGraphStore.getState().concepts.find(c => c.name === 'Batch1')!;
+    const c2 = useGraphStore.getState().concepts.find(c => c.name === 'Batch2')!;
     
-    // Set initial positions
-    GraphService.updateNodePosition(c1.id, 10, 10);
-    GraphService.updateNodePosition(c2.id, 20, 20);
+    const view = useGraphStore.getState().createView('Test View');
+    
+    // Set initial positions manually
+    useGraphStore.getState().addConceptToView(view.id, c1.id, 10, 10);
+    useGraphStore.getState().addConceptToView(view.id, c2.id, 20, 20);
     
     const initialState = useGraphStore.getState();
     
-    GraphService.batchUpdateNodePositions([
+    useGraphStore.getState().batchUpdateNodePositions([
       { id: c1.id, x: 10, y: 10 },
       { id: c2.id, x: 20, y: 20 }
     ]);

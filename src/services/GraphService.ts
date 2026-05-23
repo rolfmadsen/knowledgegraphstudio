@@ -1,11 +1,10 @@
 /**
  * GraphService — Internal API for graph mutations (Spec §12)
  *
- * Handles business logic, validation, and orchestration of graph changes.
- * Updates the global store and triggers persistence.
+ * Computational Service: Pure synchronous data transformers with no side-effects.
+ * Accepts GraphState as first argument and returns Partial<GraphState> (and element if created)
+ * for the store to apply via set().
  */
-import { useGraphStore } from '../store/useGraphStore';
-import { PersistenceService } from './PersistenceService';
 import { generateId } from '../core/idGenerator';
 import type { 
   ConceptType, 
@@ -13,14 +12,25 @@ import type {
   DataClassification, 
   ConceptNode,
   ConceptRelation,
-  Domain
+  Domain,
+  View,
 } from '../schema/graphSchema';
+
+export interface GraphStateWithSelection {
+  domains: Domain[];
+  concepts: ConceptNode[];
+  relations: ConceptRelation[];
+  views?: View[];
+  activeViewId?: ElementId | null;
+  selectedConceptId?: ElementId | null;
+  selectedRelationId?: ElementId | null;
+}
 
 export class GraphService {
   /**
-   * Create a new domain and add it to the graph.
+   * Create a new domain.
    */
-  static async addDomain(name: string, description?: string): Promise<Domain> {
+  static addDomain(state: GraphStateWithSelection, name: string, description?: string): { domain: Domain; nextState: Partial<GraphStateWithSelection> } {
     const id = generateId('bounded_context', name);
     const now = Date.now();
     const domain: Domain = {
@@ -31,56 +41,54 @@ export class GraphService {
       name,
       description,
     };
-    useGraphStore.setState((state) => ({ domains: [...state.domains, domain] }));
-    PersistenceService.scheduleAutoSave();
-    return domain;
+    return {
+      domain,
+      nextState: {
+        domains: [...state.domains, domain],
+      },
+    };
   }
 
   /**
    * Update an existing domain.
    */
-  static async updateDomain(id: ElementId, updates: Partial<Pick<Domain, 'name' | 'description' | 'lifecycleState'>>): Promise<void> {
+  static updateDomain(state: GraphStateWithSelection, id: ElementId, updates: Partial<Pick<Domain, 'name' | 'description' | 'lifecycleState'>>): Partial<GraphStateWithSelection> {
     const now = Date.now();
-    useGraphStore.setState((state) => ({
+    return {
       domains: state.domains.map((d) =>
         d.id === id ? { ...d, ...updates, updatedAt: now } : d
       ),
-      // Also update the concept representation if it exists
       concepts: state.concepts.map((c) =>
         c.id === id ? { ...c, ...updates, updatedAt: now } : c
       ),
-    }));
-    PersistenceService.scheduleAutoSave();
+    };
   }
 
   /**
    * Delete a domain and clear references in concepts.
    */
-  static async deleteDomain(id: ElementId): Promise<void> {
-    useGraphStore.setState((state) => ({
+  static deleteDomain(state: GraphStateWithSelection, id: ElementId): Partial<GraphStateWithSelection> {
+    return {
       domains: state.domains.filter((d) => d.id !== id),
       concepts: state.concepts
         .filter((c) => c.id !== id)
         .map((c) =>
           c.domainId === id ? { ...c, domainId: undefined } : c
         ),
-    }));
-    PersistenceService.scheduleAutoSave();
+    };
   }
 
   /**
-   * Create a new concept and add it to the graph.
+   * Create a new concept.
    */
-  static async addConcept(conceptType: ConceptType, name: string, options: {
+  static addConcept(state: GraphStateWithSelection, conceptType: ConceptType, name: string, options: {
     domainId?: ElementId;
     parentId?: ElementId;
     classification?: DataClassification;
     definition?: string;
     aliases?: string[];
-  } = {}): Promise<ConceptNode> {
+  } = {}): { concept: ConceptNode; nextState: Partial<GraphStateWithSelection> } {
     const id = generateId(conceptType, name);
-    const store = useGraphStore.getState();
-    
     const now = Date.now();
     const concept: ConceptNode = {
       id,
@@ -91,98 +99,92 @@ export class GraphService {
       name,
       aliases: options.aliases ?? [],
       definition: options.definition,
-      domainId: options.domainId || store.domains[0]?.id,
+      domainId: options.domainId || state.domains[0]?.id,
       parentId: options.parentId,
       classification: options.classification,
       properties: [],
       policies: [],
-      fx: null,
-      fy: null,
     };
 
-    // Update store
-    useGraphStore.setState((state) => ({
-      concepts: [...state.concepts, concept],
-    }));
-
-    PersistenceService.scheduleAutoSave();
-    return concept;
+    return {
+      concept,
+      nextState: {
+        concepts: [...state.concepts, concept],
+      },
+    };
   }
 
   /**
    * Update an existing concept.
    */
-  static async updateConcept(id: ElementId, updates: Partial<Pick<
+  static updateConcept(state: GraphStateWithSelection, id: ElementId, updates: Partial<Pick<
     ConceptNode,
-    'name' | 'definition' | 'aliases' | 'classification' | 'lifecycleState' | 'domainId' | 'parentId' | 'conceptType' | 'x' | 'y'
-  >>): Promise<void> {
+    'name' | 'definition' | 'aliases' | 'classification' | 'lifecycleState' | 'domainId' | 'parentId' | 'conceptType'
+  >>): Partial<GraphStateWithSelection> {
     const now = Date.now();
+    let newId = id;
+    const targetConcept = state.concepts.find(c => c.id === id);
     
-    useGraphStore.setState((state) => {
-      let newId = id;
-      const targetConcept = state.concepts.find(c => c.id === id);
-      
-      // If the conceptType is changing, we must update the ID prefix to maintain semantic correctness
-      if (updates.conceptType && targetConcept && targetConcept.conceptType !== updates.conceptType) {
-        const parts = id.split(':');
-        if (parts.length === 2) {
-          const uuid = parts[1];
-          newId = `${updates.conceptType}:${uuid}` as ElementId;
-        }
+    // If the conceptType is changing, we must update the ID prefix to maintain semantic correctness
+    if (updates.conceptType && targetConcept && targetConcept.conceptType !== updates.conceptType) {
+      const parts = id.split(':');
+      if (parts.length === 2) {
+        const uuid = parts[1];
+        newId = `${updates.conceptType}:${uuid}` as ElementId;
       }
+    }
 
-      const idChanged = newId !== id;
+    const idChanged = newId !== id;
 
-      return {
-        concepts: state.concepts.map((c) =>
-          c.id === id ? { ...c, ...updates, id: newId, updatedAt: now } : c,
-        ),
-        // Update the domain representation if it exists
-        domains: state.domains.map((d) =>
-          d.id === id ? { ...d, ...updates, id: newId, updatedAt: now } : d
-        ),
-        // Cascade ID update to all relations
-        relations: idChanged 
-          ? state.relations.map((r) => ({
-              ...r,
-              sourceConceptId: r.sourceConceptId === id ? newId : r.sourceConceptId,
-              targetConceptId: r.targetConceptId === id ? newId : r.targetConceptId
-            }))
-          : state.relations,
-        // Update selection if necessary
-        selectedConceptId: state.selectedConceptId === id ? newId : state.selectedConceptId
-      };
-    });
-
-    PersistenceService.scheduleAutoSave();
+    return {
+      concepts: state.concepts.map((c) =>
+        c.id === id ? { ...c, ...updates, id: newId, updatedAt: now } : c,
+      ),
+      domains: state.domains.map((d) =>
+        d.id === id ? { ...d, ...updates, id: newId, updatedAt: now } : d
+      ),
+      relations: idChanged 
+        ? state.relations.map((r) => ({
+            ...r,
+            sourceConceptId: r.sourceConceptId === id ? newId : r.sourceConceptId,
+            targetConceptId: r.targetConceptId === id ? newId : r.targetConceptId
+          }))
+        : state.relations,
+      views: idChanged && state.views
+        ? state.views.map((v) => ({
+            ...v,
+            nodes: v.nodes.map((n) =>
+              n.conceptId === id ? { ...n, conceptId: newId } : n
+            )
+          }))
+        : state.views,
+      selectedConceptId: state.selectedConceptId === id ? newId : state.selectedConceptId
+    };
   }
 
   /**
    * Delete a concept and perform orphan cleanup on relations.
    */
-  static async deleteConcept(id: ElementId): Promise<void> {
-    useGraphStore.setState((state) => ({
+  static deleteConcept(state: GraphStateWithSelection, id: ElementId): Partial<GraphStateWithSelection> {
+    return {
       concepts: state.concepts.filter((c) => c.id !== id),
-      // Orphan Cleanup: delete all relations referencing this concept
       relations: state.relations.filter(
         (r) => r.sourceConceptId !== id && r.targetConceptId !== id,
       ),
       selectedConceptId: state.selectedConceptId === id ? null : state.selectedConceptId,
-    }));
-
-    PersistenceService.scheduleAutoSave();
+    };
   }
 
   /**
    * Create a new relation with smart default naming.
    */
-  static async addRelation(sourceId: ElementId, targetId: ElementId, name?: string, options: {
+  static addRelation(state: GraphStateWithSelection, sourceId: ElementId, targetId: ElementId, name?: string, options: {
+    relationType?: string;
     multiplicity?: string;
     mappingPattern?: ConceptRelation['mappingPattern'];
     transformationDescription?: string;
     isDirected?: boolean;
-  } = {}): Promise<ConceptRelation> {
-    const state = useGraphStore.getState();
+  } = {}): { relation: ConceptRelation; nextState: Partial<GraphStateWithSelection> } {
     const source = state.concepts.find(c => c.id === sourceId);
     const target = state.concepts.find(c => c.id === targetId);
     
@@ -214,6 +216,7 @@ export class GraphService {
       sourceConceptId: sourceId,
       targetConceptId: targetId,
       name: finalName,
+      relationType: options.relationType,
       multiplicity: options.multiplicity,
       mappingPattern: options.mappingPattern,
       transformationDescription: options.transformationDescription,
@@ -221,45 +224,41 @@ export class GraphService {
       policies: [],
     };
 
-    useGraphStore.setState((state) => ({
-      relations: [...state.relations, relation],
-    }));
-
-    PersistenceService.scheduleAutoSave();
-    return relation;
+    return {
+      relation,
+      nextState: {
+        relations: [...state.relations, relation],
+      },
+    };
   }
 
   /**
    * Update an existing relation.
    */
-  static async updateRelation(id: ElementId, updates: Partial<Pick<
-    ConceptRelation, 'name' | 'multiplicity' | 'mappingPattern' | 'transformationDescription' | 'isDirected' | 'sourceConceptId' | 'targetConceptId'
-  >>): Promise<void> {
-    useGraphStore.setState((state) => ({
+  static updateRelation(state: GraphStateWithSelection, id: ElementId, updates: Partial<Pick<
+    ConceptRelation, 'name' | 'relationType' | 'multiplicity' | 'mappingPattern' | 'transformationDescription' | 'isDirected' | 'sourceConceptId' | 'targetConceptId'
+  >>): Partial<GraphStateWithSelection> {
+    return {
       relations: state.relations.map((r) =>
         r.id === id ? { ...r, ...updates, updatedAt: Date.now() } : r,
       ),
-    }));
-
-    PersistenceService.scheduleAutoSave();
+    };
   }
 
   /**
    * Delete a relation from the graph.
    */
-  static async deleteRelation(id: ElementId): Promise<void> {
-    useGraphStore.setState((state) => ({
+  static deleteRelation(state: GraphStateWithSelection, id: ElementId): Partial<GraphStateWithSelection> {
+    return {
       relations: state.relations.filter((r) => r.id !== id),
       selectedRelationId: state.selectedRelationId === id ? null : state.selectedRelationId,
-    }));
-
-    PersistenceService.scheduleAutoSave();
+    };
   }
 
   /**
    * Add a property to a concept.
    */
-  static async addProperty(conceptId: ElementId, name: string, type: string, isRequired?: boolean): Promise<void> {
+  static addProperty(state: GraphStateWithSelection, conceptId: ElementId, name: string, type: string, isRequired?: boolean): Partial<GraphStateWithSelection> {
     const propId = generateId('other', name);
     const now = Date.now();
     const property = {
@@ -272,27 +271,26 @@ export class GraphService {
       isRequired,
     };
 
-    useGraphStore.setState((state) => ({
+    return {
       concepts: state.concepts.map((c) =>
         c.id === conceptId
           ? { ...c, properties: [...c.properties, property], updatedAt: now }
           : c,
       ),
-    }));
-
-    PersistenceService.scheduleAutoSave();
+    };
   }
 
   /**
    * Update a property on a concept.
    */
-  static async updateProperty(
+  static updateProperty(
+    state: GraphStateWithSelection,
     conceptId: ElementId, 
     propertyId: ElementId, 
     updates: Partial<Pick<ConceptNode['properties'][0], 'name' | 'type' | 'isRequired' | 'lifecycleState'>>
-  ): Promise<void> {
+  ): Partial<GraphStateWithSelection> {
     const now = Date.now();
-    useGraphStore.setState((state) => ({
+    return {
       concepts: state.concepts.map((c) =>
         c.id === conceptId
           ? {
@@ -304,16 +302,14 @@ export class GraphService {
             }
           : c,
       ),
-    }));
-
-    PersistenceService.scheduleAutoSave();
+    };
   }
 
   /**
    * Delete a property from a concept.
    */
-  static async deleteProperty(conceptId: ElementId, propertyId: ElementId): Promise<void> {
-    useGraphStore.setState((state) => ({
+  static deleteProperty(state: GraphStateWithSelection, conceptId: ElementId, propertyId: ElementId): Partial<GraphStateWithSelection> {
+    return {
       concepts: state.concepts.map((c) =>
         c.id === conceptId
           ? {
@@ -323,18 +319,17 @@ export class GraphService {
             }
           : c,
       ),
-    }));
-
-    PersistenceService.scheduleAutoSave();
+    };
   }
 
   /**
    * Add a policy to a concept.
    */
-  static async addPolicy(
+  static addPolicy(
+    state: GraphStateWithSelection,
     conceptId: ElementId, 
     policyData: Omit<ConceptNode['policies'][0], 'id' | 'createdAt' | 'updatedAt' | 'lifecycleState'>
-  ): Promise<void> {
+  ): Partial<GraphStateWithSelection> {
     const policyId = generateId('other', policyData.name);
     const now = Date.now();
     const policy = {
@@ -345,27 +340,26 @@ export class GraphService {
       lifecycleState: 'active' as const,
     };
 
-    useGraphStore.setState((state) => ({
+    return {
       concepts: state.concepts.map((c) =>
         c.id === conceptId
           ? { ...c, policies: [...c.policies, policy], updatedAt: now }
           : c,
       ),
-    }));
-
-    PersistenceService.scheduleAutoSave();
+    };
   }
 
   /**
    * Update a policy on a concept.
    */
-  static async updatePolicy(
+  static updatePolicy(
+    state: GraphStateWithSelection,
     conceptId: ElementId, 
     policyId: ElementId, 
     updates: Partial<Omit<ConceptNode['policies'][0], 'id' | 'createdAt' | 'updatedAt'>>
-  ): Promise<void> {
+  ): Partial<GraphStateWithSelection> {
     const now = Date.now();
-    useGraphStore.setState((state) => ({
+    return {
       concepts: state.concepts.map((c) =>
         c.id === conceptId
           ? {
@@ -377,16 +371,14 @@ export class GraphService {
             }
           : c
       ),
-    }));
-
-    PersistenceService.scheduleAutoSave();
+    };
   }
 
   /**
    * Delete a policy from a concept.
    */
-  static async deletePolicy(conceptId: ElementId, policyId: ElementId): Promise<void> {
-    useGraphStore.setState((state) => ({
+  static deletePolicy(state: GraphStateWithSelection, conceptId: ElementId, policyId: ElementId): Partial<GraphStateWithSelection> {
+    return {
       concepts: state.concepts.map((c) =>
         c.id === conceptId
           ? {
@@ -396,277 +388,303 @@ export class GraphService {
             }
           : c
       ),
-    }));
-
-    PersistenceService.scheduleAutoSave();
+    };
   }
 
   /**
    * Quick creation of a relation, optionally creating a new target concept.
    * Part of the Relationship Builder Palette (Spec §12.2)
    */
-  static async createQuickRelation(params: {
+  static createQuickRelation(state: GraphStateWithSelection, params: {
     sourceId: ElementId;
     targetIdOrName: string;
     isNewTarget: boolean;
-    targetType?: ConceptType; // Optional type for new targets
+    targetType?: ConceptType;
     label: string;
-  }): Promise<void> {
+    relationType?: string;
+  }): Partial<GraphStateWithSelection> {
     let targetId: ElementId;
+    let intermediateState = state;
+    let addedConcepts = [...state.concepts];
 
     if (params.isNewTarget) {
-      // Use provided type or default to 'entity'
-      const newConcept = await this.addConcept(params.targetType || 'entity', params.targetIdOrName);
-      targetId = newConcept.id;
+      const { concept, nextState } = this.addConcept(state, params.targetType || 'entity', params.targetIdOrName);
+      targetId = concept.id;
+      addedConcepts = nextState.concepts || addedConcepts;
+      intermediateState = { ...state, concepts: addedConcepts };
     } else {
-      targetId = params.targetIdOrName;
+      targetId = params.targetIdOrName as ElementId;
     }
 
-    // Create the relation
-    await this.addRelation(params.sourceId, targetId, params.label);
+    const { nextState: finalState } = this.addRelation(intermediateState, params.sourceId, targetId, params.label, { relationType: params.relationType });
+    return {
+      ...finalState,
+      concepts: addedConcepts,
+      selectedConceptId: targetId,
+    };
   }
 
   /**
    * Selection: Select a concept.
    */
-  static selectConcept(id: ElementId | null): void {
-    useGraphStore.setState({ selectedConceptId: id, selectedRelationId: null });
+  static selectConcept(id: ElementId | null): { selectedConceptId: ElementId | null; selectedRelationId: null } {
+    return { selectedConceptId: id, selectedRelationId: null };
   }
 
   /**
    * Selection: Select a relation.
    */
-  static selectRelation(id: ElementId | null): void {
-    useGraphStore.setState({ selectedRelationId: id, selectedConceptId: null });
+  static selectRelation(id: ElementId | null): { selectedRelationId: ElementId | null; selectedConceptId: null } {
+    return { selectedRelationId: id, selectedConceptId: null };
   }
 
-  /**
-   * Layout: Update a single node position.
-   */
-  static updateNodePosition(id: ElementId, x: number, y: number): void {
-    const concept = useGraphStore.getState().concepts.find(c => c.id === id);
-    if (!concept) return;
-
-    // Idempotency check: Don't update if coordinates are effectively identical
-    if (Math.abs((concept.x ?? 0) - x) < 0.01 && Math.abs((concept.y ?? 0) - y) < 0.01) return;
-
-    useGraphStore.setState((state) => ({
-      concepts: state.concepts.map((c) =>
-        c.id === id ? { ...c, x, y, updatedAt: Date.now() } : c,
-      ),
-    }));
-    PersistenceService.scheduleAutoSave();
-  }
-
-  /**
-   * Layout: Batch update node positions.
-   */
-  static batchUpdateNodePositions(positions: Array<{ id: ElementId; x: number; y: number }>, pin = false): void {
-    useGraphStore.setState((state) => {
-      let changed = false;
-      const now = Date.now();
-      const newConcepts = state.concepts.map((c) => {
-        const pos = positions.find((p) => p.id === c.id);
-        if (pos) {
-          const xChanged = pos.x !== c.x || pos.y !== c.y;
-          const pinChanged = pin && (c.fx !== pos.x || c.fy !== pos.y);
-          if (xChanged || pinChanged) {
-            changed = true;
-            return { 
-              ...c, 
-              x: pos.x, 
-              y: pos.y, 
-              fx: pin ? pos.x : c.fx, 
-              fy: pin ? pos.y : c.fy,
-              updatedAt: now
-            };
-          }
-        }
-        return c;
-      });
-      if (!changed) return state;
-      return { concepts: newConcepts };
-    });
-    PersistenceService.scheduleAutoSave();
-  }
-
-  /**
-   * Layout: Pin or unpin a node.
-   */
-  static pinNode(id: ElementId, fx: number | null, fy: number | null): void {
-    useGraphStore.setState((state) => ({
-      concepts: state.concepts.map((c) =>
-        c.id === id ? { ...c, fx, fy, updatedAt: Date.now() } : c,
-      ),
-    }));
-    PersistenceService.scheduleAutoSave();
-  }
-
-  /**
-   * Layout: Unpin all nodes.
-   */
-  static unpinAll(): void {
-    useGraphStore.setState((state) => ({
-      concepts: state.concepts.map((c) => ({ ...c, fx: null, fy: null, updatedAt: Date.now() })),
-    }));
-    PersistenceService.scheduleAutoSave();
-  }
-
-  /**
-   * Layout: Update node size (measured from UI).
-   */
-  static updateNodeSize(id: ElementId, width: number, height: number): void {
-    useGraphStore.setState((state) => ({
-      concepts: state.concepts.map((c) =>
-        c.id === id ? { ...c, width, height, updatedAt: Date.now() } : c,
-      ),
-    }));
-    // Note: size updates usually don't need immediate persistence in YAML
-    // but we'll trigger it for consistency if desired.
-  }
-
-  /**
-   * Layout: Trigger a re-layout simulation.
-   */
-  static triggerLayout(): void {
-    const store = useGraphStore.getState();
-    useGraphStore.setState({ layoutVersion: store.layoutVersion + 1 });
-  }
+  // NOTE: Node position/size methods removed — layout data now lives in
+  // ViewNode inside a View. See store actions: updateViewNodePosition, updateViewNodeSize.
 
   /**
    * Navigation: Select the nearest node in a spatial direction.
-   * Uses Euclidean distance with directional weighting.
+   * Looks up coordinates from the active view's ViewNodes.
    */
-  static selectNearestNode(direction: 'up' | 'down' | 'left' | 'right'): void {
-    const state = useGraphStore.getState();
+  static selectNearestNode(state: GraphStateWithSelection, direction: 'up' | 'down' | 'left' | 'right'): { selectedConceptId: ElementId | null } {
     const currentId = state.selectedConceptId;
+    const activeView = state.views?.find(v => v.id === state.activeViewId);
+    if (!activeView) return { selectedConceptId: currentId ?? null };
+
+    const posOf = (id: ElementId) => activeView.nodes.find(n => n.conceptId === id);
+
     if (!currentId) {
-      // If nothing selected, pick the first concept
-      if (state.concepts.length > 0) this.selectConcept(state.concepts[0].id);
-      return;
+      if (activeView.nodes.length > 0) {
+        return { selectedConceptId: activeView.nodes[0].conceptId };
+      }
+      return { selectedConceptId: null };
     }
 
-    const current = state.concepts.find(c => c.id === currentId);
-    if (!current) return;
+    const currentPos = posOf(currentId);
+    if (!currentPos) return { selectedConceptId: null };
 
-    let candidates = state.concepts.filter(c => c.id !== currentId);
-    
-    // Filter by direction
-    if (direction === 'up') candidates = candidates.filter(c => (c.y ?? 0) < (current.y ?? 0));
-    if (direction === 'down') candidates = candidates.filter(c => (c.y ?? 0) > (current.y ?? 0));
-    if (direction === 'left') candidates = candidates.filter(c => (c.x ?? 0) < (current.x ?? 0));
-    if (direction === 'right') candidates = candidates.filter(c => (c.x ?? 0) > (current.x ?? 0));
+    let candidates = activeView.nodes.filter(n => n.conceptId !== currentId);
+    if (direction === 'up') candidates = candidates.filter(n => n.y < currentPos.y);
+    if (direction === 'down') candidates = candidates.filter(n => n.y > currentPos.y);
+    if (direction === 'left') candidates = candidates.filter(n => n.x < currentPos.x);
+    if (direction === 'right') candidates = candidates.filter(n => n.x > currentPos.x);
 
-    if (candidates.length === 0) return;
+    if (candidates.length === 0) return { selectedConceptId: currentId };
 
-    // Scoring heuristic: Euclidean distance + penalty for off-axis deviation
-    const scored = candidates.map(c => {
-      const dx = (c.x ?? 0) - (current.x ?? 0);
-      const dy = (c.y ?? 0) - (current.y ?? 0);
+    const scored = candidates.map(n => {
+      const dx = n.x - currentPos.x;
+      const dy = n.y - currentPos.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
-      
       let penalty = 1;
       if (direction === 'left' || direction === 'right') {
-        penalty = 1 + (Math.abs(dy) / Math.abs(dx)); // Penalize vertical deviation
+        penalty = 1 + (Math.abs(dy) / (Math.abs(dx) || 1));
       } else {
-        penalty = 1 + (Math.abs(dx) / Math.abs(dy)); // Penalize horizontal deviation
+        penalty = 1 + (Math.abs(dx) / (Math.abs(dy) || 1));
       }
-
-      return { id: c.id, score: dist * penalty };
+      return { id: n.conceptId, score: dist * penalty };
     });
-
     scored.sort((a, b) => a.score - b.score);
-    this.selectConcept(scored[0].id);
+    return { selectedConceptId: scored[0].id };
   }
 
   /**
    * Navigation: Select the nearest edge connected to the current node in a spatial direction.
+   * Looks up coordinates from the active view's ViewNodes.
    */
-  static selectNearestEdge(direction: 'up' | 'down' | 'left' | 'right'): void {
-    const state = useGraphStore.getState();
+  static selectNearestEdge(state: GraphStateWithSelection, direction: 'up' | 'down' | 'left' | 'right'): { selectedRelationId: ElementId | null } {
     let currentId = state.selectedConceptId;
-
-    // If an edge is selected, use its source as the pivot for navigating to other edges
     if (!currentId && state.selectedRelationId) {
       const rel = state.relations.find(r => r.id === state.selectedRelationId);
       if (rel) currentId = rel.sourceConceptId;
     }
+    if (!currentId) return { selectedRelationId: state.selectedRelationId || null };
 
-    if (!currentId) return;
+    const activeView = state.views?.find(v => v.id === state.activeViewId);
+    if (!activeView) return { selectedRelationId: state.selectedRelationId || null };
 
-    const current = state.concepts.find(c => c.id === currentId);
-    if (!current) return;
+    const posOf = (id: ElementId) => activeView.nodes.find(n => n.conceptId === id);
+    const currentPos = posOf(currentId);
+    if (!currentPos) return { selectedRelationId: state.selectedRelationId || null };
 
-    // Find all edges connected to this node
-    const connectedEdges = state.relations.filter(r => 
+    const connectedEdges = state.relations.filter(r =>
       r.sourceConceptId === currentId || r.targetConceptId === currentId
     );
-    if (connectedEdges.length === 0) return;
+    if (connectedEdges.length === 0) return { selectedRelationId: state.selectedRelationId || null };
 
-    // Find the neighbor nodes for these edges
     const neighborData = connectedEdges.map(edge => {
       const neighborId = edge.sourceConceptId === currentId ? edge.targetConceptId : edge.sourceConceptId;
-      const neighbor = state.concepts.find(c => c.id === neighborId);
-      return { edge, neighbor };
-    }).filter(d => !!d.neighbor);
+      const neighborPos = posOf(neighborId);
+      return { edge, neighborPos };
+    }).filter(d => !!d.neighborPos);
 
-    // Filter neighbors by direction relative to current node
     let candidates = neighborData;
-    if (direction === 'up') candidates = candidates.filter(d => (d.neighbor!.y ?? 0) < (current.y ?? 0));
-    if (direction === 'down') candidates = candidates.filter(d => (d.neighbor!.y ?? 0) > (current.y ?? 0));
-    if (direction === 'left') candidates = candidates.filter(d => (d.neighbor!.x ?? 0) < (current.x ?? 0));
-    if (direction === 'right') candidates = candidates.filter(d => (d.neighbor!.x ?? 0) > (current.x ?? 0));
+    if (direction === 'up') candidates = candidates.filter(d => d.neighborPos!.y < currentPos.y);
+    if (direction === 'down') candidates = candidates.filter(d => d.neighborPos!.y > currentPos.y);
+    if (direction === 'left') candidates = candidates.filter(d => d.neighborPos!.x < currentPos.x);
+    if (direction === 'right') candidates = candidates.filter(d => d.neighborPos!.x > currentPos.x);
 
-    if (candidates.length === 0) {
-      // If no edges in that direction, maybe just cycle them?
-      // For now, let's just pick the first connected edge if none match direction
-      // But actually, it's better to do nothing to keep it spatial.
-      return;
-    }
+    if (candidates.length === 0) return { selectedRelationId: state.selectedRelationId || null };
 
-    // Score candidates by distance and axis alignment
     const scored = candidates.map(d => {
-      const dx = (d.neighbor!.x ?? 0) - (current.x ?? 0);
-      const dy = (d.neighbor!.y ?? 0) - (current.y ?? 0);
+      const dx = d.neighborPos!.x - currentPos.x;
+      const dy = d.neighborPos!.y - currentPos.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
-      
       let penalty = 1;
       if (direction === 'left' || direction === 'right') {
-        penalty = 1 + (Math.abs(dy) / Math.abs(dx));
+        penalty = 1 + (Math.abs(dy) / (Math.abs(dx) || 1));
       } else {
-        penalty = 1 + (Math.abs(dx) / Math.abs(dy));
+        penalty = 1 + (Math.abs(dx) / (Math.abs(dy) || 1));
       }
-
       return { edgeId: d.edge.id, score: dist * penalty };
     });
-
     scored.sort((a, b) => a.score - b.score);
-    this.selectRelation(scored[0].edgeId);
+    return { selectedRelationId: scored[0].edgeId };
   }
 
   /**
    * Delete the currently selected element (concept or relation).
    */
-  static async deleteSelected(): Promise<void> {
-    const state = useGraphStore.getState();
+  static deleteSelected(state: GraphStateWithSelection): Partial<GraphStateWithSelection> {
     if (state.selectedConceptId) {
-      await this.deleteConcept(state.selectedConceptId);
+      return this.deleteConcept(state, state.selectedConceptId);
     } else if (state.selectedRelationId) {
-      await this.deleteRelation(state.selectedRelationId);
+      return this.deleteRelation(state, state.selectedRelationId);
     }
+    return {};
   }
 
   /**
    * Clear the entire graph (Destructive).
    */
-  static async clearGraph(): Promise<void> {
-    useGraphStore.setState({
+  static clearGraph(): Partial<GraphStateWithSelection> {
+    return {
       domains: [],
       concepts: [],
       relations: [],
       selectedConceptId: null,
       selectedRelationId: null,
+    };
+  }
+
+  /**
+   * Group selected concepts into a new Grouping (bounded_context) concept.
+   */
+  static groupConcepts(state: GraphStateWithSelection, viewId: ElementId, conceptIds: ElementId[], groupName: string): Partial<GraphStateWithSelection> {
+    const view = state.views?.find((v) => v.id === viewId);
+    if (!view || conceptIds.length === 0) return {};
+
+    // 1. Create the new Grouping concept node (bounded_context)
+    const { concept: groupConcept, nextState: addConceptState } = this.addConcept(state, 'bounded_context', groupName);
+    
+    // Calculate the bounding box of selected nodes in the view to place the group container
+    const viewNodes = view.nodes.filter((n) => conceptIds.includes(n.conceptId));
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    
+    viewNodes.forEach((vn) => {
+      minX = Math.min(minX, vn.x);
+      minY = Math.min(minY, vn.y);
+      const w = vn.width ?? 210;
+      const h = vn.height ?? 76;
+      maxX = Math.max(maxX, vn.x + w);
+      maxY = Math.max(maxY, vn.y + h);
     });
-    PersistenceService.scheduleAutoSave();
+
+    const padding = 40;
+    const groupX = minX === Infinity ? 100 : minX - padding;
+    const groupY = minY === Infinity ? 100 : minY - padding;
+    const groupW = minX === Infinity ? 240 : (maxX - minX) + padding * 2;
+    const groupH = minY === Infinity ? 140 : (maxY - minY) + padding * 2 + 30;
+
+    // 2. Create the ViewNode for the group
+    const groupViewNode = {
+      conceptId: groupConcept.id,
+      x: groupX,
+      y: groupY,
+      width: groupW,
+      height: groupH,
+      manualX: groupX,
+      manualY: groupY,
+    };
+
+    // 3. Set parentId for selected child nodes to the new group node's id
+    const nextViews = state.views?.map((v) => {
+      if (v.id !== viewId) return v;
+      return {
+        ...v,
+        nodes: [
+          ...v.nodes.map((n) =>
+            conceptIds.includes(n.conceptId) ? { ...n, parentId: groupConcept.id } : n
+          ),
+          groupViewNode,
+        ],
+      };
+    });
+
+    return {
+      concepts: addConceptState.concepts,
+      views: nextViews,
+      selectedConceptId: groupConcept.id,
+    };
+  }
+
+  /**
+   * Ungroup a concept (remove parentId in the view).
+   */
+  static ungroupConcept(state: GraphStateWithSelection, viewId: ElementId, conceptId: ElementId): Partial<GraphStateWithSelection> {
+    const nextViews = state.views?.map((v) => {
+      if (v.id !== viewId) return v;
+      return {
+        ...v,
+        nodes: v.nodes.map((n) =>
+          n.conceptId === conceptId ? { ...n, parentId: undefined } : n
+        ),
+      };
+    });
+    return { views: nextViews };
+  }
+
+  /**
+   * Dissolve a group, deleting the grouping concept and promoting nested nodes to top-level.
+   */
+  static dissolveGroup(state: GraphStateWithSelection, viewId: ElementId, groupId: ElementId): Partial<GraphStateWithSelection> {
+    const nextViews = state.views?.map((v) => {
+      if (v.id !== viewId) return v;
+      return {
+        ...v,
+        nodes: v.nodes
+          .filter((n) => n.conceptId !== groupId)
+          .map((n) => (n.parentId === groupId ? { ...n, parentId: undefined } : n)),
+      };
+    });
+
+    const nextConcepts = state.concepts.filter((c) => c.id !== groupId);
+    const nextRelations = state.relations.filter(
+      (r) => r.sourceConceptId !== groupId && r.targetConceptId !== groupId
+    );
+
+    return {
+      concepts: nextConcepts,
+      relations: nextRelations,
+      views: nextViews,
+      selectedConceptId: state.selectedConceptId === groupId ? null : state.selectedConceptId,
+    };
+  }
+
+  /**
+   * Update a ViewNode's parentId in the active view.
+   */
+  static updateViewNodeParentId(state: GraphStateWithSelection, viewId: ElementId, conceptId: ElementId, parentId: ElementId | undefined): Partial<GraphStateWithSelection> {
+    const nextViews = state.views?.map((v) => {
+      if (v.id !== viewId) return v;
+      return {
+        ...v,
+        nodes: v.nodes.map((n) =>
+          n.conceptId === conceptId ? { ...n, parentId } : n
+        ),
+      };
+    });
+    return { views: nextViews };
   }
 }

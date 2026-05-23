@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { X, Folder, Plus, Check, Trash2, Cloud, HardDrive, Edit2, Save } from 'lucide-react';
 import { listWorkspaces, hasGitRepo, recursiveDelete, getRemoteUrl, renameWorkspace, setRepoDir } from '../../core/fileSystem';
-import { PersistenceService } from '../../services/PersistenceService';
+import { useGraphStore } from '../../store/useGraphStore';
 import { REPO_DIR } from '../../core/fileSystem';
 
 interface WorkspaceSwitcherModalProps {
@@ -18,6 +18,7 @@ interface WorkspaceInfo {
 const getWsName = (path: string) => path.replace('/workspace-', '').replace('/workspace', 'Default');
 
 export function WorkspaceSwitcherModal({ isOpen, onClose }: WorkspaceSwitcherModalProps) {
+  const switchWorkspace = useGraphStore((s) => s.switchWorkspace);
   const [workspaces, setWorkspaces] = useState<WorkspaceInfo[]>([]);
   const [newWorkspaceName, setNewWorkspaceName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -48,7 +49,7 @@ export function WorkspaceSwitcherModal({ isOpen, onClose }: WorkspaceSwitcherMod
     if (dir === REPO_DIR) return;
     setIsLoading(true);
     try {
-      await PersistenceService.switchWorkspace(dir);
+      await switchWorkspace(dir);
       onClose();
     } catch (err) {
       alert('Kunne ikke skifte workspace: ' + err);

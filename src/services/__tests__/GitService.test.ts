@@ -17,7 +17,6 @@ vi.hoisted(() => {
 import { GitService } from '../GitService';
 import * as gitEngine from '../../core/gitEngine';
 import { CredentialService } from '../CredentialService';
-import { useGraphStore } from '../../store/useGraphStore';
 import { PersistenceService } from '../PersistenceService';
 
 // ============================================================
@@ -33,9 +32,14 @@ vi.mock('../../core/gitEngine', () => ({
   gitMergeFastForward: vi.fn(),
   getHeadYaml: vi.fn(),
   MergeConflictError: class extends Error { 
-    localYaml = 'local'; 
-    remoteYaml = 'remote';
-    name = 'MergeConflictError';
+    localYaml: string;
+    remoteYaml: string;
+    constructor(localYaml = 'local', remoteYaml = 'remote') {
+      super('Merge conflict');
+      this.localYaml = localYaml;
+      this.remoteYaml = remoteYaml;
+      this.name = 'MergeConflictError';
+    }
   },
 }));
 
@@ -61,6 +65,13 @@ vi.mock('isomorphic-git', () => ({
 }));
 
 describe('GitService', () => {
+  const mockState = {
+    domains: [],
+    concepts: [],
+    relations: [],
+    views: [],
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
     (CredentialService.loadRemoteConfig as any).mockResolvedValue({ 
@@ -73,19 +84,18 @@ describe('GitService', () => {
 
   describe('push', () => {
     it('successfully pushes after auto-committing', async () => {
-      const result = await GitService.push();
+      const result = await GitService.push(mockState);
       
-      expect(PersistenceService.saveWorkspace).toHaveBeenCalled();
+      expect(PersistenceService.saveWorkspace).toHaveBeenCalledWith(mockState);
       expect(gitEngine.gitCommit).toHaveBeenCalled();
       expect(gitEngine.gitPush).toHaveBeenCalled();
       expect(result.success).toBe(true);
-      expect(useGraphStore.getState().syncStatus).toBe('synced');
     });
 
     it('blocks push if local graph is empty (Safety Check)', async () => {
       (PersistenceService.getYaml as any).mockResolvedValue('empty');
       
-      await expect(GitService.push()).rejects.toThrow(/tom/);
+      await expect(GitService.push(mockState)).rejects.toThrow(/tom/);
       expect(gitEngine.gitPush).not.toHaveBeenCalled();
     });
 
@@ -98,8 +108,9 @@ describe('GitService', () => {
       // 2. Mock successful pull during recovery
       (gitEngine.gitFetch as any).mockResolvedValue({ aheadBy: 0, behindBy: 0 });
       (gitEngine.gitMergeFastForward as any).mockResolvedValue(undefined);
+      (PersistenceService.loadWorkspace as any).mockResolvedValue(mockState);
 
-      const result = await GitService.push();
+      const result = await GitService.push(mockState);
       
       expect(gitEngine.gitPush).toHaveBeenCalledTimes(2);
       expect(result.success).toBe(true);
@@ -110,7 +121,7 @@ describe('GitService', () => {
         .mockRejectedValueOnce(new Error('Phantom Success'))
         .mockResolvedValueOnce(undefined); // Force push succeeds
       
-      const result = await GitService.push();
+      const result = await GitService.push(mockState);
       
       expect(gitEngine.gitPush).toHaveBeenCalledTimes(2);
       // Verify second call was forced
@@ -120,24 +131,32 @@ describe('GitService', () => {
   });
 
   describe('pull', () => {
-    it('hydrates store and clears undo history on success', async () => {
+    it('returns loaded workspace state on success', async () => {
       (gitEngine.gitFetch as any).mockResolvedValue({ aheadBy: 0, behindBy: 1 });
+      (PersistenceService.loadWorkspace as any).mockResolvedValue(mockState);
       
       const result = await GitService.pull();
       
       expect(gitEngine.gitMergeFastForward).toHaveBeenCalled();
       expect(PersistenceService.loadWorkspace).toHaveBeenCalled();
       expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.state).toBe(mockState);
+      }
     });
 
-    it('detects conflicts and updates status', async () => {
+    it('detects conflicts and returns raw yaml and success=false', async () => {
+      (gitEngine.gitFetch as any).mockResolvedValue({ aheadBy: 0, behindBy: 1 });
       (gitEngine.gitMergeFastForward as any).mockRejectedValue(new gitEngine.MergeConflictError('conflict_local', 'conflict_remote'));
       
       const result = await GitService.pull();
       
       expect(result.success).toBe(false);
-      expect((result as any).conflict).toBe(true);
-      expect(useGraphStore.getState().syncStatus).toBe('conflict');
+      if ('conflict' in result) {
+        expect(result.conflict).toBe(true);
+        expect(result.localYaml).toBe('conflict_local');
+        expect(result.remoteYaml).toBe('conflict_remote');
+      }
     });
   });
 });

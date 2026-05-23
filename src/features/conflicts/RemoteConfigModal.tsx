@@ -7,8 +7,8 @@
  */
 import { useState, useEffect } from 'react';
 import { GitBranch, Key, Link, RefreshCw, X, Copy, ExternalLink } from 'lucide-react';
-import { CredentialService } from '../../services/CredentialService';
 import { useGraphStore } from '../../store/useGraphStore';
+import { useShallow } from 'zustand/react/shallow';
 
 interface RemoteConfigModalProps {
   onClose: () => void;
@@ -17,6 +17,16 @@ interface RemoteConfigModalProps {
 }
 
 export function RemoteConfigModal({ onClose, onTriggerPush, onTriggerPull }: RemoteConfigModalProps) {
+  const { remoteConfig, saveRemoteConfig, clearRemoteConfig, getPAT, cloneWorkspace } = useGraphStore(
+    useShallow((s) => ({
+      remoteConfig: s.remoteConfig,
+      saveRemoteConfig: s.saveRemoteConfig,
+      clearRemoteConfig: s.clearRemoteConfig,
+      getPAT: s.getPAT,
+      cloneWorkspace: s.cloneWorkspace,
+    }))
+  );
+
   const [tab, setTab] = useState<'configure' | 'clone'>('configure');
   const [url, setUrl] = useState('');
   const [corsProxy, setCorsProxy] = useState('');
@@ -34,18 +44,17 @@ export function RemoteConfigModal({ onClose, onTriggerPush, onTriggerPull }: Rem
   // Load existing config on open
   useEffect(() => {
     const load = async () => {
-      const config = await CredentialService.loadRemoteConfig();
-      if (config) {
-        setUrl(config.url);
-        setCorsProxy(config.corsProxy || '');
-        setAuthorName(config.authorName || '');
-        setAuthorEmail(config.authorEmail || '');
+      if (remoteConfig) {
+        setUrl(remoteConfig.url);
+        setCorsProxy(remoteConfig.corsProxy || '');
+        setAuthorName(remoteConfig.authorName || '');
+        setAuthorEmail(remoteConfig.authorEmail || '');
       }
-      const pat = await CredentialService.loadPAT();
-      if (pat) setPat(pat);
+      const savedPat = await getPAT();
+      if (savedPat) setPat(savedPat);
     };
     load();
-  }, []);
+  }, [remoteConfig, getPAT]);
 
   const handleSave = async () => {
     setError(null);
@@ -54,21 +63,12 @@ export function RemoteConfigModal({ onClose, onTriggerPush, onTriggerPull }: Rem
       if (!url.trim()) throw new Error('Remote URL er påkrævet');
       if (!pat.trim()) throw new Error('Personal Access Token er påkrævet');
 
-      const config = CredentialService.buildConfig(
-        url.trim(), 
-        corsProxy.trim(),
-        authorName.trim(),
-        authorEmail.trim()
-      );
-      await CredentialService.saveRemoteConfig(config);
-      await CredentialService.savePAT(pat.trim());
-
-      // Reflect config in store
-      useGraphStore.setState({ remoteConfig: config, syncStatus: 'pending' });
-
-      // Start auto-fetch
-      const { GitService } = await import('../../services/GitService');
-      GitService.startAutoFetch();
+      await saveRemoteConfig({
+        url: url.trim(),
+        corsProxy: corsProxy.trim(),
+        authorName: authorName.trim(),
+        authorEmail: authorEmail.trim(),
+      }, pat);
 
       setSuccess(true);
       setTimeout(onClose, 800);
@@ -80,10 +80,7 @@ export function RemoteConfigModal({ onClose, onTriggerPush, onTriggerPull }: Rem
   };
 
   const handleClear = async () => {
-    await CredentialService.clearAll();
-    useGraphStore.setState({ remoteConfig: null, syncStatus: 'idle', aheadBy: 0, behindBy: 0 });
-    const { GitService } = await import('../../services/GitService');
-    GitService.stopAutoFetch();
+    await clearRemoteConfig();
     setUrl('');
     setPat('');
     setAuthorName('');
@@ -100,23 +97,9 @@ export function RemoteConfigModal({ onClose, onTriggerPush, onTriggerPull }: Rem
 
     setSaving(true);
     try {
-      const { GitService } = await import('../../services/GitService');
-      const dir = await GitService.clone(cloneUrl.trim(), workspaceName.trim(), clonePat.trim(), (phase, loaded, total) => {
+      await cloneWorkspace(cloneUrl, workspaceName, clonePat, (phase, loaded, total) => {
         setCloneProgress(`${phase}: ${Math.round((loaded / (total || 1)) * 100)}%`);
       });
-
-      // Switch to the new workspace (Spec §10.2)
-      const { setRepoDir } = await import('../../core/fileSystem');
-      const { PersistenceService } = await import('../../services/PersistenceService');
-      
-      // Update the global repository directory
-      setRepoDir(dir);
-
-      // Update the store status
-      useGraphStore.setState({ syncStatus: 'synced' });
-
-      // Load the workspace data into the graph
-      await PersistenceService.loadWorkspace();
 
       setSuccess(true);
       setCloneProgress('Færdig!');

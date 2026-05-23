@@ -13,13 +13,11 @@ import { useShallow } from 'zustand/react/shallow';
 import { useKeyboard } from './hooks/useKeyboard';
 import { ViewportContainer } from './features/viewport/ViewportContainer';
 import { type ViewMode } from './types/view';
-import { GraphViewport } from './features/viewport/graph/GraphViewport';
+import { PluginCanvasWrapper } from './features/viewport/PluginCanvasWrapper';
 import { Inspector } from './features/properties/Inspector';
 import { Navigator } from './features/navigation/Navigator';
-import { PersistenceService } from './services/PersistenceService';
-import { GraphService } from './services/GraphService';
-import { GitService, type PullResult } from './services/GitService';
-import { CredentialService } from './services/CredentialService';
+import { ViewToolbar } from './features/viewport/ViewToolbar';
+import type { PullResult } from './services/GitService';
 import { RefinedToolbar } from './components/ui/RefinedToolbar';
 import { LayoutGrid, Code2, Columns2, HelpCircle, Copy } from 'lucide-react';
 import { StatusBar } from './features/statusbar/StatusBar';
@@ -34,8 +32,9 @@ const HelpCenter = lazy(() => import('./features/help/HelpCenter').then(m => ({ 
 const ConflictResolverModal = lazy(() => import('./features/conflicts/ConflictResolverModal').then(m => ({ default: m.ConflictResolverModal })));
 const RemoteConfigModal = lazy(() => import('./features/conflicts/RemoteConfigModal').then(m => ({ default: m.RemoteConfigModal })));
 const WorkspaceSwitcherModal = lazy(() => import('./features/navigation/WorkspaceSwitcherModal').then(m => ({ default: m.WorkspaceSwitcherModal })));
+import { DeleteConceptModal } from './features/viewport/graph/DeleteConceptModal';
+import { DeleteViewModal } from './features/navigation/DeleteViewModal';
 
-const EMPTY_GRAPH = { concepts: [], relations: [] };
 const EMPTY_HISTORY = { pastStates: [], futureStates: [] };
 
 import { useResizable } from './hooks/useResizable';
@@ -60,21 +59,17 @@ function App() {
 
   // --- Store ---
   const {
-    concepts,
-    relations,
     focusMode,
     setFocusMode,
     isQuickFindOpen,
     setQuickFindOpen,
   } = useGraphStore(
     useShallow((s) => s ? {
-      concepts: s.concepts,
-      relations: s.relations,
       focusMode: s.focusMode,
       setFocusMode: s.setFocusMode,
       isQuickFindOpen: s.isQuickFindOpen,
       setQuickFindOpen: s.setQuickFindOpen,
-    } : { ...EMPTY_GRAPH, focusMode: false, setFocusMode: () => { }, isQuickFindOpen: false, setQuickFindOpen: () => { } }),
+    } : { focusMode: false, setFocusMode: () => { }, isQuickFindOpen: false, setQuickFindOpen: () => { } }),
   );
 
   // --- Layout Resizers ---
@@ -105,6 +100,18 @@ function App() {
     } : { undo: () => { }, redo: () => { }, ...EMPTY_HISTORY }),
   );
 
+  const { hasViewUndo, hasViewRedo } = useGraphStore(
+    useShallow((s) => {
+      const activeId = s.activeViewId;
+      const undoStack = activeId ? s._viewMembershipUndo[activeId] : null;
+      const redoStack = activeId ? s._viewMembershipRedo[activeId] : null;
+      return {
+        hasViewUndo: !!undoStack && undoStack.length > 0,
+        hasViewRedo: !!redoStack && redoStack.length > 0,
+      };
+    })
+  );
+
   const selectedConceptId = useGraphStore((s) => s?.selectedConceptId);
 
   // --- Refs for zone focus ---
@@ -113,7 +120,7 @@ function App() {
 
   // --- Bootstrap on mount ---
   useEffect(() => {
-    PersistenceService.bootstrap().then((result) => {
+    useGraphStore.getState().bootstrap().then((result) => {
       setBooted(true);
       if (result.isConflict) {
         setIsConflict(true);
@@ -125,30 +132,19 @@ function App() {
     });
 
     // Load stored remote config into Zustand + start auto-fetch
-    CredentialService.loadRemoteConfig().then((config) => {
-      if (config) {
-        useGraphStore.setState({ remoteConfig: config, syncStatus: 'pending' });
-        GitService.startAutoFetch();
-      }
-    });
+    useGraphStore.getState().bootstrapRemoteConfig();
 
-    return () => GitService.stopAutoFetch();
+    return () => useGraphStore.getState().stopAutoFetch();
   }, []);
 
   // --- Force Save on Refresh/Close ---
   useEffect(() => {
     const handleBeforeUnload = () => {
-      PersistenceService.flush();
+      useGraphStore.getState().flush();
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, []);
-
-  // --- Autosave to YAML ---
-  useEffect(() => {
-    if (!booted || isConflict) return;
-    PersistenceService.scheduleAutoSave();
-  }, [concepts, relations, booted, isConflict]);
 
   // --- View mode cycling ---
   const cycleViewMode = useCallback(() => {
@@ -165,7 +161,7 @@ function App() {
   // --- Git Handlers ---
   const handleGitPush = useCallback(async () => {
     try {
-      const result = await GitService.push();
+      const result = await useGraphStore.getState().push();
       if (result.success) {
         showGitToast('✓ Push gennemført');
       } else {
@@ -180,24 +176,25 @@ function App() {
 
   // --- Focus Return (Spec §5) ---
   // Ensure focus returns to Zone 2 (Canvas) when any global modal closes
-  const { isNodeCreatorOpen, isRelationBuilderOpen } = useGraphStore(useShallow(s => ({
+  const { isNodeCreatorOpen, isRelationBuilderOpen, deleteViewConfirm } = useGraphStore(useShallow(s => ({
     isNodeCreatorOpen: s?.isNodeCreatorOpen,
-    isRelationBuilderOpen: s?.isRelationBuilderOpen
+    isRelationBuilderOpen: s?.isRelationBuilderOpen,
+    deleteViewConfirm: s?.deleteViewConfirm,
   })));
 
   useEffect(() => {
-    const isAnyModalOpen = isNodeCreatorOpen || isQuickFindOpen || isRelationBuilderOpen || remoteConfigOpen || workspacesOpen;
+    const isAnyModalOpen = isNodeCreatorOpen || isQuickFindOpen || isRelationBuilderOpen || remoteConfigOpen || workspacesOpen || !!deleteViewConfirm;
     if (!isAnyModalOpen) {
       // Small delay to ensure DOM has updated and modal is gone
       setTimeout(() => {
         zone2Ref.current?.focus();
       }, 50);
     }
-  }, [isNodeCreatorOpen, isQuickFindOpen, isRelationBuilderOpen, remoteConfigOpen, workspacesOpen]);
+  }, [isNodeCreatorOpen, isQuickFindOpen, isRelationBuilderOpen, remoteConfigOpen, workspacesOpen, deleteViewConfirm]);
 
   const handleGitPull = useCallback(async () => {
     try {
-      const result: PullResult = await GitService.pull();
+      const result: PullResult = await useGraphStore.getState().pull();
       if (result.success) {
         showGitToast('✓ Pull gennemført');
       } else {
@@ -229,7 +226,7 @@ function App() {
     },
     onAddProperty: () => {
       if (selectedConceptId) {
-        GraphService.addProperty(selectedConceptId, 'new_property', 'string');
+        useGraphStore.getState().addProperty(selectedConceptId, 'new_property', 'string');
         if (!propertiesOpen) setPropertiesOpen(true);
       }
     },
@@ -273,12 +270,22 @@ function App() {
   return (
     <div className="w-full h-screen bg-background text-slate-900 overflow-hidden font-sans flex flex-col">
       <RefinedToolbar
-        undo={undo}
-        redo={redo}
-        canUndo={pastStates.length > 0}
-        canRedo={futureStates.length > 0}
-        onUnpinAll={() => GraphService.unpinAll()}
-        onTriggerLayout={() => GraphService.triggerLayout()}
+        undo={() => {
+          const state = useGraphStore.getState();
+          if (!state.activeViewId || !state.undoViewMembership(state.activeViewId)) {
+            undo();
+          }
+        }}
+        redo={() => {
+          const state = useGraphStore.getState();
+          if (!state.activeViewId || !state.redoViewMembership(state.activeViewId)) {
+            redo();
+          }
+        }}
+        canUndo={hasViewUndo || pastStates.length > 0}
+        canRedo={hasViewRedo || futureStates.length > 0}
+        onUnpinAll={() => useGraphStore.getState().unpinAll()}
+        onTriggerLayout={() => useGraphStore.getState().triggerLayout()}
         onToggleFocusMode={() => setFocusMode(!focusMode)}
         onOpenRemoteConfig={() => setRemoteConfigOpen(true)}
         onOpenWorkspaces={() => setWorkspacesOpen(true)}
@@ -302,7 +309,25 @@ function App() {
         )}
 
         {/* Center Zone: Viewport & View Switcher */}
-        <main ref={zone2Ref} tabIndex={-1} className="flex-1 min-w-0 relative flex flex-col bg-slate-50 focus:outline-none">
+        <main
+          ref={zone2Ref}
+          tabIndex={-1}
+          className="flex-1 min-w-0 relative flex flex-col bg-slate-50 focus:outline-none"
+          onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }}
+          onDrop={(e) => {
+            e.preventDefault();
+            const conceptId = e.dataTransfer.getData('text/plain');
+            if (!conceptId) return;
+            const store = useGraphStore.getState();
+            const { activeViewId } = store;
+            if (!activeViewId) return;
+            // Drop position relative to viewport center
+            const rect = e.currentTarget.getBoundingClientRect();
+            const x = e.clientX - rect.left - rect.width / 2;
+            const y = e.clientY - rect.top - rect.height / 2;
+            store.addConceptToView(activeViewId, conceptId, x + 400, y + 300);
+          }}
+        >
           {/* Global View Switcher */}
           <div
             className="absolute left-1/2 -translate-x-1/2 z-[100] flex items-center gap-3"
@@ -356,13 +381,15 @@ function App() {
           >
             <ViewportContainer
               diffMode={diffMode}
-              graphViewport={<GraphViewport focusMode={focusMode} />}
+              graphViewport={<PluginCanvasWrapper focusMode={focusMode} />}
               diffViewport={
                 <Suspense fallback={<div className="flex-1 flex items-center justify-center"><div className="animate-pulse text-xs text-slate-400">Loading Diff...</div></div>}>
                   <DiffViewport />
                 </Suspense>
               }
             />
+            {/* Floating View Toolbar — only in graph mode */}
+            {viewMode !== 'code' && !diffMode && <ViewToolbar />}
           </div>
 
           {/* Individual Code View (when not in split) */}
@@ -376,7 +403,7 @@ function App() {
               </span>
               <button 
                 onClick={() => {
-                  const yamlToCopy = isConflict && conflictData && conflictData.localYaml ? conflictData.localYaml : PersistenceService.stringifyCurrentState();
+                  const yamlToCopy = isConflict && conflictData && conflictData.localYaml ? conflictData.localYaml : useGraphStore.getState().stringifyState();
                   navigator.clipboard.writeText(yamlToCopy);
                 }}
                 className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-emerald-600 transition-all bg-white rounded-xl border border-slate-200 shadow-sm hover:border-emerald-200 hover:bg-emerald-50 active:scale-90"
@@ -419,7 +446,7 @@ function App() {
                 </span>
                 <button 
                   onClick={() => {
-                    const yamlToCopy = isConflict && conflictData && conflictData.localYaml ? conflictData.localYaml : PersistenceService.stringifyCurrentState();
+                    const yamlToCopy = isConflict && conflictData && conflictData.localYaml ? conflictData.localYaml : useGraphStore.getState().stringifyState();
                     navigator.clipboard.writeText(yamlToCopy);
                   }}
                   className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-emerald-600 transition-all bg-white rounded-xl border border-slate-200 shadow-sm hover:border-emerald-200 hover:bg-emerald-50 active:scale-90"
@@ -471,6 +498,8 @@ function App() {
         <NodeCreator />
         <RelationBuilder />
         <HelpCenter isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
+        <DeleteConceptModal />
+        <DeleteViewModal />
 
         {/* Workspace Switcher */}
         <WorkspaceSwitcherModal

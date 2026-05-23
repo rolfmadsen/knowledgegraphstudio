@@ -16,9 +16,6 @@ import { useState, useMemo } from 'react';
 import { AlertTriangle, MapPin, Cloud, CheckCircle2, FileText, Code } from 'lucide-react';
 import { DiffEditor } from '@monaco-editor/react';
 import { yamlToState, stateToYaml } from '../../core/yamlParser';
-import git from 'isomorphic-git';
-import { writeYaml, getFS, REPO_DIR } from '../../core/fileSystem';
-import { GitService } from '../../services/GitService';
 import { useGraphStore } from '../../store/useGraphStore';
 import type { ConceptNode, ConceptRelation, Domain } from '../../schema/graphSchema';
 
@@ -211,44 +208,9 @@ export function ConflictResolverModal({
       const merged = buildMergedState(allItems, choices, localState);
       const yaml = stateToYaml(merged);
 
-      // 1. Fetch latest remote state and resolve SHAs for the merge commit
-      await GitService.fetch();
-      
-      const localSha = await git.resolveRef({ 
-        fs: getFS(), 
-        dir: REPO_DIR, 
-        ref: 'HEAD' 
-      });
-      const remoteSha = await GitService.getRemoteHeadSha();
-      
-      const parents = remoteSha ? [localSha, remoteSha] : [localSha];
+      // Call the store action which handles the entire merge commit, hydration, and push orchestration
+      await useGraphStore.getState().resolveConflict(yaml);
 
-      // 2. Write merged YAML to VFS
-      await writeYaml(yaml);
-
-      // 3. Create a real Merge Commit (2 parents)
-      await GitService.commit(
-        `Conflict resolved: merged local and remote state`,
-        parents
-      );
-      
-      // 4. Hydrate store from the final merged state BEFORE pushing
-      // This is CRITICAL because GitService.push() triggers an auto-save,
-      // which would otherwise overwrite our resolved YAML with stale memory state.
-      const { PersistenceService } = await import('../../services/PersistenceService');
-      await PersistenceService.loadWorkspace();
-      (useGraphStore as any).temporal.getState().clear();
-
-      // 5. Push resolution to remote (use force: true to bypass local FF checks)
-      // Since we just created a merge commit with remote HEAD as parent,
-      // the server will accept this as a valid fast-forward.
-      const pushResult = await GitService.push(true);
-      
-      if (!pushResult.success) {
-        throw new Error('Konflikten blev løst lokalt, men kunne ikke pushes til serveren. Prøv igen.');
-      }
-
-      useGraphStore.setState({ syncStatus: 'synced' });
       onResolved();
     } catch (err) {
       setValidationError(

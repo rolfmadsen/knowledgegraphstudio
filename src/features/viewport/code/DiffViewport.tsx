@@ -13,30 +13,31 @@
 import { useState, useEffect, useMemo } from 'react';
 import { DiffEditor } from '@monaco-editor/react';
 import { useGraphStore } from '../../../store/useGraphStore';
-import { PersistenceService } from '../../../services/PersistenceService';
-import { GitService } from '../../../services/GitService';
 
 export function DiffViewport() {
   const domains = useGraphStore((s) => s?.domains || []);
   const concepts = useGraphStore((s) => s?.concepts || []);
   const relations = useGraphStore((s) => s?.relations || []);
+  const stringifyState = useGraphStore((s) => s?.stringifyState);
+  const getHeadVersion = useGraphStore((s) => s?.getHeadVersion);
 
   const [committedYaml, setCommittedYaml] = useState<string>('');
   const [loading, setLoading] = useState(true);
 
   const currentYaml = useMemo(
-    () => PersistenceService.stringifyCurrentState(),
-    [domains, concepts, relations],
+    () => (stringifyState ? stringifyState() : ''),
+    [domains, concepts, relations, stringifyState],
   );
 
   // Load committed YAML from Git HEAD
   useEffect(() => {
+    if (!getHeadVersion) return;
     setLoading(true);
-    GitService.getHeadVersion().then((yaml) => {
+    getHeadVersion().then((yaml) => {
       setCommittedYaml(yaml ?? '# No committed version yet\n');
       setLoading(false);
     });
-  }, []);
+  }, [getHeadVersion]);
 
   return (
     <div className="w-full h-full relative overflow-hidden">

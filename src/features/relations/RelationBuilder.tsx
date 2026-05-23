@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { useGraphStore } from '../../store/useGraphStore';
 import { useShallow } from 'zustand/react/shallow';
-import { GraphService } from '../../services/GraphService';
-import type { ConceptType } from '../../schema/graphSchema';
+import { ConceptType } from '../../schema/graphSchema';
+import { PluginRegistry } from '../../plugins/PluginRegistry';
 import {
   Search,
   Plus,
@@ -27,16 +27,25 @@ interface RelationOption {
   isNew: boolean;
 }
 
-const CONCEPT_TYPES: Array<{ type: ConceptType; label: string; icon: React.ReactNode }> = [
-  { type: 'domain', label: 'Domain', icon: <Database size={20} /> },
-  { type: 'process', label: 'Process', icon: <Activity size={20} /> },
-  { type: 'system', label: 'System', icon: <Workflow size={20} /> },
-  { type: 'actor', label: 'Actor', icon: <User size={20} /> },
-  { type: 'capability', label: 'Capability', icon: <Layers size={20} /> },
-  { type: 'bounded_context', label: 'Context', icon: <Box size={20} /> },
-  { type: 'entity', label: 'Entity', icon: <Layers size={20} /> },
-  { type: 'event', label: 'Event', icon: <Zap size={20} /> },
-];
+const CONCEPT_TYPES: Array<{ type: ConceptType; label: string; icon: React.ReactNode }> = ConceptType.options.map(t => {
+  const isStrategyOrMotivation = [
+    'capability', 'requirement', 'goal', 'resource', 'course_of_action', 'value_stream',
+    'stakeholder', 'driver', 'assessment', 'outcome', 'principle', 'constraint', 'value', 'meaning'
+  ].includes(t);
+  let icon = <Layers size={20} />;
+  if (isStrategyOrMotivation) icon = <Shield size={20} />;
+  else if (['actor', 'business_role', 'business_collaboration', 'business_interface', 'business_interaction', 'contract', 'representation', 'product'].includes(t)) icon = <User size={20} />;
+  else if (['process', 'application_process', 'technology_process', 'work_package'].includes(t)) icon = <Activity size={20} />;
+  else if (['system', 'application_component', 'technology_interface', 'device', 'system_software'].includes(t)) icon = <Workflow size={20} />;
+  else if (['domain', 'location'].includes(t)) icon = <Database size={20} />;
+  else if (['entity', 'business_object', 'artifact', 'material'].includes(t)) icon = <Box size={20} />;
+  
+  return {
+    type: t as ConceptType,
+    label: t.charAt(0).toUpperCase() + t.slice(1).replace(/_/g, ' '),
+    icon
+  };
+});
 
 const DEFAULT_RELATIONS = [
   { id: 'relateret_til', label: 'relateret til', icon: <ChevronRight size={14} /> },
@@ -60,20 +69,87 @@ const CONTEXTUAL_RELATIONS: Record<string, string[]> = {
   'capability->process': ['realiseres ved', 'understøtter'],
 };
 
+const RELATIONSHIP_DESCRIPTIONS: Record<string, { label: string; symbol: string; desc: string }> = {
+  compositionrelationship: {
+    label: 'Composition',
+    symbol: '◆—',
+    desc: 'Indicates that the source element consists of or contains the target element.'
+  },
+  aggregationrelationship: {
+    label: 'Aggregation',
+    symbol: '◇—',
+    desc: 'Indicates that the source element groups or aggregates the target element.'
+  },
+  assignmentrelationship: {
+    label: 'Assignment',
+    symbol: '●→',
+    desc: 'Expresses the allocation of responsibility or performance of behavior.'
+  },
+  realizationrelationship: {
+    label: 'Realization',
+    symbol: '⤏▷',
+    desc: 'Indicates that the source entity achieves or realizes the target abstract entity.'
+  },
+  servingrelationship: {
+    label: 'Serving',
+    symbol: '—▷',
+    desc: 'Describes that the source element provides its functionality to the target element.'
+  },
+  accessrelationship: {
+    label: 'Access',
+    symbol: '⤏',
+    desc: 'Models the ability of behavioral elements to read, write, or access passive data.'
+  },
+  influencerelationship: {
+    label: 'Influence',
+    symbol: '⤏+',
+    desc: 'Describes that the source element has a positive or negative influence on the target.'
+  },
+  flowrelationship: {
+    label: 'Flow',
+    symbol: '⤏➔',
+    desc: 'Describes the exchange, transfer, or sequence of data, value, or energy.'
+  },
+  triggeringrelationship: {
+    label: 'Triggering',
+    symbol: '—➔',
+    desc: 'Describes a temporal or causal trigger between behavioral elements.'
+  },
+  specializationrelationship: {
+    label: 'Specialization',
+    symbol: '—▷',
+    desc: 'Indicates that the source element is a sub-class or specialization of the target.'
+  },
+  associationrelationship: {
+    label: 'Association',
+    symbol: '——',
+    desc: 'Represents an unspecified or generic connection between elements.'
+  }
+};
+
 export function RelationBuilder() {
   const {
     open,
     sourceId,
     concepts,
-    setOpen
+    setOpen,
+    createQuickRelation,
+    views,
+    activeViewId
   } = useGraphStore(
     useShallow((s) => ({
       open: s.isRelationBuilderOpen,
       sourceId: s.relationBuilderSourceId,
       concepts: s.concepts,
       setOpen: s.setRelationBuilderOpen,
+      createQuickRelation: s.createQuickRelation,
+      views: s.views,
+      activeViewId: s.activeViewId
     }))
   );
+
+  const activeView = views.find(v => v.id === activeViewId);
+  const activePlugin = activeView ? PluginRegistry.forViewType(activeView.type) : undefined;
 
   const [step, setStep] = useState<'target' | 'type' | 'label'>('target');
   const [query, setQuery] = useState('');
@@ -115,13 +191,18 @@ export function RelationBuilder() {
   const options = useMemo(() => {
     const q = query.trim();
     const filtered = concepts.filter(c => c.id !== sourceId);
+    
+    // Filter targets by notation allowed types
+    const notationFiltered = activePlugin?.allowedConceptTypes
+      ? filtered.filter(c => activePlugin.allowedConceptTypes!.includes(c.conceptType))
+      : filtered;
 
-    const fuse = new Fuse(filtered, {
+    const fuse = new Fuse(notationFiltered, {
       keys: ['name', 'conceptType'],
       threshold: 0.4,
     });
 
-    const results = q ? fuse.search(q).map(r => r.item) : filtered.slice(0, 10);
+    const results = q ? fuse.search(q).map(r => r.item) : notationFiltered.slice(0, 10);
 
     const finalOptions: RelationOption[] = results.map(c => ({
       id: c.id,
@@ -130,27 +211,36 @@ export function RelationBuilder() {
       isNew: false
     }));
 
-    if (q && !results.find(r => r.name.toLowerCase() === q.toLowerCase())) {
-      finalOptions.unshift({
-        id: 'new',
-        label: `Create "${q}"`,
-        description: 'New concept archetype',
-        isNew: true
-      });
+    if (q) {
+      // Only offer to create new if the current view doesn't restrict concept types,
+      // or if at least one concept type is supported by the active plugin
+      const hasAllowedTypes = !activePlugin?.allowedConceptTypes || activePlugin.allowedConceptTypes.length > 0;
+      if (hasAllowedTypes) {
+        finalOptions.unshift({
+          id: 'new',
+          label: `Create "${q}"`,
+          description: 'New concept archetype',
+          isNew: true
+        });
+      }
     }
 
     return finalOptions;
-  }, [query, concepts, sourceId]);
+  }, [query, concepts, sourceId, activePlugin]);
 
   // Filtered archetypes for new node creation
   const filteredTypes = useMemo(() => {
     const q = typeSearch.trim().toLowerCase();
-    if (!q) return CONCEPT_TYPES;
-    return CONCEPT_TYPES.filter(ct =>
+    const baseTypes = activePlugin?.allowedConceptTypes
+      ? CONCEPT_TYPES.filter(ct => activePlugin.allowedConceptTypes!.includes(ct.type))
+      : CONCEPT_TYPES;
+
+    if (!q) return baseTypes;
+    return baseTypes.filter(ct =>
       ct.label.toLowerCase().includes(q) ||
       ct.type.toLowerCase().includes(q)
     );
-  }, [typeSearch]);
+  }, [typeSearch, activePlugin]);
 
   // Common relations filtered by label query AND context
   const filteredRelations = useMemo(() => {
@@ -158,8 +248,22 @@ export function RelationBuilder() {
 
     const sourceT = sourceNode.conceptType;
     const targetT = isNewTarget ? selectedType : targetNode?.conceptType;
-    const contextKey = `${sourceT}->${targetT}`;
 
+    // Use plugin allowed relations if defined
+    if (activePlugin?.getAvailableRelations && targetT) {
+      const pluginRelations = activePlugin.getAvailableRelations(sourceT, targetT);
+      return pluginRelations
+        .map(r => ({
+          id: r.id,
+          label: r.label,
+          description: r.description,
+          icon: <Zap size={14} className="text-emerald-500" />,
+          isContextual: true
+        }))
+        .filter(r => r.label.toLowerCase().includes(label.toLowerCase()));
+    }
+
+    const contextKey = `${sourceT}->${targetT}`;
     const contextualLabels = CONTEXTUAL_RELATIONS[contextKey] || [];
 
     // Create base list: Contextual first, then defaults
@@ -167,16 +271,20 @@ export function RelationBuilder() {
       ...contextualLabels.map(l => ({
         id: `ctx-${l}`,
         label: l,
+        description: undefined as string | undefined,
         icon: <Zap size={14} className="text-amber-500" />,
         isContextual: true
       })),
-      ...DEFAULT_RELATIONS.filter(d => !contextualLabels.includes(d.label))
+      ...DEFAULT_RELATIONS.filter(d => !contextualLabels.includes(d.label)).map(d => ({
+        ...d,
+        description: undefined as string | undefined
+      }))
     ];
 
     return baseList.filter(r =>
       r.label.toLowerCase().includes(label.toLowerCase())
     );
-  }, [label, step, sourceNode, targetNode, isNewTarget, selectedType]);
+  }, [label, step, sourceNode, targetNode, isNewTarget, selectedType, activePlugin]);
 
   // Reset selection when options/step change
   useEffect(() => {
@@ -196,16 +304,24 @@ export function RelationBuilder() {
     }
   }, [selectedIndex, step]);
 
-  const handleFinish = async (finalLabel?: string) => {
-    const actualLabel = finalLabel || label.trim() || 'relateret til';
+  const handleFinish = (finalLabel?: string) => {
+    const defaultLabel = filteredRelations[0]?.label || 'relateret til';
+    const actualLabel = finalLabel || label.trim() || defaultLabel;
+    
+    const matchedRelation = filteredRelations.find(
+      r => r.label.toLowerCase() === actualLabel.toLowerCase()
+    );
+    const resolvedType = matchedRelation?.description || undefined;
+
     if (!sourceId || !targetIdOrName || !actualLabel) return;
 
-    await GraphService.createQuickRelation({
+    createQuickRelation({
       sourceId,
       targetIdOrName,
       isNewTarget,
       targetType: selectedType,
-      label: actualLabel
+      label: actualLabel,
+      relationType: resolvedType
     });
 
     setOpen(false);
@@ -264,7 +380,7 @@ export function RelationBuilder() {
         }
       }
     } else if (step === 'type') {
-      const COLS = 3;
+      const COLS = 2;
       const visibleTypes = filteredTypes;
       if (e.key === 'ArrowDown') {
         e.preventDefault();
@@ -286,8 +402,14 @@ export function RelationBuilder() {
         e.preventDefault();
         const selected = visibleTypes[selectedIndex];
         if (selected) {
-          setSelectedType(selected.type);
-          setStep('label');
+          const allowedRels = activePlugin?.getAvailableRelations && sourceNode
+            ? activePlugin.getAvailableRelations(sourceNode.conceptType, selected.type)
+            : [];
+          const isCompatible = !activePlugin?.getAvailableRelations || allowedRels.length > 0;
+          if (isCompatible) {
+            setSelectedType(selected.type);
+            setStep('label');
+          }
         }
       }
       if (e.key === 'Backspace' && !typeSearch) {
@@ -339,6 +461,8 @@ export function RelationBuilder() {
 
   if (!open || !sourceNode) return null;
 
+  const showRulesPanel = !!activePlugin?.getAvailableRelations;
+
   return (
     <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 sm:p-12">
       {/* Backdrop */}
@@ -350,8 +474,9 @@ export function RelationBuilder() {
       {/* Palette Container (Modern Pro) */}
       <div
         ref={containerRef}
-        className="relative w-full max-w-[700px] bg-slate-50/95 backdrop-blur-2xl rounded-[2.5rem] border border-white shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in duration-300"
+        className={`relative w-full ${showRulesPanel ? 'max-w-[980px]' : 'max-w-[700px]'} h-[720px] max-h-[85vh] bg-slate-50/95 backdrop-blur-2xl rounded-[2.5rem] border border-white shadow-2xl flex flex-col md:flex-row overflow-hidden animate-in fade-in zoom-in duration-300 transition-all duration-500`}
       >
+        <div className="flex-1 flex flex-col min-w-0">
 
         {/* Header Section */}
         <div className="px-10 pt-10 pb-6 border-b border-slate-200/50">
@@ -537,9 +662,28 @@ export function RelationBuilder() {
                       </div>
                       <div className="flex flex-col text-left">
                         <span className={`text-[13px] font-bold ${idx === selectedIndex ? 'text-slate-900' : 'text-slate-600'}`}>{opt.label}</span>
-                        <span className={`text-[10px] font-bold uppercase tracking-widest mt-0.5 ${idx === selectedIndex ? 'text-emerald-600' : 'text-slate-400'}`}>
-                          {opt.isNew ? 'PROPOSE NEW' : opt.description}
-                        </span>
+                        <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                          <span className={`text-[10px] font-bold uppercase tracking-widest ${idx === selectedIndex ? 'text-emerald-600' : 'text-slate-400'}`}>
+                            {opt.isNew ? 'PROPOSE NEW' : (activePlugin?.conceptTypeLabels?.[opt.description as ConceptType] || opt.description.replace('_', ' '))}
+                          </span>
+                          {!opt.isNew && activePlugin?.getAvailableRelations && (
+                            <>
+                              <span className="text-[10px] text-slate-300">•</span>
+                              <div className="flex flex-wrap gap-1">
+                                {activePlugin.getAvailableRelations(sourceNode.conceptType, opt.description as ConceptType).slice(0, 3).map(r => (
+                                  <span key={r.id} className="px-1.5 py-0.5 bg-slate-100 border border-slate-200/50 text-slate-500 rounded text-[8px] font-black uppercase tracking-tight">
+                                    {r.label}
+                                  </span>
+                                ))}
+                                {activePlugin.getAvailableRelations(sourceNode.conceptType, opt.description as ConceptType).length > 3 && (
+                                  <span className="px-1.5 py-0.5 bg-slate-100 border border-slate-200/50 text-slate-400 rounded text-[8px] font-black uppercase tracking-tight">
+                                    +{activePlugin.getAvailableRelations(sourceNode.conceptType, opt.description as ConceptType).length - 3} More
+                                  </span>
+                                )}
+                              </div>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
                     {idx === selectedIndex && (
@@ -552,33 +696,69 @@ export function RelationBuilder() {
                 ))}
               </div>
             ) : step === 'type' ? (
-              <div ref={listRef} className="h-full grid grid-cols-1 sm:grid-cols-3 gap-3 overflow-y-auto custom-scrollbar pr-2 pb-4">
-                {filteredTypes.map((ct, idx) => (
-                  <button
-                    key={ct.type}
-                    onClick={() => {
-                      setSelectedType(ct.type);
-                      setStep('label');
-                    }}
-                    onMouseEnter={() => setSelectedIndex(idx)}
-                    className={`
-                      flex flex-col gap-4 p-5 rounded-[1.25rem] border transition-all duration-300 group outline-none
-                      ${idx === selectedIndex
-                        ? 'bg-white border-emerald-500 shadow-lg shadow-emerald-200/20 translate-y--1 ring-1 ring-emerald-500/10'
-                        : 'bg-white/40 border-slate-100 hover:bg-white hover:border-slate-200'}
-                    `}
-                  >
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${idx === selectedIndex ? 'bg-emerald-600 text-white shadow-md' : 'bg-white border border-slate-200 text-slate-300'}`}>
-                      {ct.icon}
-                    </div>
-                    <div className="flex flex-col text-left">
-                      <span className={`text-[10px] uppercase font-black tracking-widest ${idx === selectedIndex ? 'text-emerald-600' : 'text-slate-400'}`}>
-                        {ct.type}
-                      </span>
-                      <span className="text-[13px] font-black text-slate-800 mt-0.5">{ct.label}</span>
-                    </div>
-                  </button>
-                ))}
+              <div ref={listRef} className="h-full grid grid-cols-1 sm:grid-cols-2 gap-3 overflow-y-auto custom-scrollbar pr-2 pb-4">
+                {filteredTypes.map((ct, idx) => {
+                  const allowedRels = activePlugin?.getAvailableRelations
+                    ? activePlugin.getAvailableRelations(sourceNode.conceptType, ct.type)
+                    : [];
+                  const isCompatible = !activePlugin?.getAvailableRelations || allowedRels.length > 0;
+
+                  return (
+                    <button
+                      key={ct.type}
+                      disabled={!isCompatible}
+                      onClick={() => {
+                        setSelectedType(ct.type);
+                        setStep('label');
+                      }}
+                      onMouseEnter={() => setSelectedIndex(idx)}
+                      className={`
+                        flex flex-col gap-4 p-5 rounded-[1.25rem] border transition-all duration-300 group outline-none
+                        ${idx === selectedIndex
+                          ? 'bg-white border-emerald-500 shadow-lg shadow-emerald-200/20 translate-y--1 ring-1 ring-emerald-500/10'
+                          : 'bg-white/40 border-slate-100 hover:bg-white hover:border-slate-200'}
+                        ${!isCompatible ? 'opacity-40 cursor-not-allowed border-dashed' : ''}
+                      `}
+                    >
+                      <div className="flex items-start justify-between w-full">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${idx === selectedIndex ? 'bg-emerald-600 text-white shadow-md' : 'bg-white border border-slate-200 text-slate-300'}`}>
+                          {ct.icon}
+                        </div>
+                        {isCompatible && allowedRels.length > 0 && (
+                          <span className="text-[9px] font-black uppercase tracking-wider text-emerald-600 bg-emerald-50 border border-emerald-100 rounded px-1.5 py-0.5">
+                            {allowedRels.length} {allowedRels.length === 1 ? 'Rule' : 'Rules'}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex flex-col text-left w-full">
+                        <span className={`text-[10px] uppercase font-black tracking-widest ${idx === selectedIndex ? 'text-emerald-600' : 'text-slate-400'}`}>
+                          {ct.type.replace('_', ' ')}
+                        </span>
+                        <span className="text-[13px] font-black text-slate-800 mt-0.5">{ct.label}</span>
+                        {activePlugin?.getAvailableRelations && (
+                          <div className="flex flex-wrap items-center gap-1 mt-2.5">
+                            {allowedRels.length > 0 ? (
+                              allowedRels.slice(0, 3).map(r => (
+                                <span key={r.id} className="px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded text-[8px] font-black uppercase tracking-tight">
+                                  {r.label}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-[9px] font-bold text-rose-500 uppercase">
+                                No Valid Connections
+                              </span>
+                            )}
+                            {allowedRels.length > 3 && (
+                              <span className="px-1.5 py-0.5 bg-slate-100 text-slate-400 rounded text-[8px] font-black uppercase tracking-tight">
+                                +{allowedRels.length - 3} More
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             ) : (
               <div className="h-full flex flex-col gap-6">
@@ -607,11 +787,16 @@ export function RelationBuilder() {
                       {idx === selectedIndex && (
                         <div className="flex items-center gap-2 pr-2">
                           <span className="text-[10px] font-black text-emerald-600/50 uppercase tracking-widest">Use</span>
-                          <ChevronRight size={14} className="text-emerald-500" />
+                           <ChevronRight size={14} className="text-emerald-500" />
                         </div>
                       )}
                     </button>
                   ))}
+                  {filteredRelations.length === 0 && (
+                    <div className="text-center py-8 text-slate-400 font-bold uppercase tracking-widest text-[11px]">
+                      Ingen tilladte relationer under denne notation
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex flex-col items-center gap-6 pt-4 border-t border-slate-100">
@@ -658,6 +843,116 @@ export function RelationBuilder() {
           </div>
         </div>
       </div>
+
+      {showRulesPanel && (
+        <div className="w-full md:w-[350px] shrink-0 border-t md:border-t-0 md:border-l border-slate-200/60 bg-white/60 backdrop-blur-sm p-8 flex flex-col overflow-y-auto">
+          <div className="flex items-center gap-2 mb-6">
+            <span className="text-[18px]">🏛️</span>
+            <div>
+              <h3 className="text-[13px] font-black text-slate-800 uppercase tracking-wider">ArchiMate Rules</h3>
+              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Specification §12.2</p>
+            </div>
+          </div>
+
+          <div className="flex-1 flex flex-col gap-5">
+            {/* Context Summary */}
+            <div className="bg-slate-100/70 rounded-2xl p-4 border border-slate-200/30">
+              <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2.5">Active Context</div>
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-2 text-[12px] font-bold text-slate-700">
+                  <span className="w-4 h-4 rounded bg-amber-500/10 text-amber-600 flex items-center justify-center text-[10px] font-black shrink-0">S</span>
+                  <span className="truncate max-w-[120px]">{sourceNode.name}</span>
+                  <span className="text-[9px] px-1.5 py-0.5 bg-slate-200 text-slate-500 rounded uppercase font-black tracking-tighter shrink-0">{activePlugin?.conceptTypeLabels?.[sourceNode.conceptType] || sourceNode.conceptType}</span>
+                </div>
+                {targetNode || targetIdOrName ? (
+                  <div className="flex items-center gap-2 text-[12px] font-bold text-slate-700">
+                    <span className="w-4 h-4 rounded bg-emerald-500/10 text-emerald-600 flex items-center justify-center text-[10px] font-black shrink-0">T</span>
+                    <span className="truncate max-w-[120px]">{targetNode?.name || targetIdOrName}</span>
+                    <span className="text-[9px] px-1.5 py-0.5 bg-emerald-100 text-emerald-600 rounded uppercase font-black tracking-tighter shrink-0">
+                      {isNewTarget
+                        ? (activePlugin?.conceptTypeLabels?.[selectedType] || selectedType)
+                        : (targetNode ? (activePlugin?.conceptTypeLabels?.[targetNode.conceptType] || targetNode.conceptType) : 'Unknown')}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="text-[11px] italic text-slate-400">Select target node to view active rules...</div>
+                )}
+              </div>
+            </div>
+
+            {/* Rules List */}
+            <div className="flex-1 flex flex-col gap-3">
+              <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                {targetNode || (isNewTarget && selectedType) ? 'Allowed Relationships' : `Relationships from ${activePlugin?.conceptTypeLabels?.[sourceNode.conceptType] || sourceNode.conceptType}`}
+              </div>
+
+              {(() => {
+                const targetT = isNewTarget ? selectedType : targetNode?.conceptType;
+                if (targetT) {
+                  const allowedRels = activePlugin.getAvailableRelations?.(sourceNode.conceptType, targetT) || [];
+                  if (allowedRels.length === 0) {
+                    return (
+                      <div className="text-center py-6 bg-rose-50/50 border border-dashed border-rose-200 rounded-2xl p-4">
+                        <span className="text-[13px] font-bold text-rose-600 block mb-1">No Valid Relations</span>
+                        <span className="text-[10px] text-rose-500/80 leading-relaxed block">
+                          ArchiMate specifications do not permit connections between these concept archetypes.
+                        </span>
+                      </div>
+                    );
+                  }
+                  return allowedRels.map(r => {
+                    const desc = RELATIONSHIP_DESCRIPTIONS[r.id] || { label: r.label, symbol: '—', desc: 'ArchiMate relation' };
+                    return (
+                      <div key={r.id} className="bg-white border border-slate-100 rounded-2xl p-3.5 hover:border-emerald-200 transition-all shadow-sm">
+                        <div className="flex items-center justify-between gap-2 mb-1.5">
+                          <span className="text-[12px] font-black text-slate-800">{desc.label}</span>
+                          <span className="text-[10px] font-black font-mono text-emerald-600 px-1.5 py-0.5 bg-emerald-50 rounded border border-emerald-100/50 shrink-0">{desc.symbol}</span>
+                        </div>
+                        <p className="text-[10.5px] text-slate-500 leading-relaxed">{desc.desc}</p>
+                      </div>
+                    );
+                  });
+                }
+
+                // If no target selected yet, summarize outgoing options from source type
+                const allTypes = activePlugin?.allowedConceptTypes || [];
+                const optionsWithRules = allTypes
+                  .map(t => {
+                    const rels = activePlugin.getAvailableRelations?.(sourceNode.conceptType, t) || [];
+                    return { type: t, rels };
+                  })
+                  .filter(o => o.rels.length > 0);
+
+                if (optionsWithRules.length === 0) {
+                  return (
+                    <div className="text-[11px] text-slate-400 italic">No outgoing connections allowed for this archetype.</div>
+                  );
+                }
+
+                return (
+                  <div className="flex flex-col gap-2">
+                    {optionsWithRules.map(o => (
+                      <div key={o.type} className="flex items-start justify-between gap-3 text-[11px] py-2 border-b border-slate-100">
+                        <span className="font-bold text-slate-600 uppercase tracking-tight shrink-0">
+                          {activePlugin?.conceptTypeLabels?.[o.type] || o.type}
+                        </span>
+                        <div className="flex flex-wrap gap-1 justify-end max-w-[60%]">
+                          {o.rels.map(r => (
+                            <span key={r.id} className="px-1 py-0.5 bg-slate-100 text-slate-500 rounded-[4px] text-[8px] font-bold uppercase tracking-tighter">
+                              {r.label}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
-  );
+  </div>
+);
 }

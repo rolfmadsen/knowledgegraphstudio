@@ -15,7 +15,7 @@ import {
   type Domain,
   type ConceptNode,
   type ConceptRelation,
-  type ConceptNodeExport,
+  type View,
 } from '../schema/graphSchema';
 
 // ============================================================
@@ -23,9 +23,9 @@ import {
 // ============================================================
 
 /** A concept in YAML form has its outgoing relations nested inline */
-interface YamlConcept extends Omit<ConceptNodeExport, 'properties' | 'policies'> {
-  properties?: ConceptNodeExport['properties'];
-  policies?: ConceptNodeExport['policies'];
+interface YamlConcept extends Omit<ConceptNode, 'properties' | 'policies'> {
+  properties?: ConceptNode['properties'];
+  policies?: ConceptNode['policies'];
   relations?: ConceptRelation[];
 }
 
@@ -40,23 +40,18 @@ interface YamlGraph {
 // ============================================================
 
 /**
- * Strip ephemeral layout fields from a ConceptNode for YAML export.
- */
-function stripEphemeral(concept: ConceptNode): ConceptNodeExport {
-  const { x, y, width, height, fx, fy, ...rest } = concept;
-  return rest;
-}
-
-/**
  * Convert Zustand state to a hierarchical YAML string.
  *
  * Relations are nested under their source ConceptNode for maximum
  * human readability in Git diffs.
+ *
+ * Note: 'views' are serialized separately by PersistenceService → views.typegraph.yaml
  */
 export function stateToYaml(state: {
   domains: Domain[];
   concepts: ConceptNode[];
   relations: ConceptRelation[];
+  views?: unknown; // accepted but intentionally not written here
 }): string {
   // Group relations by their source concept
   const relationsBySource = new Map<string, ConceptRelation[]>();
@@ -68,16 +63,21 @@ export function stateToYaml(state: {
 
   // Build hierarchical concept objects with nested relations
   const yamlConcepts: YamlConcept[] = state.concepts.map((concept) => {
-    const exported = stripEphemeral(concept);
     const outgoingRelations = relationsBySource.get(concept.id);
+    const yamlConcept: YamlConcept = { ...concept };
+    delete (yamlConcept as any).x;
+    delete (yamlConcept as any).y;
+    delete (yamlConcept as any).width;
+    delete (yamlConcept as any).height;
+    delete (yamlConcept as any).fx;
+    delete (yamlConcept as any).fy;
+    delete (yamlConcept as any).manualX;
+    delete (yamlConcept as any).manualY;
 
-    const yamlConcept: YamlConcept = { ...exported };
-
-    // Only include empty arrays if they have content
-    if (exported.properties.length === 0) {
+    if (concept.properties.length === 0) {
       yamlConcept.properties = [];
     }
-    if (exported.policies.length === 0) {
+    if (concept.policies.length === 0) {
       yamlConcept.policies = [];
     }
 
@@ -156,6 +156,7 @@ export function yamlToState(yamlString: string): {
   domains: Domain[];
   concepts: ConceptNode[];
   relations: ConceptRelation[];
+  views: [];
 } {
   let parsed: unknown;
 
@@ -209,8 +210,8 @@ export function yamlToState(yamlString: string): {
     }
   }
 
-  // Validate the reconstructed state via Zod
-  const validationResult = GraphState.safeParse({ domains, concepts, relations });
+  // Validate the reconstructed state via Zod (views are not stored in model.yaml)
+  const validationResult = GraphState.safeParse({ domains, concepts, relations, views: [] });
 
   if (!validationResult.success) {
     throw new YamlParseError(
@@ -219,5 +220,59 @@ export function yamlToState(yamlString: string): {
     );
   }
 
-  return validationResult.data;
+  return { ...validationResult.data, views: [] };
+}
+
+// ============================================================
+// Views YAML — Separate serialization for views.typegraph.yaml
+// ============================================================
+
+interface ViewsYamlDocument {
+  version: '1.0';
+  views: View[];
+}
+
+/**
+ * Serialize the views array to a separate YAML string.
+ * This is written to views.typegraph.yaml, keeping position data
+ * out of model.typegraph.yaml for clean semantic Git diffs.
+ */
+export function viewsToYaml(views: View[]): string {
+  const doc: ViewsYamlDocument = {
+    version: '1.0',
+    views,
+  };
+  return yaml.dump(doc, {
+    indent: 2,
+    lineWidth: 120,
+    noRefs: true,
+    sortKeys: false,
+    quotingType: '"',
+    forceQuotes: false,
+  });
+}
+
+/**
+ * Parse views.typegraph.yaml back into a View array.
+ * Returns [] if the content is empty or malformed (safe fallback).
+ */
+export function yamlToViews(yamlString: string): View[] {
+  try {
+    const parsed = yaml.load(yamlString) as ViewsYamlDocument | null;
+    if (!parsed || !Array.isArray(parsed.views)) return [];
+    
+    // Map legacy 'global_explorer' to 'knowledge_graph'
+    return (parsed.views as View[]).map((v) => {
+      if ((v.type as string) === 'global_explorer') {
+        return {
+          ...v,
+          type: 'knowledge_graph',
+        };
+      }
+      return v;
+    });
+  } catch (err) {
+    console.warn('[yamlParser] Failed to parse views.typegraph.yaml:', err);
+    return [];
+  }
 }

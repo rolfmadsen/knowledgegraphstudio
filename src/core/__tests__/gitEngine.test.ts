@@ -35,6 +35,10 @@ vi.mock('../fileSystem', () => ({
   REPO_DIR: '/workspace',
   YAML_FILENAME: '.typegraph.yaml',
   YAML_PATH: '/workspace/.typegraph.yaml',
+  MODEL_FILENAME: 'model.typegraph.yaml',
+  MODEL_PATH: '/workspace/model.typegraph.yaml',
+  VIEWS_FILENAME: 'views.typegraph.yaml',
+  VIEWS_PATH: '/workspace/views.typegraph.yaml',
 }));
 
 describe('GitEngine', () => {

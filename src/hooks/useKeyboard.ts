@@ -8,7 +8,6 @@
  */
 import { useEffect, useCallback } from 'react';
 import { useGraphStore } from '../store/useGraphStore';
-import { GraphService } from '../services/GraphService';
 
 interface KeyboardConfig {
   onToggleProperties: () => void;
@@ -88,14 +87,43 @@ export function useKeyboard(config: KeyboardConfig) {
         return;
       }
 
-      // Delete — Delete Selected
+      // Delete — view-aware delete (THIS IS THE AUTHORITATIVE HANDLER)
+      // Registered with { capture: true } so it fires before any element-level
+      // handlers (including GraphViewport's onKeyDown). We call stopPropagation()
+      // so the event never reaches the bubble phase.
+      // • Node in multiple views → silently remove from active view only
+      // • Node in only this view → open styled modal (DeleteConceptModal)
+      // • Relation selected → always remove from model
       if (e.key === 'Delete' || e.key === 'Backspace') {
-        // Only if not in input
         if (!isInputFocused()) {
           const state = useGraphStore.getState();
-          if (state.selectedConceptId || state.selectedRelationId) {
+
+          if (state.selectedConceptId) {
             e.preventDefault();
-            GraphService.deleteSelected();
+            e.stopPropagation(); // ← kill the event; no other handler should see it
+            const conceptId = state.selectedConceptId;
+            const activeViewId = state.activeViewId;
+            const views = state.views;
+
+            const viewsContaining = views.filter((v) =>
+              v.nodes.some((vn) => vn.conceptId === conceptId),
+            );
+
+            if (viewsContaining.length <= 1) {
+              // Last (or no) view — open the styled confirmation modal
+              if (activeViewId) {
+                const concept = state.concepts.find((c) => c.id === conceptId);
+                const conceptName = concept?.name ?? conceptId;
+                state.requestDeleteConceptConfirm(conceptId as any, conceptName, activeViewId as any);
+              }
+            } else if (activeViewId) {
+              // In multiple views — silently remove from active view only
+              state.removeConceptFromView(activeViewId as any, conceptId as any);
+            }
+          } else if (state.selectedRelationId) {
+            e.preventDefault();
+            e.stopPropagation();
+            state.deleteRelation(state.selectedRelationId);
           }
         }
         return;
@@ -115,18 +143,18 @@ export function useKeyboard(config: KeyboardConfig) {
 
       // Arrows — Spatial Node Navigation (only if no alt/ctrl)
       if (!alt && !ctrl) {
-        if (e.key === 'ArrowUp') { e.preventDefault(); e.stopPropagation(); GraphService.selectNearestNode('up'); return; }
-        if (e.key === 'ArrowDown') { e.preventDefault(); e.stopPropagation(); GraphService.selectNearestNode('down'); return; }
-        if (e.key === 'ArrowLeft') { e.preventDefault(); e.stopPropagation(); GraphService.selectNearestNode('left'); return; }
-        if (e.key === 'ArrowRight') { e.preventDefault(); e.stopPropagation(); GraphService.selectNearestNode('right'); return; }
+        if (e.key === 'ArrowUp') { e.preventDefault(); e.stopPropagation(); useGraphStore.getState().selectNearestNode('up'); return; }
+        if (e.key === 'ArrowDown') { e.preventDefault(); e.stopPropagation(); useGraphStore.getState().selectNearestNode('down'); return; }
+        if (e.key === 'ArrowLeft') { e.preventDefault(); e.stopPropagation(); useGraphStore.getState().selectNearestNode('left'); return; }
+        if (e.key === 'ArrowRight') { e.preventDefault(); e.stopPropagation(); useGraphStore.getState().selectNearestNode('right'); return; }
       }
 
       // Alt + Arrows — Spatial Edge Navigation
       if (alt && !ctrl) {
-        if (e.key === 'ArrowUp') { e.preventDefault(); e.stopPropagation(); GraphService.selectNearestEdge('up'); return; }
-        if (e.key === 'ArrowDown') { e.preventDefault(); e.stopPropagation(); GraphService.selectNearestEdge('down'); return; }
-        if (e.key === 'ArrowLeft') { e.preventDefault(); e.stopPropagation(); GraphService.selectNearestEdge('left'); return; }
-        if (e.key === 'ArrowRight') { e.preventDefault(); e.stopPropagation(); GraphService.selectNearestEdge('right'); return; }
+        if (e.key === 'ArrowUp') { e.preventDefault(); e.stopPropagation(); useGraphStore.getState().selectNearestEdge('up'); return; }
+        if (e.key === 'ArrowDown') { e.preventDefault(); e.stopPropagation(); useGraphStore.getState().selectNearestEdge('down'); return; }
+        if (e.key === 'ArrowLeft') { e.preventDefault(); e.stopPropagation(); useGraphStore.getState().selectNearestEdge('left'); return; }
+        if (e.key === 'ArrowRight') { e.preventDefault(); e.stopPropagation(); useGraphStore.getState().selectNearestEdge('right'); return; }
       }
 
       // Enter — Drill into Inspector
@@ -151,15 +179,34 @@ export function useKeyboard(config: KeyboardConfig) {
           ? (currentIndex <= 0 ? concepts.length - 1 : currentIndex - 1)
           : (currentIndex >= concepts.length - 1 ? 0 : currentIndex + 1);
         
-        GraphService.selectConcept(concepts[nextIndex].id);
+        state.selectConcept(concepts[nextIndex].id);
+        state.centerSelectedNode();
         return;
       }
 
-      // Undo/Redo
+      // Undo/Redo — view-scoped first, then global model
       if (ctrl && e.key === 'z') {
         e.preventDefault();
-        if (shift) useGraphStore.temporal.getState().redo();
-        else useGraphStore.temporal.getState().undo();
+        const state = useGraphStore.getState();
+        if (shift) {
+          // Redo: per-view first, then global
+          if (!state.activeViewId || !state.redoViewMembership(state.activeViewId as any)) {
+            useGraphStore.temporal.getState().redo();
+          }
+        } else {
+          // Undo: per-view first, then global
+          if (!state.activeViewId || !state.undoViewMembership(state.activeViewId as any)) {
+            useGraphStore.temporal.getState().undo();
+          }
+        }
+        return;
+      }
+      if (ctrl && e.key === 'y') {
+        e.preventDefault();
+        const state = useGraphStore.getState();
+        if (!state.activeViewId || !state.redoViewMembership(state.activeViewId as any)) {
+          useGraphStore.temporal.getState().redo();
+        }
         return;
       }
 

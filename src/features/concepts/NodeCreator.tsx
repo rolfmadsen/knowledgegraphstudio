@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useGraphStore } from '../../store/useGraphStore';
-import { GraphService } from '../../services/GraphService';
 import { ConceptType } from '../../schema/graphSchema';
+import { PluginRegistry } from '../../plugins/PluginRegistry';
 import { X, Plus, User, Activity, Box, Server, Zap, Shield, Layout, Globe, Search } from 'lucide-react';
 
 export const NodeCreator: React.FC = () => {
-  const { isNodeCreatorOpen, setNodeCreatorOpen } = useGraphStore();
+  const { isNodeCreatorOpen, setNodeCreatorOpen, addConcept, activeViewId, views } = useGraphStore();
   const [name, setName] = useState('');
   const [type, setType] = useState<ConceptType>('entity');
   const [typeQuery, setTypeQuery] = useState('');
@@ -17,16 +17,75 @@ export const NodeCreator: React.FC = () => {
   const createBtnRef = useRef<HTMLButtonElement>(null);
   const closeBtnRef = useRef<HTMLButtonElement>(null);
 
-  const allTypes = [
-    { id: 'entity', label: 'Entity', icon: Box },
-    { id: 'actor', label: 'Actor', icon: User },
-    { id: 'process', label: 'Process', icon: Activity },
-    { id: 'system', label: 'System', icon: Server },
-    { id: 'event', label: 'Event', icon: Zap },
-    { id: 'capability', label: 'Capability', icon: Shield },
-    { id: 'domain', label: 'Domain', icon: Globe },
-    { id: 'bounded_context', label: 'Context', icon: Layout },
-  ];
+  const activeView = views.find((v) => v.id === activeViewId);
+  const activePlugin = activeView ? PluginRegistry.forViewType(activeView.type) : undefined;
+
+  const getIconForType = (t: ConceptType) => {
+    // 1. Strategy & Motivation Layer (Shield)
+    const isStrategyOrMotivation = [
+      'capability', 'requirement', 'goal', 'resource', 'course_of_action', 'value_stream',
+      'stakeholder', 'driver', 'assessment', 'outcome', 'principle', 'constraint', 'value', 'meaning'
+    ].includes(t);
+    if (isStrategyOrMotivation) return Shield;
+
+    // 2. Business Layer (User or Activity)
+    const isBusiness = [
+      'actor', 'process', 'business_role', 'business_function', 'business_service', 'business_object',
+      'business_collaboration', 'business_interface', 'business_interaction', 'contract', 'representation', 'product'
+    ].includes(t);
+    if (isBusiness) {
+      if (t === 'process' || t === 'business_interaction') return Activity;
+      return User;
+    }
+
+    // 3. Application Layer (Server or Zap)
+    const isApplication = [
+      'system', 'application_component', 'application_service', 'application_collaboration', 'application_event',
+      'application_function', 'application_interaction', 'application_interface', 'application_process', 'entity'
+    ].includes(t);
+    if (isApplication) {
+      if (t === 'application_service' || t === 'application_event') return Zap;
+      if (t === 'entity') return Box;
+      return Server;
+    }
+
+    // 4. Technology & Physical Layer (Server or Box)
+    const isTechnologyOrPhysical = [
+      'node', 'artifact', 'device', 'system_software', 'technology_collaboration', 'technology_interface',
+      'technology_function', 'technology_process', 'technology_service', 'communication_network', 'path',
+      'equipment', 'facility', 'distribution_network', 'material'
+    ].includes(t);
+    if (isTechnologyOrPhysical) {
+      if (t === 'artifact' || t === 'material') return Box;
+      return Server;
+    }
+
+    // 5. Implementation & Migration Layer (Activity)
+    const isImplementationOrMigration = [
+      'work_package', 'deliverable', 'plateau', 'gap', 'implementation_event'
+    ].includes(t);
+    if (isImplementationOrMigration) return Activity;
+
+    if (t === 'domain' || t === 'location') return Globe;
+    if (t === 'bounded_context') return Layout;
+
+    return Box;
+  };
+
+  const allTypes = ConceptType.options
+    .filter((t) => {
+      if (!activePlugin?.allowedConceptTypes) return true;
+      return activePlugin.allowedConceptTypes.includes(t as ConceptType);
+    })
+    .map((t) => {
+      const customLabel = activePlugin?.conceptTypeLabels?.[t as ConceptType];
+      const displayLabel = customLabel || t.toUpperCase().replace('_', ' ');
+      return {
+        id: t,
+        label: displayLabel,
+        icon: getIconForType(t as ConceptType),
+      };
+    });
 
   const filteredTypes = allTypes.filter(t => 
     t.label.toLowerCase().includes(typeQuery.toLowerCase()) ||
@@ -38,6 +97,14 @@ export const NodeCreator: React.FC = () => {
       setName('');
       setTypeQuery('');
       setSelectedIndex(0);
+      
+      // Default to the first allowed concept type for the active view
+      if (allTypes.length > 0) {
+        setType(allTypes[0].id as ConceptType);
+      } else {
+        setType('entity');
+      }
+      
       setTimeout(() => inputRef.current?.focus(), 50);
     }
   }, [isNodeCreatorOpen]);
@@ -60,9 +127,9 @@ export const NodeCreator: React.FC = () => {
     }
   }, [selectedIndex]);
 
-  const handleCreate = async () => {
+  const handleCreate = () => {
     if (!name.trim()) return;
-    await GraphService.addConcept(type, name.trim());
+    addConcept(type, name.trim());
     setNodeCreatorOpen(false);
   };
 

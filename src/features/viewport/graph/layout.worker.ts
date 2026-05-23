@@ -16,6 +16,7 @@ export interface LayoutNode {
   id: string;
   width?: number;
   height?: number;
+  parentId?: string;
 }
 
 export interface LayoutLink {
@@ -28,6 +29,10 @@ export interface LayoutRequest {
   type: 'run';
   nodes: LayoutNode[];
   links: LayoutLink[];
+  /** 'TB' = top-bottom hierarchical (Tree), 'LR' = left-right force-spread */
+  rankdir?: 'TB' | 'LR' | 'BT' | 'RL';
+  /** Dagre ranker: 'network-simplex' | 'tight-tree' | 'longest-path' */
+  ranker?: string;
 }
 
 export interface LayoutResult {
@@ -40,7 +45,7 @@ export interface LayoutResult {
 // ============================================================
 
 self.onmessage = (event: MessageEvent<LayoutRequest>) => {
-  const { nodes, links } = event.data;
+  const { nodes, links, rankdir = 'TB', ranker = 'network-simplex' } = event.data;
 
   if (nodes.length === 0) {
     const result: LayoutResult = { type: 'end', nodes: [] };
@@ -48,17 +53,17 @@ self.onmessage = (event: MessageEvent<LayoutRequest>) => {
     return;
   }
 
-  // 1. Initialize Dagre Graph
-  const g = new dagre.graphlib.Graph();
+  // 1. Initialize Dagre Graph with compound support
+  const g = new dagre.graphlib.Graph({ compound: true });
 
-  // 2. Configure Graph Defaults
-  // Rankdir: 'TB' (Top-to-Bottom) for hierarchical flow
-  // nodesep: Horizontal separation between nodes
-  // ranksep: Vertical separation between ranks/layers
+  // 2. Configure Graph — algorithm drives layout style
+  // TB = strict top-down tree (hierarchical)
+  // LR = left-right spread (approximates force-directed spacing)
   g.setGraph({
-    rankdir: 'TB',
-    nodesep: 70,
-    ranksep: 100,
+    rankdir,
+    ranker,
+    nodesep: rankdir === 'LR' ? 100 : 70,
+    ranksep: rankdir === 'LR' ? 120 : 100,
     marginx: 50,
     marginy: 50,
   });
@@ -72,6 +77,13 @@ self.onmessage = (event: MessageEvent<LayoutRequest>) => {
       width: node.width ?? 220,
       height: node.height ?? 80,
     });
+  });
+
+  // Set parents for compound nodes if they exist in the graph
+  nodes.forEach((node) => {
+    if (node.parentId && nodes.some((n) => n.id === node.parentId)) {
+      g.setParent(node.id, node.parentId);
+    }
   });
 
   // 4. Add Edges to Dagre

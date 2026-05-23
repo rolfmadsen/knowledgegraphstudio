@@ -67,7 +67,7 @@ function makeRelation(
 
 describe('YAML Round-Trip', () => {
   it('round-trips an empty state', () => {
-    const state = { domains: [], concepts: [], relations: [] };
+    const state = { domains: [], concepts: [], relations: [], views: [] };
     const yaml = stateToYaml(state);
     const hydrated = yamlToState(yaml);
     expect(hydrated).toEqual(state);
@@ -78,6 +78,7 @@ describe('YAML Round-Trip', () => {
       domains: [makeDomain('Core Domain', 'bounded_context:core-domain')],
       concepts: [],
       relations: [],
+      views: [],
     };
     const yaml = stateToYaml(state);
     const hydrated = yamlToState(yaml);
@@ -99,9 +100,11 @@ describe('YAML Round-Trip', () => {
         makeRelation('actor:saelger', 'process:bestil', 'udfører', 'other:udfoerer', {
           multiplicity: '1..*',
           isDirected: true,
+          relationType: 'CompositionRelationship',
         }),
         makeRelation('process:bestil', 'entity:ordre', 'opretter', 'other:opretter'),
       ],
+      views: [],
     };
 
     const yaml = stateToYaml(state);
@@ -140,6 +143,7 @@ describe('YAML Round-Trip', () => {
         }),
       ],
       relations: [],
+      views: [],
     };
 
     const yaml = stateToYaml(state);
@@ -164,7 +168,7 @@ describe('stateToYaml', () => {
           height: 50,
           fx: null,
           fy: 300,
-        }),
+        } as any),
       ],
       relations: [],
     };
@@ -274,6 +278,7 @@ describe('Edge Cases', () => {
         makeRelation('actor:saelger', 'process:bestil', 'udfører', 'other:udfoerer'),
         makeRelation('actor:saelger', 'entity:ordre', 'ejer', 'other:ejer'),
       ],
+      views: [],
     };
 
     const yaml = stateToYaml(state);

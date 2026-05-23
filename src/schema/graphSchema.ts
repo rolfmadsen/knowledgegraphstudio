@@ -3,6 +3,12 @@
  *
  * Design decision: ElementId is a semantic slug generated from Type + Name
  * (e.g. "actor:saelger"). This ensures human-readable YAML diffs in Git.
+ *
+ * Architecture Note (1:N View Model):
+ *   - ConceptNode is now PURELY semantic (no layout fields).
+ *   - All visual coordinates live in ViewNode → View → views.typegraph.yaml.
+ *   - GraphState is the single hydrated object held in Zustand; it contains
+ *     both the semantic model and the views array.
  */
 import { z } from 'zod/v4';
 
@@ -28,6 +34,68 @@ export const ConceptType = z.enum([
   'system',
   'actor',
   'other',
+  'business_role',
+  'business_function',
+  'business_service',
+  'application_service',
+  'application_component',
+  'business_object',
+  'node',
+  'artifact',
+  'requirement',
+  'goal',
+  // Strategy Layer
+  'resource',
+  'course_of_action',
+  'value_stream',
+  // Business Layer
+  'business_collaboration',
+  'business_interface',
+  'business_interaction',
+  'contract',
+  'representation',
+  'product',
+  // Application Layer
+  'application_collaboration',
+  'application_event',
+  'application_function',
+  'application_interaction',
+  'application_interface',
+  'application_process',
+  // Technology & Physical Layer
+  'device',
+  'system_software',
+  'technology_collaboration',
+  'technology_interface',
+  'technology_function',
+  'technology_process',
+  'technology_interaction',
+  'technology_event',
+  'technology_service',
+  'communication_network',
+  'path',
+  'equipment',
+  'facility',
+  'distribution_network',
+  'material',
+  // Motivation Layer
+  'stakeholder',
+  'driver',
+  'assessment',
+  'outcome',
+  'principle',
+  'constraint',
+  'value',
+  'meaning',
+  // Implementation & Migration Layer
+  'work_package',
+  'deliverable',
+  'plateau',
+  'gap',
+  'implementation_event',
+  // Other
+  'location',
+  'junction',
 ]);
 export type ConceptType = z.infer<typeof ConceptType>;
 
@@ -52,6 +120,35 @@ export type ContextMappingPattern = z.infer<typeof ContextMappingPattern>;
 
 export const PolicyType = z.enum(['gherkin', 'constraint']);
 export type PolicyType = z.infer<typeof PolicyType>;
+
+// ============================================================
+// View Enumerations (1:N architecture)
+// ============================================================
+
+/**
+ * ViewType — Identifies which notation plugin renders a View.
+ * 'knowledge_graph' is the default force-directed explorer.
+ */
+export const ViewType = z.enum([
+  'knowledge_graph',
+  'archimate',
+  'data_model',
+]);
+export type ViewType = z.infer<typeof ViewType>;
+
+/**
+ * LayoutAlgorithm — Determines how node positions are managed.
+ * - 'force_directed': Ephemeral; coordinates computed by D3 worker, NOT saved.
+ * - 'manual': User-dragged; coordinates saved to views.typegraph.yaml.
+ * - 'hierarchical' / 'orthogonal': Reserved for future layout libraries (Dagre/ELK).
+ */
+export const LayoutAlgorithm = z.enum([
+  'force_directed',
+  'hierarchical',
+  'orthogonal',
+  'manual',
+]);
+export type LayoutAlgorithm = z.infer<typeof LayoutAlgorithm>;
 
 // ============================================================
 // Primitives
@@ -131,10 +228,14 @@ export const ConceptProperty = BaseEntity.extend({
 export type ConceptProperty = z.infer<typeof ConceptProperty>;
 
 // ============================================================
-// Concept Node
+// Concept Node — PURELY SEMANTIC (no layout fields)
 // ============================================================
 
-/** Full ConceptNode including ephemeral layout fields */
+/**
+ * ConceptNode is the semantic unit of the graph.
+ * It contains NO visual/layout data (x, y, fx, fy, width, height).
+ * All positional data lives in ViewNode inside a View.
+ */
 export const ConceptNode = BaseEntity.extend({
   parentId: ElementId.optional(),
   domainId: ElementId.optional(),
@@ -145,30 +246,16 @@ export const ConceptNode = BaseEntity.extend({
   definition: z.string().optional(),
   properties: z.array(ConceptProperty),
   policies: z.array(Policy),
-
-  // Ephemeral state — excluded from YAML export and undo/redo
-  width: z.number().optional(),
-  height: z.number().optional(),
-  x: z.number().optional(),
-  y: z.number().optional(),
-  fx: z.number().nullable().optional(),
-  fy: z.number().nullable().optional(),
 });
 export type ConceptNode = z.infer<typeof ConceptNode>;
 
 /**
- * ConceptNode schema for YAML export — strips ephemeral layout fields.
- * Used when serializing state to .typegraph.yaml for Git.
+ * ConceptNodeExport — retained as an alias for ConceptNode for backward
+ * compatibility with PersistenceService. Since ConceptNode no longer contains
+ * ephemeral fields, the export schema is identical to the runtime schema.
  */
-export const ConceptNodeExport = ConceptNode.omit({
-  width: true,
-  height: true,
-  x: true,
-  y: true,
-  fx: true,
-  fy: true,
-});
-export type ConceptNodeExport = z.infer<typeof ConceptNodeExport>;
+export const ConceptNodeExport = ConceptNode;
+export type ConceptNodeExport = ConceptNode;
 
 // ============================================================
 // Concept Relation
@@ -178,6 +265,7 @@ export const ConceptRelation = BaseEntity.extend({
   sourceConceptId: ElementId,
   targetConceptId: ElementId,
   name: z.string().min(1),
+  relationType: z.string().optional(),
   multiplicity: z.string().optional(),
   mappingPattern: ContextMappingPattern.optional(),
   transformationDescription: z.string().optional(),
@@ -187,6 +275,44 @@ export const ConceptRelation = BaseEntity.extend({
 export type ConceptRelation = z.infer<typeof ConceptRelation>;
 
 // ============================================================
+// View Layer — 1:N visual notation schemas
+// ============================================================
+
+/**
+ * ViewNode — visual representation of a ConceptNode within a specific View.
+ * Carries only the coordinates and optional size override; all semantic
+ * data is looked up via conceptId → store.concepts.
+ */
+export const ViewNode = z.object({
+  conceptId: ElementId,
+  x: z.number(),
+  y: z.number(),
+  width: z.number().optional(),
+  height: z.number().optional(),
+  manualX: z.number().optional(),
+  manualY: z.number().optional(),
+  parentId: ElementId.optional(),
+});
+export type ViewNode = z.infer<typeof ViewNode>;
+
+/**
+ * View — a named, notation-specific rendering of a subset of the graph.
+ * Extends BaseEntity so it has id, createdAt, updatedAt, lifecycleState.
+ *
+ * - 'nodes': the ViewNodes (positional data) included in this view.
+ * - 'edges': the ConceptRelation IDs visible in this view.
+ *   An empty array means "show all relations between included nodes".
+ */
+export const View = BaseEntity.extend({
+  name: z.string().min(1),
+  type: ViewType,
+  layoutAlgorithm: LayoutAlgorithm,
+  nodes: z.array(ViewNode),
+  edges: z.array(ElementId),
+});
+export type View = z.infer<typeof View>;
+
+// ============================================================
 // Full Graph State (for store hydration)
 // ============================================================
 
@@ -194,13 +320,14 @@ export const GraphState = z.object({
   domains: z.array(Domain),
   concepts: z.array(ConceptNode),
   relations: z.array(ConceptRelation),
+  views: z.array(View).default([]),
 });
 export type GraphState = z.infer<typeof GraphState>;
 
-/** Export-safe version of GraphState (no ephemeral fields on concepts) */
-export const GraphStateExport = z.object({
-  domains: z.array(Domain),
-  concepts: z.array(ConceptNodeExport),
-  relations: z.array(ConceptRelation),
-});
-export type GraphStateExport = z.infer<typeof GraphStateExport>;
+/** Export-safe version of GraphState.
+ *  Since ConceptNode is now fully semantic, this is identical to GraphState.
+ *  The 'views' array is intentionally included here because it is exported
+ *  to views.typegraph.yaml (handled separately by PersistenceService).
+ */
+export const GraphStateExport = GraphState;
+export type GraphStateExport = GraphState;

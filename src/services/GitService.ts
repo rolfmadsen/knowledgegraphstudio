@@ -12,7 +12,9 @@ import {
 } from '../core/gitEngine';
 import { getFS, REPO_DIR, recursiveDelete } from '../core/fileSystem';
 import { CredentialService } from './CredentialService';
-import { useGraphStore } from '../store/useGraphStore';
+import { PersistenceService, type PersistableState } from './PersistenceService';
+import type { GraphState } from '../schema/graphSchema';
+import type { SyncStatus } from '../store/useGraphStore';
 
 // ============================================================
 // Types
@@ -20,8 +22,11 @@ import { useGraphStore } from '../store/useGraphStore';
 
 export type PullResult =
   | {
-      /** Fast-forward succeeded — store has been hydrated */
+      /** Fast-forward succeeded — contains the new hydrated state */
       success: true;
+      state: GraphState;
+      aheadBy: number;
+      behindBy: number;
     }
   | {
       /** Diverged histories — caller must open ConflictResolverModal */
@@ -102,7 +107,7 @@ export class GitService {
    * Push local commits to the configured remote.
    * Auto-commits any dirty changes before pushing.
    */
-  static async push(force = false): Promise<PullResult | { success: true }> {
+  static async push(state: PersistableState, force = false): Promise<PullResult | { success: true }> {
     const config = await CredentialService.loadRemoteConfig();
     const pat = await CredentialService.loadPAT();
 
@@ -110,21 +115,16 @@ export class GitService {
       throw new Error('Remote er ikke konfigureret. Åbn Remote Config (Ctrl+Shift+G).');
     }
 
-    useGraphStore.setState({ syncStatus: 'pushing' });
-
     try {
       // 1. Auto-commit dirty changes
-      const { PersistenceService } = await import('./PersistenceService');
-      
-      // SAFETY CHECK: Never auto-commit if the graph is essentially empty
-      const currentYaml = await PersistenceService.getYaml();
+      const currentYaml = await PersistenceService.getYaml(state);
       if (!currentYaml || currentYaml.trim().length < 50) {
         throw new Error('Push afbrudt: Din lokale graf ser ud til at være tom. Vi har blokeret sync for at beskytte dine data på GitLab. Prøv at lave et Pull eller genindlæse siden.');
       }
 
-      await PersistenceService.saveWorkspace();
+      await PersistenceService.saveWorkspace(state);
       
-      // 1. Commit changes
+      // Commit changes
       try {
         await gitCommit(`Auto-commit: ${new Date().toISOString()}`, {
           name: config.authorName || 'TypeGraph User',
@@ -187,20 +187,8 @@ export class GitService {
         }
       }
 
-      // 4. Update status counts - Trust the push success fully
-      useGraphStore.setState({
-        syncStatus: 'synced',
-        aheadBy: 0,
-        behindBy: 0,
-        lastSyncedAt: Date.now(),
-      });
-      console.log(`[GitService] Push successful. Status set to Synced (Trusting result).`);
-
       return { success: true };
     } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      const isAuth = msg.includes('401') || msg.includes('403') || msg.includes('auth');
-      useGraphStore.setState({ syncStatus: isAuth ? 'auth_error' : 'idle' });
       throw error;
     }
   }
@@ -217,31 +205,25 @@ export class GitService {
       throw new Error('Remote er ikke konfigureret. Åbn Remote Config (Ctrl+Shift+G).');
     }
 
-    useGraphStore.setState({ syncStatus: 'pulling' });
-
     try {
       const counts = await gitFetch(config.url, config.corsProxy, pat);
 
       await gitMergeFastForward();
 
-      // Hydrate store from updated YAML
-      const { PersistenceService } = await import('./PersistenceService');
-      await PersistenceService.loadWorkspace();
+      // Load updated state from VFS
+      const state = await PersistenceService.loadWorkspace();
+      if (!state) {
+        throw new Error('Kunne ikke indlæse tilstanden efter succesfuld pull.');
+      }
 
-      // Clear undo history after successful pull (Spec §4 Historik-rydning)
-      (useGraphStore as any).temporal.getState().clear();
-
-      useGraphStore.setState({
-        syncStatus: 'synced',
+      return {
+        success: true,
+        state,
         aheadBy: counts.aheadBy,
         behindBy: counts.behindBy,
-        lastSyncedAt: Date.now(),
-      });
-
-      return { success: true };
+      };
     } catch (error) {
       if (error instanceof MergeConflictError) {
-        useGraphStore.setState({ syncStatus: 'conflict' });
         return {
           success: false,
           conflict: true,
@@ -249,9 +231,6 @@ export class GitService {
           remoteYaml: error.remoteYaml,
         };
       }
-      const msg = error instanceof Error ? error.message : String(error);
-      const isAuth = msg.includes('401') || msg.includes('403') || msg.includes('auth');
-      useGraphStore.setState({ syncStatus: isAuth ? 'auth_error' : 'idle' });
       throw error;
     }
   }
@@ -259,12 +238,12 @@ export class GitService {
   /**
    * Fetch latest changes from remote without merging.
    */
-  static async fetch(): Promise<void> {
+  static async fetch(): Promise<{ aheadBy: number; behindBy: number } | null> {
     const config = await CredentialService.loadRemoteConfig();
     const pat = await CredentialService.loadPAT();
-    if (!config || !pat) return;
+    if (!config || !pat) return null;
 
-    await gitFetch(config.url, config.corsProxy, pat);
+    return await gitFetch(config.url, config.corsProxy, pat);
   }
 
   /**
@@ -297,7 +276,6 @@ export class GitService {
     }
     await pfs.mkdir(dir);
 
-
     await gitClone(url, dir, config.corsProxy, pat, onProgress);
     console.log(`[GitService] Cloned "${url}" → ${dir}`);
 
@@ -309,7 +287,7 @@ export class GitService {
    * Only runs when a remote is configured.
    * Existing timer is cleared before starting a new one.
    */
-  static startAutoFetch(): void {
+  static startAutoFetch(onFetchUpdate: (aheadBy: number, behindBy: number, syncStatus?: SyncStatus) => void): void {
     if (_autoFetchTimer) clearInterval(_autoFetchTimer);
 
     _autoFetchTimer = setInterval(async () => {
@@ -319,13 +297,11 @@ export class GitService {
 
       try {
         const counts = await gitFetch(config.url, config.corsProxy, pat);
-        useGraphStore.setState({
-          aheadBy: counts.aheadBy,
-          behindBy: counts.behindBy,
-        });
+        let syncStatus: SyncStatus | undefined;
         if (counts.behindBy > 0) {
-          useGraphStore.setState({ syncStatus: 'behind' });
+          syncStatus = 'behind';
         }
+        onFetchUpdate(counts.aheadBy, counts.behindBy, syncStatus);
       } catch (err) {
         console.warn('[GitService] Auto-fetch failed silently:', err);
       }

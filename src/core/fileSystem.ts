@@ -12,11 +12,18 @@ import LightningFS from '@isomorphic-git/lightning-fs';
 
 const REPO_NAME = 'typegraph';
 const STORAGE_KEY = 'tg_active_workspace';
+/** Legacy single-file name — kept for backward-compat migration reads. */
 const YAML_FILENAME = '.typegraph.yaml';
+/** Semantic model: domains, concepts, relations. */
+export const MODEL_FILENAME = 'model.typegraph.yaml';
+/** View definitions: ViewNode coordinates per View. */
+export const VIEWS_FILENAME = 'views.typegraph.yaml';
 
 // Initialize REPO_DIR from localStorage or default to '/workspace'
 export let REPO_DIR = localStorage.getItem(STORAGE_KEY) || '/workspace';
 export let YAML_PATH = `${REPO_DIR}/${YAML_FILENAME}`;
+export let MODEL_PATH = `${REPO_DIR}/${MODEL_FILENAME}`;
+export let VIEWS_PATH = `${REPO_DIR}/${VIEWS_FILENAME}`;
 
 /**
  * Switch the active repository directory and persist to localStorage.
@@ -24,6 +31,8 @@ export let YAML_PATH = `${REPO_DIR}/${YAML_FILENAME}`;
 export function setRepoDir(newDir: string) {
   REPO_DIR = newDir.startsWith('/') ? newDir : `/${newDir}`;
   YAML_PATH = `${REPO_DIR}/${YAML_FILENAME}`;
+  MODEL_PATH = `${REPO_DIR}/${MODEL_FILENAME}`;
+  VIEWS_PATH = `${REPO_DIR}/${VIEWS_FILENAME}`;
   localStorage.setItem(STORAGE_KEY, REPO_DIR);
   console.log(`[FileSystem] Active workspace set to: ${REPO_DIR}`);
 }
@@ -123,6 +132,24 @@ export async function writeYaml(content: string): Promise<void> {
 }
 
 /**
+ * Write semantic model YAML (domains, concepts, relations) to model.typegraph.yaml.
+ */
+export async function writeModelYaml(content: string): Promise<void> {
+  const pfs = getFSPromises();
+  await ensureWorkspaceDir();
+  await pfs.writeFile(MODEL_PATH, content, 'utf8');
+}
+
+/**
+ * Write views YAML (ViewNode coordinates) to views.typegraph.yaml.
+ */
+export async function writeViewsYaml(content: string): Promise<void> {
+  const pfs = getFSPromises();
+  await ensureWorkspaceDir();
+  await pfs.writeFile(VIEWS_PATH, content, 'utf8');
+}
+
+/**
  * Read YAML content from the workspace file.
  * Returns null if the file doesn't exist yet.
  */
@@ -137,12 +164,51 @@ export async function readYaml(): Promise<string | null> {
 }
 
 /**
- * Check if the YAML file exists.
+ * Read model.typegraph.yaml — returns null if not present.
+ */
+export async function readModelYaml(): Promise<string | null> {
+  const pfs = getFSPromises();
+  try {
+    const content = await pfs.readFile(MODEL_PATH, { encoding: 'utf8' });
+    return content as string;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Read views.typegraph.yaml — returns null if not present (views default to []).
+ */
+export async function readViewsYaml(): Promise<string | null> {
+  const pfs = getFSPromises();
+  try {
+    const content = await pfs.readFile(VIEWS_PATH, { encoding: 'utf8' });
+    return content as string;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Check if the YAML file exists (legacy single-file check).
  */
 export async function yamlExists(): Promise<boolean> {
   const pfs = getFSPromises();
   try {
     await pfs.stat(YAML_PATH);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Check if the split model file exists (new format).
+ */
+export async function modelYamlExists(): Promise<boolean> {
+  const pfs = getFSPromises();
+  try {
+    await pfs.stat(MODEL_PATH);
     return true;
   } catch {
     return false;

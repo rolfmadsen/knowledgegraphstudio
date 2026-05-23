@@ -13,7 +13,7 @@
  */
 import git from 'isomorphic-git';
 import http from 'isomorphic-git/http/web';
-import { getFS, REPO_DIR, YAML_FILENAME, YAML_PATH, getFSPromises } from './fileSystem';
+import { getFS, REPO_DIR, MODEL_FILENAME, MODEL_PATH, VIEWS_FILENAME, VIEWS_PATH, getFSPromises } from './fileSystem';
 
 // Standard HTTP wrapper
 const httpWithNoCache = http;
@@ -51,7 +51,7 @@ export async function getHeadYaml(ref: string = 'HEAD'): Promise<string | null> 
       fs,
       dir: REPO_DIR,
       oid: await git.resolveRef({ fs, dir: REPO_DIR, ref }),
-      filepath: YAML_FILENAME,
+      filepath: MODEL_FILENAME,
     });
     return new TextDecoder().decode(blob);
   } catch {
@@ -109,18 +109,30 @@ export async function gitCommit(
   try {
     // 0. Verify file exists
     try {
-      await pfs.stat(YAML_PATH);
+      await pfs.stat(MODEL_PATH);
     } catch {
-      console.error(`[GitEngine] Error: File not found at ${YAML_PATH}`);
-      throw new Error(`Filen ${YAML_FILENAME} findes ikke i workspace.`);
+      console.error(`[GitEngine] Error: File not found at ${MODEL_PATH}`);
+      throw new Error(`Filen ${MODEL_FILENAME} findes ikke i workspace.`);
     }
 
-    // 1. Stage the file
+    // 1. Stage the model file
     await git.add({
       fs,
       dir: REPO_DIR,
-      filepath: YAML_FILENAME,
+      filepath: MODEL_FILENAME,
     });
+
+    // 1b. Stage the views file if it exists
+    try {
+      await pfs.stat(VIEWS_PATH);
+      await git.add({
+        fs,
+        dir: REPO_DIR,
+        filepath: VIEWS_FILENAME,
+      });
+    } catch {
+      // Ignore if views.typegraph.yaml does not exist
+    }
 
     // 2. Commit (explicitly updating the main branch ref)
     const sha = await git.commit({
@@ -174,7 +186,7 @@ export async function gitStatus(): Promise<string> {
     const status = await git.status({
       fs,
       dir: REPO_DIR,
-      filepath: YAML_FILENAME,
+      filepath: MODEL_FILENAME,
     });
     return status;
   } catch {
@@ -196,7 +208,7 @@ export async function gitDiffHead(): Promise<{
 
   let current: string | null = null;
   try {
-    current = (await pfs.readFile(YAML_PATH, { encoding: 'utf8' })) as string;
+    current = (await pfs.readFile(MODEL_PATH, { encoding: 'utf8' })) as string;
   } catch {
     // File doesn't exist yet
   }
@@ -545,7 +557,7 @@ export async function gitMergeFastForward(): Promise<void> {
   let remoteYaml: string | null = null;
 
   try {
-    localYaml = (await pfs.readFile(YAML_PATH, { encoding: 'utf8' })) as string;
+    localYaml = (await pfs.readFile(MODEL_PATH, { encoding: 'utf8' })) as string;
   } catch { /* file missing */ }
 
   try {
@@ -553,7 +565,7 @@ export async function gitMergeFastForward(): Promise<void> {
       fs,
       dir: REPO_DIR,
       oid: remoteRef,
-      filepath: YAML_FILENAME,
+      filepath: MODEL_FILENAME,
     });
     remoteYaml = new TextDecoder().decode(blob);
   } catch { /* file missing in remote */ }

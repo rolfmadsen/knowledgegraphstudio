@@ -1,7 +1,6 @@
 import { useMemo, useState, useCallback } from 'react';
 import Editor from '@monaco-editor/react';
 import { useGraphStore } from '../../../store/useGraphStore';
-import { PersistenceService } from '../../../services/PersistenceService';
 import { debounce } from '../../../utils/debounce';
 
 interface CodeViewportProps {
@@ -10,31 +9,32 @@ interface CodeViewportProps {
 
 export function CodeViewport({ isConflict = false }: CodeViewportProps) {
   const rawYaml = useGraphStore((s) => s?.rawYaml);
-  const hydrate = useGraphStore((s) => s?.hydrate);
   const domains = useGraphStore((s) => s?.domains || []);
   const concepts = useGraphStore((s) => s?.concepts || []);
   const relations = useGraphStore((s) => s?.relations || []);
+  const stringifyState = useGraphStore((s) => s?.stringifyState);
+  const hydrateFromYaml = useGraphStore((s) => s?.hydrateFromYaml);
+  const resolveConflictFromYaml = useGraphStore((s) => s?.resolveConflictFromYaml);
 
   const [localYaml, setLocalYaml] = useState<string | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
 
   const yamlContent = useMemo(() => {
     if (isConflict && rawYaml) return rawYaml;
-    return PersistenceService.stringifyCurrentState();
-  }, [domains, concepts, relations, isConflict, rawYaml]);
+    return stringifyState ? stringifyState() : '';
+  }, [domains, concepts, relations, isConflict, rawYaml, stringifyState]);
 
   // Debounced sync function to update the global store from YAML input
   const syncToStore = useCallback(
     debounce((value: string) => {
       try {
-        const state = PersistenceService.parse(value);
-        if (hydrate) hydrate(state);
+        if (hydrateFromYaml) hydrateFromYaml(value);
         setError(null);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Invalid YAML syntax');
       }
     }, 500),
-    [hydrate]
+    [hydrateFromYaml]
   );
 
   const handleEditorChange = (value: string | undefined) => {
@@ -47,10 +47,9 @@ export function CodeViewport({ isConflict = false }: CodeViewportProps) {
   const handleFix = async () => {
     if (!localYaml) return;
     try {
-      const state = PersistenceService.parse(localYaml);
-      if (hydrate) hydrate(state);
-      await PersistenceService.saveWorkspace();
-      useGraphStore.setState({ rawYaml: null });
+      if (resolveConflictFromYaml) {
+        await resolveConflictFromYaml(localYaml);
+      }
       window.location.reload(); 
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Still invalid');
