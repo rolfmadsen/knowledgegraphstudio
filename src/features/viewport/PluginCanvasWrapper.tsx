@@ -4,6 +4,8 @@ import { useGraphStore } from '../../store/useGraphStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useFocusedGraph } from '../../store/selectors';
 import { PluginRegistry } from '../../plugins/PluginRegistry';
+import { type ElementId, toElementId } from '../../schema/graphSchema';
+import { PADDING_LEFT, PADDING_TOP } from './graph/ReactFlowCanvas';
 
 interface PluginCanvasWrapperProps {
   focusMode: boolean;
@@ -79,16 +81,16 @@ export function PluginCanvasWrapper({ focusMode }: PluginCanvasWrapperProps) {
 
   // Use refs to avoid recreating the layout loop when rendering updates occur
   const activeViewRef = useRef(activeView);
-  activeViewRef.current = activeView;
-
   const relationsRef = useRef(filteredRelations);
-  relationsRef.current = filteredRelations;
-
   const conceptsRef = useRef(filteredConcepts);
-  conceptsRef.current = filteredConcepts;
-
   const pluginRef = useRef(plugin);
-  pluginRef.current = plugin;
+
+  useEffect(() => {
+    activeViewRef.current = activeView;
+    relationsRef.current = filteredRelations;
+    conceptsRef.current = filteredConcepts;
+    pluginRef.current = plugin;
+  }, [activeView, filteredRelations, filteredConcepts, plugin]);
 
   // Unified layout execution loop
   const runLayout = useCallback(async () => {
@@ -132,9 +134,63 @@ export function PluginCanvasWrapper({ focusMode }: PluginCanvasWrapperProps) {
         layoutAlgorithm: currentView.layoutAlgorithm,
       });
       if (result.positions.length > 0) {
-        // Compare new layout coordinates with current coordinates to avoid unnecessary state updates
+        // Normalize group node positions based on children bounds in result.positions
+        const normalizedPositions = result.positions.map(p => ({
+          conceptId: toElementId(p.conceptId),
+          x: p.x,
+          y: p.y,
+        }));
+        const conceptMap = new Map(currentConcepts.map(c => [c.id, c]));
+
+        const groupNodes = viewNodes.filter(vn => {
+          const c = conceptMap.get(vn.conceptId);
+          return c && c.conceptType === 'bounded_context';
+        });
+
+        groupNodes.forEach(groupNode => {
+          const childrenIds = viewNodes
+            .filter(vn => vn.parentId === groupNode.conceptId)
+            .map(vn => vn.conceptId);
+
+          if (childrenIds.length > 0) {
+            let minX = Infinity;
+            let minY = Infinity;
+            let maxX = -Infinity;
+            let maxY = -Infinity;
+
+            const defaultW = currentView.type === 'c4' ? 240 : currentView.type === 'archimate' ? 210 : 200;
+            const defaultH = currentView.type === 'c4' ? 96 : currentView.type === 'archimate' ? 76 : 80;
+
+            childrenIds.forEach(cid => {
+              const pos = normalizedPositions.find(p => p.conceptId === cid);
+              if (pos) {
+                const rfNode = rfNodes.find(n => n.id === cid);
+                const w = rfNode?.measured?.width ?? defaultW;
+                const h = rfNode?.measured?.height ?? defaultH;
+
+                minX = Math.min(minX, pos.x);
+                minY = Math.min(minY, pos.y);
+                maxX = Math.max(maxX, pos.x + w);
+                maxY = Math.max(maxY, pos.y + h);
+              }
+            });
+
+            if (minX !== Infinity) {
+              const gx = minX - PADDING_LEFT;
+              const gy = minY - PADDING_TOP;
+
+              const groupPos = normalizedPositions.find(p => p.conceptId === groupNode.conceptId);
+              if (groupPos) {
+                groupPos.x = gx;
+                groupPos.y = gy;
+              }
+            }
+          }
+        });
+
+        // Compare new normalized layout coordinates with current coordinates to avoid unnecessary state updates
         let hasChanged = false;
-        for (const pos of result.positions) {
+        for (const pos of normalizedPositions) {
           const vn = viewNodes.find((v) => v.conceptId === pos.conceptId);
           if (!vn || Math.abs(vn.x - pos.x) > 0.1 || Math.abs(vn.y - pos.y) > 0.1) {
             hasChanged = true;
@@ -142,7 +198,7 @@ export function PluginCanvasWrapper({ focusMode }: PluginCanvasWrapperProps) {
           }
         }
         if (hasChanged) {
-          batchUpdateViewNodePositions(currentView.id, result.positions);
+          batchUpdateViewNodePositions(currentView.id, normalizedPositions);
         }
       }
     } catch (err) {
@@ -158,6 +214,7 @@ export function PluginCanvasWrapper({ focusMode }: PluginCanvasWrapperProps) {
       }, 50);
       return () => clearTimeout(timer);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     filteredConcepts.length,
     filteredRelations.length,
@@ -194,7 +251,7 @@ export function PluginCanvasWrapper({ focusMode }: PluginCanvasWrapperProps) {
       selectedConceptId,
       selectedRelationId,
     },
-    onNodePositionChange: (conceptId: string, x: number, y: number) => {
+    onNodePositionChange: (conceptId: ElementId, x: number, y: number) => {
       updateViewNodePosition(activeView.id, conceptId, x, y);
     },
     onNodeSelect: selectConcept,

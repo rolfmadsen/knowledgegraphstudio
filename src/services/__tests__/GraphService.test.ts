@@ -4,6 +4,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { GraphService } from '../GraphService';
+import { toElementId } from '../../schema/graphSchema';
 
 describe('GraphService', () => {
   describe('addDomain', () => {
@@ -20,7 +21,7 @@ describe('GraphService', () => {
   describe('addConcept', () => {
     it('creates a concept and assigns a default domain if none provided', () => {
       const domain = { 
-        id: 'bounded_context:default' as any, 
+        id: toElementId('bounded_context:default'), 
         name: 'Default Domain', 
         createdAt: Date.now(), 
         updatedAt: Date.now(), 
@@ -39,7 +40,7 @@ describe('GraphService', () => {
   describe('addRelation', () => {
     it('applies smart naming based on concept types', () => {
       const actor = { 
-        id: 'actor:admin' as any, 
+        id: toElementId('actor:admin'), 
         name: 'Admin', 
         conceptType: 'actor' as const, 
         createdAt: Date.now(), 
@@ -50,7 +51,7 @@ describe('GraphService', () => {
         aliases: []
       };
       const process = { 
-        id: 'process:login' as any, 
+        id: toElementId('process:login'), 
         name: 'Login', 
         conceptType: 'process' as const, 
         createdAt: Date.now(), 
@@ -69,7 +70,7 @@ describe('GraphService', () => {
 
     it('uses "relates to" as fallback name', () => {
       const c1 = { 
-        id: 'other:a' as any, 
+        id: toElementId('other:a'), 
         name: 'A', 
         conceptType: 'other' as const, 
         createdAt: Date.now(), 
@@ -80,7 +81,7 @@ describe('GraphService', () => {
         aliases: []
       };
       const c2 = { 
-        id: 'other:b' as any, 
+        id: toElementId('other:b'), 
         name: 'B', 
         conceptType: 'other' as const, 
         createdAt: Date.now(), 
@@ -101,7 +102,7 @@ describe('GraphService', () => {
   describe('deleteConcept (Orphan Cleanup)', () => {
     it('deletes relations connected to the deleted concept', () => {
       const c1 = { 
-        id: 'actor:a' as any, 
+        id: toElementId('actor:a'), 
         name: 'A', 
         conceptType: 'actor' as const, 
         createdAt: Date.now(), 
@@ -112,7 +113,7 @@ describe('GraphService', () => {
         aliases: []
       };
       const c2 = { 
-        id: 'process:p' as any, 
+        id: toElementId('process:p'), 
         name: 'P', 
         conceptType: 'process' as const, 
         createdAt: Date.now(), 
@@ -123,7 +124,7 @@ describe('GraphService', () => {
         aliases: []
       };
       const r1 = { 
-        id: 'rel:1' as any, 
+        id: toElementId('rel:1'), 
         sourceConceptId: c1.id, 
         targetConceptId: c2.id, 
         name: 'relates to', 
@@ -144,14 +145,14 @@ describe('GraphService', () => {
   describe('deleteDomain (Reference Cleanup)', () => {
     it('clears domainId in concepts referencing the deleted domain', () => {
       const domain = { 
-        id: 'bc:1' as any, 
+        id: toElementId('bc:1'), 
         name: 'To be deleted', 
         createdAt: Date.now(), 
         updatedAt: Date.now(), 
         lifecycleState: 'active' as const 
       };
       const concept = { 
-        id: 'actor:user' as any, 
+        id: toElementId('actor:user'), 
         name: 'User', 
         conceptType: 'actor' as const, 
         domainId: domain.id, 
@@ -171,12 +172,10 @@ describe('GraphService', () => {
     });
   });
 
-
-
   describe('createQuickRelation', () => {
     it('creates a new target concept and the relation pointing to it', () => {
       const source = { 
-        id: 'actor:user' as any, 
+        id: toElementId('actor:user'), 
         name: 'User', 
         conceptType: 'actor' as const, 
         createdAt: Date.now(), 
@@ -206,7 +205,7 @@ describe('GraphService', () => {
 
     it('creates a relation to an existing target concept without adding new concepts', () => {
       const source = { 
-        id: 'actor:user' as any, 
+        id: toElementId('actor:user'), 
         name: 'User', 
         conceptType: 'actor' as const, 
         createdAt: Date.now(), 
@@ -217,7 +216,7 @@ describe('GraphService', () => {
         aliases: []
       };
       const target = { 
-        id: 'entity:order' as any, 
+        id: toElementId('entity:order'), 
         name: 'Order', 
         conceptType: 'entity' as const, 
         createdAt: Date.now(), 
@@ -245,7 +244,7 @@ describe('GraphService', () => {
 
     it('creates a new target concept with the same name as an existing concept but different type', () => {
       const source = { 
-        id: 'actor:user' as any, 
+        id: toElementId('actor:user'), 
         name: 'SalesDept', 
         conceptType: 'actor' as const, 
         createdAt: Date.now(), 
@@ -256,7 +255,7 @@ describe('GraphService', () => {
         aliases: []
       };
       const existingOrderActor = { 
-        id: 'actor:order' as any, 
+        id: toElementId('actor:order'), 
         name: 'Order', 
         conceptType: 'actor' as const, 
         createdAt: Date.now(), 

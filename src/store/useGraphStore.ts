@@ -8,17 +8,19 @@
  * synchronous updates through pure GraphService methods and executing
  * asynchronous I/O and Git procedures.
  */
-import { create, useStore } from 'zustand';
+import { create, useStore, type StoreApi } from 'zustand';
 import { temporal, type TemporalState } from 'zundo';
-import type {
-  Domain,
-  ConceptNode,
-  ConceptRelation,
-  ElementId,
-  ConceptType,
-  DataClassification,
-  View,
-  ViewNode,
+import {
+  type Domain,
+  type ConceptNode,
+  type ConceptRelation,
+  type ElementId,
+  type ConceptType,
+  type DataClassification,
+  type View,
+  type ViewNode,
+  type DataType,
+  toElementId,
 } from '../schema/graphSchema';
 import { CredentialService, type RemoteConfig } from '../services/CredentialService';
 import { GraphService } from '../services/GraphService';
@@ -56,6 +58,7 @@ export interface GraphStoreState {
   rawYaml: string | null; // For conflict mode
   isRelationBuilderOpen: boolean;
   isNodeCreatorOpen: boolean;
+  isCreateViewModalOpen: boolean;
   isQuickFindOpen: boolean;
   relationBuilderSourceId: ElementId | null;
   centerSelectionCount: number;
@@ -69,8 +72,8 @@ export interface GraphStoreState {
    * Keyed by viewId. Excluded from zundo — managed manually so that
    * Ctrl+Z on View A undoes the last change IN View A, not globally.
    */
-  _viewMembershipUndo: Record<string, Array<{ type: 'add' | 'remove'; conceptId: string; x: number; y: number }>>;
-  _viewMembershipRedo: Record<string, Array<{ type: 'add' | 'remove'; conceptId: string; x: number; y: number }>>;
+   _viewMembershipUndo: Record<string, Array<{ type: 'add' | 'remove'; conceptId: ElementId; x: number; y: number }>>;
+  _viewMembershipRedo: Record<string, Array<{ type: 'add' | 'remove'; conceptId: ElementId; x: number; y: number }>>;
 
   // --- Git Sync State (Spec §10.5, excluded from zundo) ---
   remoteConfig: RemoteConfig | null;
@@ -87,6 +90,7 @@ export interface GraphStoreState {
   setFocusMode: (focus: boolean) => void;
   setRelationBuilderOpen: (open: boolean, sourceId?: ElementId | null) => void;
   setNodeCreatorOpen: (open: boolean) => void;
+  setCreateViewModalOpen: (open: boolean) => void;
   setQuickFindOpen: (open: boolean) => void;
   requestDeleteConceptConfirm: (conceptId: ElementId, conceptName: string, viewId: ElementId) => void;
   clearDeleteConceptConfirm: () => void;
@@ -152,7 +156,7 @@ export interface GraphStoreState {
   deleteRelation: (id: ElementId) => void;
 
   // --- Property Actions ---
-  addProperty: (conceptId: ElementId, name: string, type: string, isRequired?: boolean) => void;
+  addProperty: (conceptId: ElementId, name: string, type: DataType, isRequired?: boolean) => void;
   updateProperty: (
     conceptId: ElementId,
     propertyId: ElementId,
@@ -242,6 +246,7 @@ export const useGraphStore = create<GraphStoreState>()(
       rawYaml: null,
       isRelationBuilderOpen: false,
       isNodeCreatorOpen: false,
+      isCreateViewModalOpen: false,
       isQuickFindOpen: false,
       relationBuilderSourceId: null,
       layoutVersion: 0,
@@ -274,6 +279,7 @@ export const useGraphStore = create<GraphStoreState>()(
         relationBuilderSourceId: sourceId 
       }),
       setNodeCreatorOpen: (open) => set({ isNodeCreatorOpen: open }),
+      setCreateViewModalOpen: (open) => set({ isCreateViewModalOpen: open }),
       setQuickFindOpen: (open) => set({ isQuickFindOpen: open }),
       requestDeleteConceptConfirm: (conceptId, conceptName, viewId) =>
         set({ deleteConceptConfirm: { conceptId, conceptName, viewId } }),
@@ -327,7 +333,7 @@ export const useGraphStore = create<GraphStoreState>()(
           set({ _viewMembershipUndo: { ...get()._viewMembershipUndo, [viewId]: newUndoStack } });
           return false;
         }
-        const temporal = (useGraphStore as any).temporal.getState();
+        const temporal = getTemporalState();
         temporal.pause();
         if (action.type === 'remove') {
           // Undo remove → add back at original position
@@ -367,7 +373,7 @@ export const useGraphStore = create<GraphStoreState>()(
         if (!redoStack || redoStack.length === 0) return false;
         const action = redoStack[redoStack.length - 1];
         const newRedoStack = redoStack.slice(0, -1);
-        const temporal = (useGraphStore as any).temporal.getState();
+        const temporal = getTemporalState();
         temporal.pause();
         if (action.type === 'remove') {
           set((s) => ({
@@ -473,7 +479,7 @@ export const useGraphStore = create<GraphStoreState>()(
       addConceptToView: (viewId, conceptId, x, y) => {
         // Skip if already present
         if (get().views.find((v) => v.id === viewId)?.nodes.some((n) => n.conceptId === conceptId)) return;
-        const temporal = (useGraphStore as any).temporal.getState();
+        const temporal = getTemporalState();
         temporal.pause();
         set((s) => ({
           views: s.views.map((v) =>
@@ -498,7 +504,7 @@ export const useGraphStore = create<GraphStoreState>()(
         const currentVn = get().views.find((v) => v.id === viewId)?.nodes.find((n) => n.conceptId === conceptId);
         const x = currentVn?.x ?? 0;
         const y = currentVn?.y ?? 0;
-        const temporal = (useGraphStore as any).temporal.getState();
+        const temporal = getTemporalState();
         temporal.pause();
         set((s) => ({
           views: s.views.map((v) =>
@@ -520,7 +526,7 @@ export const useGraphStore = create<GraphStoreState>()(
 
       createView: (name, type = 'knowledge_graph', layoutAlgorithm = 'force_directed') => {
         const newView: View = {
-          id: `view:${crypto.randomUUID()}`,
+          id: toElementId(`view:${crypto.randomUUID()}`),
           name,
           type,
           layoutAlgorithm,
@@ -562,7 +568,7 @@ export const useGraphStore = create<GraphStoreState>()(
           activeViewId: nextActiveViewId,
           concepts: updatedConcepts,
           relations: updatedRelations,
-          selectedConceptId: deleteConceptIds.includes(state.selectedConceptId || '') ? null : state.selectedConceptId,
+          selectedConceptId: (state.selectedConceptId && deleteConceptIds.includes(state.selectedConceptId)) ? null : state.selectedConceptId,
           selectedRelationId: state.selectedRelationId ? (
             updatedRelations.some(r => r.id === state.selectedRelationId) ? state.selectedRelationId : null
           ) : null,
@@ -767,6 +773,7 @@ export const useGraphStore = create<GraphStoreState>()(
       // --- Quick Builder Actions ---
       createQuickRelation: (params) => {
         const sourceConcept = get().concepts.find(c => c.id === params.sourceId);
+        // eslint-disable-next-line no-useless-assignment
         let targetName = 'new concept';
         if (params.isNewTarget) {
           targetName = params.targetIdOrName;
@@ -793,7 +800,7 @@ export const useGraphStore = create<GraphStoreState>()(
             const sourceY = sourceNode?.y ?? 150;
             
             // Determine target concept ID
-            let targetId: string = params.targetIdOrName;
+            let targetId: ElementId = toElementId(params.targetIdOrName);
             if (params.isNewTarget && nextState.selectedConceptId) {
               targetId = nextState.selectedConceptId;
             }
@@ -845,12 +852,12 @@ export const useGraphStore = create<GraphStoreState>()(
         const { activeViewId } = get();
         if (activeViewId) get().updateViewNodePosition(activeViewId, id, x, y);
       },
-      batchUpdateNodePositions: (positions, _pin = false) => {
+      batchUpdateNodePositions: (positions) => {
         const { activeViewId } = get();
         if (!activeViewId) return;
         console.log(`%c[Store Action] ⚙️️ Applying Auto-Layout (updated ${positions.length} nodes)`, 'color: #8b5cf6; font-weight: bold;');
         const mapped = positions.map((p) => ({ conceptId: p.id, x: p.x, y: p.y }));
-        const temporal = (useGraphStore as any).temporal.getState();
+        const temporal = getTemporalState();
         temporal.pause();
         try {
           get().batchUpdateViewNodePositions(activeViewId, mapped);
@@ -858,7 +865,7 @@ export const useGraphStore = create<GraphStoreState>()(
           temporal.resume();
         }
       },
-      pinNode: (_id, _fx, _fy) => { /* pin state now on ViewNode — handled by plugin */ },
+      pinNode: () => { /* pin state now on ViewNode — handled by plugin */ },
       unpinAll: () => { /* unpin all handled by plugin */ },
       updateNodeSize: (id, width, height) => {
         const { activeViewId } = get();
@@ -916,8 +923,9 @@ export const useGraphStore = create<GraphStoreState>()(
           const concepts = result.state.concepts;
 
           if (views.length === 0) {
-            // Populate the default view with ALL existing concepts in a grid layout
-            // so that concepts loaded from model.typegraph.yaml become immediately visible.
+            // First run or no views exist: create a default Knowledge Graph view
+            // populated with ALL existing concepts in a grid layout so they are
+            // immediately visible.
             const COLS = 4;
             const COL_W = 260;
             const ROW_H = 140;
@@ -928,7 +936,7 @@ export const useGraphStore = create<GraphStoreState>()(
             });
 
             const defaultView: View = {
-              id: `view:${crypto.randomUUID()}`,
+              id: toElementId(`view:${crypto.randomUUID()}`),
               name: 'Knowledge Graph',
               type: 'knowledge_graph',
               layoutAlgorithm: 'force_directed',
@@ -939,25 +947,11 @@ export const useGraphStore = create<GraphStoreState>()(
               lifecycleState: 'active',
             };
             views = [defaultView];
-          } else {
-            // Existing view: add any concepts missing from the active view's nodes
-            views = views.map((v, idx) => {
-              if (idx !== 0) return v; // only migrate first/active view
-              const existingIds = new Set(v.nodes.map((n) => n.conceptId));
-              const missing = concepts.filter((c) => !existingIds.has(c.id));
-              if (missing.length === 0) return v;
-              const COLS = 4;
-              const COL_W = 260;
-              const ROW_H = 140;
-              const startOffset = v.nodes.length;
-              const newNodes = missing.map((c, i) => {
-                const x = ((startOffset + i) % COLS) * COL_W + 80;
-                const y = Math.floor((startOffset + i) / COLS) * ROW_H + 80;
-                return { conceptId: c.id, x, y, manualX: x, manualY: y };
-              });
-              return { ...v, nodes: [...v.nodes, ...newNodes] };
-            });
           }
+          // If views already exist, load them exactly as persisted.
+          // Each view's node membership was intentionally set by the user and must
+          // not be altered on bootstrap — doing so caused concepts added to one view
+          // to bleed into unrelated views on every page reload.
 
           set({
             domains: result.state.domains,
@@ -968,7 +962,7 @@ export const useGraphStore = create<GraphStoreState>()(
             syncStatus: result.isConflict ? 'conflict' : 'idle',
             rawYaml: result.rawYaml || null,
           });
-          (useGraphStore as any).temporal.getState().clear();
+          getTemporalState().clear();
           set((s) => ({ layoutVersion: s.layoutVersion + 1 }));
           if (!result.isConflict) {
             get().startAutoFetch();
@@ -986,7 +980,7 @@ export const useGraphStore = create<GraphStoreState>()(
             views: state.views ?? [],
             activeViewId: get().activeViewId ?? state.views?.[0]?.id ?? null,
           });
-          (useGraphStore as any).temporal.getState().clear();
+          getTemporalState().clear();
         }
       },
       saveWorkspace: async () => {
@@ -1033,7 +1027,7 @@ export const useGraphStore = create<GraphStoreState>()(
               behindBy: result.behindBy,
               lastSyncedAt: Date.now(),
             });
-            (useGraphStore as any).temporal.getState().clear();
+            getTemporalState().clear();
           } else if ('conflict' in result) {
             set({
               syncStatus: 'conflict',
@@ -1082,7 +1076,7 @@ export const useGraphStore = create<GraphStoreState>()(
             syncStatus: result.isConflict ? 'conflict' : 'idle',
             rawYaml: result.rawYaml || null,
           });
-          (useGraphStore as any).temporal.getState().clear();
+          getTemporalState().clear();
           set((s) => ({ layoutVersion: s.layoutVersion + 1 }));
           if (!result.isConflict) {
             get().startAutoFetch();
@@ -1126,7 +1120,7 @@ export const useGraphStore = create<GraphStoreState>()(
             views: state.views ?? get().views,
             syncStatus: 'synced',
           });
-          (useGraphStore as any).temporal.getState().clear();
+          getTemporalState().clear();
         }
 
         // 5. Push resolution to remote
@@ -1212,27 +1206,45 @@ export const useGraphStore = create<GraphStoreState>()(
   ),
 );
 
+type PersistedState = Pick<GraphStoreState, 'domains' | 'concepts' | 'relations' | 'views'>;
+
+interface GraphStoreWithTemporal {
+  temporal: StoreApi<TemporalState<PersistedState>>;
+}
+
+export const getTemporalState = (): TemporalState<PersistedState> => {
+  return (useGraphStore as unknown as GraphStoreWithTemporal).temporal.getState();
+};
+
 /**
  * useTemporalStore — Reactive hook for zundo temporal state (undo/redo).
  * Wrap useStore(useGraphStore.temporal, selector) to provide a type-safe reactive hook.
  */
 export const useTemporalStore = <T>(
-  selector: (state: TemporalState<any>) => T,
+  selector: (state: TemporalState<PersistedState>) => T,
 ) => useStore(useGraphStore.temporal, selector);
 
+declare global {
+  interface Window {
+    store?: typeof useGraphStore;
+    graphStore?: typeof useGraphStore;
+    showDirectoryPicker?: (options?: { mode?: 'read' | 'readwrite' }) => Promise<FileSystemDirectoryHandle>;
+  }
+}
+
 if (typeof window !== 'undefined') {
-  (window as any).store = useGraphStore;
-  (window as any).graphStore = useGraphStore;
+  window.store = useGraphStore;
+  window.graphStore = useGraphStore;
 }
 
 // Intercept Zundo's undo and redo to track execution and calculate granular state diffs
-const originalUndo = (useGraphStore as any).temporal.getState().undo;
-const originalRedo = (useGraphStore as any).temporal.getState().redo;
+const originalUndo = getTemporalState().undo;
+const originalRedo = getTemporalState().redo;
 
 let isExecutingUndoRedo = false;
 let undoRedoType: 'undo' | 'redo' | null = null;
 
-(useGraphStore as any).temporal.getState().undo = () => {
+getTemporalState().undo = () => {
   isExecutingUndoRedo = true;
   undoRedoType = 'undo';
   try {
@@ -1243,7 +1255,7 @@ let undoRedoType: 'undo' | 'redo' | null = null;
   }
 };
 
-(useGraphStore as any).temporal.getState().redo = () => {
+getTemporalState().redo = () => {
   isExecutingUndoRedo = true;
   undoRedoType = 'redo';
   try {

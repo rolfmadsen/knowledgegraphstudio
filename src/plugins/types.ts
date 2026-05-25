@@ -15,7 +15,7 @@
  */
 
 import type { ComponentType } from 'react';
-import type { ViewType, View, ConceptType } from '../schema/graphSchema';
+import type { ViewType, View, ConceptType, ConceptRelation, ElementId } from '../schema/graphSchema';
 import type { GraphStoreState } from '../store/useGraphStore';
 
 // ============================================================
@@ -64,10 +64,15 @@ export interface PluginCanvasProps {
   /** Full store state — plugin reads concepts/relations for rendering */
   storeState: Pick<GraphStoreState, 'concepts' | 'relations' | 'selectedConceptId' | 'selectedRelationId'>;
   /** Callbacks the plugin uses to update the store */
-  onNodePositionChange: (conceptId: string, x: number, y: number) => void;
-  onNodeSelect: (conceptId: string | null) => void;
-  onRelationSelect: (relationId: string | null) => void;
-  onConnect: (sourceConceptId: string, targetConceptId: string) => void;
+  onNodePositionChange: (conceptId: ElementId, x: number, y: number) => void;
+  onNodeSelect: (conceptId: ElementId | null) => void;
+  onRelationSelect: (relationId: ElementId | null) => void;
+  onConnect: (sourceConceptId: ElementId, targetConceptId: ElementId) => void;
+}
+
+export interface EdgeStyle {
+  strokeDasharray?: string;
+  markerEnd?: string;
 }
 
 // ============================================================
@@ -109,5 +114,10 @@ export interface NotationPlugin {
    * Optional mapping of concept types to their localized notation-specific display names.
    */
   readonly conceptTypeLabels?: Partial<Record<ConceptType, string>>;
+  /**
+   * Optional custom edge styler. Enables plugins to define their own visual edge line properties
+   * (e.g. dashed vs solid, custom markers).
+   */
+  readonly getEdgeStyle?: (relation: ConceptRelation, isSelected: boolean) => EdgeStyle;
 }
 

@@ -319,5 +319,34 @@ export const archimatePlugin: NotationPlugin = {
     location: 'Location',
     junction: 'Junction',
   },
+  getEdgeStyle: (r, isSelected) => {
+    const relType = (r.relationType || '').toLowerCase();
+    const relName = (r.name || '').toLowerCase();
+    let markerEndStr: string | undefined = undefined;
+    let strokeDash = 'none';
+
+    const isComposition = relType === 'compositionrelationship' || relName.includes('composition') || relName === 'c';
+    const isAggregation = relType === 'aggregationrelationship' || relName.includes('aggregation') || relName === 'g';
+    const isRealization = relType === 'realizationrelationship' || relName.includes('realization') || relName === 'r';
+    const isServing = relType === 'servingrelationship' || relName.includes('serving') || relName === 'v';
+    const isAccess = relType === 'accessrelationship' || relName.includes('access') || relName === 'a';
+    const isAssociation = relType === 'associationrelationship' || relName.includes('association') || relName === 'o';
+
+    if (isComposition || isAggregation) {
+      markerEndStr = isSelected ? 'url(#diamond-selected)' : 'url(#diamond)';
+      strokeDash = 'none';
+    } else if (isRealization) {
+      markerEndStr = isSelected ? 'url(#hollow-triangle-selected)' : 'url(#hollow-triangle)';
+      strokeDash = '4 4';
+    } else if (isServing || isAccess || isAssociation) {
+      markerEndStr = isSelected ? 'url(#open-arrow-selected)' : 'url(#open-arrow)';
+      strokeDash = isAccess ? '2 2' : 'none';
+    } else {
+      markerEndStr = isSelected ? 'url(#arrow-closed-selected)' : 'url(#arrow-closed)';
+      strokeDash = 'none';
+    }
+
+    return { strokeDasharray: strokeDash, markerEnd: markerEndStr };
+  },
 };
 export default archimatePlugin;

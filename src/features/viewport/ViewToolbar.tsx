@@ -91,7 +91,7 @@ export function ViewToolbar() {
 
   return (
     <div
-      className="absolute left-1/2 -translate-x-1/2 z-[90] flex items-center gap-2"
+      className="absolute left-1/2 -translate-x-1/2 z-[90] flex items-center gap-2 select-none"
       style={{ bottom: '76px' }}
     >
       <div className="flex items-center gap-2 px-4 py-2 bg-white/90 backdrop-blur-xl border border-slate-200/80 rounded-2xl shadow-xl shadow-slate-200/60">

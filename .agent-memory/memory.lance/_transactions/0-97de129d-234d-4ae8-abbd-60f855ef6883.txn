@@ -1,9 +1,0 @@
-$97de129d-234d-4ae8-abbd-60f855ef6883²Îid ÿÿÿÿÿÿÿÿÿ*string08text ÿÿÿÿÿÿÿÿÿ*string08&memory_type ÿÿÿÿÿÿÿÿÿ*string08 scope ÿÿÿÿÿÿÿÿÿ*string08tags ÿÿÿÿÿÿÿÿÿ*string08$
-confidence ÿÿÿÿÿÿÿÿÿ*float08!status ÿÿÿÿÿÿÿÿÿ*string08(superseded_by ÿÿÿÿÿÿÿÿÿ*string08&source_type ÿÿÿÿÿÿÿÿÿ*string08%
-source_ref	 ÿÿÿÿÿÿÿÿÿ*string08)source_project
- ÿÿÿÿÿÿÿÿÿ*string08%
-created_by ÿÿÿÿÿÿÿÿÿ*string08(last_verified ÿÿÿÿÿÿÿÿÿ*string08&access_count ÿÿÿÿÿÿÿÿÿ*int3208%
-created_at ÿÿÿÿÿÿÿÿÿ*string08%
-updated_at ÿÿÿÿÿÿÿÿÿ*string08#metadata ÿÿÿÿÿÿÿÿÿ*string08"'
-lance.auto_cleanup.older_than14days"!
-lance.auto_cleanup.interval20

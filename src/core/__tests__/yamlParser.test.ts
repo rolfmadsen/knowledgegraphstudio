@@ -38,7 +38,7 @@ function makeConcept(
     properties: [],
     policies: [],
     ...extra,
-  };
+  } as any;
 }
 
 function makeRelation(

@@ -133,6 +133,7 @@ export const ViewType = z.enum([
   'knowledge_graph',
   'archimate',
   'data_model',
+  'c4',
 ]);
 export type ViewType = z.infer<typeof ViewType>;
 
@@ -163,8 +164,17 @@ export const ElementId = z
   .regex(
     /^[a-z_]+:[a-z0-9]+(?:-[a-z0-9]+)*(?:-\d+)?$/,
     'ElementId must be a semantic slug, e.g. "actor:saelger"',
-  );
+  )
+  .brand<'ElementId'>();
 export type ElementId = z.infer<typeof ElementId>;
+
+/**
+ * Cast a string to an ElementId at compile-time.
+ * Serves as a fast casting function to satisfy the branded type contract.
+ */
+export function toElementId(id: string): ElementId {
+  return id as ElementId;
+}
 
 /**
  * DataType: either a primitive type string or a reference to another ElementId.
@@ -236,10 +246,11 @@ export type ConceptProperty = z.infer<typeof ConceptProperty>;
  * It contains NO visual/layout data (x, y, fx, fy, width, height).
  * All positional data lives in ViewNode inside a View.
  */
-export const ConceptNode = BaseEntity.extend({
+type StandardConceptTypes = Exclude<z.infer<typeof ConceptType>, 'domain' | 'bounded_context'>;
+
+export const BaseConceptNode = BaseEntity.extend({
   parentId: ElementId.optional(),
   domainId: ElementId.optional(),
-  conceptType: ConceptType,
   classification: DataClassification.optional(),
   name: z.string().min(1),
   aliases: z.array(z.string()),
@@ -247,6 +258,28 @@ export const ConceptNode = BaseEntity.extend({
   properties: z.array(ConceptProperty),
   policies: z.array(Policy),
 });
+
+export const DomainConceptNode = BaseConceptNode.extend({
+  conceptType: z.literal('domain'),
+});
+
+export const ContainerConceptNode = BaseConceptNode.extend({
+  conceptType: z.literal('bounded_context'),
+});
+
+export const StandardConceptNode = BaseConceptNode.extend({
+  conceptType: z.enum(
+    ConceptType.options.filter(
+      (t) => t !== 'domain' && t !== 'bounded_context'
+    ) as [string, ...string[]]
+  ) as unknown as z.ZodType<StandardConceptTypes>,
+});
+
+export const ConceptNode = z.union([
+  DomainConceptNode,
+  ContainerConceptNode,
+  StandardConceptNode,
+]);
 export type ConceptNode = z.infer<typeof ConceptNode>;
 
 /**

@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useGraphStore } from '../../store/useGraphStore';
 import { useShallow } from 'zustand/react/shallow';
-import { PluginRegistry } from '../../plugins/PluginRegistry';
 import {
   Plus,
   Box,
@@ -115,6 +114,7 @@ const viewTypeIcon = (type: View['type']) => {
     case 'knowledge_graph': return <Globe size={13} className="text-emerald-500" />;
     case 'archimate': return <Layers size={13} className="text-blue-500" />;
     case 'data_model': return <LayoutTemplate size={13} className="text-purple-500" />;
+    case 'c4': return <LayoutTemplate size={13} className="text-indigo-600" />;
     default: return <Layers size={13} className="text-slate-400" />;
   }
 };
@@ -222,7 +222,7 @@ export function Navigator() {
     selectConcept,
     selectRelation,
     setActiveViewId,
-    createView,
+    setCreateViewModalOpen,
     addAllConceptsToActiveView,
     centerSelectedNode,
     requestDeleteViewConfirm,
@@ -235,7 +235,7 @@ export function Navigator() {
       selectConcept: s.selectConcept,
       selectRelation: s.selectRelation,
       setActiveViewId: s.setActiveViewId,
-      createView: s.createView,
+      setCreateViewModalOpen: s.setCreateViewModalOpen,
       addAllConceptsToActiveView: s.addAllConceptsToActiveView,
       centerSelectedNode: s.centerSelectedNode,
       requestDeleteViewConfirm: s.requestDeleteViewConfirm,
@@ -257,21 +257,8 @@ export function Navigator() {
     other: true,
   });
 
-  const [isCreatingView, setIsCreatingView] = useState(false);
-  const [newViewName, setNewViewName] = useState('');
-  const [newViewType, setNewViewType] = useState<string>('knowledge_graph');
-
   const toggleExpand = (key: string) => {
     setExpanded((prev) => ({ ...prev, [key]: !prev[key] }));
-  };
-
-  const handleCreateView = () => {
-    const name = newViewName.trim() || `View ${views.length + 1}`;
-    const view = createView(name, newViewType as any);
-    setActiveViewId(view.id);
-    setNewViewName('');
-    setNewViewType('knowledge_graph');
-    setIsCreatingView(false);
   };
 
   const handleDragStart = (e: React.DragEvent, conceptId: string) => {
@@ -355,8 +342,7 @@ export function Navigator() {
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                setExpanded((prev) => ({ ...prev, views: true }));
-                setIsCreatingView(true);
+                setCreateViewModalOpen(true);
               }}
               className="w-6 h-6 flex items-center justify-center text-slate-400 hover:text-emerald-600 transition-all bg-white border border-slate-200 shadow-sm hover:border-emerald-200 hover:bg-emerald-50 rounded-md active:scale-90 shrink-0"
               title="Create new view"
@@ -365,46 +351,10 @@ export function Navigator() {
             </button>
           </div>
 
-          {/* View Items */}
+            {/* View Items */}
           {expanded.views && (
             <div className="pl-3.5 ml-2.5 border-l border-slate-200/40 mt-0.5 flex flex-col gap-0.5">
-              {/* Inline create view input */}
-              {isCreatingView && (
-                <div className="flex flex-col gap-1.5 py-1.5 px-2 bg-slate-50/50 border border-slate-100 rounded-xl my-1">
-                  <input
-                    autoFocus
-                    value={newViewName}
-                    onChange={(e) => setNewViewName(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleCreateView();
-                      if (e.key === 'Escape') { setIsCreatingView(false); setNewViewName(''); }
-                    }}
-                    placeholder="View name..."
-                    className="w-full px-2.5 py-1 text-[11px] font-medium bg-white border border-slate-200 rounded-lg outline-none focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100 text-slate-700 placeholder-slate-300"
-                  />
-                  <div className="flex gap-1.5">
-                    <select
-                      value={newViewType}
-                      onChange={(e) => setNewViewType(e.target.value)}
-                      className="flex-1 px-1.5 py-1 text-[10px] bg-white border border-slate-200 rounded-lg outline-none text-slate-600 font-bold"
-                    >
-                      {PluginRegistry.all().map((p) => (
-                        <option key={p.id} value={p.supportedViewTypes[0]}>
-                          {p.icon} {p.displayName}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      onClick={handleCreateView}
-                      className="px-2.5 py-1 bg-emerald-600 text-white text-[10px] font-black rounded-lg hover:bg-emerald-700 active:scale-95 transition-all"
-                    >
-                      ✓
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {views.length === 0 && !isCreatingView && (
+              {views.length === 0 && (
                 <div className="py-2 pl-2 text-[10px] text-slate-400 italic">
                   No views. Click '+' to add.
                 </div>

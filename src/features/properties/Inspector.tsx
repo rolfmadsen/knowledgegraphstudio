@@ -9,7 +9,9 @@ import {
   ChevronDown,
   Copy,
   Info,
-  ArrowUpDown
+  ArrowUpDown,
+  Eye,
+  Layers
 } from 'lucide-react';
 
 export function Inspector() {
@@ -32,7 +34,8 @@ export function Inspector() {
     ungroupConcept,
     dissolveGroup,
     updateViewNodeParentId,
-    setSelectedConceptIds
+    setSelectedConceptIds,
+    setActiveViewId
   } = useGraphStore(
     useShallow((s) => ({
       concepts: s?.concepts || [],
@@ -53,7 +56,8 @@ export function Inspector() {
       ungroupConcept: s?.ungroupConcept,
       dissolveGroup: s?.dissolveGroup,
       updateViewNodeParentId: s?.updateViewNodeParentId,
-      setSelectedConceptIds: s?.setSelectedConceptIds
+      setSelectedConceptIds: s?.setSelectedConceptIds,
+      setActiveViewId: s?.setActiveViewId
     }))
   );
 
@@ -149,7 +153,7 @@ export function Inspector() {
     return (
       <div 
         id="inspector-root"
-        className="flex-1 flex flex-col min-h-0 overflow-y-auto custom-scrollbar bg-slate-50/30 backdrop-blur-sm outline-none animate-in fade-in duration-300"
+        className="flex-1 flex flex-col min-h-0 overflow-y-auto custom-scrollbar bg-slate-50/30 backdrop-blur-sm outline-none animate-in fade-in duration-300 select-none"
         tabIndex={-1}
         style={{ padding: '32px' }}
       >
@@ -222,7 +226,7 @@ export function Inspector() {
 
   if (!concept && !relation) {
     return (
-      <div className="h-full flex items-center justify-center p-8 text-center px-4 bg-white/50 backdrop-blur-sm">
+      <div className="h-full flex items-center justify-center p-8 text-center px-4 bg-white/50 backdrop-blur-sm select-none">
         <div className="flex flex-col items-center gap-6">
           <div className="w-16 h-16 rounded-[24px] bg-white border border-slate-200/60 flex items-center justify-center text-slate-300 shadow-xl shadow-slate-100 animate-in fade-in zoom-in duration-500">
              <Info size={28} strokeWidth={1.5} />
@@ -239,7 +243,7 @@ export function Inspector() {
   return (
     <div 
         id="inspector-root"
-        className="flex-1 flex flex-col min-h-0 overflow-y-auto custom-scrollbar bg-slate-50/30 backdrop-blur-sm outline-none"
+        className="flex-1 flex flex-col min-h-0 overflow-y-auto custom-scrollbar bg-slate-50/30 backdrop-blur-sm outline-none select-none"
         tabIndex={-1}
         style={{ padding: '32px' }}
     >
@@ -420,6 +424,67 @@ export function Inspector() {
                         </div>
                     </div>
                 </InspectorSection>
+
+                {/* Views membership section */}
+                {(() => {
+                  const memberViews = views.filter((v) =>
+                    v.nodes.some((vn) => vn.conceptId === concept.id)
+                  );
+                  return (
+                    <InspectorSection
+                      title="Views"
+                      rightAction={
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-400">
+                          {memberViews.length}
+                        </span>
+                      }
+                    >
+                      {memberViews.length === 0 ? (
+                        <div className="flex flex-col items-center gap-2 py-4 text-center">
+                          <Layers size={18} className="text-slate-200" />
+                          <p className="text-[10px] text-slate-400 leading-relaxed">
+                            Not added to any view yet.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col gap-2">
+                          {memberViews.map((v) => {
+                            const isActive = v.id === activeViewId;
+                            const viewTypeIcon = v.type === 'archimate' ? '🏛️'
+                              : v.type === 'c4' ? '📐'
+                              : v.type === 'data_model' ? '🗂️'
+                              : '🌐';
+                            return (
+                              <div
+                                key={v.id}
+                                className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border transition-all group ${
+                                  isActive
+                                    ? 'bg-emerald-50/80 border-emerald-100 text-emerald-800'
+                                    : 'bg-white border-slate-100 hover:border-slate-200 text-slate-700'
+                                }`}
+                              >
+                                <span className="text-[13px] shrink-0">{viewTypeIcon}</span>
+                                <span className="text-[11px] font-semibold flex-1 truncate">{v.name}</span>
+                                {isActive ? (
+                                  <span className="text-[9px] font-black text-emerald-500 uppercase tracking-wider shrink-0">Active</span>
+                                ) : (
+                                  <button
+                                    onClick={() => setActiveViewId(v.id)}
+                                    className="opacity-0 group-hover:opacity-100 flex items-center gap-1 px-2 py-0.5 text-[9px] font-black text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg border border-transparent hover:border-emerald-100 transition-all uppercase tracking-wider shrink-0"
+                                    title={`Switch to ${v.name}`}
+                                  >
+                                    <Eye size={10} strokeWidth={2.5} />
+                                    Go
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </InspectorSection>
+                  );
+                })()}
             </>
         )}
 

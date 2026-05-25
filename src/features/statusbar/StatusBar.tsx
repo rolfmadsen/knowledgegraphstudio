@@ -14,6 +14,13 @@ interface StatusBarProps {
   onOpenRemoteConfig: () => void;
 }
 
+interface PillConfig {
+  icon: React.ReactNode;
+  label: string;
+  cls: string;
+  onClick?: () => void;
+}
+
 export function StatusBar({ onOpenRemoteConfig }: StatusBarProps) {
   const { syncStatus, remoteConfig, aheadBy, behindBy, lastSyncedAt } = useGraphStore(
     useShallow((s) => ({
@@ -28,7 +35,7 @@ export function StatusBar({ onOpenRemoteConfig }: StatusBarProps) {
   const hasRemote = !!remoteConfig;
 
   // ---- Sync pill config ----
-  const pill = (() => {
+  const pill: PillConfig = (() => {
     switch (syncStatus) {
       case 'synced':
         return {
@@ -136,7 +143,7 @@ export function StatusBar({ onOpenRemoteConfig }: StatusBarProps) {
       {/* Right — sync status */}
       <div
         className={`flex items-center gap-1.5 ${pill.cls}`}
-        onClick={(pill as any).onClick}
+        onClick={pill.onClick}
         title={lastSyncLabel}
       >
         {pill.icon}

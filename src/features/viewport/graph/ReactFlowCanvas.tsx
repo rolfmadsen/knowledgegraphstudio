@@ -21,29 +21,34 @@ import '@xyflow/react/dist/style.css';
 import type { PluginCanvasProps } from '../../../plugins/types';
 import { PluginRegistry } from '../../../plugins/PluginRegistry';
 import { useGraphStore } from '../../../store/useGraphStore';
-import type { ConceptNode } from '../../../schema/graphSchema';
+import { type ConceptNode, type ElementId, toElementId } from '../../../schema/graphSchema';
 
 // --- Padding for Grouping Containers ---
-const PADDING_TOP = 72;
-const PADDING_BOTTOM = 24;
-const PADDING_LEFT = 24;
-const PADDING_RIGHT = 24;
+export const PADDING_TOP = 72;
+export const PADDING_BOTTOM = 24;
+export const PADDING_LEFT = 24;
+export const PADDING_RIGHT = 24;
 
 // --- Helper: Calculate dynamic bounds for grouping containers ---
 function getGroupBounds(
   groupId: string,
-  viewNodes: Array<{ conceptId: string; x: number; y: number; width?: number; height?: number; parentId?: string }>
+  viewNodes: Array<{ conceptId: string; x: number; y: number; width?: number; height?: number; parentId?: string }>,
+  viewType?: string
 ) {
   const vn = viewNodes.find(n => n.conceptId === groupId);
   if (!vn) return null;
 
   const children = viewNodes.filter(n => n.parentId === groupId);
+  
+  const defaultW = viewType === 'c4' ? 240 : viewType === 'archimate' ? 210 : 200;
+  const defaultH = viewType === 'c4' ? 96 : viewType === 'archimate' ? 76 : 80;
+
   if (children.length === 0) {
     return {
       x: vn.x,
       y: vn.y,
-      w: vn.width ?? 240,
-      h: vn.height ?? 140,
+      w: vn.width ?? (viewType === 'c4' ? 280 : 240),
+      h: vn.height ?? (viewType === 'c4' ? 160 : 140),
     };
   }
 
@@ -53,8 +58,8 @@ function getGroupBounds(
   let maxY = -Infinity;
 
   children.forEach(child => {
-    const w = child.width ?? 200;
-    const h = child.height ?? 80;
+    const w = child.width ?? defaultW;
+    const h = child.height ?? defaultH;
     minX = Math.min(minX, child.x);
     minY = Math.min(minY, child.y);
     maxX = Math.max(maxX, child.x + w);
@@ -141,7 +146,7 @@ function FloatingEdge({ id, source, target, style, label, labelStyle, selected, 
           ...style,
           stroke: selected ? '#10b981' : '#64748b',
           strokeWidth: selected ? 2.5 : 1.5,
-          transition: 'all 0.2s ease',
+          transition: 'stroke 0.2s ease, stroke-width 0.2s ease',
           strokeDasharray: strokeDasharray,
         }}
       />
@@ -212,21 +217,24 @@ export function ReactFlowCanvas({
   
   const currentAlgo = view.layoutAlgorithm;
   const containerRef = useRef<HTMLDivElement>(null);
-  const activeDraggingNode = useRef<string | null>(null);
+  const activeDraggingNode = useRef<ElementId | null>(null);
   const selectedConceptIdRef = useRef(selectedConceptId);
-  selectedConceptIdRef.current = selectedConceptId;
 
   const { batchUpdateViewNodePositions, ungroupConcept, updateViewNodeParentId, setSelectedConceptIds, selectedConceptIds } = useGraphStore();
 
   const selectedConceptIdsRef = useRef(selectedConceptIds);
-  selectedConceptIdsRef.current = selectedConceptIds;
+
+  useEffect(() => {
+    selectedConceptIdRef.current = selectedConceptId;
+    selectedConceptIdsRef.current = selectedConceptIds;
+  }, [selectedConceptId, selectedConceptIds]);
 
   const computedNodes: Node[] = useMemo(() => {
     const viewNodes = view.nodes ?? [];
     const nodesMap = new Map(viewNodes.map((vn) => [vn.conceptId, vn]));
     const conceptMap = new Map(concepts.map((c) => [c.id, c]));
 
-    const groupChildrenMap = new Map<string, string[]>();
+    const groupChildrenMap = new Map<ElementId, ElementId[]>();
     viewNodes.forEach((vn) => {
       if (vn.parentId) {
         const children = groupChildrenMap.get(vn.parentId) || [];
@@ -235,18 +243,22 @@ export function ReactFlowCanvas({
       }
     });
 
-    const groupBounds = new Map<string, { x: number; y: number; w: number; h: number }>();
+    const groupBounds = new Map<ElementId, { x: number; y: number; w: number; h: number }>();
     viewNodes.forEach((vn) => {
       const c = conceptMap.get(vn.conceptId);
       if (!c || c.conceptType !== 'bounded_context') return;
 
       const childIds = groupChildrenMap.get(vn.conceptId) || [];
+      
+      const defaultW = view.type === 'c4' ? 240 : view.type === 'archimate' ? 210 : 200;
+      const defaultH = view.type === 'c4' ? 96 : view.type === 'archimate' ? 76 : 80;
+
       if (childIds.length === 0) {
         groupBounds.set(vn.conceptId, {
           x: vn.x,
           y: vn.y,
-          w: vn.width ?? 240,
-          h: vn.height ?? 140,
+          w: vn.width ?? (view.type === 'c4' ? 280 : 240),
+          h: vn.height ?? (view.type === 'c4' ? 160 : 140),
         });
       } else {
         let minX = Infinity;
@@ -257,8 +269,8 @@ export function ReactFlowCanvas({
         childIds.forEach((cid) => {
           const childVn = nodesMap.get(cid);
           if (!childVn) return;
-          const w = childVn.width ?? 200;
-          const h = childVn.height ?? 80;
+          const w = childVn.width ?? defaultW;
+          const h = childVn.height ?? defaultH;
           minX = Math.min(minX, childVn.x);
           minY = Math.min(minY, childVn.y);
           maxX = Math.max(maxX, childVn.x + w);
@@ -308,7 +320,7 @@ export function ReactFlowCanvas({
         type: 'conceptNode',
         position,
         parentId,
-        selected: selectedConceptIds.includes(c.id as any),
+        selected: selectedConceptIds.includes(c.id),
         draggable: currentAlgo === 'manual',
         style,
         data: {
@@ -330,31 +342,18 @@ export function ReactFlowCanvas({
     });
   }, [concepts, selectedConceptIds, view, currentAlgo]);
 
-  const initialEdges: Edge[] = useMemo(
-    () => relations.map((r) => {
-      const relType = (r.relationType || '').toLowerCase();
-      const relName = (r.name || '').toLowerCase();
-      let markerEndStr: string | undefined = undefined;
-      let strokeDash = 'none';
+  const initialEdges: Edge[] = useMemo(() => {
+    const activePlugin = PluginRegistry.forViewType(view.type);
 
+    return relations.map((r) => {
       const isSelected = r.id === selectedRelationId;
+      let markerEndStr: string | undefined;
+      let strokeDash: string;
 
-      const isComposition = relType === 'compositionrelationship' || relName.includes('composition') || relName === 'c';
-      const isAggregation = relType === 'aggregationrelationship' || relName.includes('aggregation') || relName === 'g';
-      const isRealization = relType === 'realizationrelationship' || relName.includes('realization') || relName === 'r';
-      const isServing = relType === 'servingrelationship' || relName.includes('serving') || relName === 'v';
-      const isAccess = relType === 'accessrelationship' || relName.includes('access') || relName === 'a';
-      const isAssociation = relType === 'associationrelationship' || relName.includes('association') || relName === 'o';
-
-      if (isComposition || isAggregation) {
-        markerEndStr = isSelected ? 'url(#diamond-selected)' : 'url(#diamond)';
-        strokeDash = 'none';
-      } else if (isRealization) {
-        markerEndStr = isSelected ? 'url(#hollow-triangle-selected)' : 'url(#hollow-triangle)';
-        strokeDash = '4 4';
-      } else if (isServing || isAccess || isAssociation) {
-        markerEndStr = isSelected ? 'url(#open-arrow-selected)' : 'url(#open-arrow)';
-        strokeDash = isAccess ? '2 2' : 'none';
+      if (activePlugin?.getEdgeStyle) {
+        const style = activePlugin.getEdgeStyle(r, isSelected);
+        strokeDash = style.strokeDasharray ?? 'none';
+        markerEndStr = style.markerEnd;
       } else {
         // default triggered / flow / other
         markerEndStr = isSelected ? 'url(#arrow-closed-selected)' : 'url(#arrow-closed)';
@@ -374,9 +373,8 @@ export function ReactFlowCanvas({
           markerEnd: markerEndStr,
         },
       };
-    }),
-    [relations, selectedRelationId, onRelationSelect],
-  );
+    });
+  }, [relations, selectedRelationId, onRelationSelect, view.type]);
 
   const [nodes, setNodes] = useNodesState(computedNodes);
   const [edges, setEdges] = useEdgesState(initialEdges);
@@ -446,7 +444,7 @@ export function ReactFlowCanvas({
   }, [computedNodes, initialEdges, setNodes, setEdges]);
 
   const onConnectHandler: OnConnect = useCallback((connection) => {
-    if (connection.source && connection.target) onConnect(connection.source, connection.target);
+    if (connection.source && connection.target) onConnect(toElementId(connection.source), toElementId(connection.target));
   }, [onConnect]);
 
   const isValidConnection = useCallback((connection: { source: string; target: string }) => {
@@ -475,7 +473,7 @@ export function ReactFlowCanvas({
   }, [concepts, view.type]);
 
   const onSelectionChange = useCallback(({ nodes: selectedNodes }: { nodes: Node[] }) => {
-    const ids = selectedNodes.map((n) => n.id);
+    const ids = selectedNodes.map((n) => toElementId(n.id));
 
     // Compare ids with selectedConceptIdsRef.current to avoid redundant state updates
     const currentIds = selectedConceptIdsRef.current;
@@ -489,7 +487,7 @@ export function ReactFlowCanvas({
   }, [setSelectedConceptIds]);
 
   const onNodeDragStart = useCallback((_: React.MouseEvent, node: Node) => {
-    activeDraggingNode.current = node.id;
+    activeDraggingNode.current = toElementId(node.id);
   }, []);
 
   const onNodeDragStop = useCallback((_: React.MouseEvent, node: Node) => {
@@ -500,24 +498,25 @@ export function ReactFlowCanvas({
     const nodesMap = new Map(viewNodes.map((vn) => [vn.conceptId, vn]));
     const conceptMap = new Map(concepts.map((c) => [c.id, c]));
 
-    const draggedVn = nodesMap.get(node.id);
-    const draggedConcept = conceptMap.get(node.id);
+    const draggedVn = nodesMap.get(toElementId(node.id));
+    const draggedConcept = conceptMap.get(toElementId(node.id));
     if (!draggedVn || !draggedConcept) return;
 
     const isGroup = draggedConcept.conceptType === 'bounded_context';
 
     if (isGroup) {
-      const oldGroupX = draggedVn.x;
-      const oldGroupY = draggedVn.y;
+      const bounds = getGroupBounds(toElementId(node.id), viewNodes, view.type);
+      const oldGroupX = bounds ? bounds.x : draggedVn.x;
+      const oldGroupY = bounds ? bounds.y : draggedVn.y;
       const newGroupX = node.position.x;
       const newGroupY = node.position.y;
 
       const deltaX = newGroupX - oldGroupX;
       const deltaY = newGroupY - oldGroupY;
 
-      const positionsToUpdate: Array<{ conceptId: string; x: number; y: number }> = [];
+      const positionsToUpdate: Array<{ conceptId: ElementId; x: number; y: number }> = [];
       positionsToUpdate.push({
-        conceptId: node.id,
+        conceptId: toElementId(node.id),
         x: newGroupX,
         y: newGroupY,
       });
@@ -534,15 +533,17 @@ export function ReactFlowCanvas({
 
       batchUpdateViewNodePositions(view.id, positionsToUpdate);
     } else {
-      const childW = node.measured?.width ?? 200;
-      const childH = node.measured?.height ?? 80;
+      const dragDefaultW = view.type === 'c4' ? 240 : view.type === 'archimate' ? 210 : 200;
+      const dragDefaultH = view.type === 'c4' ? 96 : view.type === 'archimate' ? 76 : 80;
+      const childW = node.measured?.width ?? dragDefaultW;
+      const childH = node.measured?.height ?? dragDefaultH;
 
       if (draggedVn.parentId) {
         const parentId = draggedVn.parentId;
         const parentVn = nodesMap.get(parentId);
         
         if (parentVn) {
-          const bounds = getGroupBounds(parentId, viewNodes);
+          const bounds = getGroupBounds(parentId, viewNodes, view.type);
           if (bounds) {
             const childAbsX = bounds.x + node.position.x;
             const childAbsY = bounds.y + node.position.y;
@@ -553,15 +554,15 @@ export function ReactFlowCanvas({
             const isOutside = centerX < 0 || centerX > bounds.w || centerY < 0 || centerY > bounds.h;
 
             if (isOutside) {
-              ungroupConcept(view.id, node.id);
-              onNodePositionChange(node.id, childAbsX, childAbsY);
+              ungroupConcept(view.id, toElementId(node.id));
+              onNodePositionChange(toElementId(node.id), childAbsX, childAbsY);
 
               // Check if dropped inside ANOTHER group node
               for (const otherVn of viewNodes) {
                 const otherC = conceptMap.get(otherVn.conceptId);
                 if (!otherC || otherC.conceptType !== 'bounded_context' || otherVn.conceptId === parentId) continue;
                 
-                const otherBounds = getGroupBounds(otherVn.conceptId, viewNodes);
+                const otherBounds = getGroupBounds(otherVn.conceptId, viewNodes, view.type);
                 if (otherBounds) {
                   const inNewGroup =
                     childAbsX + childW / 2 >= otherBounds.x &&
@@ -570,14 +571,14 @@ export function ReactFlowCanvas({
                     childAbsY + childH / 2 <= otherBounds.y + otherBounds.h;
 
                   if (inNewGroup) {
-                    updateViewNodeParentId(view.id, node.id, otherVn.conceptId);
-                    onNodePositionChange(node.id, childAbsX, childAbsY);
+                    updateViewNodeParentId(view.id, toElementId(node.id), otherVn.conceptId);
+                    onNodePositionChange(toElementId(node.id), childAbsX, childAbsY);
                     break;
                   }
                 }
               }
             } else {
-              onNodePositionChange(node.id, childAbsX, childAbsY);
+              onNodePositionChange(toElementId(node.id), childAbsX, childAbsY);
             }
           }
         }
@@ -590,7 +591,7 @@ export function ReactFlowCanvas({
           const otherC = conceptMap.get(otherVn.conceptId);
           if (!otherC || otherC.conceptType !== 'bounded_context') continue;
 
-          const otherBounds = getGroupBounds(otherVn.conceptId, viewNodes);
+          const otherBounds = getGroupBounds(otherVn.conceptId, viewNodes, view.type);
           if (otherBounds) {
             const inside =
               childAbsX + childW / 2 >= otherBounds.x &&
@@ -599,8 +600,8 @@ export function ReactFlowCanvas({
               childAbsY + childH / 2 <= otherBounds.y + otherBounds.h;
 
             if (inside) {
-              updateViewNodeParentId(view.id, node.id, otherVn.conceptId);
-              onNodePositionChange(node.id, childAbsX, childAbsY);
+              updateViewNodeParentId(view.id, toElementId(node.id), otherVn.conceptId);
+              onNodePositionChange(toElementId(node.id), childAbsX, childAbsY);
               foundGroup = true;
               break;
             }
@@ -608,14 +609,14 @@ export function ReactFlowCanvas({
         }
 
         if (!foundGroup) {
-          onNodePositionChange(node.id, childAbsX, childAbsY);
+          onNodePositionChange(toElementId(node.id), childAbsX, childAbsY);
         }
       }
     }
   }, [view, concepts, currentAlgo, onNodePositionChange, batchUpdateViewNodePositions, ungroupConcept, updateViewNodeParentId]);
 
   const onNodeClick: NodeMouseHandler = useCallback((_, node) => {
-    onNodeSelect(node.id);
+    onNodeSelect(toElementId(node.id));
   }, [onNodeSelect]);
 
   const onKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -675,7 +676,7 @@ export function ReactFlowCanvas({
           onNodeClick={onNodeClick}
           onNodeDragStart={onNodeDragStart}
           onNodeDragStop={onNodeDragStop}
-          onEdgeClick={(_e, edge) => onRelationSelect(edge.id)}
+          onEdgeClick={(_e, edge) => onRelationSelect(toElementId(edge.id))}
           onPaneClick={() => { onNodeSelect(null); onRelationSelect(null); }}
           onSelectionChange={onSelectionChange}
           edgeTypes={edgeTypes}

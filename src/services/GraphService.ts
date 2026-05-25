@@ -6,14 +6,15 @@
  * for the store to apply via set().
  */
 import { generateId } from '../core/idGenerator';
-import type { 
-  ConceptType, 
-  ElementId, 
-  DataClassification, 
-  ConceptNode,
-  ConceptRelation,
-  Domain,
-  View,
+import { 
+  type ConceptType, 
+  type ElementId, 
+  type DataClassification, 
+  type ConceptNode,
+  type ConceptRelation,
+  type Domain,
+  type View,
+  type DataType,
 } from '../schema/graphSchema';
 
 export interface GraphStateWithSelection {
@@ -104,7 +105,7 @@ export class GraphService {
       classification: options.classification,
       properties: [],
       policies: [],
-    };
+    } as ConceptNode;
 
     return {
       concept,
@@ -138,7 +139,7 @@ export class GraphService {
 
     return {
       concepts: state.concepts.map((c) =>
-        c.id === id ? { ...c, ...updates, id: newId, updatedAt: now } : c,
+        c.id === id ? ({ ...c, ...updates, id: newId, updatedAt: now } as ConceptNode) : c,
       ),
       domains: state.domains.map((d) =>
         d.id === id ? { ...d, ...updates, id: newId, updatedAt: now } : d
@@ -258,7 +259,7 @@ export class GraphService {
   /**
    * Add a property to a concept.
    */
-  static addProperty(state: GraphStateWithSelection, conceptId: ElementId, name: string, type: string, isRequired?: boolean): Partial<GraphStateWithSelection> {
+  static addProperty(state: GraphStateWithSelection, conceptId: ElementId, name: string, type: DataType, isRequired?: boolean): Partial<GraphStateWithSelection> {
     const propId = generateId('other', name);
     const now = Date.now();
     const property = {
@@ -582,11 +583,14 @@ export class GraphService {
     let maxX = -Infinity;
     let maxY = -Infinity;
     
+    const defaultW = view.type === 'c4' ? 240 : view.type === 'archimate' ? 210 : 200;
+    const defaultH = view.type === 'c4' ? 96 : view.type === 'archimate' ? 76 : 80;
+
     viewNodes.forEach((vn) => {
       minX = Math.min(minX, vn.x);
       minY = Math.min(minY, vn.y);
-      const w = vn.width ?? 210;
-      const h = vn.height ?? 76;
+      const w = vn.width ?? defaultW;
+      const h = vn.height ?? defaultH;
       maxX = Math.max(maxX, vn.x + w);
       maxY = Math.max(maxY, vn.y + h);
     });

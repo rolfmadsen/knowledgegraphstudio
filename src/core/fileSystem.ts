@@ -5,6 +5,7 @@
  * .typegraph.yaml file. All data lives in the browser's IndexedDB.
  */
 import LightningFS from '@isomorphic-git/lightning-fs';
+import { FileSystemAccessService } from '../services/FileSystemAccessService';
 
 // ============================================================
 // Singleton FS Instance
@@ -113,7 +114,7 @@ export async function recursiveDelete(path: string): Promise<void> {
     } else {
       await pfs.unlink(path);
     }
-  } catch (err) {
+  } catch {
     // Ignore if already deleted
   }
 }
@@ -126,27 +127,42 @@ export async function recursiveDelete(path: string): Promise<void> {
  * Write YAML content to the workspace file.
  */
 export async function writeYaml(content: string): Promise<void> {
-  const pfs = getFSPromises();
-  await ensureWorkspaceDir();
-  await pfs.writeFile(YAML_PATH, content, 'utf8');
+  const handle = FileSystemAccessService.getActiveHandle();
+  if (handle) {
+    await FileSystemAccessService.writeFile(handle, YAML_FILENAME, content);
+  } else {
+    const pfs = getFSPromises();
+    await ensureWorkspaceDir();
+    await pfs.writeFile(YAML_PATH, content, 'utf8');
+  }
 }
 
 /**
  * Write semantic model YAML (domains, concepts, relations) to model.typegraph.yaml.
  */
 export async function writeModelYaml(content: string): Promise<void> {
-  const pfs = getFSPromises();
-  await ensureWorkspaceDir();
-  await pfs.writeFile(MODEL_PATH, content, 'utf8');
+  const handle = FileSystemAccessService.getActiveHandle();
+  if (handle) {
+    await FileSystemAccessService.writeFile(handle, MODEL_FILENAME, content);
+  } else {
+    const pfs = getFSPromises();
+    await ensureWorkspaceDir();
+    await pfs.writeFile(MODEL_PATH, content, 'utf8');
+  }
 }
 
 /**
  * Write views YAML (ViewNode coordinates) to views.typegraph.yaml.
  */
 export async function writeViewsYaml(content: string): Promise<void> {
-  const pfs = getFSPromises();
-  await ensureWorkspaceDir();
-  await pfs.writeFile(VIEWS_PATH, content, 'utf8');
+  const handle = FileSystemAccessService.getActiveHandle();
+  if (handle) {
+    await FileSystemAccessService.writeFile(handle, VIEWS_FILENAME, content);
+  } else {
+    const pfs = getFSPromises();
+    await ensureWorkspaceDir();
+    await pfs.writeFile(VIEWS_PATH, content, 'utf8');
+  }
 }
 
 /**
@@ -154,6 +170,10 @@ export async function writeViewsYaml(content: string): Promise<void> {
  * Returns null if the file doesn't exist yet.
  */
 export async function readYaml(): Promise<string | null> {
+  const handle = FileSystemAccessService.getActiveHandle();
+  if (handle) {
+    return await FileSystemAccessService.readFile(handle, YAML_FILENAME);
+  }
   const pfs = getFSPromises();
   try {
     const content = await pfs.readFile(YAML_PATH, { encoding: 'utf8' });
@@ -167,6 +187,10 @@ export async function readYaml(): Promise<string | null> {
  * Read model.typegraph.yaml — returns null if not present.
  */
 export async function readModelYaml(): Promise<string | null> {
+  const handle = FileSystemAccessService.getActiveHandle();
+  if (handle) {
+    return await FileSystemAccessService.readFile(handle, MODEL_FILENAME);
+  }
   const pfs = getFSPromises();
   try {
     const content = await pfs.readFile(MODEL_PATH, { encoding: 'utf8' });
@@ -180,6 +204,10 @@ export async function readModelYaml(): Promise<string | null> {
  * Read views.typegraph.yaml — returns null if not present (views default to []).
  */
 export async function readViewsYaml(): Promise<string | null> {
+  const handle = FileSystemAccessService.getActiveHandle();
+  if (handle) {
+    return await FileSystemAccessService.readFile(handle, VIEWS_FILENAME);
+  }
   const pfs = getFSPromises();
   try {
     const content = await pfs.readFile(VIEWS_PATH, { encoding: 'utf8' });
@@ -193,6 +221,15 @@ export async function readViewsYaml(): Promise<string | null> {
  * Check if the YAML file exists (legacy single-file check).
  */
 export async function yamlExists(): Promise<boolean> {
+  const handle = FileSystemAccessService.getActiveHandle();
+  if (handle) {
+    try {
+      await handle.getFileHandle(YAML_FILENAME, { create: false });
+      return true;
+    } catch {
+      return false;
+    }
+  }
   const pfs = getFSPromises();
   try {
     await pfs.stat(YAML_PATH);
@@ -206,6 +243,15 @@ export async function yamlExists(): Promise<boolean> {
  * Check if the split model file exists (new format).
  */
 export async function modelYamlExists(): Promise<boolean> {
+  const handle = FileSystemAccessService.getActiveHandle();
+  if (handle) {
+    try {
+      await handle.getFileHandle(MODEL_FILENAME, { create: false });
+      return true;
+    } catch {
+      return false;
+    }
+  }
   const pfs = getFSPromises();
   try {
     await pfs.stat(MODEL_PATH);
@@ -257,8 +303,10 @@ export async function renameWorkspace(oldDir: string, newName: string): Promise<
   try {
     await pfs.stat(newDir);
     throw new Error('Et projekt med dette navn findes allerede.');
-  } catch (err: any) {
-    if (err.code !== 'ENOENT') throw err;
+  } catch (err: unknown) {
+    if (err && typeof err === 'object' && 'code' in err && (err as { code?: string }).code !== 'ENOENT') {
+      throw err;
+    }
   }
 
   await pfs.rename(oldDir, newDir);

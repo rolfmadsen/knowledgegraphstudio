@@ -13,3 +13,6 @@ Overhold altid følgende arkitektoniske regler ved kodegenerering og refaktoreri
    - API-laget udfører den nødvendige I/O (f.eks. filskrivning).
    - Ved succes opdateres den globale tilstand i `src/store/useGraphStore.ts`[cite: 1].
    - Den opdaterede Zustand-tilstand trigger et re-render af feature-komponenterne.
+
+4. **Arkitektonisk Review-tjek:**
+   - Før afslutning af en opgave skal du gennemgå de ændrede filer og dokumentere i `walkthrough.md`, hvordan den envejs datastrøm er overholdt, og bekræfte at ingen UI-komponenter tilgår filsystemet eller git-motoren direkte.

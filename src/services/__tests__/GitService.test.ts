@@ -74,12 +74,14 @@ describe('GitService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    (CredentialService.loadRemoteConfig as any).mockResolvedValue({ 
+    vi.mocked(CredentialService.loadRemoteConfig).mockResolvedValue({ 
       url: 'https://github.com/test/repo', 
-      corsProxy: 'proxy' 
+      corsProxy: 'proxy',
+      branch: 'main',
+      label: 'origin'
     });
-    (CredentialService.loadPAT as any).mockResolvedValue('pat123');
-    (PersistenceService.getYaml as any).mockResolvedValue('substantial yaml content for testing safety checks...');
+    vi.mocked(CredentialService.loadPAT).mockResolvedValue('pat123');
+    vi.mocked(PersistenceService.getYaml).mockResolvedValue('substantial yaml content for testing safety checks...');
   });
 
   describe('push', () => {
@@ -93,7 +95,7 @@ describe('GitService', () => {
     });
 
     it('blocks push if local graph is empty (Safety Check)', async () => {
-      (PersistenceService.getYaml as any).mockResolvedValue('empty');
+      vi.mocked(PersistenceService.getYaml).mockResolvedValue('empty');
       
       await expect(GitService.push(mockState)).rejects.toThrow(/tom/);
       expect(gitEngine.gitPush).not.toHaveBeenCalled();
@@ -101,14 +103,14 @@ describe('GitService', () => {
 
     it('recovers from rejection by pulling and retrying push', async () => {
       // 1. First push fails with rejection
-      (gitEngine.gitPush as any)
+      vi.mocked(gitEngine.gitPush)
         .mockRejectedValueOnce(new Error('Push rejected: non-fast-forward'))
         .mockResolvedValueOnce(undefined); // Second push (retry) succeeds
       
       // 2. Mock successful pull during recovery
-      (gitEngine.gitFetch as any).mockResolvedValue({ aheadBy: 0, behindBy: 0 });
-      (gitEngine.gitMergeFastForward as any).mockResolvedValue(undefined);
-      (PersistenceService.loadWorkspace as any).mockResolvedValue(mockState);
+      vi.mocked(gitEngine.gitFetch).mockResolvedValue({ aheadBy: 0, behindBy: 0 });
+      vi.mocked(gitEngine.gitMergeFastForward).mockResolvedValue(undefined);
+      vi.mocked(PersistenceService.loadWorkspace).mockResolvedValue(mockState);
 
       const result = await GitService.push(mockState);
       
@@ -117,7 +119,7 @@ describe('GitService', () => {
     });
 
     it('handles "Phantom Success" by attempting a force push', async () => {
-      (gitEngine.gitPush as any)
+      vi.mocked(gitEngine.gitPush)
         .mockRejectedValueOnce(new Error('Phantom Success'))
         .mockResolvedValueOnce(undefined); // Force push succeeds
       
@@ -132,8 +134,8 @@ describe('GitService', () => {
 
   describe('pull', () => {
     it('returns loaded workspace state on success', async () => {
-      (gitEngine.gitFetch as any).mockResolvedValue({ aheadBy: 0, behindBy: 1 });
-      (PersistenceService.loadWorkspace as any).mockResolvedValue(mockState);
+      vi.mocked(gitEngine.gitFetch).mockResolvedValue({ aheadBy: 0, behindBy: 1 });
+      vi.mocked(PersistenceService.loadWorkspace).mockResolvedValue(mockState);
       
       const result = await GitService.pull();
       
@@ -146,8 +148,8 @@ describe('GitService', () => {
     });
 
     it('detects conflicts and returns raw yaml and success=false', async () => {
-      (gitEngine.gitFetch as any).mockResolvedValue({ aheadBy: 0, behindBy: 1 });
-      (gitEngine.gitMergeFastForward as any).mockRejectedValue(new gitEngine.MergeConflictError('conflict_local', 'conflict_remote'));
+      vi.mocked(gitEngine.gitFetch).mockResolvedValue({ aheadBy: 0, behindBy: 1 });
+      vi.mocked(gitEngine.gitMergeFastForward).mockRejectedValue(new gitEngine.MergeConflictError('conflict_local', 'conflict_remote'));
       
       const result = await GitService.pull();
       

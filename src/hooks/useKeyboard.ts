@@ -98,11 +98,11 @@ export function useKeyboard(config: KeyboardConfig) {
         if (!isInputFocused()) {
           const state = useGraphStore.getState();
 
-          if (state.selectedConceptId) {
+          const conceptId = state.selectedConceptId;
+          const activeViewId = state.activeViewId;
+          if (conceptId) {
             e.preventDefault();
             e.stopPropagation(); // ← kill the event; no other handler should see it
-            const conceptId = state.selectedConceptId;
-            const activeViewId = state.activeViewId;
             const views = state.views;
 
             const viewsContaining = views.filter((v) =>
@@ -114,11 +114,11 @@ export function useKeyboard(config: KeyboardConfig) {
               if (activeViewId) {
                 const concept = state.concepts.find((c) => c.id === conceptId);
                 const conceptName = concept?.name ?? conceptId;
-                state.requestDeleteConceptConfirm(conceptId as any, conceptName, activeViewId as any);
+                state.requestDeleteConceptConfirm(conceptId, conceptName, activeViewId);
               }
             } else if (activeViewId) {
               // In multiple views — silently remove from active view only
-              state.removeConceptFromView(activeViewId as any, conceptId as any);
+              state.removeConceptFromView(activeViewId, conceptId);
             }
           } else if (state.selectedRelationId) {
             e.preventDefault();
@@ -188,14 +188,15 @@ export function useKeyboard(config: KeyboardConfig) {
       if (ctrl && e.key === 'z') {
         e.preventDefault();
         const state = useGraphStore.getState();
+        const activeViewId = state.activeViewId;
         if (shift) {
           // Redo: per-view first, then global
-          if (!state.activeViewId || !state.redoViewMembership(state.activeViewId as any)) {
+          if (!activeViewId || !state.redoViewMembership(activeViewId)) {
             useGraphStore.temporal.getState().redo();
           }
         } else {
           // Undo: per-view first, then global
-          if (!state.activeViewId || !state.undoViewMembership(state.activeViewId as any)) {
+          if (!activeViewId || !state.undoViewMembership(activeViewId)) {
             useGraphStore.temporal.getState().undo();
           }
         }
@@ -204,7 +205,8 @@ export function useKeyboard(config: KeyboardConfig) {
       if (ctrl && e.key === 'y') {
         e.preventDefault();
         const state = useGraphStore.getState();
-        if (!state.activeViewId || !state.redoViewMembership(state.activeViewId as any)) {
+        const activeViewId = state.activeViewId;
+        if (!activeViewId || !state.redoViewMembership(activeViewId)) {
           useGraphStore.temporal.getState().redo();
         }
         return;

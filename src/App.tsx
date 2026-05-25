@@ -9,6 +9,7 @@
 import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import './index.css';
 import { useGraphStore, useTemporalStore } from './store/useGraphStore';
+import { toElementId } from './schema/graphSchema';
 import { useShallow } from 'zustand/react/shallow';
 import { useKeyboard } from './hooks/useKeyboard';
 import { ViewportContainer } from './features/viewport/ViewportContainer';
@@ -34,6 +35,7 @@ const RemoteConfigModal = lazy(() => import('./features/conflicts/RemoteConfigMo
 const WorkspaceSwitcherModal = lazy(() => import('./features/navigation/WorkspaceSwitcherModal').then(m => ({ default: m.WorkspaceSwitcherModal })));
 import { DeleteConceptModal } from './features/viewport/graph/DeleteConceptModal';
 import { DeleteViewModal } from './features/navigation/DeleteViewModal';
+const CreateViewModal = lazy(() => import('./features/navigation/CreateViewModal').then(m => ({ default: m.CreateViewModal })));
 
 const EMPTY_HISTORY = { pastStates: [], futureStates: [] };
 
@@ -176,21 +178,22 @@ function App() {
 
   // --- Focus Return (Spec §5) ---
   // Ensure focus returns to Zone 2 (Canvas) when any global modal closes
-  const { isNodeCreatorOpen, isRelationBuilderOpen, deleteViewConfirm } = useGraphStore(useShallow(s => ({
+  const { isNodeCreatorOpen, isRelationBuilderOpen, isCreateViewModalOpen, deleteViewConfirm } = useGraphStore(useShallow(s => ({
     isNodeCreatorOpen: s?.isNodeCreatorOpen,
     isRelationBuilderOpen: s?.isRelationBuilderOpen,
+    isCreateViewModalOpen: s?.isCreateViewModalOpen,
     deleteViewConfirm: s?.deleteViewConfirm,
   })));
 
   useEffect(() => {
-    const isAnyModalOpen = isNodeCreatorOpen || isQuickFindOpen || isRelationBuilderOpen || remoteConfigOpen || workspacesOpen || !!deleteViewConfirm;
+    const isAnyModalOpen = isNodeCreatorOpen || isQuickFindOpen || isRelationBuilderOpen || remoteConfigOpen || workspacesOpen || !!deleteViewConfirm || isCreateViewModalOpen;
     if (!isAnyModalOpen) {
       // Small delay to ensure DOM has updated and modal is gone
       setTimeout(() => {
         zone2Ref.current?.focus();
       }, 50);
     }
-  }, [isNodeCreatorOpen, isQuickFindOpen, isRelationBuilderOpen, remoteConfigOpen, workspacesOpen, deleteViewConfirm]);
+  }, [isNodeCreatorOpen, isQuickFindOpen, isRelationBuilderOpen, remoteConfigOpen, workspacesOpen, deleteViewConfirm, isCreateViewModalOpen]);
 
   const handleGitPull = useCallback(async () => {
     try {
@@ -325,7 +328,7 @@ function App() {
             const rect = e.currentTarget.getBoundingClientRect();
             const x = e.clientX - rect.left - rect.width / 2;
             const y = e.clientY - rect.top - rect.height / 2;
-            store.addConceptToView(activeViewId, conceptId, x + 400, y + 300);
+            store.addConceptToView(activeViewId, toElementId(conceptId), x + 400, y + 300);
           }}
         >
           {/* Global View Switcher */}
@@ -497,6 +500,7 @@ function App() {
         />
         <NodeCreator />
         <RelationBuilder />
+        <CreateViewModal />
         <HelpCenter isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
         <DeleteConceptModal />
         <DeleteViewModal />

@@ -16,7 +16,7 @@ import {
   ensureWorkspaceDir,
   setRepoDir,
 } from '../core/fileSystem';
-import type { GraphState } from '../schema/graphSchema';
+import { type GraphState, toElementId } from '../schema/graphSchema';
 import { GitService } from './GitService';
 
 export type PersistableState = Pick<GraphState, 'domains' | 'concepts' | 'relations' | 'views'>;
@@ -112,6 +112,10 @@ export class PersistenceService {
     }
 
     try {
+      const { FileSystemAccessService } = await import('./FileSystemAccessService');
+      const { REPO_DIR } = await import('../core/fileSystem');
+      await FileSystemAccessService.loadHandleForWorkspace(REPO_DIR);
+
       await ensureWorkspaceDir();
       await GitService.ensureRepo();
 
@@ -156,7 +160,7 @@ export class PersistenceService {
 
       // --- First run: create default workspace ---
       const defaultDomain = {
-        id: 'bounded_context:default',
+        id: toElementId('bounded_context:default'),
         createdAt: Date.now(),
         updatedAt: Date.now(),
         lifecycleState: 'active' as const,
@@ -281,7 +285,15 @@ export class PersistenceService {
   static async switchWorkspace(dir: string): Promise<BootstrapResult> {
     try {
       console.log(`[PersistenceService] Switching to workspace: ${dir}`);
+      // Flush any pending saves BEFORE switching path to prevent writing old state to the new path
+      await this.flush();
+
       this.isBootstrapped = false;
+
+      // Load local directory handle for the target workspace
+      const { FileSystemAccessService } = await import('./FileSystemAccessService');
+      await FileSystemAccessService.loadHandleForWorkspace(dir);
+
       setRepoDir(dir);
 
       const { resetGitCache } = await import('../core/gitEngine');
@@ -312,5 +324,15 @@ export class PersistenceService {
       console.error('[PersistenceService] Revert failed:', err);
       throw err;
     }
+  }
+
+  /** @internal */
+  static resetForTesting(isBootstrapped = false): void {
+    this.isBootstrapped = isBootstrapped;
+    if (this.saveTimeout) {
+      clearTimeout(this.saveTimeout);
+      this.saveTimeout = null;
+    }
+    this.pendingState = null;
   }
 }

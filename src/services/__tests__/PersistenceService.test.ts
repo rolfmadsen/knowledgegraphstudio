@@ -22,6 +22,7 @@ vi.mock('../../core/fileSystem', () => ({
   readViewsYaml: vi.fn(),
   writeModelYaml: vi.fn(),
   writeViewsYaml: vi.fn(),
+  REPO_DIR: '/workspace',
 }));
 
 vi.mock('../GitService', () => ({
@@ -44,45 +45,39 @@ describe('PersistenceService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Reset internal static state
-    (PersistenceService as any).isBootstrapped = false;
-    if ((PersistenceService as any).saveTimeout) {
-      clearTimeout((PersistenceService as any).saveTimeout);
-      (PersistenceService as any).saveTimeout = null;
-    }
+    PersistenceService.resetForTesting();
   });
 
   describe('bootstrap', () => {
     it('handles first run by creating default domain and initial commit', async () => {
-      (fileSystem.modelYamlExists as any).mockResolvedValue(false);
-      (fileSystem.yamlExists as any).mockResolvedValue(false);
+      vi.mocked(fileSystem.modelYamlExists).mockResolvedValue(false);
+      vi.mocked(fileSystem.yamlExists).mockResolvedValue(false);
       
       const result = await PersistenceService.bootstrap();
       
       expect(result.isFirstRun).toBe(true);
       expect(result.state?.domains).toHaveLength(1);
       expect(GitService.commit).toHaveBeenCalledWith(expect.stringContaining('Initial commit'));
-      expect((PersistenceService as any).isBootstrapped).toBe(true);
     });
 
     it('handles existing YAML by returning parsed state', async () => {
-      (fileSystem.modelYamlExists as any).mockResolvedValue(true);
-      (fileSystem.readModelYaml as any).mockResolvedValue('existing yaml');
-      (fileSystem.readViewsYaml as any).mockResolvedValue('views yaml');
-      const mockState = { concepts: [], relations: [], domains: [] };
-      (yamlParser.yamlToState as any).mockReturnValue(mockState);
-      (yamlParser.yamlToViews as any).mockReturnValue([]);
+      vi.mocked(fileSystem.modelYamlExists).mockResolvedValue(true);
+      vi.mocked(fileSystem.readModelYaml).mockResolvedValue('existing yaml');
+      vi.mocked(fileSystem.readViewsYaml).mockResolvedValue('views yaml');
+      const mockState = { concepts: [], relations: [], domains: [], views: [] as [] };
+      vi.mocked(yamlParser.yamlToState).mockReturnValue(mockState as ReturnType<typeof yamlParser.yamlToState>);
+      vi.mocked(yamlParser.yamlToViews).mockReturnValue([]);
       
       const result = await PersistenceService.bootstrap();
       
       expect(result.isFirstRun).toBe(false);
-      expect(result.state).toEqual({ ...mockState, views: [] });
-      expect((PersistenceService as any).isBootstrapped).toBe(true);
+      expect(result.state).toEqual(mockState);
     });
 
     it('detects and reports YAML conflicts', async () => {
-      (fileSystem.modelYamlExists as any).mockResolvedValue(true);
-      (fileSystem.readModelYaml as any).mockResolvedValue('corrupted yaml');
-      (yamlParser.yamlToState as any).mockImplementation(() => {
+      vi.mocked(fileSystem.modelYamlExists).mockResolvedValue(true);
+      vi.mocked(fileSystem.readModelYaml).mockResolvedValue('corrupted yaml');
+      vi.mocked(yamlParser.yamlToState).mockImplementation(() => {
         throw new yamlParser.YamlParseError('Syntax Error');
       });
       
@@ -95,8 +90,8 @@ describe('PersistenceService', () => {
 
   describe('saveWorkspace', () => {
     it('saves YAML to file system', async () => {
-      (yamlParser.stateToYaml as any).mockReturnValue('generated yaml');
-      (yamlParser.viewsToYaml as any).mockReturnValue('views yaml');
+      vi.mocked(yamlParser.stateToYaml).mockReturnValue('generated yaml');
+      vi.mocked(yamlParser.viewsToYaml).mockReturnValue('views yaml');
       const state = { concepts: [], relations: [], domains: [], views: [] };
       
       await PersistenceService.saveWorkspace(state);
@@ -107,9 +102,9 @@ describe('PersistenceService', () => {
 
     it('blocks save if store is empty but YAML exists (Safety Lock)', async () => {
       // Mark as bootstrapped
-      (PersistenceService as any).isBootstrapped = true;
-      (fileSystem.modelYamlExists as any).mockResolvedValue(true);
-      (fileSystem.readModelYaml as any).mockResolvedValue('This is a very long string that should definitely be longer than fifty characters to trigger the safety lock.'); // > 50 chars
+      PersistenceService.resetForTesting(true);
+      vi.mocked(fileSystem.modelYamlExists).mockResolvedValue(true);
+      vi.mocked(fileSystem.readModelYaml).mockResolvedValue('This is a very long string that should definitely be longer than fifty characters to trigger the safety lock.'); // > 50 chars
       
       // State is empty
       const state = { concepts: [], relations: [], domains: [], views: [] };

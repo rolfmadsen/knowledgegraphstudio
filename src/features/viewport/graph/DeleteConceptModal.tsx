@@ -36,7 +36,7 @@ export function DeleteConceptModal() {
       if (e.key === 'Enter') {
         e.preventDefault();
         e.stopPropagation();
-        deleteConcept(pending.conceptId as any);
+        deleteConcept(pending.conceptId);
         clear();
       }
     },
@@ -53,12 +53,12 @@ export function DeleteConceptModal() {
   const { conceptName } = pending;
 
   const handleDeleteFromModel = () => {
-    deleteConcept(pending.conceptId as any);
+    deleteConcept(pending.conceptId);
     clear();
   };
 
   const handleRemoveFromView = () => {
-    removeConceptFromView(pending.viewId as any, pending.conceptId as any);
+    removeConceptFromView(pending.viewId, pending.conceptId);
     clear();
   };
 
