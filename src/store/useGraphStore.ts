@@ -20,12 +20,15 @@ import {
   type View,
   type ViewNode,
   type DataType,
+  type ConceptProperty,
+  type BaseConceptNode,
   toElementId,
 } from '../schema/graphSchema';
 import { CredentialService, type RemoteConfig } from '../services/CredentialService';
 import { GraphService } from '../services/GraphService';
 import { PersistenceService, type BootstrapResult } from '../services/PersistenceService';
 import { GitService, type PullResult } from '../services/GitService';
+import { PluginRegistry } from '../plugins/PluginRegistry';
 import git from 'isomorphic-git';
 import { getFS, REPO_DIR, writeYaml } from '../core/fileSystem';
 
@@ -136,10 +139,7 @@ export interface GraphStoreState {
     x?: number;
     y?: number;
   }) => ConceptNode;
-  updateConcept: (id: ElementId, updates: Partial<Pick<
-    ConceptNode,
-    'name' | 'definition' | 'aliases' | 'classification' | 'lifecycleState' | 'domainId' | 'parentId' | 'conceptType'
-  >>) => void;
+  updateConcept: (id: ElementId, updates: Partial<BaseConceptNode> & { conceptType?: ConceptType }) => void;
   deleteConcept: (id: ElementId) => void;
 
   // --- Relation Actions ---
@@ -150,9 +150,7 @@ export interface GraphStoreState {
     transformationDescription?: string;
     isDirected?: boolean;
   }) => ConceptRelation;
-  updateRelation: (id: ElementId, updates: Partial<Pick<
-    ConceptRelation, 'name' | 'relationType' | 'multiplicity' | 'mappingPattern' | 'transformationDescription' | 'isDirected' | 'sourceConceptId' | 'targetConceptId'
-  >>) => void;
+  updateRelation: (id: ElementId, updates: Partial<ConceptRelation>) => void;
   deleteRelation: (id: ElementId) => void;
 
   // --- Property Actions ---
@@ -160,7 +158,7 @@ export interface GraphStoreState {
   updateProperty: (
     conceptId: ElementId,
     propertyId: ElementId,
-    updates: Partial<Pick<ConceptNode['properties'][0], 'name' | 'type' | 'isRequired' | 'lifecycleState'>>
+    updates: Partial<ConceptProperty>
   ) => void;
   deleteProperty: (conceptId: ElementId, propertyId: ElementId) => void;
 
@@ -233,7 +231,33 @@ export interface GraphStoreState {
 
 export const useGraphStore = create<GraphStoreState>()(
   temporal(
-    (set, get) => ({
+    (originalSet, get) => {
+      const set: typeof originalSet = (partial, replace) => {
+        if (typeof partial === 'function') {
+          const wrappedFunction = (state: GraphStoreState) => {
+            const nextState = (partial as any)(state);
+            if (nextState && 'selectedConceptId' in nextState && !('selectedConceptIds' in nextState)) {
+              return {
+                ...nextState,
+                selectedConceptIds: nextState.selectedConceptId ? [nextState.selectedConceptId] : []
+              };
+            }
+            return nextState;
+          };
+          (originalSet as any)(wrappedFunction, replace);
+        } else {
+          let finalState = partial;
+          if (partial && 'selectedConceptId' in partial && !('selectedConceptIds' in partial)) {
+            finalState = {
+              ...partial,
+              selectedConceptIds: (partial as any).selectedConceptId ? [(partial as any).selectedConceptId] : []
+            };
+          }
+          (originalSet as any)(finalState, replace);
+        }
+      };
+
+      return {
       // --- Initial State ---
       domains: [],
       concepts: [],
@@ -582,8 +606,17 @@ export const useGraphStore = create<GraphStoreState>()(
         if (!activeViewId) return;
         const view = views.find((v) => v.id === activeViewId);
         if (!view) return;
+
+        // Resolve notation plugin to filter concepts to only allowed types
+        const plugin = PluginRegistry.forViewType(view.type);
+        const allowedTypes = plugin?.allowedConceptTypes;
+
         const existingIds = new Set(view.nodes.map((n) => n.conceptId));
-        const missing = concepts.filter((c) => !existingIds.has(c.id));
+        const missing = concepts.filter((c) => {
+          if (existingIds.has(c.id)) return false;
+          if (!allowedTypes) return true; // no restriction (e.g. knowledge_graph)
+          return allowedTypes.includes(c.conceptType);
+        });
         if (missing.length === 0) return;
         const COLS = 4;
         const COL_W = 260;
@@ -1191,7 +1224,8 @@ export const useGraphStore = create<GraphStoreState>()(
       getHeadVersion: async () => {
         return (await GitService.getHeadVersion()) || '';
       },
-    }),
+      };
+    },
     {
       partialize: (state) => ({
         domains: state.domains || [],

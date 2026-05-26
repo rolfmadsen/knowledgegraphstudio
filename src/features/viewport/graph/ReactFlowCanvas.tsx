@@ -16,6 +16,7 @@ import {
   BackgroundVariant,
   type EdgeProps,
   type NodeTypes,
+  useReactFlow,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import type { PluginCanvasProps } from '../../../plugins/types';
@@ -220,6 +221,9 @@ export function ReactFlowCanvas({
   const activeDraggingNode = useRef<ElementId | null>(null);
   const selectedConceptIdRef = useRef(selectedConceptId);
 
+  const reactFlow = useReactFlow();
+  const centerSelectionCount = useGraphStore((s) => s.centerSelectionCount);
+
   const { batchUpdateViewNodePositions, ungroupConcept, updateViewNodeParentId, setSelectedConceptIds, selectedConceptIds } = useGraphStore();
 
   const selectedConceptIdsRef = useRef(selectedConceptIds);
@@ -228,6 +232,25 @@ export function ReactFlowCanvas({
     selectedConceptIdRef.current = selectedConceptId;
     selectedConceptIdsRef.current = selectedConceptIds;
   }, [selectedConceptId, selectedConceptIds]);
+
+  // Smoothly center the canvas viewport on the selected node when centerSelectionCount changes (Navigator, Command, Tab cycle)
+  useEffect(() => {
+    if (!selectedConceptId) return;
+    const selectedNode = nodes.find((n) => n.id === selectedConceptId);
+    if (selectedNode) {
+      const nodeWidth = selectedNode.measured?.width ?? 200;
+      const nodeHeight = selectedNode.measured?.height ?? 80;
+      const x = selectedNode.position.x + nodeWidth / 2;
+      const y = selectedNode.position.y + nodeHeight / 2;
+      
+      // Smoothly pan to the center of the node
+      reactFlow.setCenter(x, y, {
+        zoom: Math.min(reactFlow.getZoom(), 1.0),
+        duration: 200,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [centerSelectionCount, reactFlow]);
 
   const computedNodes: Node[] = useMemo(() => {
     const viewNodes = view.nodes ?? [];
@@ -406,6 +429,11 @@ export function ReactFlowCanvas({
         }
 
         if (existingNode) {
+          // Build a cheap fingerprint of the concept's properties so that
+          // adding / renaming / retyping / deleting an attribute triggers a re-render.
+          const propsFingerprint = (c: ConceptNode) =>
+            c.properties.map((p) => `${p.id}:${p.name}:${p.type}:${p.multiplicity ?? ''}:${p.wasDerivedFrom ?? ''}`).join('|');
+
           const changed =
             Math.abs(existingNode.position.x - n.position.x) > 0.1 ||
             Math.abs(existingNode.position.y - n.position.y) > 0.1 ||
@@ -416,7 +444,8 @@ export function ReactFlowCanvas({
             existingNode.draggable !== n.draggable ||
             existingNode.data.name !== n.data.name ||
             existingNode.data.type !== n.data.type ||
-            existingNode.data.lifecycle !== n.data.lifecycle;
+            existingNode.data.lifecycle !== n.data.lifecycle ||
+            propsFingerprint(existingNode.data.concept as ConceptNode) !== propsFingerprint(n.data.concept as ConceptNode);
           if (!changed) return existingNode;
           hasChanges = true;
           return {
@@ -619,6 +648,11 @@ export function ReactFlowCanvas({
     onNodeSelect(toElementId(node.id));
   }, [onNodeSelect]);
 
+  const onNodeDoubleClick: NodeMouseHandler = useCallback((_, node) => {
+    onNodeSelect(toElementId(node.id));
+    document.dispatchEvent(new CustomEvent('focus-inspector'));
+  }, [onNodeSelect]);
+
   const onKeyDown = useCallback((e: React.KeyboardEvent) => {
     const isDelete = e.key === 'Delete' || e.key === 'Backspace';
     if (isDelete) {
@@ -674,6 +708,7 @@ export function ReactFlowCanvas({
           onConnect={onConnectHandler}
           isValidConnection={isValidConnection}
           onNodeClick={onNodeClick}
+          onNodeDoubleClick={onNodeDoubleClick}
           onNodeDragStart={onNodeDragStart}
           onNodeDragStop={onNodeDragStop}
           onEdgeClick={(_e, edge) => onRelationSelect(toElementId(edge.id))}

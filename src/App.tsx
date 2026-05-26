@@ -220,8 +220,9 @@ function App() {
     onFocusZone: (zone) => {
       if (zone === 2) zone2Ref.current?.focus();
       if (zone === 4) {
-        zone4Ref.current?.focus();
+        setPropertiesOpen(true);
         setTimeout(() => {
+          zone4Ref.current?.focus();
           const firstInput = zone4Ref.current?.querySelector('input, select, textarea') as HTMLElement;
           firstInput?.focus();
         }, 50);
@@ -253,6 +254,32 @@ function App() {
     return () => window.removeEventListener('keydown', handleHelp);
   }, [isHelpOpen]);
 
+  // Listen for custom events to focus Zones
+  useEffect(() => {
+    const handleFocusInspector = () => {
+      setPropertiesOpen(true);
+      setTimeout(() => {
+        zone4Ref.current?.focus();
+        const firstInput = zone4Ref.current?.querySelector('input, select, textarea') as HTMLElement;
+        firstInput?.focus();
+      }, 50);
+    };
+
+    const handleFocusZoneEvent = (e: Event) => {
+      const customEvent = e as CustomEvent<{ zone: number }>;
+      const zone = customEvent.detail?.zone;
+      if (zone === 2) {
+        zone2Ref.current?.focus();
+      }
+    };
+
+    document.addEventListener('focus-inspector', handleFocusInspector);
+    document.addEventListener('focus-zone', handleFocusZoneEvent);
+    return () => {
+      document.removeEventListener('focus-inspector', handleFocusInspector);
+      document.removeEventListener('focus-zone', handleFocusZoneEvent);
+    };
+  }, []);
 
   if (!booted) {
     return (
@@ -404,7 +431,7 @@ function App() {
               <span className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-800">
                 YAML {isConflict ? '(CONFLICT MODE - EDITABLE)' : '(Live Sync)'}
               </span>
-              <button 
+              <button
                 onClick={() => {
                   const yamlToCopy = isConflict && conflictData && conflictData.localYaml ? conflictData.localYaml : useGraphStore.getState().stringifyState();
                   navigator.clipboard.writeText(yamlToCopy);
@@ -447,7 +474,7 @@ function App() {
                 <span className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-800">
                   YAML {isConflict ? '(CONFLICT MODE - EDITABLE)' : '(Live Sync)'}
                 </span>
-                <button 
+                <button
                   onClick={() => {
                     const yamlToCopy = isConflict && conflictData && conflictData.localYaml ? conflictData.localYaml : useGraphStore.getState().stringifyState();
                     navigator.clipboard.writeText(yamlToCopy);
@@ -481,7 +508,7 @@ function App() {
             borderLeft: propertiesOpen && !focusMode ? '1px solid #e2e8f0' : 'none'
           }}
         >
-          <div ref={zone4Ref} tabIndex={0} className="h-full focus:outline-none">
+          <div ref={zone4Ref} tabIndex={0} className="h-full flex flex-col min-h-0 focus:outline-none">
             <Inspector />
           </div>
         </aside>

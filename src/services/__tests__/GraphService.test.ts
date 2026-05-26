@@ -283,4 +283,93 @@ describe('GraphService', () => {
       expect(nextState.relations).toHaveLength(1);
     });
   });
+
+  describe('wasDerivedFrom (Lineage Integrity)', () => {
+    it('updates wasDerivedFrom references when a concept ID changes', () => {
+      const target = {
+        id: toElementId('class:kunder'),
+        name: 'Kunder',
+        conceptType: 'class' as const,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        lifecycleState: 'active' as const,
+        properties: [],
+        policies: [],
+        aliases: []
+      };
+      const derivedConcept = {
+        id: toElementId('class:kunde_info'),
+        name: 'KundeInfo',
+        conceptType: 'class' as const,
+        wasDerivedFrom: target.id,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        lifecycleState: 'active' as const,
+        properties: [
+          {
+            id: toElementId('other:navn'),
+            name: 'navn',
+            type: 'string' as const,
+            wasDerivedFrom: target.id,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            lifecycleState: 'active' as const
+          }
+        ],
+        policies: [],
+        aliases: []
+      };
+      const state = { domains: [], concepts: [target, derivedConcept], relations: [] };
+      
+      // Update target type to entity, changing its ID to 'entity:kunder'
+      const nextState = GraphService.updateConcept(state, target.id, { conceptType: 'entity' });
+      
+      const updatedDerived = nextState.concepts!.find(c => c.id === derivedConcept.id)!;
+      expect(updatedDerived.wasDerivedFrom).toBe('entity:kunder');
+      expect(updatedDerived.properties[0].wasDerivedFrom).toBe('entity:kunder');
+    });
+
+    it('clears wasDerivedFrom references to null when the target concept is deleted', () => {
+      const target = {
+        id: toElementId('class:kunder'),
+        name: 'Kunder',
+        conceptType: 'class' as const,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        lifecycleState: 'active' as const,
+        properties: [],
+        policies: [],
+        aliases: []
+      };
+      const derivedConcept = {
+        id: toElementId('class:kunde_info'),
+        name: 'KundeInfo',
+        conceptType: 'class' as const,
+        wasDerivedFrom: target.id,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        lifecycleState: 'active' as const,
+        properties: [
+          {
+            id: toElementId('other:navn'),
+            name: 'navn',
+            type: 'string' as const,
+            wasDerivedFrom: target.id,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            lifecycleState: 'active' as const
+          }
+        ],
+        policies: [],
+        aliases: []
+      };
+      const state = { domains: [], concepts: [target, derivedConcept], relations: [] };
+      
+      const nextState = GraphService.deleteConcept(state, target.id);
+      
+      const updatedDerived = nextState.concepts!.find(c => c.id === derivedConcept.id)!;
+      expect(updatedDerived.wasDerivedFrom).toBeNull();
+      expect(updatedDerived.properties[0].wasDerivedFrom).toBeNull();
+    });
+  });
 });

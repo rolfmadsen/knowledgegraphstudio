@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useGraphStore } from '../../store/useGraphStore';
 import { useShallow } from 'zustand/react/shallow';
+import { PluginRegistry } from '../../plugins/PluginRegistry';
 import {
   Plus,
   Box,
@@ -23,13 +24,13 @@ import {
   FolderOpen,
   Trash2,
 } from 'lucide-react';
-import type { ConceptType, View } from '../../schema/graphSchema';
+import type { ConceptType, View, ConceptNode } from '../../schema/graphSchema';
 
 // ============================================================
 // Helpers
 // ============================================================
 
-const typeIcon = (type: ConceptType, isActive?: boolean) => {
+const typeIcon = (type: string, isActive?: boolean) => {
   const cls = isActive ? 'text-white' : undefined;
   switch (type) {
     case 'domain': return <Database size={13} className={cls ?? 'text-slate-600'} />;
@@ -105,6 +106,10 @@ const typeIcon = (type: ConceptType, isActive?: boolean) => {
     // Other
     case 'location': return <Globe size={13} className={cls ?? 'text-sky-500'} />;
     case 'junction': return <Zap size={13} className={cls ?? 'text-amber-500'} />;
+    case 'conceptual_class': return <Box size={13} className={cls ?? 'text-purple-600'} />;
+    case 'information_class': return <Box size={13} className={cls ?? 'text-indigo-600'} />;
+    case 'datatype': return <Database size={13} className={cls ?? 'text-amber-500'} />;
+    case 'enumeration': return <Layers size={13} className={cls ?? 'text-emerald-500'} />;
     default: return <Tag size={13} className={cls ?? 'text-rose-500'} />;
   }
 };
@@ -119,7 +124,7 @@ const viewTypeIcon = (type: View['type']) => {
   }
 };
 
-const TYPE_HEADERS: Record<ConceptType, string> = {
+const TYPE_HEADERS: Record<string, string> = {
   domain: 'Domains',
   bounded_context: 'Bounded Contexts',
   capability: 'Capabilities',
@@ -191,9 +196,14 @@ const TYPE_HEADERS: Record<ConceptType, string> = {
   location: 'Locations',
   junction: 'Junctions',
   other: 'Other',
+  conceptual_class: 'Begreber',
+  information_class: 'Klasser',
+  datatype: 'Datatyper',
+  enumeration: 'Enumerationer',
 };
 
-const PREFERRED_ORDER: ConceptType[] = [
+const PREFERRED_ORDER: string[] = [
+  'conceptual_class', 'information_class', 'datatype', 'enumeration',
   'domain', 'bounded_context', 'capability', 'actor',
   'entity', 'process', 'event', 'system',
   'business_role', 'business_function', 'business_service',
@@ -208,6 +218,29 @@ const PREFERRED_ORDER: ConceptType[] = [
   'location', 'junction',
   'other',
 ];
+
+// ============================================================
+// Helpers
+// ============================================================
+
+/**
+ * Returns the folder/group header label for a concept type.
+ * Prefers the active notation plugin's conceptTypeLabels (e.g. ArchiMate calls
+ * 'actor' → 'Business Actor'), pluralised by appending 's' if the last character
+ * is not already 's'. Falls back to the generic TYPE_HEADERS entry.
+ */
+function getFolderLabel(
+  type: string,
+  pluginLabels?: Partial<Record<string, string>>,
+): string {
+  const pluginSingular = pluginLabels?.[type];
+  if (pluginSingular) {
+    // Simple pluralisation: avoid double-s (e.g. "Process" → "Processes" handled
+    // by TYPE_HEADERS; here we just add 's' unless it already ends in one).
+    return pluginSingular.endsWith('s') ? pluginSingular : `${pluginSingular}s`;
+  }
+  return TYPE_HEADERS[type] ?? type;
+}
 
 // ============================================================
 // Main Component
@@ -242,6 +275,20 @@ export function Navigator() {
     })),
   );
 
+  // Helper to determine view-membership badges for a concept
+  const getConceptBadges = (concept: ConceptNode) => {
+    const badges: string[] = [];
+    const memberViews = views.filter(v => v.nodes.some(vn => vn.conceptId === concept.id));
+    memberViews.forEach(v => {
+      if (v.type === 'conceptual_model' && !badges.includes('Begreb')) {
+        badges.push('Begreb');
+      } else if (v.type === 'information_model' && !badges.includes('Klasse')) {
+        badges.push('Klasse');
+      }
+    });
+    return badges;
+  };
+
   // Tree expansion states
   const [expanded, setExpanded] = useState<Record<string, boolean>>({
     views: true,
@@ -254,6 +301,10 @@ export function Navigator() {
     event: true,
     system: true,
     actor: true,
+    conceptual_class: true,
+    information_class: true,
+    datatype: true,
+    enumeration: true,
     other: true,
   });
 
@@ -266,24 +317,54 @@ export function Navigator() {
     e.dataTransfer.effectAllowed = 'copy';
   };
 
-  // Group concepts by type
+  // Group concepts by type or virtual type
   const groups = concepts.reduce((acc, concept) => {
-    const type = concept.conceptType;
+    let type: string = concept.conceptType;
+    if (type === 'class') {
+      const isInConceptual = views.some(v => v.type === 'conceptual_model' && v.nodes.some(vn => vn.conceptId === concept.id));
+      const isInInformation = views.some(v => v.type === 'information_model' && v.nodes.some(vn => vn.conceptId === concept.id));
+      
+      if (isInConceptual && !isInInformation) {
+        type = 'conceptual_class';
+      } else if (isInInformation && !isInConceptual) {
+        type = 'information_class';
+      } else if (concept.wasDerivedFrom || concept.properties.length > 0) {
+        type = 'information_class';
+      } else {
+        type = 'conceptual_class';
+      }
+    }
+
     if (!acc[type]) acc[type] = [];
     acc[type].push(concept);
     return acc;
-  }, {} as Record<ConceptType, typeof concepts>);
+  }, {} as Record<string, typeof concepts>);
 
   Object.keys(groups).forEach((key) => {
-    groups[key as ConceptType].sort((a, b) => a.name.localeCompare(b.name));
+    groups[key].sort((a, b) => a.name.localeCompare(b.name));
   });
 
-  const activeTypes = (Object.keys(groups) as ConceptType[])
+  // Resolve the active view's plugin so we can filter to only allowed concept types
+  const activeView = views.find((v) => v.id === activeViewId);
+  const activePlugin = activeView ? PluginRegistry.forViewType(activeView.type) : undefined;
+  const allowedConceptTypes = activePlugin?.allowedConceptTypes;
+
+  const activeTypes = (Object.keys(groups) as string[])
     .filter((type) => groups[type].length > 0)
+    // When a notation plugin restricts types, hide folders whose type isn't in the allowed list.
+    // 'conceptual_class' and 'information_class' are virtual UI types derived from 'class' —
+    // treat them as allowed when 'class' is in the list.
+    .filter((type) => {
+      if (!allowedConceptTypes) return true; // knowledge_graph: show all
+      if (allowedConceptTypes.includes(type as ConceptType)) return true;
+      // Virtual types: map back to 'class'
+      if ((type === 'conceptual_class' || type === 'information_class') && allowedConceptTypes.includes('class')) return true;
+      return false;
+    })
     .sort((a, b) => PREFERRED_ORDER.indexOf(a) - PREFERRED_ORDER.indexOf(b));
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 bg-slate-50 border-r border-slate-200">
+    <div id="model-explorer-root" className="flex-1 flex flex-col min-h-0 bg-slate-50 border-r border-slate-200">
       {/* Panel Header */}
       <div className="px-5 pt-5 pb-3 border-b border-slate-200 shrink-0">
         <div className="flex items-center justify-between">
@@ -315,12 +396,12 @@ export function Navigator() {
       </div>
 
       {/* Flat Tree Area */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar p-3 select-none flex flex-col gap-1">
-        
+      <div className="flex-1 overflow-auto custom-scrollbar p-3 select-none flex flex-col gap-1">
+
         {/* --- VIEWS FOLDER --- */}
         <div>
-          <div 
-            className="flex items-center justify-between py-1.5 px-2 hover:bg-slate-200/40 rounded-xl cursor-pointer group transition-all duration-150"
+          <div
+            className="flex min-w-full w-max items-center justify-between py-1.5 px-2 hover:bg-slate-200/40 rounded-xl cursor-pointer group transition-all duration-150"
             onClick={() => toggleExpand('views')}
           >
             <div className="flex items-center gap-1.5 min-w-0">
@@ -334,7 +415,7 @@ export function Navigator() {
               ) : (
                 <Folder size={14} className="text-blue-500 shrink-0" />
               )}
-              <span className="text-[12px] font-bold text-slate-700 truncate">Views</span>
+              <span className="text-[12px] font-bold text-slate-700 whitespace-nowrap">Views</span>
               <span className="text-[9px] font-semibold text-slate-400 bg-slate-200/40 px-1.5 py-0.5 rounded-full shrink-0">
                 {views.length}
               </span>
@@ -351,7 +432,7 @@ export function Navigator() {
             </button>
           </div>
 
-            {/* View Items */}
+          {/* View Items */}
           {expanded.views && (
             <div className="pl-3.5 ml-2.5 border-l border-slate-200/40 mt-0.5 flex flex-col gap-0.5">
               {views.length === 0 && (
@@ -368,7 +449,7 @@ export function Navigator() {
                     key={view.id}
                     onClick={() => setActiveViewId(view.id)}
                     className={`
-                      w-full flex items-center gap-2 py-1.5 px-2.5 rounded-lg transition-all text-left border cursor-pointer group
+                      min-w-full w-max flex items-center gap-2 py-1.5 px-2.5 rounded-lg transition-all text-left border cursor-pointer group
                       ${isActive
                         ? 'bg-emerald-50/80 border-emerald-100/70 text-emerald-800 font-bold shadow-sm'
                         : 'bg-transparent border-transparent text-slate-600 hover:bg-slate-200/30'}
@@ -377,8 +458,8 @@ export function Navigator() {
                     <span className={isActive ? 'text-emerald-600' : 'text-slate-400'}>
                       {viewTypeIcon(view.type)}
                     </span>
-                    <span className="text-[11px] truncate flex-1">{view.name}</span>
-                    
+                    <span className="text-[11px] whitespace-nowrap flex-1">{view.name}</span>
+
                     {/* Badge & Delete Button */}
                     <div className="flex items-center gap-1.5 shrink-0">
                       {liveNodeCount > 0 && (
@@ -406,8 +487,8 @@ export function Navigator() {
 
         {/* --- MODEL FOLDER --- */}
         <div>
-          <div 
-            className="flex items-center justify-between py-1.5 px-2 hover:bg-slate-200/40 rounded-xl cursor-pointer group transition-all duration-150"
+          <div
+            className="flex min-w-full w-max items-center justify-between py-1.5 px-2 hover:bg-slate-200/40 rounded-xl cursor-pointer group transition-all duration-150"
             onClick={() => toggleExpand('model')}
           >
             <div className="flex items-center gap-1.5 min-w-0">
@@ -421,7 +502,7 @@ export function Navigator() {
               ) : (
                 <Folder size={14} className="text-amber-500 shrink-0" />
               )}
-              <span className="text-[12px] font-bold text-slate-700 truncate">Model</span>
+              <span className="text-[12px] font-bold text-slate-700 whitespace-nowrap">Model</span>
               <span className="text-[9px] font-semibold text-slate-400 bg-slate-200/40 px-1.5 py-0.5 rounded-full shrink-0">
                 {concepts.length}
               </span>
@@ -443,8 +524,8 @@ export function Navigator() {
                 const folderItems = groups[type];
                 return (
                   <div key={type}>
-                    <div 
-                      className="flex items-center justify-between py-1.5 px-2 hover:bg-slate-200/40 rounded-xl cursor-pointer group transition-all duration-150"
+                    <div
+                      className="flex min-w-full w-max items-center justify-between py-1.5 px-2 hover:bg-slate-200/40 rounded-xl cursor-pointer group transition-all duration-150"
                       onClick={() => toggleExpand(type)}
                     >
                       <div className="flex items-center gap-1.5 min-w-0">
@@ -458,8 +539,8 @@ export function Navigator() {
                         ) : (
                           <Folder size={14} className="text-amber-500 shrink-0" />
                         )}
-                        <span className="text-[12px] font-bold text-slate-700 truncate">
-                          {TYPE_HEADERS[type]}
+                        <span className="text-[12px] font-bold text-slate-700 whitespace-nowrap">
+                          {getFolderLabel(type, activePlugin?.conceptTypeLabels as Record<string, string> | undefined)}
                         </span>
                         <span className="text-[9px] font-semibold text-slate-400 bg-slate-200/40 px-1.5 py-0.5 rounded-full shrink-0">
                           {folderItems.length}
@@ -477,14 +558,14 @@ export function Navigator() {
                               key={concept.id}
                               draggable={!!activeViewId}
                               onDragStart={(e) => handleDragStart(e, concept.id)}
-                              onClick={(e) => {
+                              onClick={() => {
                                 selectRelation(null);
                                 selectConcept(concept.id);
                                 centerSelectedNode();
-                                e.currentTarget.blur();
+                                document.dispatchEvent(new CustomEvent('focus-zone', { detail: { zone: 2 } }));
                               }}
                               className={`
-                                w-full flex items-center gap-2 py-1 px-2.5 transition-all text-left border rounded-lg
+                                min-w-full w-max flex items-center gap-2 py-1 px-2.5 transition-all text-left border rounded-lg
                                 ${isActive
                                   ? 'bg-emerald-50/80 border-emerald-100/70 text-emerald-800 font-bold shadow-sm'
                                   : 'bg-transparent border-transparent text-slate-600 hover:bg-slate-200/30'}
@@ -495,8 +576,13 @@ export function Navigator() {
                               <span className={`shrink-0 transition-colors ${isActive ? 'text-emerald-600' : 'text-slate-400 group-hover:text-emerald-500'}`}>
                                 {typeIcon(concept.conceptType, isActive)}
                               </span>
-                              <span className="text-[11px] truncate flex-1 text-left">
-                                {concept.name}
+                              <span className="text-[11px] whitespace-nowrap flex-1 text-left flex items-center gap-1.5">
+                                <span>{concept.name}</span>
+                                 {concept.wasDerivedFrom && (
+                                  <span className="text-[9px] text-slate-400 font-mono font-normal" title={`Afledt af: ${concepts.find(c => c.id === concept.wasDerivedFrom)?.name || concept.wasDerivedFrom}`}>
+                                    ➔ {concepts.find(c => c.id === concept.wasDerivedFrom)?.name || concept.wasDerivedFrom}
+                                  </span>
+                                )}
                               </span>
                             </button>
                           );

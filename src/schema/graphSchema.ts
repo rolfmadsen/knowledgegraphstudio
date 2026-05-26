@@ -96,6 +96,10 @@ export const ConceptType = z.enum([
   // Other
   'location',
   'junction',
+  // Core Model
+  'class',
+  'datatype',
+  'enumeration',
 ]);
 export type ConceptType = z.infer<typeof ConceptType>;
 
@@ -134,6 +138,8 @@ export const ViewType = z.enum([
   'archimate',
   'data_model',
   'c4',
+  'conceptual_model',
+  'information_model',
 ]);
 export type ViewType = z.infer<typeof ViewType>;
 
@@ -234,6 +240,8 @@ export const ConceptProperty = BaseEntity.extend({
   name: z.string().min(1),
   type: DataType,
   isRequired: z.boolean().optional(),
+  wasDerivedFrom: ElementId.optional().nullable(),
+  multiplicity: z.string().optional(),
 });
 export type ConceptProperty = z.infer<typeof ConceptProperty>;
 
@@ -257,7 +265,14 @@ export const BaseConceptNode = BaseEntity.extend({
   definition: z.string().optional(),
   properties: z.array(ConceptProperty),
   policies: z.array(Policy),
+  preferredTerm: z.string().optional(),
+  acceptedTerm: z.string().optional(),
+  deprecatedTerm: z.string().optional(),
+  source: z.string().optional(),
+  legalSource: z.string().optional(),
+  wasDerivedFrom: ElementId.optional().nullable(),
 });
+export type BaseConceptNode = z.infer<typeof BaseConceptNode>;
 
 export const DomainConceptNode = BaseConceptNode.extend({
   conceptType: z.literal('domain'),
@@ -304,6 +319,10 @@ export const ConceptRelation = BaseEntity.extend({
   transformationDescription: z.string().optional(),
   policies: z.array(Policy),
   isDirected: z.boolean().optional(),
+  sourceRole: z.string().optional(),
+  targetRole: z.string().optional(),
+  sourceMultiplicity: z.string().optional(),
+  targetMultiplicity: z.string().optional(),
 });
 export type ConceptRelation = z.infer<typeof ConceptRelation>;
 

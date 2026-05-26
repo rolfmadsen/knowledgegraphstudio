@@ -30,7 +30,7 @@ interface KeyboardConfig {
 function isInputFocused(): boolean {
   const el = document.activeElement;
   if (!el) return false;
-  
+
   // Check if inside Inspector
   if (el.closest('#inspector-root')) return true;
   if (el.closest('.monaco-editor')) return true;
@@ -38,7 +38,24 @@ function isInputFocused(): boolean {
   const tag = el.tagName.toLowerCase();
   if (tag === 'input' || tag === 'textarea' || tag === 'select' || tag === 'button') return true;
   if ((el as HTMLElement).isContentEditable) return true;
-  
+
+  return false;
+}
+
+/**
+ * Check if the active element is a text input field (where arrows should move cursor).
+ */
+function isEditingText(): boolean {
+  const el = document.activeElement;
+  if (!el) return false;
+
+  if (el.closest('#inspector-root')) return true;
+  if (el.closest('.monaco-editor')) return true;
+
+  const tag = el.tagName.toLowerCase();
+  if (tag === 'input' || tag === 'textarea') return true;
+  if ((el as HTMLElement).isContentEditable) return true;
+
   return false;
 }
 
@@ -52,7 +69,7 @@ export function useKeyboard(config: KeyboardConfig) {
       // ==========================================================
       // Input-aware overrides (shortcuts that work even in inputs)
       // ==========================================================
-      
+
       // Escape — Universal escape (release focus)
       if (e.key === 'Escape') {
         if (isInputFocused()) {
@@ -136,26 +153,27 @@ export function useKeyboard(config: KeyboardConfig) {
         return;
       }
 
-      // ==========================================================
-      // Navigation Shortcuts (only when no input is focused)
-      // ==========================================================
-      if (isInputFocused()) return;
-
-      // Arrows — Spatial Node Navigation (only if no alt/ctrl)
-      if (!alt && !ctrl) {
-        if (e.key === 'ArrowUp') { e.preventDefault(); e.stopPropagation(); useGraphStore.getState().selectNearestNode('up'); return; }
-        if (e.key === 'ArrowDown') { e.preventDefault(); e.stopPropagation(); useGraphStore.getState().selectNearestNode('down'); return; }
-        if (e.key === 'ArrowLeft') { e.preventDefault(); e.stopPropagation(); useGraphStore.getState().selectNearestNode('left'); return; }
-        if (e.key === 'ArrowRight') { e.preventDefault(); e.stopPropagation(); useGraphStore.getState().selectNearestNode('right'); return; }
+      // Arrows — Spatial Node Navigation (only if no alt/ctrl and not editing text)
+      if (!alt && !ctrl && !isEditingText()) {
+        const state = useGraphStore.getState();
+        if (e.key === 'ArrowUp') { e.preventDefault(); e.stopPropagation(); state.selectNearestNode('up'); state.centerSelectedNode(); return; }
+        if (e.key === 'ArrowDown') { e.preventDefault(); e.stopPropagation(); state.selectNearestNode('down'); state.centerSelectedNode(); return; }
+        if (e.key === 'ArrowLeft') { e.preventDefault(); e.stopPropagation(); state.selectNearestNode('left'); state.centerSelectedNode(); return; }
+        if (e.key === 'ArrowRight') { e.preventDefault(); e.stopPropagation(); state.selectNearestNode('right'); state.centerSelectedNode(); return; }
       }
 
       // Alt + Arrows — Spatial Edge Navigation
-      if (alt && !ctrl) {
+      if (alt && !ctrl && !isEditingText()) {
         if (e.key === 'ArrowUp') { e.preventDefault(); e.stopPropagation(); useGraphStore.getState().selectNearestEdge('up'); return; }
         if (e.key === 'ArrowDown') { e.preventDefault(); e.stopPropagation(); useGraphStore.getState().selectNearestEdge('down'); return; }
         if (e.key === 'ArrowLeft') { e.preventDefault(); e.stopPropagation(); useGraphStore.getState().selectNearestEdge('left'); return; }
         if (e.key === 'ArrowRight') { e.preventDefault(); e.stopPropagation(); useGraphStore.getState().selectNearestEdge('right'); return; }
       }
+
+      // ==========================================================
+      // Navigation Shortcuts (only when no input is focused)
+      // ==========================================================
+      if (isInputFocused()) return;
 
       // Enter — Drill into Inspector
       if (e.key === 'Enter') {
@@ -169,16 +187,19 @@ export function useKeyboard(config: KeyboardConfig) {
 
       // Tab — Cycle through nodes
       if (e.key === 'Tab') {
+        if (document.activeElement?.closest('#model-explorer-root')) {
+          return;
+        }
         e.preventDefault();
         const state = useGraphStore.getState();
         const concepts = state.concepts;
         if (concepts.length === 0) return;
-        
+
         const currentIndex = concepts.findIndex(c => c.id === state.selectedConceptId);
-        const nextIndex = shift 
+        const nextIndex = shift
           ? (currentIndex <= 0 ? concepts.length - 1 : currentIndex - 1)
           : (currentIndex >= concepts.length - 1 ? 0 : currentIndex + 1);
-        
+
         state.selectConcept(concepts[nextIndex].id);
         state.centerSelectedNode();
         return;

@@ -15,6 +15,8 @@ import {
   type Domain,
   type View,
   type DataType,
+  type ConceptProperty,
+  type BaseConceptNode,
 } from '../schema/graphSchema';
 
 export interface GraphStateWithSelection {
@@ -118,10 +120,7 @@ export class GraphService {
   /**
    * Update an existing concept.
    */
-  static updateConcept(state: GraphStateWithSelection, id: ElementId, updates: Partial<Pick<
-    ConceptNode,
-    'name' | 'definition' | 'aliases' | 'classification' | 'lifecycleState' | 'domainId' | 'parentId' | 'conceptType'
-  >>): Partial<GraphStateWithSelection> {
+  static updateConcept(state: GraphStateWithSelection, id: ElementId, updates: Partial<BaseConceptNode> & { conceptType?: ConceptType }): Partial<GraphStateWithSelection> {
     const now = Date.now();
     let newId = id;
     const targetConcept = state.concepts.find(c => c.id === id);
@@ -138,9 +137,39 @@ export class GraphService {
     const idChanged = newId !== id;
 
     return {
-      concepts: state.concepts.map((c) =>
-        c.id === id ? ({ ...c, ...updates, id: newId, updatedAt: now } as ConceptNode) : c,
-      ),
+      concepts: state.concepts.map((c) => {
+        let updatedConcept = c.id === id ? ({ ...c, ...updates, id: newId, updatedAt: now } as ConceptNode) : c;
+
+        // If the ID changed, check and update any wasDerivedFrom reference
+        if (idChanged) {
+          let hasChanges = false;
+          let nextWasDerivedFrom = updatedConcept.wasDerivedFrom;
+          if (updatedConcept.wasDerivedFrom === id) {
+            nextWasDerivedFrom = newId;
+            hasChanges = true;
+          }
+          
+          const nextProperties = updatedConcept.properties.map((p) => {
+            if (p.wasDerivedFrom === id) {
+              return { ...p, wasDerivedFrom: newId };
+            }
+            return p;
+          });
+          if (nextProperties.some((p, idx) => p !== updatedConcept.properties[idx])) {
+            hasChanges = true;
+          }
+
+          if (hasChanges) {
+            updatedConcept = {
+              ...updatedConcept,
+              wasDerivedFrom: nextWasDerivedFrom,
+              properties: nextProperties,
+              updatedAt: now,
+            } as ConceptNode;
+          }
+        }
+        return updatedConcept;
+      }),
       domains: state.domains.map((d) =>
         d.id === id ? { ...d, ...updates, id: newId, updatedAt: now } : d
       ),
@@ -167,8 +196,36 @@ export class GraphService {
    * Delete a concept and perform orphan cleanup on relations.
    */
   static deleteConcept(state: GraphStateWithSelection, id: ElementId): Partial<GraphStateWithSelection> {
+    const now = Date.now();
     return {
-      concepts: state.concepts.filter((c) => c.id !== id),
+      concepts: state.concepts
+        .filter((c) => c.id !== id)
+        .map((c) => {
+          let hasChanges = false;
+          let nextWasDerivedFrom = c.wasDerivedFrom;
+          if (c.wasDerivedFrom === id) {
+            nextWasDerivedFrom = null;
+            hasChanges = true;
+          }
+          const nextProperties = c.properties.map((p) => {
+            if (p.wasDerivedFrom === id) {
+              return { ...p, wasDerivedFrom: null };
+            }
+            return p;
+          });
+          if (nextProperties.some((p, idx) => p !== c.properties[idx])) {
+            hasChanges = true;
+          }
+          if (hasChanges) {
+            return {
+              ...c,
+              wasDerivedFrom: nextWasDerivedFrom,
+              properties: nextProperties,
+              updatedAt: now,
+            } as ConceptNode;
+          }
+          return c;
+        }),
       relations: state.relations.filter(
         (r) => r.sourceConceptId !== id && r.targetConceptId !== id,
       ),
@@ -236,9 +293,7 @@ export class GraphService {
   /**
    * Update an existing relation.
    */
-  static updateRelation(state: GraphStateWithSelection, id: ElementId, updates: Partial<Pick<
-    ConceptRelation, 'name' | 'relationType' | 'multiplicity' | 'mappingPattern' | 'transformationDescription' | 'isDirected' | 'sourceConceptId' | 'targetConceptId'
-  >>): Partial<GraphStateWithSelection> {
+  static updateRelation(state: GraphStateWithSelection, id: ElementId, updates: Partial<ConceptRelation>): Partial<GraphStateWithSelection> {
     return {
       relations: state.relations.map((r) =>
         r.id === id ? { ...r, ...updates, updatedAt: Date.now() } : r,
@@ -288,7 +343,7 @@ export class GraphService {
     state: GraphStateWithSelection,
     conceptId: ElementId, 
     propertyId: ElementId, 
-    updates: Partial<Pick<ConceptNode['properties'][0], 'name' | 'type' | 'isRequired' | 'lifecycleState'>>
+    updates: Partial<ConceptProperty>
   ): Partial<GraphStateWithSelection> {
     const now = Date.now();
     return {

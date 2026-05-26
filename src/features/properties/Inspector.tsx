@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useGraphStore } from '../../store/useGraphStore';
 import { useShallow } from 'zustand/react/shallow';
-import { LifecycleState, ConceptType, type ConceptProperty, type ConceptNode, type ElementId } from '../../schema/graphSchema';
+import { LifecycleState, ConceptType, type ConceptProperty, type ConceptNode, type ElementId, type DataType, toElementId } from '../../schema/graphSchema';
 import { PluginRegistry } from '../../plugins/PluginRegistry';
 import { 
   Plus, 
@@ -67,18 +67,12 @@ export function Inspector() {
 
   const activeView = views.find((v) => v.id === activeViewId);
   const activePlugin = activeView ? PluginRegistry.forViewType(activeView.type) : undefined;
+  const isConceptualView = activeView?.type === 'conceptual_model';
+  const isInformationView = activeView?.type === 'information_model';
 
   const viewNode = activeView?.nodes.find((n) => n.conceptId === concept?.id);
   const parentId = viewNode?.parentId;
   const parentGroupNode = parentId ? concepts.find((c) => c.id === parentId) : undefined;
-
-  // Focus name field when selectedConceptId changes (e.g., when creating a new group)
-  useEffect(() => {
-    if (selectedConceptId && nameInputRef.current) {
-      nameInputRef.current.focus();
-      nameInputRef.current.select();
-    }
-  }, [selectedConceptId]);
 
   // Inspector Micro-Navigation: Cmd + ArrowUp/Down to jump sections
   useEffect(() => {
@@ -181,6 +175,7 @@ export function Inspector() {
                 id="btn-group-selection"
                 onClick={() => {
                   groupConcepts(activeViewId, selectedConceptIds, 'New Group');
+                  document.dispatchEvent(new CustomEvent('focus-inspector'));
                 }}
                 className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-black tracking-wider uppercase rounded-xl transition-all shadow-sm hover:shadow-md hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
               >
@@ -267,166 +262,490 @@ export function Inspector() {
       <div className="flex flex-col gap-8">
         {concept && (
             <>
-                <InspectorSection 
-                  title="General"
-                  rightAction={
-                    <div className="flex gap-2 items-center">
-                        {concept.conceptType === 'bounded_context' && activeViewId && (
-                            <button 
-                                onClick={(e) => { e.stopPropagation(); dissolveGroup(activeViewId, concept.id); }}
-                                className="px-2.5 py-1 text-[9px] font-black text-amber-600 bg-amber-50 hover:bg-amber-100 hover:text-amber-700 rounded-lg border border-amber-200/50 transition-all uppercase tracking-wider shadow-sm"
-                                title="Dissolve Group"
-                            >
-                                Dissolve
-                            </button>
-                        )}
-                        <button 
-                            onClick={(e) => { e.stopPropagation(); deleteConcept(concept.id); }}
-                            className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                            title="Delete Concept"
-                        >
-                            <Trash2 size={14} strokeWidth={2.5} />
-                        </button>
-                    </div>
-                  }
-                >
-                    <div className="flex flex-col gap-5">
-                        <PropertyField 
-                          inputRef={nameInputRef}
-                          label="Name" 
-                          value={concept.name} 
-                          onChange={(v) => updateConcept(concept.id, { name: v })} 
-                        />
-                        <div className="flex flex-col gap-2">
-                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">Type</label>
-                            <div className="relative">
+                {/* 1. CONCEPTUAL VIEW INSPECTOR */}
+                {isConceptualView && (
+                  <>
+                      <InspectorSection 
+                        title="General"
+                        rightAction={
+                          <button 
+                              onClick={(e) => { e.stopPropagation(); deleteConcept(concept.id); }}
+                              className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                              title="Slet Klasse"
+                          >
+                              <Trash2 size={14} strokeWidth={2.5} />
+                          </button>
+                        }
+                      >
+                          <div className="flex flex-col gap-5">
+                              <PropertyField 
+                                inputRef={nameInputRef}
+                                label="Name" 
+                                value={concept.name} 
+                                onChange={(v) => updateConcept(concept.id, { name: v })} 
+                              />
+                          </div>
+                      </InspectorSection>
+                      
+                      <InspectorSection title="Forretningsmetadata">
+                          <div className="flex flex-col gap-5">
+                              <PropertyField 
+                                label="Foretrukken term" 
+                                value={concept.preferredTerm || ''} 
+                                onChange={(v) => updateConcept(concept.id, { preferredTerm: v })} 
+                              />
+                              <div className="flex flex-col gap-2">
+                                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">Definition</label>
+                                  <textarea
+                                    value={concept.definition || ''}
+                                    onChange={(e) => updateConcept(concept.id, { definition: e.target.value })}
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[12px] font-semibold text-slate-700 hover:border-slate-300 focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/5 outline-none transition-all resize-y min-h-[80px]"
+                                  />
+                              </div>
+                              <PropertyField 
+                                label="Accepteret term" 
+                                value={concept.acceptedTerm || ''} 
+                                onChange={(v) => updateConcept(concept.id, { acceptedTerm: v })} 
+                              />
+                              <PropertyField 
+                                label="Frarådet term" 
+                                value={concept.deprecatedTerm || ''} 
+                                onChange={(v) => updateConcept(concept.id, { deprecatedTerm: v })} 
+                              />
+                              <PropertyField 
+                                label="Kilde" 
+                                value={concept.source || ''} 
+                                onChange={(v) => updateConcept(concept.id, { source: v })} 
+                              />
+                              <PropertyField 
+                                label="Juridisk kilde" 
+                                value={concept.legalSource || ''} 
+                                onChange={(v) => updateConcept(concept.id, { legalSource: v })} 
+                              />
+                          </div>
+                      </InspectorSection>
+                  </>
+                )}
+
+                {/* 2. INFORMATION VIEW INSPECTOR */}
+                {isInformationView && (
+                  <>
+                      <InspectorSection 
+                        title="General"
+                        rightAction={
+                          <button 
+                              onClick={(e) => { e.stopPropagation(); deleteConcept(concept.id); }}
+                              className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                              title="Slet Klasse"
+                          >
+                              <Trash2 size={14} strokeWidth={2.5} />
+                          </button>
+                        }
+                      >
+                          <div className="flex flex-col gap-5">
+                              <PropertyField 
+                                inputRef={nameInputRef}
+                                label="Navn" 
+                                value={concept.name} 
+                                onChange={(v) => updateConcept(concept.id, { name: v })} 
+                              />
+                              <div className="flex flex-col gap-2">
+                                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">Type</label>
+                                  <div className="relative">
+                                      <select
+                                          value={concept.conceptType}
+                                          onChange={(e) => updateConcept(concept.id, { conceptType: e.target.value as ConceptType })}
+                                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[12px] font-semibold text-slate-700 hover:border-slate-300 focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/5 outline-none appearance-none cursor-pointer transition-all"
+                                      >
+                                          <option value="class">Klasse</option>
+                                          <option value="datatype">Struktureret Datatype</option>
+                                          <option value="enumeration">Enumeration</option>
+                                      </select>
+                                      <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400" />
+                                  </div>
+                              </div>
+                          </div>
+                      </InspectorSection>
+
+                      {concept.conceptType === 'class' && (
+                        <InspectorSection title="Semantisk sporbarhed">
+                          <div className="flex flex-col gap-2">
+                              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">Afledt af (Begreb)</label>
+                              <div className="relative">
+                                  <select
+                                      value={concept.wasDerivedFrom || ''}
+                                      onChange={(e) => updateConcept(concept.id, { wasDerivedFrom: e.target.value ? toElementId(e.target.value) : null })}
+                                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[12px] font-semibold text-slate-700 hover:border-slate-300 focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/5 outline-none appearance-none cursor-pointer transition-all"
+                                  >
+                                      <option value="">-- Intet link --</option>
+                                      {concepts
+                                        .filter(cc => cc.conceptType === 'class' && cc.id !== concept.id)
+                                        .map(cc => (
+                                          <option key={cc.id} value={cc.id}>{cc.name}</option>
+                                        ))}
+                                  </select>
+                                  <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400" />
+                              </div>
+                          </div>
+                        </InspectorSection>
+                      )}
+
+                      {concept.conceptType !== 'enumeration' && (
+                          <InspectorSection title="Attributter">
+                              <div className="flex flex-col gap-4">
+                                  {concept.properties.map((p: ConceptProperty) => (
+                                      <div key={p.id} className="p-4 bg-white border border-slate-200/60 rounded-2xl flex flex-col gap-3 group relative shadow-sm hover:shadow-md transition-all">
+                                          <div className="flex justify-between items-center">
+                                              <span className="text-[10px] font-black text-indigo-900 uppercase tracking-wider">Attribut</span>
+                                              <button 
+                                                  onClick={() => deleteProperty(concept.id, p.id)}
+                                                  className="p-1 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                                                  title="Slet Attribut"
+                                              >
+                                                  <Trash2 size={13} />
+                                              </button>
+                                          </div>
+                                          <div className="grid grid-cols-2 gap-3">
+                                              <PropertyField 
+                                                  label="Navn" 
+                                                  value={p.name} 
+                                                  onChange={(v) => updateProperty(concept.id, p.id, { name: v })} 
+                                              />
+                                              <div className="flex flex-col gap-2">
+                                                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">Datatype</label>
+                                                  <div className="relative">
+                                                      <select
+                                                          value={String(p.type)}
+                                                          onChange={(e) => updateProperty(concept.id, p.id, { type: e.target.value as DataType })}
+                                                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-[11px] font-semibold text-slate-700 hover:border-slate-300 focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/5 outline-none appearance-none cursor-pointer transition-all"
+                                                      >
+                                                          <optgroup label="Primitive typer">
+                                                              <option value="string">String</option>
+                                                              <option value="number">Number</option>
+                                                              <option value="boolean">Boolean</option>
+                                                              <option value="date">Date</option>
+                                                          </optgroup>
+                                                          {concepts.filter(c => c.conceptType === 'datatype' || c.conceptType === 'enumeration').length > 0 && (
+                                                              <optgroup label="Brugerdefinerede typer">
+                                                                  {concepts.filter(c => c.conceptType === 'datatype' || c.conceptType === 'enumeration').map(rt => (
+                                                                      <option key={rt.id} value={rt.id}>{rt.name} ({rt.conceptType === 'datatype' ? 'Datatype' : 'Enum'})</option>
+                                                                  ))}
+                                                              </optgroup>
+                                                          )}
+                                                      </select>
+                                                      <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400" />
+                                                  </div>
+                                              </div>
+                                          </div>
+                                          <div className="grid grid-cols-2 gap-3">
+                                              <PropertyField 
+                                                  label="Multiplicitet" 
+                                                  value={p.multiplicity || ''} 
+                                                  onChange={(v) => updateProperty(concept.id, p.id, { multiplicity: v })} 
+                                              />
+                                              <div className="flex flex-col gap-2">
+                                                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">Afledt af</label>
+                                                  <div className="relative">
+                                                      <select
+                                                          value={p.wasDerivedFrom || ''}
+                                                          onChange={(e) => updateProperty(concept.id, p.id, { wasDerivedFrom: e.target.value ? toElementId(e.target.value) : null })}
+                                                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-[11px] font-semibold text-slate-700 hover:border-slate-300 focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/5 outline-none appearance-none cursor-pointer transition-all"
+                                                      >
+                                                          <option value="">-- Intet link --</option>
+                                                          {concepts
+                                                            .filter(cc => cc.conceptType === 'class')
+                                                            .map(cc => (
+                                                              <option key={cc.id} value={cc.id}>{cc.name}</option>
+                                                            ))}
+                                                      </select>
+                                                      <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400" />
+                                                  </div>
+                                              </div>
+                                          </div>
+                                      </div>
+                                  ))}
+                                  <button 
+                                      onClick={() => addProperty(concept.id, 'nyAttribut', 'string')}
+                                      className="flex items-center justify-center gap-2 p-3 text-[10px] font-black text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all border border-dashed border-emerald-200 mt-2 tracking-widest uppercase cursor-pointer"
+                                  >
+                                      <Plus size={14} strokeWidth={3} />
+                                      <span>TILFØJ ATTRIBUT</span>
+                                  </button>
+                              </div>
+                          </InspectorSection>
+                      )}
+
+                      {concept.conceptType === 'enumeration' && (
+                          <InspectorSection title="Enum Literaler">
+                              <div className="flex flex-col gap-3">
+                                  {concept.properties.map((p: ConceptProperty) => (
+                                      <div key={p.id} className="flex gap-2 group items-center">
+                                          <div className="flex-1">
+                                              <PropertyField 
+                                                  label="Literal Navn" 
+                                                  value={p.name} 
+                                                  onChange={(v) => updateProperty(concept.id, p.id, { name: v })} 
+                                              />
+                                          </div>
+                                          <button 
+                                              onClick={() => deleteProperty(concept.id, p.id)}
+                                              className="mt-6 p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                                              title="Slet Literal"
+                                          >
+                                              <Trash2 size={14} />
+                                          </button>
+                                      </div>
+                                  ))}
+                                  <button 
+                                      onClick={() => addProperty(concept.id, 'NY_LITERAL', 'string')}
+                                      className="flex items-center justify-center gap-2 p-3 text-[10px] font-black text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all border border-dashed border-emerald-200 mt-2 tracking-widest uppercase cursor-pointer"
+                                  >
+                                      <Plus size={14} strokeWidth={3} />
+                                      <span>TILFØJ LITERAL</span>
+                                  </button>
+                              </div>
+                          </InspectorSection>
+                      )}
+
+                      {activeViewId && concept.conceptType !== 'bounded_context' && (
+                        <InspectorSection title="Parent Group">
+                          {parentGroupNode ? (
+                            <div className="flex flex-col gap-3">
+                              <PropertyField
+                                label="Parent Group"
+                                value={parentGroupNode.name}
+                                readOnly={true}
+                              />
+                              <button
+                                onClick={() => ungroupConcept(activeViewId, concept.id)}
+                                className="w-full py-2.5 text-[10px] font-black text-amber-600 hover:bg-amber-50 rounded-xl border border-dashed border-amber-200 hover:border-amber-300 transition-all tracking-widest uppercase cursor-pointer"
+                              >
+                                Remove from Group
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col gap-2">
+                              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">
+                                Add to Group
+                              </label>
+                              <div className="relative">
                                 <select
-                                    value={concept.conceptType}
-                                    onChange={(e) => updateConcept(concept.id, { conceptType: e.target.value as ConceptType })}
-                                    disabled={concept.conceptType === 'bounded_context'}
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[12px] font-semibold text-slate-700 hover:border-slate-300 focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/5 outline-none appearance-none cursor-pointer transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                                  value=""
+                                  onChange={(e) => {
+                                    const groupId = e.target.value;
+                                    if (groupId) {
+                                      updateViewNodeParentId(activeViewId, concept.id, groupId as ElementId);
+                                    }
+                                  }}
+                                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[12px] font-semibold text-slate-700 hover:border-slate-300 focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/5 outline-none appearance-none cursor-pointer transition-all"
                                 >
-                                    {ConceptType.options
-                                        .filter(t => !activePlugin?.allowedConceptTypes || activePlugin.allowedConceptTypes.includes(t as ConceptType))
-                                        .map(t => {
-                                            const customLabel = activePlugin?.conceptTypeLabels?.[t as ConceptType];
-                                            const displayLabel = customLabel || t.toUpperCase().replace('_', ' ');
-                                            return (
-                                                <option key={t} value={t}>{displayLabel}</option>
-                                            );
-                                        })}
+                                  <option value="">-- Select Group --</option>
+                                  {activeView?.nodes
+                                    .filter((vn) => {
+                                      const c = concepts.find((comp) => comp.id === vn.conceptId);
+                                      return c?.conceptType === 'bounded_context' && c.id !== concept.id;
+                                    })
+                                    .map((vn) => {
+                                      const c = concepts.find((comp) => comp.id === vn.conceptId);
+                                      return (
+                                        <option key={vn.conceptId} value={vn.conceptId}>
+                                          {c?.name || 'Unnamed Group'}
+                                        </option>
+                                      );
+                                    })}
                                 </select>
                                 <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400" />
+                              </div>
                             </div>
-                        </div>
-                    </div>
-                </InspectorSection>
+                          )}
+                        </InspectorSection>
+                      )}
 
-                {activeViewId && concept.conceptType !== 'bounded_context' && (
-                  <InspectorSection title="Parent Group">
-                    {parentGroupNode ? (
-                      <div className="flex flex-col gap-3">
-                        <PropertyField
-                          label="Parent Group"
-                          value={parentGroupNode.name}
-                          readOnly={true}
-                        />
-                        <button
-                          onClick={() => ungroupConcept(activeViewId, concept.id)}
-                          className="w-full py-2.5 text-[10px] font-black text-amber-600 hover:bg-amber-50 rounded-xl border border-dashed border-amber-200 hover:border-amber-300 transition-all tracking-widest uppercase cursor-pointer"
-                        >
-                          Remove from Group
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col gap-2">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">
-                          Add to Group
-                        </label>
-                        <div className="relative">
-                          <select
-                            value=""
-                            onChange={(e) => {
-                              const groupId = e.target.value;
-                              if (groupId) {
-                                updateViewNodeParentId(activeViewId, concept.id, groupId as ElementId);
-                              }
-                            }}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[12px] font-semibold text-slate-700 hover:border-slate-300 focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/5 outline-none appearance-none cursor-pointer transition-all"
-                          >
-                            <option value="">-- Select Group --</option>
-                            {activeView?.nodes
-                              .filter((vn) => {
-                                const c = concepts.find((comp) => comp.id === vn.conceptId);
-                                return c?.conceptType === 'bounded_context' && c.id !== concept.id;
-                              })
-                              .map((vn) => {
-                                const c = concepts.find((comp) => comp.id === vn.conceptId);
-                                return (
-                                  <option key={vn.conceptId} value={vn.conceptId}>
-                                    {c?.name || 'Unnamed Group'}
-                                  </option>
-                                );
-                              })}
-                          </select>
-                          <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400" />
-                        </div>
-                      </div>
-                    )}
-                  </InspectorSection>
+                      <InspectorSection title="Lifecycle">
+                          <div className="flex flex-col gap-3">
+                              <div className="relative">
+                                  <select 
+                                      value={concept.lifecycleState}
+                                      onChange={(e) => updateConcept(concept.id, { lifecycleState: e.target.value as LifecycleState })}
+                                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[12px] font-semibold text-slate-700 hover:border-slate-300 focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/5 outline-none appearance-none cursor-pointer transition-all"
+                                  >
+                                      <option value="proposed">PROPOSED</option>
+                                      <option value="active">ACTIVE</option>
+                                      <option value="deprecated">DEPRECATED</option>
+                                      <option value="retired">RETIRED</option>
+                                  </select>
+                                  <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400" />
+                              </div>
+                          </div>
+                      </InspectorSection>
+                  </>
                 )}
 
-                {concept.conceptType !== 'bounded_context' && (
-                    <InspectorSection title="Attributes">
-                        <div className="flex flex-col gap-3">
-                            {concept.properties.map((p: ConceptProperty) => (
-                                <div key={p.id} className="flex gap-2 group">
-                                    <div className="flex-1">
-                                        <PropertyField 
-                                            label={p.name} 
-                                            value={String(p.type)} 
-                                            onChange={(v) => updateProperty(concept.id, p.id, { name: v })} 
-                                        />
-                                    </div>
-                                    <button 
-                                        onClick={() => deleteProperty(concept.id, p.id)}
-                                        className="mt-6 p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                                    >
-                                        <Trash2 size={14} />
-                                    </button>
-                                </div>
-                            ))}
-                            <button 
-                                onClick={() => addProperty(concept.id, 'New Property', 'string')}
-                                className="flex items-center justify-center gap-2 p-3 text-[10px] font-black text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all border border-dashed border-emerald-200 mt-2 tracking-widest uppercase"
-                            >
-                                <Plus size={14} strokeWidth={3} />
-                                <span>ADD PROPERTY</span>
-                            </button>
-                        </div>
-                    </InspectorSection>
+                {/* 3. DEFAULT/FALLBACK VIEW INSPECTOR */}
+                {!isConceptualView && !isInformationView && (
+                  <>
+                      <InspectorSection 
+                        title="General"
+                        rightAction={
+                          <div className="flex gap-2 items-center">
+                              {concept.conceptType === 'bounded_context' && activeViewId && (
+                                  <button 
+                                      onClick={(e) => { e.stopPropagation(); dissolveGroup(activeViewId, concept.id); }}
+                                      className="px-2.5 py-1 text-[9px] font-black text-amber-600 bg-amber-50 hover:bg-amber-100 hover:text-amber-700 rounded-lg border border-amber-200/50 transition-all uppercase tracking-wider shadow-sm"
+                                      title="Dissolve Group"
+                                  >
+                                      Dissolve
+                                  </button>
+                              )}
+                              <button 
+                                  onClick={(e) => { e.stopPropagation(); deleteConcept(concept.id); }}
+                                  className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                                  title="Delete Concept"
+                              >
+                                  <Trash2 size={14} strokeWidth={2.5} />
+                              </button>
+                          </div>
+                        }
+                      >
+                          <div className="flex flex-col gap-5">
+                              <PropertyField 
+                                inputRef={nameInputRef}
+                                label="Name" 
+                                value={concept.name} 
+                                onChange={(v) => updateConcept(concept.id, { name: v })} 
+                              />
+                              <div className="flex flex-col gap-2">
+                                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">Type</label>
+                                  <div className="relative">
+                                      <select
+                                          value={concept.conceptType}
+                                          onChange={(e) => updateConcept(concept.id, { conceptType: e.target.value as ConceptType })}
+                                          disabled={concept.conceptType === 'bounded_context'}
+                                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[12px] font-semibold text-slate-700 hover:border-slate-300 focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/5 outline-none appearance-none cursor-pointer transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                                      >
+                                          {ConceptType.options
+                                              .filter(t => !activePlugin?.allowedConceptTypes || activePlugin.allowedConceptTypes.includes(t as ConceptType))
+                                              .map(t => {
+                                                  const customLabel = activePlugin?.conceptTypeLabels?.[t as ConceptType];
+                                                  const displayLabel = customLabel || t.toUpperCase().replace('_', ' ');
+                                                  return (
+                                                      <option key={t} value={t}>{displayLabel}</option>
+                                                  );
+                                              })}
+                                      </select>
+                                      <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400" />
+                                  </div>
+                              </div>
+                          </div>
+                      </InspectorSection>
+
+                      {activeViewId && concept.conceptType !== 'bounded_context' && (
+                        <InspectorSection title="Parent Group">
+                          {parentGroupNode ? (
+                            <div className="flex flex-col gap-3">
+                              <PropertyField
+                                label="Parent Group"
+                                value={parentGroupNode.name}
+                                readOnly={true}
+                              />
+                              <button
+                                onClick={() => ungroupConcept(activeViewId, concept.id)}
+                                className="w-full py-2.5 text-[10px] font-black text-amber-600 hover:bg-amber-50 rounded-xl border border-dashed border-amber-200 hover:border-amber-300 transition-all tracking-widest uppercase cursor-pointer"
+                              >
+                                Remove from Group
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col gap-2">
+                              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">
+                                Add to Group
+                              </label>
+                              <div className="relative">
+                                <select
+                                  value=""
+                                  onChange={(e) => {
+                                    const groupId = e.target.value;
+                                    if (groupId) {
+                                      updateViewNodeParentId(activeViewId, concept.id, groupId as ElementId);
+                                    }
+                                  }}
+                                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[12px] font-semibold text-slate-700 hover:border-slate-300 focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/5 outline-none appearance-none cursor-pointer transition-all"
+                                >
+                                  <option value="">-- Select Group --</option>
+                                  {activeView?.nodes
+                                    .filter((vn) => {
+                                      const c = concepts.find((comp) => comp.id === vn.conceptId);
+                                      return c?.conceptType === 'bounded_context' && c.id !== concept.id;
+                                    })
+                                    .map((vn) => {
+                                      const c = concepts.find((comp) => comp.id === vn.conceptId);
+                                      return (
+                                        <option key={vn.conceptId} value={vn.conceptId}>
+                                          {c?.name || 'Unnamed Group'}
+                                        </option>
+                                      );
+                                    })}
+                                </select>
+                                <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400" />
+                              </div>
+                            </div>
+                          )}
+                        </InspectorSection>
+                      )}
+
+                      {concept.conceptType !== 'bounded_context' && (
+                          <InspectorSection title="Attributes">
+                              <div className="flex flex-col gap-3">
+                                  {concept.properties.map((p: ConceptProperty) => (
+                                      <div key={p.id} className="flex gap-2 group">
+                                          <div className="flex-1">
+                                              <PropertyField 
+                                                  label={p.name} 
+                                                  value={String(p.type)} 
+                                                  onChange={(v) => updateProperty(concept.id, p.id, { name: v })} 
+                                              />
+                                          </div>
+                                          <button 
+                                              onClick={() => deleteProperty(concept.id, p.id)}
+                                              className="mt-6 p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                                          >
+                                              <Trash2 size={14} />
+                                          </button>
+                                      </div>
+                                  ))}
+                                  <button 
+                                      onClick={() => addProperty(concept.id, 'New Property', 'string')}
+                                      className="flex items-center justify-center gap-2 p-3 text-[10px] font-black text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all border border-dashed border-emerald-200 mt-2 tracking-widest uppercase"
+                                  >
+                                      <Plus size={14} strokeWidth={3} />
+                                      <span>ADD PROPERTY</span>
+                                  </button>
+                              </div>
+                          </InspectorSection>
+                      )}
+
+                      <InspectorSection title="Lifecycle">
+                          <div className="flex flex-col gap-3">
+                              <div className="relative">
+                                  <select 
+                                      value={concept.lifecycleState}
+                                      onChange={(e) => updateConcept(concept.id, { lifecycleState: e.target.value as LifecycleState })}
+                                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[12px] font-semibold text-slate-700 hover:border-slate-300 focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/5 outline-none appearance-none cursor-pointer transition-all"
+                                  >
+                                      <option value="proposed">PROPOSED</option>
+                                      <option value="active">ACTIVE</option>
+                                      <option value="deprecated">DEPRECATED</option>
+                                      <option value="retired">RETIRED</option>
+                                  </select>
+                                  <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400" />
+                              </div>
+                          </div>
+                      </InspectorSection>
+                  </>
                 )}
 
-                <InspectorSection title="Lifecycle">
-                    <div className="flex flex-col gap-3">
-                        <div className="relative">
-                            <select 
-                                value={concept.lifecycleState}
-                                onChange={(e) => updateConcept(concept.id, { lifecycleState: e.target.value as LifecycleState })}
-                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[12px] font-semibold text-slate-700 hover:border-slate-300 focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/5 outline-none appearance-none cursor-pointer transition-all"
-                            >
-                                <option value="proposed">PROPOSED</option>
-                                <option value="active">ACTIVE</option>
-                                <option value="deprecated">DEPRECATED</option>
-                                <option value="retired">RETIRED</option>
-                            </select>
-                            <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400" />
-                        </div>
-                    </div>
-                </InspectorSection>
-
-                {/* Views membership section */}
-                {(() => {
+                {/* Views membership section (Shared across non-conceptual views) */}
+                {!isConceptualView && (() => {
                   const memberViews = views.filter((v) =>
                     v.nodes.some((vn) => vn.conceptId === concept.id)
                   );
@@ -453,6 +772,8 @@ export function Inspector() {
                             const viewTypeIcon = v.type === 'archimate' ? '🏛️'
                               : v.type === 'c4' ? '📐'
                               : v.type === 'data_model' ? '🗂️'
+                              : v.type === 'conceptual_model' ? '🧠'
+                              : v.type === 'information_model' ? '📊'
                               : '🌐';
                             return (
                               <div
@@ -554,13 +875,48 @@ export function Inspector() {
                           value={relation.name || ''} 
                           onChange={(v) => updateRelation(relation.id, { name: v })} 
                         />
-                        <PropertyField 
-                          label="Multiplicity" 
-                          value={relation.multiplicity || ''} 
-                          onChange={(v) => updateRelation(relation.id, { multiplicity: v })} 
-                        />
+                        {!isInformationView && (
+                          <PropertyField 
+                            label="Multiplicity" 
+                            value={relation.multiplicity || ''} 
+                            onChange={(v) => updateRelation(relation.id, { multiplicity: v })} 
+                          />
+                        )}
                     </div>
                 </InspectorSection>
+
+                {isInformationView && (
+                  <InspectorSection title="Associationsender">
+                    <div className="flex flex-col gap-5">
+                      <div className="p-4 bg-slate-50/50 rounded-2xl border border-slate-100 flex flex-col gap-3">
+                        <span className="text-[9px] font-black text-indigo-900 uppercase tracking-widest font-mono">Kilde-ende ({concepts.find(c => c.id === relation.sourceConceptId)?.name || 'Kilde'})</span>
+                        <PropertyField 
+                          label="Rolle (lowerCamelCase)" 
+                          value={relation.sourceRole || ''} 
+                          onChange={(v) => updateRelation(relation.id, { sourceRole: v })} 
+                        />
+                        <PropertyField 
+                          label="Multiplicitet" 
+                          value={relation.sourceMultiplicity || ''} 
+                          onChange={(v) => updateRelation(relation.id, { sourceMultiplicity: v })} 
+                        />
+                      </div>
+                      <div className="p-4 bg-slate-50/50 rounded-2xl border border-slate-100 flex flex-col gap-3">
+                        <span className="text-[9px] font-black text-indigo-900 uppercase tracking-widest font-mono">Mål-ende ({concepts.find(c => c.id === relation.targetConceptId)?.name || 'Mål'})</span>
+                        <PropertyField 
+                          label="Rolle (lowerCamelCase)" 
+                          value={relation.targetRole || ''} 
+                          onChange={(v) => updateRelation(relation.id, { targetRole: v })} 
+                        />
+                        <PropertyField 
+                          label="Multiplicitet" 
+                          value={relation.targetMultiplicity || ''} 
+                          onChange={(v) => updateRelation(relation.id, { targetMultiplicity: v })} 
+                        />
+                      </div>
+                    </div>
+                  </InspectorSection>
+                )}
 
                 <InspectorSection title="Lineage">
                     <div className="flex flex-col gap-6 p-6 bg-slate-50/50 rounded-3xl border border-slate-100 relative">
@@ -630,6 +986,12 @@ function PropertyField({ label, value, onChange, readOnly, inputRef }: { label: 
                 readOnly={readOnly}
                 onChange={(e) => onChange?.(e.target.value)}
                 onFocus={(e) => e.target.select()}
+                onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                        e.currentTarget.blur();
+                        document.dispatchEvent(new CustomEvent('focus-zone', { detail: { zone: 2 } }));
+                    }
+                }}
                 className={`w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[12px] font-semibold text-slate-700 hover:border-slate-300 focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/5 outline-none transition-all ${readOnly ? 'opacity-60 cursor-not-allowed' : ''}`}
             />
         </div>

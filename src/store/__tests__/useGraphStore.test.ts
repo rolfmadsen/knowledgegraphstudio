@@ -271,4 +271,61 @@ describe('useGraphStore', () => {
       expect(child?.parentId).toBeUndefined();
     });
   });
+
+  describe('Selection Synchronization', () => {
+    it('synchronizes selectedConceptIds when spatial navigation updates selectedConceptId', () => {
+      // Setup state with activeView containing one node
+      useGraphStore.setState({
+        views: [
+          {
+            id: toElementId('view:1'),
+            name: 'View 1',
+            type: 'archimate',
+            layoutAlgorithm: 'manual',
+            nodes: [{ conceptId: toElementId('concept:1'), x: 100, y: 100 }],
+            edges: [],
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            lifecycleState: 'active',
+          },
+        ],
+        activeViewId: toElementId('view:1'),
+        selectedConceptId: null,
+        selectedConceptIds: [],
+      });
+
+      // Call spatial navigation selectNearestNode
+      useGraphStore.getState().selectNearestNode('down');
+
+      // Verify that both selectedConceptId and selectedConceptIds are updated correctly
+      expect(useGraphStore.getState().selectedConceptId).toBe(toElementId('concept:1'));
+      expect(useGraphStore.getState().selectedConceptIds).toEqual([toElementId('concept:1')]);
+    });
+
+    it('synchronizes selectedConceptIds when a selected concept is deleted', () => {
+      useGraphStore.setState({
+        concepts: [
+          {
+            id: toElementId('concept:1'),
+            conceptType: 'actor',
+            name: 'Actor 1',
+            properties: [],
+            policies: [],
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            lifecycleState: 'active',
+            aliases: [],
+          },
+        ],
+        selectedConceptId: toElementId('concept:1'),
+        selectedConceptIds: [toElementId('concept:1')],
+      });
+
+      useGraphStore.getState().deleteConcept(toElementId('concept:1'));
+
+      expect(useGraphStore.getState().selectedConceptId).toBeNull();
+      expect(useGraphStore.getState().selectedConceptIds).toEqual([]);
+    });
+  });
 });
+
