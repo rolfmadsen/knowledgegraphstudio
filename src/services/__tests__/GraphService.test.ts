@@ -35,6 +35,88 @@ describe('GraphService', () => {
       expect(nextState.concepts).toHaveLength(1);
       expect(nextState.concepts![0].name).toBe('User');
     });
+
+    it('returns existing concept if trying to add duplicate actor with same name', () => {
+      const existing = {
+        id: toElementId('actor:user'),
+        name: 'User',
+        conceptType: 'actor' as const,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        lifecycleState: 'active' as const,
+        properties: [],
+        policies: [],
+        aliases: []
+      };
+      const state = { domains: [], concepts: [existing], relations: [] };
+      const { concept, nextState } = GraphService.addConcept(state, 'actor', 'User');
+      expect(concept.id).toBe(existing.id);
+      expect(nextState.concepts).toBeUndefined(); // no state updates/duplicates
+    });
+
+    it('allows Begreb and Klasse with same name, but blocks duplicate Begreb', () => {
+      const viewConceptual = {
+        id: toElementId('view:c'),
+        name: 'Conceptual',
+        type: 'conceptual_model' as const,
+        layoutAlgorithm: 'manual' as const,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        lifecycleState: 'active' as const,
+        nodes: [{ conceptId: toElementId('class:existing-begreb'), x: 0, y: 0 }],
+        edges: []
+      };
+      const viewInformation = {
+        id: toElementId('view:i'),
+        name: 'Information',
+        type: 'information_model' as const,
+        layoutAlgorithm: 'manual' as const,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        lifecycleState: 'active' as const,
+        nodes: [{ conceptId: toElementId('class:existing-klasse'), x: 0, y: 0 }],
+        edges: []
+      };
+      const existingBegreb = {
+        id: toElementId('class:existing-begreb'),
+        name: 'Kunde',
+        conceptType: 'class' as const,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        lifecycleState: 'active' as const,
+        properties: [],
+        policies: [],
+        aliases: []
+      };
+      const existingKlasse = {
+        id: toElementId('class:existing-klasse'),
+        name: 'Kunde',
+        conceptType: 'class' as const,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        lifecycleState: 'active' as const,
+        properties: [],
+        policies: [],
+        aliases: []
+      };
+      
+      const state = {
+        domains: [],
+        concepts: [existingBegreb, existingKlasse],
+        relations: [],
+        views: [viewConceptual, viewInformation],
+        activeViewId: viewConceptual.id
+      };
+
+      // Try adding another "Kunde" (Begreb) in the conceptual view - should find duplicate
+      const result1 = GraphService.addConcept(state, 'class', 'Kunde');
+      expect(result1.concept.id).toBe(existingBegreb.id);
+
+      // Now set active view to information view
+      const stateWithInfoActive = { ...state, activeViewId: viewInformation.id };
+      const result2 = GraphService.addConcept(stateWithInfoActive, 'class', 'Kunde');
+      expect(result2.concept.id).toBe(existingKlasse.id);
+    });
   });
 
   describe('addRelation', () => {

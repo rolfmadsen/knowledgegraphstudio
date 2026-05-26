@@ -1,11 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useGraphStore } from '../../store/useGraphStore';
 import { ConceptType } from '../../schema/graphSchema';
 import { PluginRegistry } from '../../plugins/PluginRegistry';
+import { GraphService } from '../../services/GraphService';
 import { X, Plus, User, Activity, Box, Server, Zap, Shield, Layout, Globe, Search } from 'lucide-react';
 
 export const NodeCreator: React.FC = () => {
-  const { isNodeCreatorOpen, setNodeCreatorOpen, addConcept, activeViewId, views } = useGraphStore();
+  const { isNodeCreatorOpen, setNodeCreatorOpen, addConcept, activeViewId, views, concepts } = useGraphStore();
   const [name, setName] = useState('');
   const [type, setType] = useState<ConceptType>('entity');
   const [typeQuery, setTypeQuery] = useState('');
@@ -127,8 +128,58 @@ export const NodeCreator: React.FC = () => {
     }
   }, [selectedIndex]);
 
+  // Check if duplicate name exists
+  const isDuplicate = useMemo(() => {
+    const trimmedName = name.trim().toLowerCase();
+    if (!trimmedName) return false;
+
+    return concepts.some((c) => {
+      if (c.conceptType !== type) return false;
+      if (c.name.trim().toLowerCase() !== trimmedName) return false;
+
+      // Special case: class (Begreb vs Klasse)
+      if (type === 'class') {
+        const isCreatingConceptual = activeView?.type === 'conceptual_model';
+        const isCreatingInformation = activeView?.type === 'information_model';
+
+        const virtualType = GraphService.getVirtualType(c, views);
+
+        if (isCreatingConceptual && virtualType === 'conceptual_class') return true;
+        if (isCreatingInformation && virtualType === 'information_class') return true;
+        
+        if (!isCreatingConceptual && !isCreatingInformation) return true;
+        return false;
+      }
+
+      // For other types, name must be unique within that type
+      return true;
+    });
+  }, [name, type, concepts, views, activeView]);
+
+  // Filter similar concepts matching allowed search types (cross-search for classes, exact match for others)
+  // Also filters out concepts that are not allowed in the active view's notation
+  const similarConcepts = useMemo(() => {
+    const trimmed = name.trim().toLowerCase();
+    if (trimmed.length <= 1) return [];
+
+    return concepts.filter((c) => {
+      const matchName = c.name.toLowerCase().includes(trimmed);
+      if (!matchName) return false;
+
+      // Filter by notation allowed types
+      if (activePlugin?.allowedConceptTypes && !activePlugin.allowedConceptTypes.includes(c.conceptType)) {
+        return false;
+      }
+
+      if (type === 'class') {
+        return c.conceptType === 'class';
+      }
+      return c.conceptType === type;
+    });
+  }, [name, type, concepts, activePlugin]);
+
   const handleCreate = () => {
-    if (!name.trim()) return;
+    if (!name.trim() || isDuplicate) return;
     addConcept(type, name.trim());
     setNodeCreatorOpen(false);
   };
@@ -308,10 +359,73 @@ export const NodeCreator: React.FC = () => {
             </div>
           </div>
 
+          {/* Similar existing nodes list */}
+          {name.trim().length > 1 && (
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">
+                Eksisterende noder med lignende navn
+              </label>
+              <div className="max-h-[120px] overflow-y-auto pr-1 custom-scrollbar border border-slate-100 bg-slate-50/50 rounded-2xl p-3 space-y-2">
+                {similarConcepts.map((c) => {
+                  const virtualType = GraphService.getVirtualType(c, views);
+                  const labelStr = virtualType === 'conceptual_class' ? 'Begreb' : virtualType === 'information_class' ? 'Klasse' : c.conceptType.replace('_', ' ');
+                  
+                  // Check if already in the active view
+                  const alreadyInActiveView = activeView?.nodes.some(vn => vn.conceptId === c.id);
+
+                  return (
+                    <div key={c.id} className="flex items-center justify-between text-[11px] font-semibold text-slate-600 bg-white border border-slate-100 rounded-xl p-2.5 shadow-sm">
+                      <div className="flex flex-col">
+                        <span className="text-slate-700 font-bold">{c.name}</span>
+                        <span className="text-[9px] text-slate-400 font-medium uppercase tracking-wider">{labelStr}</span>
+                      </div>
+                      {activeViewId && (
+                        alreadyInActiveView ? (
+                          <span className="text-[9px] font-bold text-slate-400 bg-slate-100 px-2 py-1 rounded-lg">
+                            I view
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              useGraphStore.getState().addConceptToView(activeViewId, c.id, 150, 150);
+                              setNodeCreatorOpen(false);
+                            }}
+                            className="text-[9px] font-black uppercase tracking-wider text-emerald-600 hover:text-white bg-emerald-50 hover:bg-emerald-600 border border-emerald-100 rounded-lg px-2.5 py-1.5 transition-all active:scale-95"
+                          >
+                            Tilføj
+                          </button>
+                        )
+                      )}
+                    </div>
+                  );
+                })}
+                {similarConcepts.length === 0 && (
+                  <div className="text-center py-2 text-slate-400 italic text-[10px]">
+                    Ingen lignende noder fundet
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {isDuplicate && (
+            <div className="text-[11px] font-semibold text-rose-500 bg-rose-50 border border-rose-100 rounded-xl px-4 py-2 flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
+              <span>
+                {type === 'class'
+                  ? (activeView?.type === 'conceptual_model'
+                      ? 'Der findes allerede et begreb med dette navn.'
+                      : 'Der findes allerede en klasse med dette navn.')
+                  : `Der findes allerede et element af typen "${type}" med dette navn.`}
+              </span>
+            </div>
+          )}
+
           <button
             ref={createBtnRef}
             onClick={handleCreate}
-            disabled={!name.trim()}
+            disabled={!name.trim() || isDuplicate}
             className="w-full bg-slate-900 hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed text-white rounded-2xl py-4 font-bold text-[14px] shadow-xl shadow-slate-900/20 focus:ring-[6px] focus:ring-emerald-500 focus:scale-[1.02] active:scale-[0.98] outline-none transition-all flex items-center justify-center gap-2"
           >
             <Plus size={18} />

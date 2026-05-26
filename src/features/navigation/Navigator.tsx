@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useGraphStore } from '../../store/useGraphStore';
 import { useShallow } from 'zustand/react/shallow';
 import { PluginRegistry } from '../../plugins/PluginRegistry';
+import { GraphService } from '../../services/GraphService';
 import {
   Plus,
   Box,
@@ -24,7 +25,7 @@ import {
   FolderOpen,
   Trash2,
 } from 'lucide-react';
-import type { ConceptType, View, ConceptNode } from '../../schema/graphSchema';
+import type { ConceptType, View } from '../../schema/graphSchema';
 
 // ============================================================
 // Helpers
@@ -275,19 +276,6 @@ export function Navigator() {
     })),
   );
 
-  // Helper to determine view-membership badges for a concept
-  const getConceptBadges = (concept: ConceptNode) => {
-    const badges: string[] = [];
-    const memberViews = views.filter(v => v.nodes.some(vn => vn.conceptId === concept.id));
-    memberViews.forEach(v => {
-      if (v.type === 'conceptual_model' && !badges.includes('Begreb')) {
-        badges.push('Begreb');
-      } else if (v.type === 'information_model' && !badges.includes('Klasse')) {
-        badges.push('Klasse');
-      }
-    });
-    return badges;
-  };
 
   // Tree expansion states
   const [expanded, setExpanded] = useState<Record<string, boolean>>({
@@ -319,22 +307,7 @@ export function Navigator() {
 
   // Group concepts by type or virtual type
   const groups = concepts.reduce((acc, concept) => {
-    let type: string = concept.conceptType;
-    if (type === 'class') {
-      const isInConceptual = views.some(v => v.type === 'conceptual_model' && v.nodes.some(vn => vn.conceptId === concept.id));
-      const isInInformation = views.some(v => v.type === 'information_model' && v.nodes.some(vn => vn.conceptId === concept.id));
-      
-      if (isInConceptual && !isInInformation) {
-        type = 'conceptual_class';
-      } else if (isInInformation && !isInConceptual) {
-        type = 'information_class';
-      } else if (concept.wasDerivedFrom || concept.properties.length > 0) {
-        type = 'information_class';
-      } else {
-        type = 'conceptual_class';
-      }
-    }
-
+    const type = GraphService.getVirtualType(concept, views);
     if (!acc[type]) acc[type] = [];
     acc[type].push(concept);
     return acc;
@@ -352,13 +325,18 @@ export function Navigator() {
   const activeTypes = (Object.keys(groups) as string[])
     .filter((type) => groups[type].length > 0)
     // When a notation plugin restricts types, hide folders whose type isn't in the allowed list.
-    // 'conceptual_class' and 'information_class' are virtual UI types derived from 'class' —
-    // treat them as allowed when 'class' is in the list.
+    // 'conceptual_class' and 'information_class' are virtual UI types derived from 'class'.
     .filter((type) => {
-      if (!allowedConceptTypes) return true; // knowledge_graph: show all
+      if (!allowedConceptTypes) return true; // knowledge_graph or no active view: show all
       if (allowedConceptTypes.includes(type as ConceptType)) return true;
-      // Virtual types: map back to 'class'
-      if ((type === 'conceptual_class' || type === 'information_class') && allowedConceptTypes.includes('class')) return true;
+      
+      // Virtual types: map back to 'class', both are shown if classes are allowed in the active view
+      if (type === 'conceptual_class') {
+        return allowedConceptTypes.includes('class');
+      }
+      if (type === 'information_class') {
+        return allowedConceptTypes.includes('class');
+      }
       return false;
     })
     .sort((a, b) => PREFERRED_ORDER.indexOf(a) - PREFERRED_ORDER.indexOf(b));

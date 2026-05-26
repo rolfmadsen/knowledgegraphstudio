@@ -501,8 +501,27 @@ export const useGraphStore = create<GraphStoreState>()(
       },
 
       addConceptToView: (viewId, conceptId, x, y) => {
+        const view = get().views.find((v) => v.id === viewId);
+        if (!view) return;
+        const concept = get().concepts.find((c) => c.id === conceptId);
+        if (!concept) return;
+
         // Skip if already present
-        if (get().views.find((v) => v.id === viewId)?.nodes.some((n) => n.conceptId === conceptId)) return;
+        if (view.nodes.some((n) => n.conceptId === conceptId)) return;
+
+        // Resolve notation plugin and filter allowed concept types
+        const plugin = PluginRegistry.forViewType(view.type);
+        const allowedTypes = plugin?.allowedConceptTypes;
+        if (allowedTypes) {
+          if (!allowedTypes.includes(concept.conceptType)) return;
+
+          // Check for name uniqueness within the target view
+          const targetViewNodes = view.nodes;
+          const targetConceptsInView = get().concepts.filter(c => targetViewNodes.some(vn => vn.conceptId === c.id));
+          const hasNameCollision = targetConceptsInView.some(c => c.name.trim().toLowerCase() === concept.name.trim().toLowerCase() && c.id !== concept.id);
+          if (hasNameCollision) return;
+        }
+
         const temporal = getTemporalState();
         temporal.pause();
         set((s) => ({
@@ -612,10 +631,15 @@ export const useGraphStore = create<GraphStoreState>()(
         const allowedTypes = plugin?.allowedConceptTypes;
 
         const existingIds = new Set(view.nodes.map((n) => n.conceptId));
+        const existingNames = new Set(
+          view.nodes.map((vn) => concepts.find((c) => c.id === vn.conceptId)?.name.trim().toLowerCase()).filter(Boolean)
+        );
         const missing = concepts.filter((c) => {
           if (existingIds.has(c.id)) return false;
+          if (existingNames.has(c.name.trim().toLowerCase())) return false;
           if (!allowedTypes) return true; // no restriction (e.g. knowledge_graph)
-          return allowedTypes.includes(c.conceptType);
+          if (!allowedTypes.includes(c.conceptType)) return false;
+          return true;
         });
         if (missing.length === 0) return;
         const COLS = 4;

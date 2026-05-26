@@ -3,6 +3,7 @@ import { useGraphStore } from '../../store/useGraphStore';
 import { useShallow } from 'zustand/react/shallow';
 import { ConceptType } from '../../schema/graphSchema';
 import { PluginRegistry } from '../../plugins/PluginRegistry';
+import { GraphService } from '../../services/GraphService';
 import {
   Search,
   Plus,
@@ -25,6 +26,7 @@ interface RelationOption {
   label: string;
   description: string;
   isNew: boolean;
+  virtualType?: string;
 }
 
 const CONCEPT_TYPES: Array<{ type: ConceptType; label: string; icon: React.ReactNode }> = ConceptType.options.map(t => {
@@ -127,6 +129,12 @@ const RELATIONSHIP_DESCRIPTIONS: Record<string, { label: string; symbol: string;
   }
 };
 
+const getDisplayLabelForType = (type: string, activePlugin?: any) => {
+  if (type === 'conceptual_class') return 'Begreb';
+  if (type === 'information_class') return 'Klasse';
+  return activePlugin?.conceptTypeLabels?.[type as ConceptType] || type.toUpperCase().replace('_', ' ');
+};
+
 export function RelationBuilder() {
   const {
     open,
@@ -208,6 +216,7 @@ export function RelationBuilder() {
       id: c.id,
       label: c.name,
       description: c.conceptType,
+      virtualType: GraphService.getVirtualType(c, views),
       isNew: false
     }));
 
@@ -226,7 +235,7 @@ export function RelationBuilder() {
     }
 
     return finalOptions;
-  }, [query, concepts, sourceId, activePlugin]);
+  }, [query, concepts, sourceId, activePlugin, views]);
 
   // Filtered archetypes for new node creation
   const filteredTypes = useMemo(() => {
@@ -315,10 +324,40 @@ export function RelationBuilder() {
 
     if (!sourceId || !targetIdOrName || !actualLabel) return;
 
+    let finalIsNewTarget = isNewTarget;
+    let finalTargetIdOrName = targetIdOrName;
+
+    if (isNewTarget) {
+      const trimmedName = targetIdOrName.trim().toLowerCase();
+      const existing = concepts.find((c) => {
+        if (c.conceptType !== selectedType) return false;
+        if (c.name.trim().toLowerCase() !== trimmedName) return false;
+
+        if (selectedType === 'class') {
+          const isCreatingConceptual = activeView?.type === 'conceptual_model';
+          const isCreatingInformation = activeView?.type === 'information_model';
+
+          const virtualType = GraphService.getVirtualType(c, views);
+
+          if (isCreatingConceptual && virtualType === 'conceptual_class') return true;
+          if (isCreatingInformation && virtualType === 'information_class') return true;
+          if (!isCreatingConceptual && !isCreatingInformation) return true;
+          return false;
+        }
+
+        return true;
+      });
+
+      if (existing) {
+        finalIsNewTarget = false;
+        finalTargetIdOrName = existing.id;
+      }
+    }
+
     createQuickRelation({
       sourceId,
-      targetIdOrName,
-      isNewTarget,
+      targetIdOrName: finalTargetIdOrName,
+      isNewTarget: finalIsNewTarget,
       targetType: selectedType,
       label: actualLabel,
       relationType: resolvedType
@@ -451,13 +490,16 @@ export function RelationBuilder() {
   }, [step, options, selectedIndex, query, isNewTarget, targetIdOrName, targetNode]);
 
   const displayTargetType = useMemo(() => {
+    let rawType: string | null = null;
     if (step === 'target') {
       const currentSelection = options[selectedIndex];
-      if (currentSelection) return currentSelection.description; // description holds the type
-      return null;
+      if (currentSelection) rawType = currentSelection.virtualType || currentSelection.description;
+    } else {
+      rawType = isNewTarget ? selectedType : (targetNode ? GraphService.getVirtualType(targetNode, views) : null);
     }
-    return isNewTarget ? selectedType : targetNode?.conceptType;
-  }, [step, options, selectedIndex, isNewTarget, selectedType, targetNode]);
+    if (!rawType) return null;
+    return getDisplayLabelForType(rawType, activePlugin);
+  }, [step, options, selectedIndex, isNewTarget, selectedType, targetNode, views, activePlugin]);
 
   if (!open || !sourceNode) return null;
 
@@ -664,7 +706,7 @@ export function RelationBuilder() {
                         <span className={`text-[13px] font-bold ${idx === selectedIndex ? 'text-slate-900' : 'text-slate-600'}`}>{opt.label}</span>
                         <div className="flex flex-wrap items-center gap-1.5 mt-1">
                           <span className={`text-[10px] font-bold uppercase tracking-widest ${idx === selectedIndex ? 'text-emerald-600' : 'text-slate-400'}`}>
-                            {opt.isNew ? 'PROPOSE NEW' : (activePlugin?.conceptTypeLabels?.[opt.description as ConceptType] || opt.description.replace('_', ' '))}
+                            {opt.isNew ? 'PROPOSE NEW' : getDisplayLabelForType(opt.virtualType || opt.description, activePlugin)}
                           </span>
                           {!opt.isNew && activePlugin?.getAvailableRelations && (
                             <>

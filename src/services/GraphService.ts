@@ -6,10 +6,10 @@
  * for the store to apply via set().
  */
 import { generateId } from '../core/idGenerator';
-import { 
-  type ConceptType, 
-  type ElementId, 
-  type DataClassification, 
+import {
+  type ConceptType,
+  type ElementId,
+  type DataClassification,
   type ConceptNode,
   type ConceptRelation,
   type Domain,
@@ -91,6 +91,36 @@ export class GraphService {
     definition?: string;
     aliases?: string[];
   } = {}): { concept: ConceptNode; nextState: Partial<GraphStateWithSelection> } {
+    const trimmedName = name.trim().toLowerCase();
+    const views = state.views || [];
+    const activeView = views.find((v) => v.id === state.activeViewId);
+
+    const existing = state.concepts.find((c) => {
+      if (c.conceptType !== conceptType) return false;
+      if (c.name.trim().toLowerCase() !== trimmedName) return false;
+
+      if (conceptType === 'class') {
+        const isCreatingConceptual = activeView?.type === 'conceptual_model';
+        const isCreatingInformation = activeView?.type === 'information_model';
+
+        const virtualType = GraphService.getVirtualType(c, views);
+
+        if (isCreatingConceptual && virtualType === 'conceptual_class') return true;
+        if (isCreatingInformation && virtualType === 'information_class') return true;
+        if (!isCreatingConceptual && !isCreatingInformation) return true;
+        return false;
+      }
+
+      return true;
+    });
+
+    if (existing) {
+      return {
+        concept: existing,
+        nextState: {},
+      };
+    }
+
     const id = generateId(conceptType, name);
     const now = Date.now();
     const concept: ConceptNode = {
@@ -124,7 +154,7 @@ export class GraphService {
     const now = Date.now();
     let newId = id;
     const targetConcept = state.concepts.find(c => c.id === id);
-    
+
     // If the conceptType is changing, we must update the ID prefix to maintain semantic correctness
     if (updates.conceptType && targetConcept && targetConcept.conceptType !== updates.conceptType) {
       const parts = id.split(':');
@@ -148,7 +178,7 @@ export class GraphService {
             nextWasDerivedFrom = newId;
             hasChanges = true;
           }
-          
+
           const nextProperties = updatedConcept.properties.map((p) => {
             if (p.wasDerivedFrom === id) {
               return { ...p, wasDerivedFrom: newId };
@@ -173,20 +203,20 @@ export class GraphService {
       domains: state.domains.map((d) =>
         d.id === id ? { ...d, ...updates, id: newId, updatedAt: now } : d
       ),
-      relations: idChanged 
+      relations: idChanged
         ? state.relations.map((r) => ({
-            ...r,
-            sourceConceptId: r.sourceConceptId === id ? newId : r.sourceConceptId,
-            targetConceptId: r.targetConceptId === id ? newId : r.targetConceptId
-          }))
+          ...r,
+          sourceConceptId: r.sourceConceptId === id ? newId : r.sourceConceptId,
+          targetConceptId: r.targetConceptId === id ? newId : r.targetConceptId
+        }))
         : state.relations,
       views: idChanged && state.views
         ? state.views.map((v) => ({
-            ...v,
-            nodes: v.nodes.map((n) =>
-              n.conceptId === id ? { ...n, conceptId: newId } : n
-            )
-          }))
+          ...v,
+          nodes: v.nodes.map((n) =>
+            n.conceptId === id ? { ...n, conceptId: newId } : n
+          )
+        }))
         : state.views,
       selectedConceptId: state.selectedConceptId === id ? newId : state.selectedConceptId
     };
@@ -245,13 +275,13 @@ export class GraphService {
   } = {}): { relation: ConceptRelation; nextState: Partial<GraphStateWithSelection> } {
     const source = state.concepts.find(c => c.id === sourceId);
     const target = state.concepts.find(c => c.id === targetId);
-    
+
     // Generate a smart default name if none provided
     let finalName = name;
     if (!finalName) {
       const sType = source?.conceptType;
       const tType = target?.conceptType;
-      
+
       if (sType === 'actor' && tType === 'process') finalName = 'performs';
       else if (sType === 'process' && tType === 'event') finalName = 'emits';
       else if (sType === 'event' && tType === 'process') finalName = 'triggers';
@@ -341,8 +371,8 @@ export class GraphService {
    */
   static updateProperty(
     state: GraphStateWithSelection,
-    conceptId: ElementId, 
-    propertyId: ElementId, 
+    conceptId: ElementId,
+    propertyId: ElementId,
     updates: Partial<ConceptProperty>
   ): Partial<GraphStateWithSelection> {
     const now = Date.now();
@@ -350,12 +380,12 @@ export class GraphService {
       concepts: state.concepts.map((c) =>
         c.id === conceptId
           ? {
-              ...c,
-              properties: c.properties.map((p) =>
-                p.id === propertyId ? { ...p, ...updates, updatedAt: now } : p,
-              ),
-              updatedAt: now,
-            }
+            ...c,
+            properties: c.properties.map((p) =>
+              p.id === propertyId ? { ...p, ...updates, updatedAt: now } : p,
+            ),
+            updatedAt: now,
+          }
           : c,
       ),
     };
@@ -369,10 +399,10 @@ export class GraphService {
       concepts: state.concepts.map((c) =>
         c.id === conceptId
           ? {
-              ...c,
-              properties: c.properties.filter((p) => p.id !== propertyId),
-              updatedAt: Date.now(),
-            }
+            ...c,
+            properties: c.properties.filter((p) => p.id !== propertyId),
+            updatedAt: Date.now(),
+          }
           : c,
       ),
     };
@@ -383,7 +413,7 @@ export class GraphService {
    */
   static addPolicy(
     state: GraphStateWithSelection,
-    conceptId: ElementId, 
+    conceptId: ElementId,
     policyData: Omit<ConceptNode['policies'][0], 'id' | 'createdAt' | 'updatedAt' | 'lifecycleState'>
   ): Partial<GraphStateWithSelection> {
     const policyId = generateId('other', policyData.name);
@@ -410,8 +440,8 @@ export class GraphService {
    */
   static updatePolicy(
     state: GraphStateWithSelection,
-    conceptId: ElementId, 
-    policyId: ElementId, 
+    conceptId: ElementId,
+    policyId: ElementId,
     updates: Partial<Omit<ConceptNode['policies'][0], 'id' | 'createdAt' | 'updatedAt'>>
   ): Partial<GraphStateWithSelection> {
     const now = Date.now();
@@ -419,12 +449,12 @@ export class GraphService {
       concepts: state.concepts.map((c) =>
         c.id === conceptId
           ? {
-              ...c,
-              updatedAt: now,
-              policies: c.policies.map((p) =>
-                p.id === policyId ? { ...p, ...updates, updatedAt: now } : p
-              ),
-            }
+            ...c,
+            updatedAt: now,
+            policies: c.policies.map((p) =>
+              p.id === policyId ? { ...p, ...updates, updatedAt: now } : p
+            ),
+          }
           : c
       ),
     };
@@ -438,10 +468,10 @@ export class GraphService {
       concepts: state.concepts.map((c) =>
         c.id === conceptId
           ? {
-              ...c,
-              updatedAt: Date.now(),
-              policies: c.policies.filter((p) => p.id !== policyId),
-            }
+            ...c,
+            updatedAt: Date.now(),
+            policies: c.policies.filter((p) => p.id !== policyId),
+          }
           : c
       ),
     };
@@ -630,14 +660,14 @@ export class GraphService {
 
     // 1. Create the new Grouping concept node (bounded_context)
     const { concept: groupConcept, nextState: addConceptState } = this.addConcept(state, 'bounded_context', groupName);
-    
+
     // Calculate the bounding box of selected nodes in the view to place the group container
     const viewNodes = view.nodes.filter((n) => conceptIds.includes(n.conceptId));
     let minX = Infinity;
     let minY = Infinity;
     let maxX = -Infinity;
     let maxY = -Infinity;
-    
+
     const defaultW = view.type === 'c4' ? 240 : view.type === 'archimate' ? 210 : 200;
     const defaultH = view.type === 'c4' ? 96 : view.type === 'archimate' ? 76 : 80;
 
@@ -745,5 +775,18 @@ export class GraphService {
       };
     });
     return { views: nextViews };
+  }
+
+  /**
+   * Determine the virtual type of a concept.
+   */
+  static getVirtualType(concept: ConceptNode, views: View[] = []): 'conceptual_class' | 'information_class' | ConceptType {
+    if (concept.conceptType !== 'class') return concept.conceptType;
+    const isInInformation = views.some(v => v.type === 'information_model' && v.nodes.some(vn => vn.conceptId === concept.id));
+    
+    if (isInInformation || concept.wasDerivedFrom || concept.properties.length > 0) {
+      return 'information_class';
+    }
+    return 'conceptual_class';
   }
 }

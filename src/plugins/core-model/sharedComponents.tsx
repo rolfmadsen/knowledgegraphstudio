@@ -92,42 +92,40 @@ export function InformationNodeComponent({ data, selected }: NodeProps) {
             Ingen egenskaber defineret
           </div>
         ) : (
-          <table className="w-full text-left border-collapse">
-            <tbody>
-              {properties.map((p, i) => {
-                const isEnum = type === 'enumeration';
-                return (
-                  <tr
-                    key={p.id || i}
-                    className={`hover:bg-slate-50/50 transition-colors ${
-                      i < properties.length - 1 ? 'border-b border-slate-100' : ''
-                    }`}
-                  >
-                    <td className="px-4 py-2 flex items-center gap-1.5 min-w-0">
-                      {isEnum ? (
-                        <span className="text-emerald-500 text-[10px] font-bold select-none">•</span>
-                      ) : p.isRequired ? (
-                        <span className="text-indigo-400 font-black text-[10px] select-none" title="Påkrævet">*</span>
-                      ) : (
-                        <span className="w-1.5 shrink-0" />
-                      )}
-                      <span className="text-[11px] font-bold text-slate-700 truncate">
-                        {p.name}
-                      </span>
-                    </td>
-                    {!isEnum && (
-                      <td className="px-4 py-2 text-right whitespace-nowrap shrink-0">
-                        <span className="text-[9px] font-mono font-black text-slate-400 bg-slate-50 border border-slate-100 px-1.5 py-0.5 rounded uppercase tracking-wider">
-                          {String(p.type)}
-                          {p.multiplicity ? ` [${p.multiplicity}]` : ''}
-                        </span>
-                      </td>
+          <div className="flex flex-col w-full">
+            {properties.map((p, i) => {
+              const isEnum = type === 'enumeration';
+              return (
+                <div
+                  key={p.id || i}
+                  className={`flex items-center justify-between px-4 py-2 hover:bg-slate-50/50 transition-colors ${
+                    i < properties.length - 1 ? 'border-b border-slate-100' : ''
+                  }`}
+                >
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    {isEnum ? (
+                      <span className="text-emerald-500 text-[10px] font-bold select-none">•</span>
+                    ) : p.isRequired ? (
+                      <span className="text-indigo-400 font-black text-[10px] select-none" title="Påkrævet">*</span>
+                    ) : (
+                      <span className="w-1.5 shrink-0" />
                     )}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                    <span className="text-[11px] font-bold text-slate-700 truncate">
+                      {p.name}
+                    </span>
+                  </div>
+                  {!isEnum && (
+                    <div className="flex items-center text-right whitespace-nowrap shrink-0 ml-4">
+                      <span className="text-[9px] font-mono font-black text-slate-400 bg-slate-50 border border-slate-100 px-1.5 py-0.5 rounded uppercase tracking-wider">
+                        {String(p.type)}
+                        {p.multiplicity ? ` [${p.multiplicity}]` : ''}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
     </div>

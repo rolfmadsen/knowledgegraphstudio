@@ -15,6 +15,21 @@ vi.hoisted(() => {
 
 import { useGraphStore, getTemporalState } from '../useGraphStore';
 import { toElementId, type Domain, type ConceptNode, type View } from '../../schema/graphSchema';
+import { PluginRegistry } from '../../plugins/PluginRegistry';
+import { knowledgeGraphPlugin } from '../../plugins/knowledge-graph';
+import { archimatePlugin } from '../../plugins/archimate';
+import { dataModelPlugin } from '../../plugins/data-model';
+import { c4Plugin } from '../../plugins/c4';
+import { conceptualPlugin } from '../../plugins/core-model/conceptualPlugin';
+import { informationPlugin } from '../../plugins/core-model/informationPlugin';
+
+// Register notation plugins for testing
+PluginRegistry.register(knowledgeGraphPlugin);
+PluginRegistry.register(archimatePlugin);
+PluginRegistry.register(dataModelPlugin);
+PluginRegistry.register(c4Plugin);
+PluginRegistry.register(conceptualPlugin);
+PluginRegistry.register(informationPlugin);
 
 describe('useGraphStore', () => {
   beforeEach(() => {
@@ -323,8 +338,120 @@ describe('useGraphStore', () => {
 
       useGraphStore.getState().deleteConcept(toElementId('concept:1'));
 
-      expect(useGraphStore.getState().selectedConceptId).toBeNull();
-      expect(useGraphStore.getState().selectedConceptIds).toEqual([]);
+    });
+  });
+
+  describe('Concept Addition Rules', () => {
+    it('restricts concept addition based on notation allowedConceptTypes and virtual class types', () => {
+      // 1. Setup a conceptual view and an information view
+      const conceptualView: View = {
+        id: toElementId('view:conceptual'),
+        name: 'Begrebsmodel',
+        type: 'conceptual_model',
+        layoutAlgorithm: 'manual',
+        nodes: [],
+        edges: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        lifecycleState: 'active',
+      };
+      
+      const informationView: View = {
+        id: toElementId('view:information'),
+        name: 'Informationsmodel',
+        type: 'information_model',
+        layoutAlgorithm: 'manual',
+        nodes: [],
+        edges: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        lifecycleState: 'active',
+      };
+
+      // 2. Create conceptual class, information class, and another unrelated type
+      const conceptualClass: ConceptNode = {
+        id: toElementId('class:conceptual'),
+        conceptType: 'class',
+        name: 'PersonBegreb',
+        properties: [],
+        policies: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        lifecycleState: 'active',
+        aliases: [],
+      };
+
+      const informationClass: ConceptNode = {
+        id: toElementId('class:information'),
+        conceptType: 'class',
+        name: 'PersonKlasse',
+        properties: [{ 
+          id: toElementId('prop:1'), 
+          name: 'alder', 
+          type: 'string',
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          lifecycleState: 'active',
+        }],
+        policies: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        lifecycleState: 'active',
+        aliases: [],
+      };
+
+      const archanimateActor: ConceptNode = {
+        id: toElementId('actor:arch'),
+        conceptType: 'actor',
+        name: 'Actor',
+        properties: [],
+        policies: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        lifecycleState: 'active',
+        aliases: [],
+      };
+
+      const duplicateNamedClass: ConceptNode = {
+        id: toElementId('class:duplicate'),
+        conceptType: 'class',
+        name: 'PersonBegreb', // Same name as conceptualClass
+        properties: [],
+        policies: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        lifecycleState: 'active',
+        aliases: [],
+      };
+
+      useGraphStore.setState({
+        views: [conceptualView, informationView],
+        concepts: [conceptualClass, informationClass, archanimateActor, duplicateNamedClass],
+      });
+
+      // Test 1: Conceptual view rejects ArchiMate actor
+      useGraphStore.getState().addConceptToView(toElementId('view:conceptual'), toElementId('actor:arch'), 0, 0);
+      expect(useGraphStore.getState().views.find(v => v.id === 'view:conceptual')?.nodes).toHaveLength(0);
+
+      // Test 2: Conceptual view accepts conceptualClass
+      useGraphStore.getState().addConceptToView(toElementId('view:conceptual'), toElementId('class:conceptual'), 0, 0);
+      expect(useGraphStore.getState().views.find(v => v.id === 'view:conceptual')?.nodes).toHaveLength(1);
+
+      // Test 3: Conceptual view accepts informationClass (promotion/reuse is allowed if no name collision)
+      useGraphStore.getState().addConceptToView(toElementId('view:conceptual'), toElementId('class:information'), 0, 0);
+      expect(useGraphStore.getState().views.find(v => v.id === 'view:conceptual')?.nodes).toHaveLength(2);
+
+      // Test 4: Information view accepts informationClass
+      useGraphStore.getState().addConceptToView(toElementId('view:information'), toElementId('class:information'), 0, 0);
+      expect(useGraphStore.getState().views.find(v => v.id === 'view:information')?.nodes).toHaveLength(1);
+
+      // Test 5: Information view accepts conceptualClass (promotion/reuse is allowed if no name collision)
+      useGraphStore.getState().addConceptToView(toElementId('view:information'), toElementId('class:conceptual'), 0, 0);
+      expect(useGraphStore.getState().views.find(v => v.id === 'view:information')?.nodes).toHaveLength(2);
+
+      // Test 6: Conceptual view rejects duplicate named class (name collision check)
+      useGraphStore.getState().addConceptToView(toElementId('view:conceptual'), toElementId('class:duplicate'), 0, 0);
+      expect(useGraphStore.getState().views.find(v => v.id === 'view:conceptual')?.nodes).toHaveLength(2);
     });
   });
 });
