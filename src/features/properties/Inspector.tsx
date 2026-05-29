@@ -390,10 +390,10 @@ export function Inspector() {
                         </InspectorSection>
                       )}
 
-                      {concept.conceptType !== 'enumeration' && (
+                      {concept.conceptType !== 'enumeration' && 'properties' in concept && (
                           <InspectorSection title="Attributter">
                               <div className="flex flex-col gap-4">
-                                  {concept.properties.map((p: ConceptProperty) => (
+                                  {concept.properties?.map((p: ConceptProperty) => (
                                       <div key={p.id} className="p-4 bg-white border border-slate-200/60 rounded-2xl flex flex-col gap-3 group relative shadow-sm hover:shadow-md transition-all">
                                           <div className="flex justify-between items-center">
                                               <span className="text-[10px] font-black text-indigo-900 uppercase tracking-wider">Attribut</span>
@@ -475,20 +475,27 @@ export function Inspector() {
                           </InspectorSection>
                       )}
 
-                      {concept.conceptType === 'enumeration' && (
+                      {concept.conceptType === 'enumeration' && 'enumerators' in concept && (
                           <InspectorSection title="Enum Literaler">
                               <div className="flex flex-col gap-3">
-                                  {concept.properties.map((p: ConceptProperty) => (
-                                      <div key={p.id} className="flex gap-2 group items-center">
+                                  {(concept.enumerators || []).map((literal: string, idx: number) => (
+                                      <div key={idx} className="flex gap-2 group items-center">
                                           <div className="flex-1">
                                               <PropertyField 
-                                                  label="Literal Navn" 
-                                                  value={p.name} 
-                                                  onChange={(v) => updateProperty(concept.id, p.id, { name: v })} 
+                                                  label={`Literal ${idx + 1}`} 
+                                                  value={literal} 
+                                                  onChange={(v) => {
+                                                    const nextEnums = [...(concept.enumerators || [])];
+                                                    nextEnums[idx] = v;
+                                                    updateConcept(concept.id, { enumerators: nextEnums });
+                                                  }} 
                                               />
                                           </div>
                                           <button 
-                                              onClick={() => deleteProperty(concept.id, p.id)}
+                                              onClick={() => {
+                                                const nextEnums = (concept.enumerators || []).filter((_, i) => i !== idx);
+                                                updateConcept(concept.id, { enumerators: nextEnums });
+                                              }}
                                               className="mt-6 p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
                                               title="Slet Literal"
                                           >
@@ -497,7 +504,10 @@ export function Inspector() {
                                       </div>
                                   ))}
                                   <button 
-                                      onClick={() => addProperty(concept.id, 'NY_LITERAL', 'string')}
+                                      onClick={() => {
+                                        const nextEnums = [...(concept.enumerators || []), 'NY_LITERAL'];
+                                        updateConcept(concept.id, { enumerators: nextEnums });
+                                      }}
                                       className="flex items-center justify-center gap-2 p-3 text-[10px] font-black text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all border border-dashed border-emerald-200 mt-2 tracking-widest uppercase cursor-pointer"
                                   >
                                       <Plus size={14} strokeWidth={3} />
@@ -693,10 +703,10 @@ export function Inspector() {
                         </InspectorSection>
                       )}
 
-                      {concept.conceptType !== 'bounded_context' && (
+                      {concept.conceptType !== 'bounded_context' && 'properties' in concept && (
                           <InspectorSection title="Attributes">
                               <div className="flex flex-col gap-3">
-                                  {concept.properties.map((p: ConceptProperty) => (
+                                  {concept.properties?.map((p: ConceptProperty) => (
                                       <div key={p.id} className="flex gap-2 group">
                                           <div className="flex-1">
                                               <PropertyField 
@@ -771,7 +781,6 @@ export function Inspector() {
                             const isActive = v.id === activeViewId;
                             const viewTypeIcon = v.type === 'archimate' ? '🏛️'
                               : v.type === 'c4' ? '📐'
-                              : v.type === 'data_model' ? '🗂️'
                               : v.type === 'conceptual_model' ? '🧠'
                               : v.type === 'information_model' ? '📊'
                               : '🌐';
@@ -842,7 +851,7 @@ export function Inspector() {
                                       const val = e.target.value;
                                       const matched = allowedRelations.find(r => r.description === val);
                                       updateRelation(relation.id, {
-                                        relationType: val,
+                                        relationType: val as any,
                                         name: matched ? matched.label : relation.name
                                       });
                                     }}
@@ -865,7 +874,7 @@ export function Inspector() {
                             <PropertyField 
                               label="Type" 
                               value={relation.relationType || ''} 
-                              onChange={(v) => updateRelation(relation.id, { relationType: v })} 
+                              onChange={(v) => updateRelation(relation.id, { relationType: v as any })} 
                             />
                           );
                         })()}

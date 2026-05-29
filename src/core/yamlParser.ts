@@ -16,6 +16,9 @@ import {
   type ConceptNode,
   type ConceptRelation,
   type View,
+  type ConceptProperty,
+  type Policy,
+  type BaseConceptNode,
 } from '../schema/graphSchema';
 
 // ============================================================
@@ -23,9 +26,11 @@ import {
 // ============================================================
 
 /** A concept in YAML form has its outgoing relations nested inline */
-interface YamlConcept extends Omit<ConceptNode, 'properties' | 'policies'> {
-  properties?: ConceptNode['properties'];
-  policies?: ConceptNode['policies'];
+interface YamlConcept extends Omit<BaseConceptNode, 'policies'> {
+  conceptType: string;
+  properties?: ConceptProperty[];
+  enumerators?: string[];
+  policies?: Policy[];
   relations?: ConceptRelation[];
 }
 
@@ -74,8 +79,26 @@ export function stateToYaml(state: {
     delete (yamlConcept as any).manualX;
     delete (yamlConcept as any).manualY;
 
-    if (concept.properties.length === 0) {
-      yamlConcept.properties = [];
+    // Enforce type-correct fields in YAML output (matching Zod schema)
+    const ct = concept.conceptType;
+    if (ct === 'enumeration') {
+      // Enumerations: keep enumerators, strip properties
+      delete (yamlConcept as any).properties;
+      if ('enumerators' in concept && Array.isArray(concept.enumerators)) {
+        yamlConcept.enumerators = concept.enumerators;
+      }
+    } else if (ct === 'domain' || ct === 'bounded_context') {
+      // Container/domain types: strip both
+      delete (yamlConcept as any).properties;
+      delete (yamlConcept as any).enumerators;
+    } else {
+      // Class/general types: keep properties, strip enumerators
+      delete (yamlConcept as any).enumerators;
+      if ('properties' in concept && Array.isArray(concept.properties)) {
+        if (concept.properties.length === 0) {
+          yamlConcept.properties = [];
+        }
+      }
     }
     if (concept.policies.length === 0) {
       yamlConcept.policies = [];
@@ -193,19 +216,53 @@ export function yamlToState(yamlString: string): {
     if (conceptType === 'information') conceptType = 'entity';
 
     // Ensure required array fields exist
-    const concept: ConceptNode = {
+    const baseFields = {
       ...conceptData,
       conceptType: conceptType as any,
-      properties: conceptData.properties ?? [],
       policies: conceptData.policies ?? [],
     };
 
+    let concept: ConceptNode;
+    if (conceptType === 'enumeration') {
+      const { properties, enumerators, ...cleanBase } = baseFields as any;
+      concept = {
+        ...cleanBase,
+        enumerators: conceptData.enumerators ?? [],
+      } as ConceptNode;
+    } else if (conceptType === 'domain' || conceptType === 'bounded_context') {
+      const { properties, enumerators, ...cleanBase } = baseFields as any;
+      concept = {
+        ...cleanBase,
+      } as ConceptNode;
+    } else {
+      const { properties, enumerators, ...cleanBase } = baseFields as any;
+      concept = {
+        ...cleanBase,
+        properties: conceptData.properties ?? [],
+      } as ConceptNode;
+    }
+
     concepts.push(concept);
 
-    // Flatten nested relations
+    // Flatten nested relations with normalization for restricted relationType enum
     if (nestedRelations && Array.isArray(nestedRelations)) {
       for (const rel of nestedRelations) {
-        relations.push(rel);
+        let type = rel.relationType;
+        if (type) {
+          const lower = type.toLowerCase();
+          if (lower.startsWith('composition')) type = 'composition';
+          else if (lower.startsWith('aggregation')) type = 'aggregation';
+          else if (lower.startsWith('realization')) type = 'realization';
+          else if (lower.startsWith('specialization')) type = 'specialization';
+          else if (lower.startsWith('association')) type = 'association';
+          else {
+            type = undefined; // omit if not one of the allowed types
+          }
+        }
+        relations.push({
+          ...rel,
+          relationType: type as any,
+        });
       }
     }
   }

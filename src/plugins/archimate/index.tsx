@@ -169,13 +169,10 @@ export function ArchimateNodeComponent({ data, selected }: NodeProps) {
     );
   } else if (conceptType === 'entity') {
     icon = (
-      <svg className="w-4 h-4 text-[#047857]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+      <svg className="w-4 h-4 text-[#1D4ED8]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
       </svg>
     );
-    bgColor = 'bg-[#ECFDF5]';
-    borderColor = 'border-[#10B981]';
-    textColor = 'text-[#047857]';
   } else if (conceptType === 'event' || conceptType === 'application_event' || conceptType === 'technology_event' || conceptType === 'implementation_event') {
     const isApp = conceptType === 'application_event';
     const isTech = conceptType === 'technology_event';
@@ -227,7 +224,7 @@ export const archimatePlugin: NotationPlugin = {
   CanvasComponent: ArchimateCanvas,
   layoutEngine: dagreLayoutEngine,
   allowedConceptTypes: [
-    'actor', 'process', 'system', 'event', 'bounded_context', 'entity',
+    'actor', 'process', 'event', 'bounded_context', 'entity',
     'business_role', 'business_function', 'business_service',
     'application_service', 'application_component', 'business_object', 'node', 'artifact',
     'requirement', 'goal', 'capability',
@@ -251,7 +248,6 @@ export const archimatePlugin: NotationPlugin = {
   conceptTypeLabels: {
     actor: 'Business Actor',
     process: 'Business Process',
-    system: 'Application Component',
     entity: 'Data Object',
     event: 'Business Event',
     bounded_context: 'Grouping',

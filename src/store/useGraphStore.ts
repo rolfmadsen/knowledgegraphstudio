@@ -139,7 +139,7 @@ export interface GraphStoreState {
     x?: number;
     y?: number;
   }) => ConceptNode;
-  updateConcept: (id: ElementId, updates: Partial<BaseConceptNode> & { conceptType?: ConceptType }) => void;
+  updateConcept: (id: ElementId, updates: Partial<BaseConceptNode> & { conceptType?: ConceptType; properties?: ConceptProperty[]; enumerators?: string[] }) => void;
   deleteConcept: (id: ElementId) => void;
 
   // --- Relation Actions ---
@@ -789,7 +789,7 @@ export const useGraphStore = create<GraphStoreState>()(
       },
       updateProperty: (conceptId, propertyId, updates) => {
         const concept = get().concepts.find(c => c.id === conceptId);
-        const prop = concept?.properties.find(p => p.id === propertyId);
+        const prop = (concept && 'properties' in concept && concept.properties) ? concept.properties.find(p => p.id === propertyId) : undefined;
         console.log(`%c[Store Action] 🔵 Updated Property [${prop?.name || propertyId}] on Concept "${concept?.name || conceptId}":`, 'color: #3b82f6; font-weight: bold;', updates);
         const nextState = GraphService.updateProperty(get(), conceptId, propertyId, updates);
         set(nextState);
@@ -797,7 +797,7 @@ export const useGraphStore = create<GraphStoreState>()(
       },
       deleteProperty: (conceptId, propertyId) => {
         const concept = get().concepts.find(c => c.id === conceptId);
-        const prop = concept?.properties.find(p => p.id === propertyId);
+        const prop = (concept && 'properties' in concept && concept.properties) ? concept.properties.find(p => p.id === propertyId) : undefined;
         console.log(`%c[Store Action] 🔴 Deleted Property "${prop?.name || propertyId}" from Concept "${concept?.name || conceptId}"`, 'color: #ef4444; font-weight: bold;');
         const nextState = GraphService.deleteProperty(get(), conceptId, propertyId);
         set(nextState);

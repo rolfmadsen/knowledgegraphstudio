@@ -210,6 +210,7 @@ describe('GraphService', () => {
         sourceConceptId: c1.id, 
         targetConceptId: c2.id, 
         name: 'relates to', 
+        category: 'semantic' as const,
         createdAt: Date.now(), 
         updatedAt: Date.now(), 
         lifecycleState: 'active' as const, 
@@ -408,7 +409,7 @@ describe('GraphService', () => {
       
       const updatedDerived = nextState.concepts!.find(c => c.id === derivedConcept.id)!;
       expect(updatedDerived.wasDerivedFrom).toBe('entity:kunder');
-      expect(updatedDerived.properties[0].wasDerivedFrom).toBe('entity:kunder');
+      expect((updatedDerived as any).properties[0].wasDerivedFrom).toBe('entity:kunder');
     });
 
     it('clears wasDerivedFrom references to null when the target concept is deleted', () => {
@@ -451,7 +452,7 @@ describe('GraphService', () => {
       
       const updatedDerived = nextState.concepts!.find(c => c.id === derivedConcept.id)!;
       expect(updatedDerived.wasDerivedFrom).toBeNull();
-      expect(updatedDerived.properties[0].wasDerivedFrom).toBeNull();
+      expect((updatedDerived as any).properties[0].wasDerivedFrom).toBeNull();
     });
   });
 });

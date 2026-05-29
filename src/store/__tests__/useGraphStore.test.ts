@@ -18,7 +18,6 @@ import { toElementId, type Domain, type ConceptNode, type View } from '../../sch
 import { PluginRegistry } from '../../plugins/PluginRegistry';
 import { knowledgeGraphPlugin } from '../../plugins/knowledge-graph';
 import { archimatePlugin } from '../../plugins/archimate';
-import { dataModelPlugin } from '../../plugins/data-model';
 import { c4Plugin } from '../../plugins/c4';
 import { conceptualPlugin } from '../../plugins/core-model/conceptualPlugin';
 import { informationPlugin } from '../../plugins/core-model/informationPlugin';
@@ -26,7 +25,6 @@ import { informationPlugin } from '../../plugins/core-model/informationPlugin';
 // Register notation plugins for testing
 PluginRegistry.register(knowledgeGraphPlugin);
 PluginRegistry.register(archimatePlugin);
-PluginRegistry.register(dataModelPlugin);
 PluginRegistry.register(c4Plugin);
 PluginRegistry.register(conceptualPlugin);
 PluginRegistry.register(informationPlugin);
@@ -185,7 +183,6 @@ describe('useGraphStore', () => {
           id: toElementId('g:1'), 
           conceptType: 'bounded_context', 
           name: 'Group 1', 
-          properties: [], 
           policies: [],
           createdAt: Date.now(),
           updatedAt: Date.now(),
@@ -241,7 +238,6 @@ describe('useGraphStore', () => {
           id: toElementId('g:1'), 
           conceptType: 'bounded_context', 
           name: 'Group 1', 
-          properties: [], 
           policies: [],
           createdAt: Date.now(),
           updatedAt: Date.now(),

@@ -431,8 +431,15 @@ export function ReactFlowCanvas({
         if (existingNode) {
           // Build a cheap fingerprint of the concept's properties so that
           // adding / renaming / retyping / deleting an attribute triggers a re-render.
-          const propsFingerprint = (c: ConceptNode) =>
-            c.properties.map((p) => `${p.id}:${p.name}:${p.type}:${p.multiplicity ?? ''}:${p.wasDerivedFrom ?? ''}`).join('|');
+          const propsFingerprint = (c: ConceptNode) => {
+            if ('properties' in c && c.properties) {
+              return c.properties.map((p) => `${p.id}:${p.name}:${p.type}:${p.multiplicity ?? ''}:${p.wasDerivedFrom ?? ''}`).join('|');
+            }
+            if ('enumerators' in c && c.enumerators) {
+              return c.enumerators.join('|');
+            }
+            return '';
+          };
 
           const changed =
             Math.abs(existingNode.position.x - n.position.x) > 0.1 ||

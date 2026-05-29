@@ -9,7 +9,8 @@ import { User, Server, Database, Cpu, Layers } from 'lucide-react';
 
 // --- Helper to determine if a concept is marked external ---
 function isConceptExternal(concept: ConceptNode): boolean {
-  return !!concept?.properties?.some(
+  if (!concept || !('properties' in concept) || !concept.properties) return false;
+  return !!concept.properties.some(
     (p) =>
       p.name.toLowerCase() === 'external' &&
       ['true', 'yes', '1'].includes(String(p.type).toLowerCase().trim())

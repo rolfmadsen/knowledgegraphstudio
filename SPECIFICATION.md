@@ -10,7 +10,7 @@ Enterprise Architecture & Forretningsbegreber
 
 * Knowledge Graph (Vidensgraf): En semantisk netværksmodel, der kortlægger forretningens virkelighed, uafhængigt af IT-systemer.
 
-* Workspace / Repository: Den overordnede container (fil/mappe), der indeholder hele grafen for et projekt. Oprettes automatisk et "Default Workspace" ved første start.
+* Workspace / Repository: Den overordnede container (fil/mappe), der indeholder hele grafen for et projekt. Den opdeles i to filer i det virtuelle filsystem (VFS): `model.typegraph.yaml` (semantiske data) og `views.typegraph.yaml` (layout- og visningsdata). Oprettes automatisk et "Default Workspace" ved første start.
 
 * Concept (Begreb): Hovedbyggeklodsen i systemet. Kategoriseres altid via en ConceptType (fx Actor, Process, Entity, Event).
 
@@ -22,7 +22,7 @@ Enterprise Architecture & Forretningsbegreber
 
 * Data Classification: Sikkerheds- og fortrolighedsniveauet for en Entity (Niveau 0-3 i henhold til offentlige standarder).
 
-* Policy (Forretningsregel): En adfærdskontrakt eller begrænsning knyttet til et Concept eller en Relation (Gherkin eller fritekst).
+* Policy (Forretningsregel): En adfærdskontrakt eller begrænsning knyttet to et Concept eller en Relation (Gherkin eller fritekst).
 
 * Domain (Domæne): Et logisk namespace. "Core Domain" oprettes automatisk ved første start.
 
@@ -30,7 +30,7 @@ Enterprise Architecture & Forretningsbegreber
 
 * Zone 1 (Index View): Venstre panel. Høj-densitets tabelvisning og begrebskatalog.
 
-* Zone 2 (Canvas View & Code View): Midten. Det visuelle Knowledge Graph-lærred (React Flow) samt Monaco-editoren, der viser en live, read-only YAML-repræsentation af grafen.
+* Zone 2 (Canvas View & Code View): Midten. Det visuelle Knowledge Graph-lærred (React Flow) samt Monaco-editoren, der viser en live, read-only YAML-repræsentation af grafen (eller en diff mod Git HEAD).
 
 * Zone 3 (Command Archive): Modal/Overlay. Den kontekstuelle kommandoprompt til lynhurtig oprettelse af relationer og global søgning.
 
@@ -40,7 +40,7 @@ Enterprise Architecture & Forretningsbegreber
 
 * View Mode: Conceptual (kun noder/relationer) vs. Detailed (udvidet med properties og regler).
 
-* Local-First: Al data lever og redigeres direkte i brugerens browser for nultidssvartider.
+* Local-First: Al data lever og redigeres direkte i brugerens browser. Data kan lagres enten i browserens isolerede IndexedDB via et sandboxed VFS eller synkroniseres direkte til en fysisk lokal mappe på brugerens computer via browserens File System Access API.
 
 ## 2. Teknologistak
 
@@ -50,7 +50,7 @@ Enterprise Architecture & Forretningsbegreber
 
 * State Management: Zustand + zundo (Undo/Redo ekskluderer fysik-state).
 
-* Persistence & Local Git: lightning-fs (virtuelt filsystem) + isomorphic-git + Dexie.js.
+* Persistence & Local Git: lightning-fs (virtuelt filsystem) + HTML5 File System Access API (valgfri direkte synkronisering til lokal mappe) + isomorphic-git + Dexie.js (IndexedDB til credentials og directory handles).
 
 * Canvas Engine: React Flow.
 
@@ -134,22 +134,32 @@ interface ConceptRelation extends BaseEntity {
 
 * Zustand som UI Source of Truth: Brugeren interagerer kun med UI'et (Canvas, Command Archive, Node Properties). Monaco-editoren er 100% read-only.
 
-* Export Sync (Zustand $\rightarrow$ YAML): For hver ændring i Zustand oversættes den flade state til en hierarkisk YAML-struktur og skrives til VFS (lightning-fs). Relationer indlejres under deres ConceptNode for maksimal læsbarhed.
+* Export Sync (Zustand $\rightarrow$ YAML): For hver ændring i Zustand oversættes den flade state og gemmes splittet i to YAML-filer:
+  * `model.typegraph.yaml`: Indeholder de semantiske data (domæner, begreber, egenskaber og regler). Layout-koordinater (`x`, `y`, `fx`, `fy` osv.) fjernes fuldstændigt, og relationer indlejres under deres kilde-ConceptNode for at sikre rene Git diffs uden layoutstøj.
+  * `views.typegraph.yaml`: Indeholder udelukkende layout-koordinater, visninger og nodernes positioner på lærredet.
 
-* Hydration Sync (YAML $\rightarrow$ Zustand): Når systemet starter, eller når der udføres et Git pull / checkout, skal systemet parse .typegraph.yaml filen tilbage til Zustand via Zod.
+* Hydration Sync (YAML $\rightarrow$ Zustand): Når systemet starter, eller når der udføres et Git pull / checkout, genindlæses og parses begge filer (`model.typegraph.yaml` og `views.typegraph.yaml`) tilbage til den flade Zustand tilstand.
+  * **Datamigrerings-lag:** Parsingen indeholder bagudkompatibel migration af legacy-data (fx transformeres legacy ConceptType `information` til `entity`, og legacy ViewType `global_explorer` til `knowledge_graph`).
+  * **Zod Validering:** Det samlede resultat valideres via Zod schemas, før Zustand storen opdateres.
 
-    * Git Conflict Mode: Hvis YAML-filen er ugyldig efter et pull (f.eks. pga. merge-konflikter), sættes Monaco-editoren midlertidigt i redigerbar tilstand, og Canvas deaktiveres ("Conflict Mode"), indtil brugeren har løst syntaxfejlene og filen validerer via Zod.
+* Git Conflict Mode: Hvis model-YAML-filen er ugyldig efter et pull (f.eks. pga. merge-konflikter), sættes Monaco-editoren midlertidigt i redigerbar tilstand, og Canvas deaktiveres ("Conflict Mode"), indtil brugeren har løst syntaxfejlene og filen validerer via Zod.
 
-    * Historik-rydning: Ved ethvert succesfuldt pull eller checkout skal zundo undo-historikken ryddes fuldstændigt, så brugeren ikke kan "undo" sig til en state, der konflikter med den underliggende Git-historik.
+* Historik-rydning: Ved ethvert succesfuldt pull eller checkout skal zundo undo-historikken ryddes fuldstændigt, så brugeren ikke kan "undo" sig til en state, der konflikter med den underliggende Git-historik.
+
+* Workspace & Native File System integration (`FileSystemAccessService`):
+  * Applikationen understøtter en hybrid lagringsmodel: Som standard lagres data i et sandboxed virtuelt filsystem (`lightning-fs`) i browserens IndexedDB.
+  * Brugeren kan vælge at knytte sit workspace til en reel fysisk mappe på sin computer via **HTML5 File System Access API**.
+  * Når adgang er givet (granted), omdirigeres alle læse- og skriveoperationer til den valgte lokale mappe. Biblioteks-håndtaget (`FileSystemDirectoryHandle`) gemmes sikkert i en lokal IndexedDB database via **Dexie.js**, så brugeren ikke skal give tilladelse igen ved hver session, medmindre browseren kræver genbekræftelse af tilladelser.
+  * Systemet understøtter desuden listing af eksisterende workspaces i VFS samt sikker omdøbning af projekter på disk via `renameWorkspace`.
 
 * Cascade Rename & Orphan Cleanup:
-    * Logikken for disse operationer ligger i `src/services/GraphService.ts`.
-    * Ændres navnet på en node, genberegnes dens slug. Zustand opdaterer automatisk denne slug på alle relationer.
-    * Slettes en node, slettes alle tilknyttede relationer automatisk.
+  * Logikken for disse operationer ligger i `src/services/GraphService.ts`.
+  * Ændres navnet på en node, genberegnes dens slug. Zustand opdaterer automatisk denne slug på alle relationer.
+  * Slettes en node, slettes alle tilknyttede relationer automatisk.
 
 * API-First & Service Layer:
-    * Al data-mutation (oprettelse, sletning, opdatering) og I/O (filsystem, Git) skal foregå via asynkrone services i `src/services/`.
-    * UI-komponenter må aldrig kalde infrastruktur-moduler (`core/*`) direkte.
+  * Al data-mutation (oprettelse, sletning, opdatering) og I/O (filsystem, Git, credentials) skal foregå via asynkrone services i `src/services/`.
+  * UI-komponenter må aldrig kalde infrastruktur-moduler (`core/*`) direkte. Services fungerer som grænsefladekontrakt.
 
 ## 5. UI/UX Design System & Skærm-specifikationer
 
@@ -285,7 +295,7 @@ For at understøtte professionelt samarbejde skal systemet kunne synkronisere me
 ### 10.1 Remote Configuration
 
 *   **Remote URL**: Brugeren konfigurerer én `origin` remote via Command Archive eller Remote Config modal (`Ctrl+Shift+G`). Kun HTTPS-URLs accepteres (`http://` afvises).
-*   **Authentication**: Personal Access Tokens (PAT) gemmes i **IndexedDB via Dexie.js** i en dedikeret `credentials` tabel (nøgle: `github_pat`). PAT skrives **aldrig** til VFS, `.typegraph.yaml` eller nogen committed fil.
+*   **Authentication**: Personal Access Tokens (PAT) gemmes i **IndexedDB via Dexie.js** i en dedikeret `credentials` tabel (nøgle: `github_pat`). PAT skrives **aldrig** til VFS, `model.typegraph.yaml`, `views.typegraph.yaml` eller nogen committed fil.
 *   **CredentialService** (`src/services/CredentialService.ts`): Indkapsler al læsning/skrivning af PAT og `RemoteConfig`. `GitService` bruger `CredentialService` direkte — ingen separat `useAuthStore` er nødvendig.
 *   **Clone workflow**: Clone åbner altid som et **nyt navngivet workspace** sideløbende med det aktive. Det aktive workspace berøres ikke. Trin: (1) bruger angiver URL og workspace-navn → (2) nyt VFS-namespace oprettes → (3) `git clone` via isomorphic-git → (4) Zustand hydrateres → (5) zundo-historik ryddes.
 *   **CORS Proxy**: Browser-baseret Git-kommunikation kræver en CORS-proxy. Standard: `https://cors.isomorphic-git.org`. Kan overrides via `RemoteConfig.corsProxy` for self-hosting.
@@ -294,8 +304,8 @@ For at understøtte professionelt samarbejde skal systemet kunne synkronisere me
 
 | Operation | Trigger | Trin | Fejl → |
 | :--- | :--- | :--- | :--- |
-| **Push** | Command Archive / `Ctrl+Shift+P` | Auto-commit hvis dirty → `git push` via proxy | Toast: auth-fejl / netværksfejl |
-| **Pull** | Command Archive / `Ctrl+Shift+L` | `git fetch` → fast-forward merge → hydrate Zustand → ryd zundo | Semantisk Conflict Resolver hvis non-FF |
+| **Push** | Command Archive / `Ctrl+Shift+P` | Auto-commit hvis dirty (stager både `model.typegraph.yaml` og `views.typegraph.yaml`) → `git push` via proxy | Toast: auth-fejl / netværksfejl |
+| **Pull** | Command Archive / `Ctrl+Shift+L` | `git fetch` → fast-forward merge (merger både model og views) → hydrate Zustand → ryd zundo | Semantisk Conflict Resolver hvis non-FF |
 | **Clone** | Onboarding / Command Archive | Nyt VFS-namespace → `git clone` → hydrate | Fejlskærm med ren tekst |
 | **Auto-fetch** | Timer: hvert 5. minut (aktiv når remote er konfigureret) | `git fetch` kun — ingen merge | StatusBar: "↓N commits tilgængeligt" |
 
@@ -308,7 +318,7 @@ Systemet må **aldrig** eksponere rå git-konfliktmarkører (`<<<<<<< HEAD`) for
 
 **Forløb ved non-fast-forward merge:**
 
-1. `gitEngine.gitPull()` registrerer divergent historik og returnerer to YAML-strenge: `localYaml` og `remoteYaml`.
+1. `gitEngine.gitPull()` registrerer divergent historik og returnerer to model-YAML-strenge: `localYaml` og `remoteYaml` (for `model.typegraph.yaml`).
 2. `PersistenceService.computeSemanticDiff(localYaml, remoteYaml)` parser begge via `yamlToState()` og beregner en konceptniveau-diff: hvilke begreber er tilføjet, slettet eller ændret på hver side.
 3. Elementer der er identiske på begge sider **auto-merges stille** uden brugerinteraktion.
 4. Den fulde **Semantisk Conflict Resolver** (`ConflictResolverModal.tsx`) åbnes — ikke en kodeeditor, men et visuelt kortbaseret interface:
@@ -334,7 +344,7 @@ Systemet må **aldrig** eksponere rå git-konfliktmarkører (`<<<<<<< HEAD`) for
 **Regler:**
 *   Kun konfliktende elementer vises — identiske elementer merges automatisk.
 *   Elementer der kun findes på én side er pre-valgte (brugeren bekræfter blot).
-*   "Løs Konflikt" merger de valgte elementer til ny YAML, validerer via Zod, skriver til VFS, committer og re-hydraterer Zustand.
+*   "Løs Konflikt" merger de valgte elementer til ny model-YAML, validerer via Zod, skriver til VFS, committer og re-hydraterer Zustand.
 *   Hvis det mergede resultat fejler Zod-validering, vises en inline fejl og modalen lukker ikke.
 
 **Fallback** (hvis YAML ikke kan parses): Modalen viser en klartekstbesked: *"Vi kunne ikke automatisk fortolke ændringerne. Din fil er åbnet i teksteditor — ret fejlene og gem."* og falder tilbage til Monaco i redigerbar tilstand.
@@ -351,7 +361,7 @@ En **StatusBar** komponent (`src/features/statusbar/StatusBar.tsx`) tilføjes fa
     *   `● Ændringer afventer` (amber)
     *   `⟳ Synkroniserer...` (blå, animeret)
     *   `⚠ Auth fejl — klik for at opdatere token` (rød, klikbar)
-*   **Auth Status**: Klikbar pill navigerer til Remote Config modal.
+*   **Auth Status**: Klikbar pill navigerer to Remote Config modal.
 
 ### 10.5 Data Model Extensions
 
@@ -416,7 +426,7 @@ Alle tre registreres i `useKeyboard.ts` og eksponeres som søgbare kommandoer i 
 
 ### 10.8 Sikkerhedsregler
 
-*   PAT **skrives aldrig** til `lightning-fs` VFS, `.typegraph.yaml` eller nogen committed fil.
+*   PAT **skrives aldrig** til `lightning-fs` VFS, `model.typegraph.yaml`, `views.typegraph.yaml` eller nogen committed fil.
 *   PAT gemmes udelukkende i en Dexie.js IndexedDB-post (tabel `credentials`).
 *   Remote URL gemmes i `RemoteConfig` (IndexedDB) men committes ikke til Git.
 *   Kun HTTPS-remotes accepteres (`http://` URLs afvises med brugervenlig fejl).

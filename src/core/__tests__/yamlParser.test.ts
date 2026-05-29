@@ -56,6 +56,7 @@ function makeRelation(
     sourceConceptId: sourceId as any,
     targetConceptId: targetId as any,
     name,
+    category: 'semantic',
     policies: [],
     ...extra,
   };
@@ -100,7 +101,7 @@ describe('YAML Round-Trip', () => {
         makeRelation('actor:saelger', 'process:bestil', 'udfører', 'other:udfoerer', {
           multiplicity: '1..*',
           isDirected: true,
-          relationType: 'CompositionRelationship',
+          relationType: 'composition',
         }),
         makeRelation('process:bestil', 'entity:ordre', 'opretter', 'other:opretter'),
       ],
@@ -362,5 +363,37 @@ concepts:
     // Should only have 1 domain in the hydrated state
     expect(hydrated.domains).toHaveLength(1);
     expect(hydrated.domains[0].id).toBe(domainId);
+  });
+
+  it('strips legacy/unallowed properties or enumerators fields from parsed YAML', () => {
+    const yamlString = `
+version: "1.0"
+domains: []
+concepts:
+  - id: "bounded_context:core"
+    conceptType: "bounded_context"
+    name: "Core Domain"
+    createdAt: 1000
+    updatedAt: 1000
+    lifecycleState: "active"
+    aliases: []
+    policies: []
+    properties: []
+  - id: "class:kunde"
+    conceptType: "class"
+    name: "Kunde"
+    createdAt: 1000
+    updatedAt: 1000
+    lifecycleState: "active"
+    aliases: []
+    policies: []
+    properties: []
+    enumerators: ["A"]
+`;
+    const state = yamlToState(yamlString);
+    expect(state.concepts[0]).not.toHaveProperty('properties');
+    expect(state.concepts[0]).not.toHaveProperty('enumerators');
+    expect(state.concepts[1]).toHaveProperty('properties');
+    expect(state.concepts[1]).not.toHaveProperty('enumerators');
   });
 });

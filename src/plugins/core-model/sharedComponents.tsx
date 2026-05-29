@@ -43,7 +43,6 @@ export function ConceptualNodeComponent({ data, selected }: NodeProps) {
 // --- 2. Information Model Node Component (📊 Rich Class, DataType and Enum Renderer) ---
 export function InformationNodeComponent({ data, selected }: NodeProps) {
   const concept = data.concept as ConceptNode;
-  const properties = concept?.properties || [];
   const type = concept?.conceptType || 'class';
 
   // Customize colors based on ConceptType
@@ -51,6 +50,10 @@ export function InformationNodeComponent({ data, selected }: NodeProps) {
   let headerText = 'text-white';
   let typeBadgeBg = 'bg-indigo-900/60 text-indigo-200 border-indigo-800';
   let typeLabel = 'KLASSE';
+
+  const isEnum = type === 'enumeration';
+  const properties = (!isEnum && 'properties' in concept) ? (concept.properties ?? []) : [];
+  const enumerators = (isEnum && 'enumerators' in concept) ? (concept.enumerators ?? []) : [];
 
   if (type === 'datatype') {
     headerBg = 'bg-amber-500 border-amber-400';
@@ -87,15 +90,38 @@ export function InformationNodeComponent({ data, selected }: NodeProps) {
 
       {/* Attributes/Literals list */}
       <div className="flex flex-col bg-white">
-        {properties.length === 0 ? (
-          <div className="px-4 py-3.5 text-[10px] italic text-slate-400 text-center select-none">
-            Ingen egenskaber defineret
-          </div>
+        {isEnum ? (
+          enumerators.length === 0 ? (
+            <div className="px-4 py-3.5 text-[10px] italic text-slate-400 text-center select-none">
+              Ingen literaler defineret
+            </div>
+          ) : (
+            <div className="flex flex-col w-full">
+              {enumerators.map((lit, i) => (
+                <div
+                  key={i}
+                  className={`flex items-center justify-between px-4 py-2 hover:bg-slate-50/50 transition-colors ${
+                    i < enumerators.length - 1 ? 'border-b border-slate-100' : ''
+                  }`}
+                >
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="text-emerald-500 text-[10px] font-bold select-none">•</span>
+                    <span className="text-[11px] font-bold text-slate-700 truncate">
+                      {lit}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
         ) : (
-          <div className="flex flex-col w-full">
-            {properties.map((p, i) => {
-              const isEnum = type === 'enumeration';
-              return (
+          properties.length === 0 ? (
+            <div className="px-4 py-3.5 text-[10px] italic text-slate-400 text-center select-none">
+              Ingen egenskaber defineret
+            </div>
+          ) : (
+            <div className="flex flex-col w-full">
+              {properties.map((p, i) => (
                 <div
                   key={p.id || i}
                   className={`flex items-center justify-between px-4 py-2 hover:bg-slate-50/50 transition-colors ${
@@ -103,9 +129,7 @@ export function InformationNodeComponent({ data, selected }: NodeProps) {
                   }`}
                 >
                   <div className="flex items-center gap-1.5 min-w-0">
-                    {isEnum ? (
-                      <span className="text-emerald-500 text-[10px] font-bold select-none">•</span>
-                    ) : p.isRequired ? (
+                    {p.isRequired ? (
                       <span className="text-indigo-400 font-black text-[10px] select-none" title="Påkrævet">*</span>
                     ) : (
                       <span className="w-1.5 shrink-0" />
@@ -114,18 +138,16 @@ export function InformationNodeComponent({ data, selected }: NodeProps) {
                       {p.name}
                     </span>
                   </div>
-                  {!isEnum && (
-                    <div className="flex items-center text-right whitespace-nowrap shrink-0 ml-4">
-                      <span className="text-[9px] font-mono font-black text-slate-400 bg-slate-50 border border-slate-100 px-1.5 py-0.5 rounded uppercase tracking-wider">
-                        {String(p.type)}
-                        {p.multiplicity ? ` [${p.multiplicity}]` : ''}
-                      </span>
-                    </div>
-                  )}
+                  <div className="flex items-center text-right whitespace-nowrap shrink-0 ml-4">
+                    <span className="text-[9px] font-mono font-black text-slate-400 bg-slate-50 border border-slate-100 px-1.5 py-0.5 rounded uppercase tracking-wider">
+                      {String(p.type)}
+                      {p.multiplicity ? ` [${p.multiplicity}]` : ''}
+                    </span>
+                  </div>
                 </div>
-              );
-            })}
-          </div>
+              ))}
+            </div>
+          )
         )}
       </div>
     </div>

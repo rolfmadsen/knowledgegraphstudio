@@ -123,11 +123,11 @@ export class GraphService {
 
     const id = generateId(conceptType, name);
     const now = Date.now();
-    const concept: ConceptNode = {
+    const base = {
       id,
       createdAt: now,
       updatedAt: now,
-      lifecycleState: 'active',
+      lifecycleState: 'active' as const,
       conceptType,
       name,
       aliases: options.aliases ?? [],
@@ -135,9 +135,19 @@ export class GraphService {
       domainId: options.domainId || state.domains[0]?.id,
       parentId: options.parentId,
       classification: options.classification,
-      properties: [],
       policies: [],
-    } as ConceptNode;
+    };
+
+    // Build type-correct concept: enumerations get enumerators,
+    // domain/bounded_context get neither, all others get properties.
+    let concept: ConceptNode;
+    if (conceptType === 'enumeration') {
+      concept = { ...base, enumerators: [] } as ConceptNode;
+    } else if (conceptType === 'domain' || conceptType === 'bounded_context') {
+      concept = base as ConceptNode;
+    } else {
+      concept = { ...base, properties: [] } as ConceptNode;
+    }
 
     return {
       concept,
@@ -150,7 +160,7 @@ export class GraphService {
   /**
    * Update an existing concept.
    */
-  static updateConcept(state: GraphStateWithSelection, id: ElementId, updates: Partial<BaseConceptNode> & { conceptType?: ConceptType }): Partial<GraphStateWithSelection> {
+  static updateConcept(state: GraphStateWithSelection, id: ElementId, updates: Partial<BaseConceptNode> & { conceptType?: ConceptType; properties?: ConceptProperty[]; enumerators?: string[] }): Partial<GraphStateWithSelection> {
     const now = Date.now();
     let newId = id;
     const targetConcept = state.concepts.find(c => c.id === id);
@@ -179,23 +189,33 @@ export class GraphService {
             hasChanges = true;
           }
 
-          const nextProperties = updatedConcept.properties.map((p) => {
-            if (p.wasDerivedFrom === id) {
-              return { ...p, wasDerivedFrom: newId };
+          if ('properties' in updatedConcept && updatedConcept.properties) {
+            const nextProperties = updatedConcept.properties.map((p) => {
+              if (p.wasDerivedFrom === id) {
+                return { ...p, wasDerivedFrom: newId };
+              }
+              return p;
+            });
+            if (nextProperties.some((p, idx) => p !== (updatedConcept as any).properties[idx])) {
+              hasChanges = true;
             }
-            return p;
-          });
-          if (nextProperties.some((p, idx) => p !== updatedConcept.properties[idx])) {
-            hasChanges = true;
-          }
 
-          if (hasChanges) {
-            updatedConcept = {
-              ...updatedConcept,
-              wasDerivedFrom: nextWasDerivedFrom,
-              properties: nextProperties,
-              updatedAt: now,
-            } as ConceptNode;
+            if (hasChanges) {
+              updatedConcept = {
+                ...updatedConcept,
+                wasDerivedFrom: nextWasDerivedFrom,
+                properties: nextProperties,
+                updatedAt: now,
+              } as ConceptNode;
+            }
+          } else {
+            if (hasChanges) {
+              updatedConcept = {
+                ...updatedConcept,
+                wasDerivedFrom: nextWasDerivedFrom,
+                updatedAt: now,
+              } as ConceptNode;
+            }
           }
         }
         return updatedConcept;
@@ -237,22 +257,32 @@ export class GraphService {
             nextWasDerivedFrom = null;
             hasChanges = true;
           }
-          const nextProperties = c.properties.map((p) => {
-            if (p.wasDerivedFrom === id) {
-              return { ...p, wasDerivedFrom: null };
+          if ('properties' in c && c.properties) {
+            const nextProperties = c.properties.map((p) => {
+              if (p.wasDerivedFrom === id) {
+                return { ...p, wasDerivedFrom: null };
+              }
+              return p;
+            });
+            if (nextProperties.some((p, idx) => p !== (c as any).properties[idx])) {
+              hasChanges = true;
             }
-            return p;
-          });
-          if (nextProperties.some((p, idx) => p !== c.properties[idx])) {
-            hasChanges = true;
-          }
-          if (hasChanges) {
-            return {
-              ...c,
-              wasDerivedFrom: nextWasDerivedFrom,
-              properties: nextProperties,
-              updatedAt: now,
-            } as ConceptNode;
+            if (hasChanges) {
+              return {
+                ...c,
+                wasDerivedFrom: nextWasDerivedFrom,
+                properties: nextProperties,
+                updatedAt: now,
+              } as ConceptNode;
+            }
+          } else {
+            if (hasChanges) {
+              return {
+                ...c,
+                wasDerivedFrom: nextWasDerivedFrom,
+                updatedAt: now,
+              } as ConceptNode;
+            }
           }
           return c;
         }),
@@ -268,6 +298,7 @@ export class GraphService {
    */
   static addRelation(state: GraphStateWithSelection, sourceId: ElementId, targetId: ElementId, name?: string, options: {
     relationType?: string;
+    category?: 'structural' | 'semantic';
     multiplicity?: string;
     mappingPattern?: ConceptRelation['mappingPattern'];
     transformationDescription?: string;
@@ -304,7 +335,8 @@ export class GraphService {
       sourceConceptId: sourceId,
       targetConceptId: targetId,
       name: finalName,
-      relationType: options.relationType,
+      category: options.category ?? 'semantic',
+      relationType: options.relationType as any,
       multiplicity: options.multiplicity,
       mappingPattern: options.mappingPattern,
       transformationDescription: options.transformationDescription,
@@ -358,11 +390,12 @@ export class GraphService {
     };
 
     return {
-      concepts: state.concepts.map((c) =>
-        c.id === conceptId
-          ? { ...c, properties: [...c.properties, property], updatedAt: now }
-          : c,
-      ),
+      concepts: state.concepts.map((c) => {
+        if (c.id === conceptId && 'properties' in c && c.properties) {
+          return { ...c, properties: [...c.properties, property], updatedAt: now } as ConceptNode;
+        }
+        return c;
+      }),
     };
   }
 
@@ -377,17 +410,18 @@ export class GraphService {
   ): Partial<GraphStateWithSelection> {
     const now = Date.now();
     return {
-      concepts: state.concepts.map((c) =>
-        c.id === conceptId
-          ? {
+      concepts: state.concepts.map((c) => {
+        if (c.id === conceptId && 'properties' in c && c.properties) {
+          return {
             ...c,
             properties: c.properties.map((p) =>
               p.id === propertyId ? { ...p, ...updates, updatedAt: now } : p,
             ),
             updatedAt: now,
-          }
-          : c,
-      ),
+          } as ConceptNode;
+        }
+        return c;
+      }),
     };
   }
 
@@ -396,15 +430,16 @@ export class GraphService {
    */
   static deleteProperty(state: GraphStateWithSelection, conceptId: ElementId, propertyId: ElementId): Partial<GraphStateWithSelection> {
     return {
-      concepts: state.concepts.map((c) =>
-        c.id === conceptId
-          ? {
+      concepts: state.concepts.map((c) => {
+        if (c.id === conceptId && 'properties' in c && c.properties) {
+          return {
             ...c,
             properties: c.properties.filter((p) => p.id !== propertyId),
             updatedAt: Date.now(),
-          }
-          : c,
-      ),
+          } as ConceptNode;
+        }
+        return c;
+      }),
     };
   }
 
@@ -784,7 +819,8 @@ export class GraphService {
     if (concept.conceptType !== 'class') return concept.conceptType;
     const isInInformation = views.some(v => v.type === 'information_model' && v.nodes.some(vn => vn.conceptId === concept.id));
     
-    if (isInInformation || concept.wasDerivedFrom || concept.properties.length > 0) {
+    const hasProps = 'properties' in concept && Array.isArray(concept.properties) && concept.properties.length > 0;
+    if (isInInformation || concept.wasDerivedFrom || hasProps) {
       return 'information_class';
     }
     return 'conceptual_class';

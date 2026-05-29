@@ -159,6 +159,20 @@ export function RelationBuilder() {
   const activeView = views.find(v => v.id === activeViewId);
   const activePlugin = activeView ? PluginRegistry.forViewType(activeView.type) : undefined;
 
+  const baseAllowedTypes = useMemo(() => {
+    const rawTypes = activePlugin?.allowedConceptTypes
+      ? CONCEPT_TYPES.filter(ct => activePlugin.allowedConceptTypes!.includes(ct.type))
+      : CONCEPT_TYPES;
+
+    return rawTypes.map(ct => {
+      const customLabel = activePlugin?.conceptTypeLabels?.[ct.type];
+      return {
+        ...ct,
+        label: customLabel || ct.label
+      };
+    });
+  }, [activePlugin]);
+
   const [step, setStep] = useState<'target' | 'type' | 'label'>('target');
   const [query, setQuery] = useState('');
   const [typeSearch, setTypeSearch] = useState('');
@@ -240,16 +254,12 @@ export function RelationBuilder() {
   // Filtered archetypes for new node creation
   const filteredTypes = useMemo(() => {
     const q = typeSearch.trim().toLowerCase();
-    const baseTypes = activePlugin?.allowedConceptTypes
-      ? CONCEPT_TYPES.filter(ct => activePlugin.allowedConceptTypes!.includes(ct.type))
-      : CONCEPT_TYPES;
-
-    if (!q) return baseTypes;
-    return baseTypes.filter(ct =>
+    if (!q) return baseAllowedTypes;
+    return baseAllowedTypes.filter(ct =>
       ct.label.toLowerCase().includes(q) ||
       ct.type.toLowerCase().includes(q)
     );
-  }, [typeSearch, activePlugin]);
+  }, [typeSearch, baseAllowedTypes]);
 
   // Common relations filtered by label query AND context
   const filteredRelations = useMemo(() => {
@@ -305,10 +315,17 @@ export function RelationBuilder() {
     if (listRef.current) {
       const selectedElement = listRef.current.children[selectedIndex] as HTMLElement;
       if (selectedElement) {
-        selectedElement.scrollIntoView({
-          block: 'nearest',
-          behavior: 'smooth'
-        });
+        const container = listRef.current;
+        const elemTop = selectedElement.offsetTop;
+        const elemBottom = elemTop + selectedElement.offsetHeight;
+        const containerTop = container.scrollTop;
+        const containerBottom = containerTop + container.clientHeight;
+
+        if (elemTop < containerTop) {
+          container.scrollTo({ top: elemTop, behavior: 'smooth' });
+        } else if (elemBottom > containerBottom) {
+          container.scrollTo({ top: elemBottom - container.clientHeight, behavior: 'smooth' });
+        }
       }
     }
   }, [selectedIndex, step]);
@@ -412,7 +429,12 @@ export function RelationBuilder() {
           setTargetIdOrName(selected.isNew ? query.trim() : selected.id);
           setIsNewTarget(selected.isNew);
           if (selected.isNew) {
-            setStep('type');
+            if (baseAllowedTypes.length === 1) {
+              setSelectedType(baseAllowedTypes[0].type);
+              setStep('label');
+            } else {
+              setStep('type');
+            }
           } else {
             setStep('label');
           }
@@ -474,7 +496,7 @@ export function RelationBuilder() {
         }
       }
       if (e.key === 'Backspace' && !label) {
-        setStep(isNewTarget ? 'type' : 'target');
+        setStep(isNewTarget && baseAllowedTypes.length > 1 ? 'type' : 'target');
       }
     }
   };
@@ -553,7 +575,9 @@ export function RelationBuilder() {
             ].map((s) => {
               const isActive = step === s.id;
               const isPast = (step === 'type' && s.id === 'target') || (step === 'label' && s.id !== 'label');
-              const canGoTo = (s.id === 'target') || (s.id === 'type' && isNewTarget) || (s.id === 'label' && targetIdOrName);
+              const canGoTo = (s.id === 'target') ||
+                              (s.id === 'type' && isNewTarget && baseAllowedTypes.length > 1) ||
+                              (s.id === 'label' && targetIdOrName);
 
               return (
                 <button
@@ -648,18 +672,27 @@ export function RelationBuilder() {
               />
             </div>
           ) : step === 'type' ? (
-            <div className="group relative flex items-center gap-4 bg-white border border-slate-200 rounded-2xl px-5 py-4 focus-within:border-emerald-500 focus-within:ring-4 focus-within:ring-emerald-500/5 transition-all shadow-sm">
-              <div className="text-emerald-500 pr-1"><Plus size={20} strokeWidth={3} /></div>
-              <input
-                ref={inputRef}
-                type="text"
-                value={typeSearch}
-                onChange={(e) => setTypeSearch(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder={`What archetype is "${targetIdOrName}"?`}
-                className="flex-1 bg-transparent text-[15px] font-bold text-slate-800 outline-none placeholder:text-slate-300"
-              />
-            </div>
+            baseAllowedTypes.length === 1 ? (
+              <div className="group relative flex items-center gap-4 bg-emerald-50/50 border border-emerald-100 rounded-2xl px-5 py-4 transition-all">
+                <div className="text-emerald-500"><Shield size={20} /></div>
+                <div className="text-[13px] font-bold text-emerald-700 uppercase tracking-wider">
+                  Type er fastsat til {baseAllowedTypes[0].label} under denne notation
+                </div>
+              </div>
+            ) : (
+              <div className="group relative flex items-center gap-4 bg-white border border-slate-200 rounded-2xl px-5 py-4 focus-within:border-emerald-500 focus-within:ring-4 focus-within:ring-emerald-500/5 transition-all shadow-sm">
+                <div className="text-emerald-500 pr-1"><Plus size={20} strokeWidth={3} /></div>
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={typeSearch}
+                  onChange={(e) => setTypeSearch(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder={`What archetype is "${targetIdOrName}"?`}
+                  className="flex-1 bg-transparent text-[15px] font-bold text-slate-800 outline-none placeholder:text-slate-300"
+                />
+              </div>
+            )
           ) : (
             <div className="group relative flex items-center gap-4 bg-white border border-slate-200 rounded-2xl px-5 py-4 focus-within:border-emerald-500 focus-within:ring-4 focus-within:ring-emerald-500/5 transition-all shadow-sm">
               <ArrowRight className="w-5 h-5 text-emerald-500" />
@@ -680,15 +713,23 @@ export function RelationBuilder() {
         <div className="flex-1 overflow-hidden px-10 pb-10">
           <div className="h-full min-h-[350px] max-h-[450px]">
             {step === 'target' ? (
-              <div ref={listRef} className="h-full overflow-y-auto custom-scrollbar pr-2 flex flex-col gap-2">
+              <div ref={listRef} className="h-full relative overflow-y-auto custom-scrollbar pr-2 pt-2 flex flex-col gap-2">
                 {options.map((opt, idx) => (
                   <button
                     key={opt.id === 'new' ? `new-${query}` : opt.id}
                     onClick={() => {
                       setTargetIdOrName(opt.isNew ? query.trim() : opt.id);
                       setIsNewTarget(opt.isNew);
-                      if (opt.isNew) setStep('type');
-                      else setStep('label');
+                      if (opt.isNew) {
+                        if (baseAllowedTypes.length === 1) {
+                          setSelectedType(baseAllowedTypes[0].type);
+                          setStep('label');
+                        } else {
+                          setStep('type');
+                        }
+                      } else {
+                        setStep('label');
+                      }
                     }}
                     onMouseEnter={() => setSelectedIndex(idx)}
                     className={`
@@ -738,73 +779,95 @@ export function RelationBuilder() {
                 ))}
               </div>
             ) : step === 'type' ? (
-              <div ref={listRef} className="h-full grid grid-cols-1 sm:grid-cols-2 gap-3 overflow-y-auto custom-scrollbar pr-2 pb-4">
-                {filteredTypes.map((ct, idx) => {
-                  const allowedRels = activePlugin?.getAvailableRelations
-                    ? activePlugin.getAvailableRelations(sourceNode.conceptType, ct.type)
-                    : [];
-                  const isCompatible = !activePlugin?.getAvailableRelations || allowedRels.length > 0;
+              baseAllowedTypes.length === 1 ? (
+                /* Single type fallback view */
+                <div className="h-full flex flex-col items-center justify-center gap-4 text-center">
+                  <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-600 shadow-md">
+                    {baseAllowedTypes[0].icon}
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-slate-800 uppercase tracking-wider">{baseAllowedTypes[0].label}</h3>
+                    <p className="text-[11px] font-medium text-slate-500 uppercase tracking-widest mt-1">Automatisk valgt type</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setSelectedType(baseAllowedTypes[0].type);
+                      setStep('label');
+                    }}
+                    className="mt-4 px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-[12px] font-bold uppercase tracking-widest transition-all"
+                  >
+                    Fortsæt til relation
+                  </button>
+                </div>
+              ) : (
+                <div ref={listRef} className="h-full relative grid grid-cols-1 sm:grid-cols-2 content-start gap-3 overflow-y-auto custom-scrollbar pr-2 pt-2 pb-4">
+                  {filteredTypes.map((ct, idx) => {
+                    const allowedRels = activePlugin?.getAvailableRelations
+                      ? activePlugin.getAvailableRelations(sourceNode.conceptType, ct.type)
+                      : [];
+                    const isCompatible = !activePlugin?.getAvailableRelations || allowedRels.length > 0;
 
-                  return (
-                    <button
-                      key={ct.type}
-                      disabled={!isCompatible}
-                      onClick={() => {
-                        setSelectedType(ct.type);
-                        setStep('label');
-                      }}
-                      onMouseEnter={() => setSelectedIndex(idx)}
-                      className={`
-                        flex flex-col gap-4 p-5 rounded-[1.25rem] border transition-all duration-300 group outline-none
-                        ${idx === selectedIndex
-                          ? 'bg-white border-emerald-500 shadow-lg shadow-emerald-200/20 translate-y--1 ring-1 ring-emerald-500/10'
-                          : 'bg-white/40 border-slate-100 hover:bg-white hover:border-slate-200'}
-                        ${!isCompatible ? 'opacity-40 cursor-not-allowed border-dashed' : ''}
-                      `}
-                    >
-                      <div className="flex items-start justify-between w-full">
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${idx === selectedIndex ? 'bg-emerald-600 text-white shadow-md' : 'bg-white border border-slate-200 text-slate-300'}`}>
-                          {ct.icon}
-                        </div>
-                        {isCompatible && allowedRels.length > 0 && (
-                          <span className="text-[9px] font-black uppercase tracking-wider text-emerald-600 bg-emerald-50 border border-emerald-100 rounded px-1.5 py-0.5">
-                            {allowedRels.length} {allowedRels.length === 1 ? 'Rule' : 'Rules'}
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex flex-col text-left w-full">
-                        <span className={`text-[10px] uppercase font-black tracking-widest ${idx === selectedIndex ? 'text-emerald-600' : 'text-slate-400'}`}>
-                          {ct.type.replace('_', ' ')}
-                        </span>
-                        <span className="text-[13px] font-black text-slate-800 mt-0.5">{ct.label}</span>
-                        {activePlugin?.getAvailableRelations && (
-                          <div className="flex flex-wrap items-center gap-1 mt-2.5">
-                            {allowedRels.length > 0 ? (
-                              allowedRels.slice(0, 3).map(r => (
-                                <span key={r.id} className="px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded text-[8px] font-black uppercase tracking-tight">
-                                  {r.label}
-                                </span>
-                              ))
-                            ) : (
-                              <span className="text-[9px] font-bold text-rose-500 uppercase">
-                                No Valid Connections
-                              </span>
-                            )}
-                            {allowedRels.length > 3 && (
-                              <span className="px-1.5 py-0.5 bg-slate-100 text-slate-400 rounded text-[8px] font-black uppercase tracking-tight">
-                                +{allowedRels.length - 3} More
-                              </span>
-                            )}
+                    return (
+                      <button
+                        key={ct.type}
+                        disabled={!isCompatible}
+                        onClick={() => {
+                          setSelectedType(ct.type);
+                          setStep('label');
+                        }}
+                        onMouseEnter={() => setSelectedIndex(idx)}
+                        className={`
+                          flex flex-col gap-4 p-5 rounded-[1.25rem] border transition-all duration-300 group outline-none
+                          ${idx === selectedIndex
+                            ? 'bg-white border-emerald-500 shadow-lg shadow-emerald-200/20 translate-y--1 ring-1 ring-emerald-500/10'
+                            : 'bg-white/40 border-slate-100 hover:bg-white hover:border-slate-200'}
+                          ${!isCompatible ? 'opacity-40 cursor-not-allowed border-dashed' : ''}
+                        `}
+                      >
+                        <div className="flex items-start justify-between w-full">
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${idx === selectedIndex ? 'bg-emerald-600 text-white shadow-md' : 'bg-white border border-slate-200 text-slate-300'}`}>
+                            {ct.icon}
                           </div>
-                        )}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
+                          {isCompatible && allowedRels.length > 0 && (
+                            <span className="text-[9px] font-black uppercase tracking-wider text-emerald-600 bg-emerald-50 border border-emerald-100 rounded px-1.5 py-0.5">
+                              {allowedRels.length} {allowedRels.length === 1 ? 'Rule' : 'Rules'}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex flex-col text-left w-full">
+                          <span className={`text-[10px] uppercase font-black tracking-widest ${idx === selectedIndex ? 'text-emerald-600' : 'text-slate-400'}`}>
+                            {ct.type.replace('_', ' ')}
+                          </span>
+                          <span className="text-[13px] font-black text-slate-800 mt-0.5">{ct.label}</span>
+                          {activePlugin?.getAvailableRelations && (
+                            <div className="flex flex-wrap items-center gap-1 mt-2.5">
+                              {allowedRels.length > 0 ? (
+                                allowedRels.slice(0, 3).map(r => (
+                                  <span key={r.id} className="px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded text-[8px] font-black uppercase tracking-tight">
+                                    {r.label}
+                                  </span>
+                                ))
+                              ) : (
+                                <span className="text-[9px] font-bold text-rose-500 uppercase">
+                                  No Valid Connections
+                                </span>
+                              )}
+                              {allowedRels.length > 3 && (
+                                <span className="px-1.5 py-0.5 bg-slate-100 text-slate-400 rounded text-[8px] font-black uppercase tracking-tight">
+                                  +{allowedRels.length - 3} More
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )
             ) : (
               <div className="h-full flex flex-col gap-6">
-                <div ref={listRef} className="flex-1 overflow-y-auto custom-scrollbar pr-2 flex flex-col gap-2">
+                <div ref={listRef} className="flex-1 relative overflow-y-auto custom-scrollbar pr-2 pt-2 flex flex-col gap-2">
                   <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1 mb-1">Common Relations</div>
                   {filteredRelations.map((rel, idx) => (
                     <button

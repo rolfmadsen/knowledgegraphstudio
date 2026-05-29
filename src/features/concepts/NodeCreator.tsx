@@ -73,20 +73,22 @@ export const NodeCreator: React.FC = () => {
     return Box;
   };
 
-  const allTypes = ConceptType.options
-    .filter((t) => {
-      if (!activePlugin?.allowedConceptTypes) return true;
-      return activePlugin.allowedConceptTypes.includes(t as ConceptType);
-    })
-    .map((t) => {
-      const customLabel = activePlugin?.conceptTypeLabels?.[t as ConceptType];
-      const displayLabel = customLabel || t.toUpperCase().replace('_', ' ');
-      return {
-        id: t,
-        label: displayLabel,
-        icon: getIconForType(t as ConceptType),
-      };
-    });
+  const allTypes = useMemo(() => {
+    return ConceptType.options
+      .filter((t) => {
+        if (!activePlugin?.allowedConceptTypes) return true;
+        return activePlugin.allowedConceptTypes.includes(t as ConceptType);
+      })
+      .map((t) => {
+        const customLabel = activePlugin?.conceptTypeLabels?.[t as ConceptType];
+        const displayLabel = customLabel || t.toUpperCase().replace('_', ' ');
+        return {
+          id: t,
+          label: displayLabel,
+          icon: getIconForType(t as ConceptType),
+        };
+      });
+  }, [activePlugin]);
 
   const filteredTypes = allTypes.filter(t => 
     t.label.toLowerCase().includes(typeQuery.toLowerCase()) ||
@@ -110,10 +112,13 @@ export const NodeCreator: React.FC = () => {
     }
   }, [isNodeCreatorOpen]);
 
-  // Sync selected index when filtered list changes
+  // Sync selected index to match the selected type when search is cleared
   useEffect(() => {
-    setSelectedIndex(0);
-  }, [typeQuery]);
+    if (typeQuery === '') {
+      const idx = allTypes.findIndex(t => t.id === type);
+      setSelectedIndex(idx >= 0 ? idx : 0);
+    }
+  }, [typeQuery, type, allTypes]);
 
   // Ensure scroll follows selected item
   useEffect(() => {
@@ -251,10 +256,24 @@ export const NodeCreator: React.FC = () => {
       } else if (!isEditingName) {
         if (e.key === 'ArrowDown') {
           e.preventDefault();
-          setSelectedIndex(prev => (prev + 1) % Math.max(1, filteredTypes.length));
+          setSelectedIndex(prev => {
+            const nextIndex = (prev + 1) % Math.max(1, filteredTypes.length);
+            const nextType = filteredTypes[nextIndex];
+            if (nextType) {
+              setType(nextType.id as ConceptType);
+            }
+            return nextIndex;
+          });
         } else if (e.key === 'ArrowUp') {
           e.preventDefault();
-          setSelectedIndex(prev => (prev - 1 + filteredTypes.length) % Math.max(1, filteredTypes.length));
+          setSelectedIndex(prev => {
+            const nextIndex = (prev - 1 + filteredTypes.length) % Math.max(1, filteredTypes.length);
+            const nextType = filteredTypes[nextIndex];
+            if (nextType) {
+              setType(nextType.id as ConceptType);
+            }
+            return nextIndex;
+          });
         }
       }
     }
@@ -312,51 +331,83 @@ export const NodeCreator: React.FC = () => {
               </label>
             </div>
             
-            <div className="relative">
-              <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 focus-within:bg-white focus-within:border-emerald-500 transition-all shadow-sm">
-                <Search size={14} className="text-slate-400 mr-2" />
-                <input
-                  ref={typeInputRef}
-                  type="text"
-                  value={typeQuery}
-                  onChange={(e) => setTypeQuery(e.target.value)}
-                  placeholder="Søg efter type (piletaster + enter)..."
-                  className="w-full bg-transparent border-none text-[12px] font-medium text-slate-600 outline-none placeholder:text-slate-300"
-                />
-              </div>
-
-              {/* Type Results List */}
-              <div className="mt-2 max-h-[160px] overflow-y-auto pr-1 custom-scrollbar">
-                <div ref={listRef} className="grid grid-cols-1 gap-1">
-                  {filteredTypes.map((t, index) => (
-                    <button
-                      key={t.id}
-                      onClick={() => {
-                        setType(t.id as ConceptType);
-                        setTypeQuery('');
-                      }}
-                      onMouseEnter={() => setSelectedIndex(index)}
-                      className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-all ${
-                        index === selectedIndex 
-                          ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20' 
-                          : t.id === type
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
-                            : 'hover:bg-slate-100 text-slate-600'
-                      }`}
-                    >
-                      <t.icon size={14} className={index === selectedIndex ? 'text-white' : 'text-slate-400'} />
-                      <span className="text-[11px] font-bold uppercase tracking-wider flex-1 text-left">{t.label}</span>
-                      {t.id === type && index !== selectedIndex && <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />}
-                    </button>
-                  ))}
-                  {filteredTypes.length === 0 && (
-                    <div className="py-4 text-center text-[11px] font-medium text-slate-400">
-                      Ingen typer fundet...
+            {allTypes.length === 1 ? (
+              /* Single allowed type — show compact auto-selected badge */
+              (() => {
+                const single = allTypes[0];
+                const Icon = single.icon;
+                return (
+                  <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-emerald-50 border border-emerald-100">
+                    <div className="w-7 h-7 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                      <Icon size={14} className="text-emerald-600" />
                     </div>
-                  )}
+                    <span className="text-[12px] font-bold text-emerald-700 uppercase tracking-wider flex-1">{single.label}</span>
+                    <span className="text-[9px] font-bold text-emerald-500 bg-emerald-100 px-2 py-0.5 rounded-full uppercase tracking-widest">Auto-valgt</span>
+                  </div>
+                );
+              })()
+            ) : (
+              /* Multiple types — show full search + list */
+              <div className="relative">
+                <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 focus-within:bg-white focus-within:border-emerald-500 transition-all shadow-sm">
+                  <Search size={14} className="text-slate-400 mr-2" />
+                  <input
+                    ref={typeInputRef}
+                    type="text"
+                    value={typeQuery}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setTypeQuery(val);
+                      setSelectedIndex(0);
+                      const newFiltered = allTypes.filter(t => 
+                        t.label.toLowerCase().includes(val.toLowerCase()) ||
+                        t.id.toLowerCase().includes(val.toLowerCase())
+                      );
+                      if (newFiltered.length > 0) {
+                        setType(newFiltered[0].id as ConceptType);
+                      }
+                    }}
+                    placeholder="Søg efter type (piletaster + enter)..."
+                    className="w-full bg-transparent border-none text-[12px] font-medium text-slate-600 outline-none placeholder:text-slate-300"
+                  />
+                </div>
+
+                {/* Type Results List */}
+                <div className="mt-2 max-h-[160px] overflow-y-auto pr-1 custom-scrollbar">
+                  <div ref={listRef} className="grid grid-cols-1 gap-1">
+                    {filteredTypes.map((t, index) => (
+                      <button
+                        key={t.id}
+                        onClick={() => {
+                          setType(t.id as ConceptType);
+                          setTypeQuery('');
+                        }}
+                        onMouseEnter={() => {
+                          setSelectedIndex(index);
+                          setType(t.id as ConceptType);
+                        }}
+                        className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-all ${
+                          index === selectedIndex 
+                            ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20' 
+                            : t.id === type
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                              : 'hover:bg-slate-100 text-slate-600'
+                        }`}
+                      >
+                        <t.icon size={14} className={index === selectedIndex ? 'text-white' : 'text-slate-400'} />
+                        <span className="text-[11px] font-bold uppercase tracking-wider flex-1 text-left">{t.label}</span>
+                        {t.id === type && index !== selectedIndex && <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />}
+                      </button>
+                    ))}
+                    {filteredTypes.length === 0 && (
+                      <div className="py-4 text-center text-[11px] font-medium text-slate-400">
+                        Ingen typer fundet...
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
           </div>
 
           {/* Similar existing nodes list */}

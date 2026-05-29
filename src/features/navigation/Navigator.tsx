@@ -119,7 +119,6 @@ const viewTypeIcon = (type: View['type']) => {
   switch (type) {
     case 'knowledge_graph': return <Globe size={13} className="text-emerald-500" />;
     case 'archimate': return <Layers size={13} className="text-blue-500" />;
-    case 'data_model': return <LayoutTemplate size={13} className="text-purple-500" />;
     case 'c4': return <LayoutTemplate size={13} className="text-indigo-600" />;
     default: return <Layers size={13} className="text-slate-400" />;
   }

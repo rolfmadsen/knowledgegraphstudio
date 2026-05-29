@@ -52,7 +52,6 @@ const VIEW_TYPE_DESCRIPTIONS: Record<string, string> = {
   knowledge_graph: 'Free-form exploration of concepts and relations',
   archimate: 'Enterprise architecture using ArchiMate notation',
   c4: 'Software architecture using C4 model notation',
-  data_model: 'Entity-relationship and data structure diagrams',
 };
 
 // ──────────────────────────────────────────────────────────

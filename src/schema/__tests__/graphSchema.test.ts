@@ -189,8 +189,6 @@ describe('ConceptNode', () => {
     expect(ConceptNode.parse(validConcept)).toEqual(validConcept);
   });
 
-
-
   it('accepts concept with all optional fields', () => {
     const full = {
       ...validConcept,
@@ -208,10 +206,85 @@ describe('ConceptNode', () => {
   });
 
   it('rejects concept with empty aliases array type', () => {
-    // aliases must be an array (even if empty)
     expect(() =>
       ConceptNode.parse({ ...validConcept, aliases: 'not-array' }),
     ).toThrow();
+  });
+
+  // Specific Subtype Validation Tests
+
+  it('validates ClassConceptNode', () => {
+    const validClass = {
+      ...baseEntity('class:kunde'),
+      conceptType: 'class' as const,
+      name: 'Kunde',
+      aliases: [],
+      properties: [
+        {
+          ...baseEntity('other:navn'),
+          name: 'Navn',
+          type: 'string' as const,
+        }
+      ],
+      policies: [],
+    };
+    expect(ConceptNode.parse(validClass)).toEqual(validClass);
+
+    // Rejects missing properties
+    const invalidClass = {
+      ...baseEntity('class:kunde'),
+      conceptType: 'class' as const,
+      name: 'Kunde',
+      aliases: [],
+      policies: [],
+    };
+    expect(() => ConceptNode.parse(invalidClass)).toThrow();
+  });
+
+  it('validates EnumerationConceptNode', () => {
+    const validEnum = {
+      ...baseEntity('enumeration:status'),
+      conceptType: 'enumeration' as const,
+      name: 'Status',
+      aliases: [],
+      enumerators: ['Aktiv', 'Inaktiv'],
+      policies: [],
+    };
+    expect(ConceptNode.parse(validEnum)).toEqual(validEnum);
+
+    // Rejects if properties is present
+    const invalidEnum = {
+      ...baseEntity('enumeration:status'),
+      conceptType: 'enumeration' as const,
+      name: 'Status',
+      aliases: [],
+      enumerators: ['Aktiv'],
+      properties: [],
+      policies: [],
+    };
+    expect(() => ConceptNode.parse(invalidEnum)).toThrow();
+  });
+
+  it('validates ContainerConceptNode (bounded_context)', () => {
+    const validContainer = {
+      ...baseEntity('bounded_context:salg'),
+      conceptType: 'bounded_context' as const,
+      name: 'Salg',
+      aliases: [],
+      policies: [],
+    };
+    expect(ConceptNode.parse(validContainer)).toEqual(validContainer);
+
+    // Rejects if properties is present (Zod unions evaluate schemas in order; ContainerConceptNode has no properties field. If properties is present, it does not match ContainerConceptNode)
+    const containerWithProps = {
+      ...baseEntity('bounded_context:salg'),
+      conceptType: 'bounded_context' as const,
+      name: 'Salg',
+      aliases: [],
+      properties: [],
+      policies: [],
+    };
+    expect(() => ConceptNode.parse(containerWithProps)).toThrow();
   });
 });
 
@@ -252,7 +325,7 @@ describe('ConceptNodeExport', () => {
 // ============================================================
 
 describe('ConceptRelation', () => {
-  it('accepts a valid relation', () => {
+  it('accepts a valid relation and defaults to semantic category', () => {
     const relation = {
       ...baseEntity('other:saelger-behandler-ordre'),
       sourceConceptId: 'actor:saelger',
@@ -262,7 +335,10 @@ describe('ConceptRelation', () => {
       isDirected: true,
       policies: [],
     };
-    expect(ConceptRelation.parse(relation)).toEqual(relation);
+    expect(ConceptRelation.parse(relation)).toEqual({
+      ...relation,
+      category: 'semantic',
+    });
   });
 
   it('accepts relation with context mapping', () => {
@@ -275,19 +351,35 @@ describe('ConceptRelation', () => {
       transformationDescription: 'Oversætter salgsmodellen til lagermodellen',
       policies: [],
     };
-    expect(ConceptRelation.parse(relation)).toEqual(relation);
+    expect(ConceptRelation.parse(relation)).toEqual({
+      ...relation,
+      category: 'semantic',
+    });
   });
 
-  it('accepts relation with relationType', () => {
+  it('accepts relation with restricted relationType and category structural', () => {
     const relation = {
       ...baseEntity('other:salg-til-lager'),
       sourceConceptId: 'bounded_context:salg',
       targetConceptId: 'bounded_context:lager',
       name: 'integrerer med',
-      relationType: 'CompositionRelationship',
+      relationType: 'composition' as const,
+      category: 'structural' as const,
       policies: [],
     };
     expect(ConceptRelation.parse(relation)).toEqual(relation);
+  });
+
+  it('rejects invalid relationType', () => {
+    const relation = {
+      ...baseEntity('other:salg-til-lager'),
+      sourceConceptId: 'bounded_context:salg',
+      targetConceptId: 'bounded_context:lager',
+      name: 'integrerer med',
+      relationType: 'CompositionRelationship', // invalid value
+      policies: [],
+    };
+    expect(() => ConceptRelation.parse(relation)).toThrow();
   });
 });
 

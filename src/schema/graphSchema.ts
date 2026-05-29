@@ -136,7 +136,6 @@ export type PolicyType = z.infer<typeof PolicyType>;
 export const ViewType = z.enum([
   'knowledge_graph',
   'archimate',
-  'data_model',
   'c4',
   'conceptual_model',
   'information_model',
@@ -254,7 +253,10 @@ export type ConceptProperty = z.infer<typeof ConceptProperty>;
  * It contains NO visual/layout data (x, y, fx, fy, width, height).
  * All positional data lives in ViewNode inside a View.
  */
-type StandardConceptTypes = Exclude<z.infer<typeof ConceptType>, 'domain' | 'bounded_context'>;
+type GeneralConceptTypes = Exclude<
+  z.infer<typeof ConceptType>,
+  'domain' | 'bounded_context' | 'class' | 'enumeration'
+>;
 
 export const BaseConceptNode = BaseEntity.extend({
   parentId: ElementId.optional(),
@@ -263,7 +265,6 @@ export const BaseConceptNode = BaseEntity.extend({
   name: z.string().min(1),
   aliases: z.array(z.string()),
   definition: z.string().optional(),
-  properties: z.array(ConceptProperty),
   policies: z.array(Policy),
   preferredTerm: z.string().optional(),
   acceptedTerm: z.string().optional(),
@@ -277,23 +278,46 @@ export type BaseConceptNode = z.infer<typeof BaseConceptNode>;
 export const DomainConceptNode = BaseConceptNode.extend({
   conceptType: z.literal('domain'),
 });
+export type DomainConceptNode = z.infer<typeof DomainConceptNode>;
 
 export const ContainerConceptNode = BaseConceptNode.extend({
   conceptType: z.literal('bounded_context'),
+  properties: z.never().optional(),
+  enumerators: z.never().optional(),
 });
+export type ContainerConceptNode = z.infer<typeof ContainerConceptNode>;
 
-export const StandardConceptNode = BaseConceptNode.extend({
+export const ClassConceptNode = BaseConceptNode.extend({
+  conceptType: z.literal('class'),
+  properties: z.array(ConceptProperty),
+  enumerators: z.never().optional(),
+});
+export type ClassConceptNode = z.infer<typeof ClassConceptNode>;
+
+export const EnumerationConceptNode = BaseConceptNode.extend({
+  conceptType: z.literal('enumeration'),
+  enumerators: z.array(z.string()),
+  properties: z.never().optional(),
+});
+export type EnumerationConceptNode = z.infer<typeof EnumerationConceptNode>;
+
+export const GeneralConceptNode = BaseConceptNode.extend({
   conceptType: z.enum(
     ConceptType.options.filter(
-      (t) => t !== 'domain' && t !== 'bounded_context'
+      (t) => t !== 'domain' && t !== 'bounded_context' && t !== 'class' && t !== 'enumeration'
     ) as [string, ...string[]]
-  ) as unknown as z.ZodType<StandardConceptTypes>,
+  ) as unknown as z.ZodType<GeneralConceptTypes>,
+  properties: z.array(ConceptProperty),
+  enumerators: z.never().optional(),
 });
+export type GeneralConceptNode = z.infer<typeof GeneralConceptNode>;
 
 export const ConceptNode = z.union([
   DomainConceptNode,
   ContainerConceptNode,
-  StandardConceptNode,
+  ClassConceptNode,
+  EnumerationConceptNode,
+  GeneralConceptNode,
 ]);
 export type ConceptNode = z.infer<typeof ConceptNode>;
 
@@ -313,7 +337,8 @@ export const ConceptRelation = BaseEntity.extend({
   sourceConceptId: ElementId,
   targetConceptId: ElementId,
   name: z.string().min(1),
-  relationType: z.string().optional(),
+  category: z.enum(['structural', 'semantic']).default('semantic'),
+  relationType: z.enum(['association', 'composition', 'aggregation', 'specialization', 'realization']).optional(),
   multiplicity: z.string().optional(),
   mappingPattern: ContextMappingPattern.optional(),
   transformationDescription: z.string().optional(),
