@@ -115,6 +115,45 @@ function getEdgeParams(source: InternalNode, target: InternalNode) {
   };
 }
 
+// Helper to parse relation label and extract clean name and multiplicity
+function parseRelationLabel(rawLabel: string, multiplicityFromData?: string) {
+  if (!rawLabel) return { name: '', multiplicity: multiplicityFromData || '' };
+
+  let multiplicity = multiplicityFromData || '';
+  let cleanedName = rawLabel;
+
+  // Match all parenthetical parts
+  const matches = [...rawLabel.matchAll(/\(([^)]+)\)/g)];
+
+  matches.forEach((m) => {
+    const content = m[1];
+    const fullMatch = m[0];
+    
+    // If it looks like a multiplicity (contains numbers, dots, or asterisks/wildcards)
+    const isMult = /^[\d\s.*]+$/.test(content);
+    if (isMult) {
+      if (!multiplicity) {
+        multiplicity = content;
+      }
+      cleanedName = cleanedName.replace(fullMatch, '');
+    } else {
+      // It's a descriptive phrase like "(serves / used by)", remove it from the name
+      cleanedName = cleanedName.replace(fullMatch, '');
+    }
+  });
+
+  return {
+    name: cleanedName.trim(),
+    multiplicity: multiplicity.trim()
+  };
+}
+
+// Helper to truncate text to fit a maximum character count
+function truncate(str: string, maxLen: number): string {
+  if (str.length <= maxLen) return str;
+  return maxLen > 3 ? str.slice(0, maxLen - 3) + '...' : str.slice(0, Math.max(1, maxLen)) + '..';
+}
+
 // Custom FloatingEdge
 function FloatingEdge({ id, source, target, style, label, labelStyle, selected, data }: EdgeProps) {
   const sourceNode = useInternalNode(source);
@@ -126,11 +165,32 @@ function FloatingEdge({ id, source, target, style, label, labelStyle, selected, 
   const straightPath = `M ${sx} ${sy} L ${tx} ${ty}`;
 
   const angle = Math.atan2(ty - sy, tx - sx);
-  const angleDeg = angle * (180 / Math.PI);
   const arrowOffset = 10;
   const midX = (sx + tx) / 2 - Math.cos(angle) * arrowOffset;
   const midY = (sy + ty) / 2 - Math.sin(angle) * arrowOffset;
-  const rotation = angleDeg > 90 || angleDeg < -90 ? angleDeg + 180 : angleDeg;
+
+  const dx = tx - sx;
+  const dy = ty - sy;
+  const distance = Math.sqrt(dx * dx + dy * dy);
+
+  const { name: cleanName, multiplicity } = parseRelationLabel(String(label || ''), data?.multiplicity as string);
+
+  // Calculate allowed character limit based on edge distance to prevent excessive truncation
+  // while ensuring labels fit well on the canvas. We guarantee at least 10 characters (e.g. "Composi...")
+  const maxChars = Math.max(10, Math.floor((distance - 12) / 6));
+
+  const displayName = truncate(cleanName, maxChars);
+  const displayMultiplicity = multiplicity ? truncate(multiplicity, maxChars) : '';
+
+  const hasMultiplicity = !!displayMultiplicity;
+
+  // Calculate size of rect
+  const longestLine = Math.max(displayName.length, displayMultiplicity.length);
+  const rectWidth = longestLine * 6 + 16; // 8px padding on each side
+  const rectHeight = hasMultiplicity ? 28 : 18;
+  const rectX = -rectWidth / 2;
+  const rectY = -rectHeight / 2;
+  const textY = hasMultiplicity ? -4 : 3;
 
   const selectRelation = data?.selectRelation as (id: string) => void;
   const strokeDasharray = (data?.strokeDasharray as string) || 'none';
@@ -151,9 +211,9 @@ function FloatingEdge({ id, source, target, style, label, labelStyle, selected, 
           strokeDasharray: strokeDasharray,
         }}
       />
-      {label && (
+      {displayName && (
         <g
-          transform={`translate(${midX}, ${midY}) rotate(${rotation})`}
+          transform={`translate(${midX}, ${midY})`}
           className="nodrag nopan"
           onClick={(e) => {
             e.stopPropagation();
@@ -162,20 +222,20 @@ function FloatingEdge({ id, source, target, style, label, labelStyle, selected, 
           style={{ cursor: 'pointer' }}
         >
           <rect
-            x={-(String(label).length * 3 + 14)}
-            y={-12}
-            width={String(label).length * 6 + 28}
-            height={24}
-            rx={12}
-            ry={12}
+            x={rectX}
+            y={rectY}
+            width={rectWidth}
+            height={rectHeight}
+            rx={rectHeight / 2}
+            ry={rectHeight / 2}
             fill="white"
-            stroke={selected ? '#10b981' : '#f1f5f9'}
+            stroke={selected ? '#10b981' : '#e2e8f0'}
             strokeWidth={1.5}
             className="shadow-sm"
             style={{ pointerEvents: 'all', cursor: 'pointer' }}
           />
           <text
-            y={4}
+            y={textY}
             style={{
               ...labelStyle,
               fontSize: 8,
@@ -189,7 +249,12 @@ function FloatingEdge({ id, source, target, style, label, labelStyle, selected, 
               letterSpacing: '0.1em'
             }}
           >
-            {label}
+            <tspan x={0} dy={0}>{displayName}</tspan>
+            {hasMultiplicity && (
+              <tspan x={0} dy={10} style={{ fontWeight: 500, fill: selected ? '#047857' : '#94a3b8' }}>
+                {displayMultiplicity}
+              </tspan>
+            )}
           </text>
         </g>
       )}
@@ -388,12 +453,13 @@ export function ReactFlowCanvas({
         source: r.sourceConceptId,
         target: r.targetConceptId,
         type: 'floating',
-        label: r.name + (r.multiplicity ? ` (${r.multiplicity})` : ''),
+        label: r.name,
         selected: isSelected,
         data: {
           selectRelation: onRelationSelect,
           strokeDasharray: strokeDash,
           markerEnd: markerEndStr,
+          multiplicity: r.multiplicity,
         },
       };
     });

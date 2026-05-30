@@ -4,7 +4,7 @@ import type { NotationPlugin, PluginCanvasProps } from '../types';
 import { ReactFlowCanvas } from '../../features/viewport/graph/ReactFlowCanvas';
 import { dagreLayoutEngine } from '../knowledge-graph';
 import type { ConceptNode } from '../../schema/graphSchema';
-import { isValidRelation, getAvailableRelations } from './validator';
+import { isValidRelation, getAvailableRelations, isSubclass, ARCHIMATE_TYPE_MAP } from './validator';
 
 
 // --- ArchiMate Styled Node Component ---
@@ -41,35 +41,20 @@ export function ArchimateNodeComponent({ data, selected }: NodeProps) {
   let textColor = 'text-slate-500';
   let icon = null;
 
-  // 1. Strategy & Motivation Layer (Purple/Orchid)
-  const isStrategyOrMotivation = [
-    'capability', 'requirement', 'goal', 'resource', 'course_of_action', 'value_stream',
-    'stakeholder', 'driver', 'assessment', 'outcome', 'principle', 'constraint', 'value', 'meaning'
-  ].includes(conceptType);
-
-  // 2. Business Layer (Yellow)
-  const isBusiness = [
-    'actor', 'process', 'business_role', 'business_function', 'business_service', 'business_object',
-    'business_collaboration', 'business_interface', 'business_interaction', 'contract', 'representation', 'product'
-  ].includes(conceptType);
-
-  // 3. Application Layer (Blue)
-  const isApplication = [
-    'system', 'application_component', 'application_service', 'application_collaboration', 'application_event',
-    'application_function', 'application_interaction', 'application_interface', 'application_process', 'entity'
-  ].includes(conceptType);
-
-  // 4. Technology & Physical Layer (Slate)
-  const isTechnologyOrPhysical = [
-    'node', 'artifact', 'device', 'system_software', 'technology_collaboration', 'technology_interface',
-    'technology_function', 'technology_process', 'technology_interaction', 'technology_event', 'technology_service', 'communication_network', 'path',
-    'equipment', 'facility', 'distribution_network', 'material'
-  ].includes(conceptType);
-
-  // 5. Implementation & Migration Layer (Rose/Orange)
-  const isImplementationOrMigration = [
-    'work_package', 'deliverable', 'plateau', 'gap', 'implementation_event'
-  ].includes(conceptType);
+  // Determine layer dynamically using ontology subclass checks
+  const className = ARCHIMATE_TYPE_MAP[conceptType];
+  const isStrategyOrMotivation = className && (
+    isSubclass(className, 'Strategy') || 
+    isSubclass(className, 'Motivation') || 
+    isSubclass(className, 'Motivation_Element')
+  );
+  const isBusiness = className && isSubclass(className, 'Business');
+  const isApplication = className && isSubclass(className, 'Application');
+  const isTechnologyOrPhysical = className && (
+    isSubclass(className, 'Technology') || 
+    isSubclass(className, 'Physical')
+  );
+  const isImplementationOrMigration = className && isSubclass(className, 'Implementation&Migration');
 
   if (isStrategyOrMotivation) {
     bgColor = 'bg-[#FDF4FF]';

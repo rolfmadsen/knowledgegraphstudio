@@ -1,0 +1,692 @@
+@prefix : <http://www.semanticweb.org/v0cn037/ontologies/2024/11/archimate32#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xml: <http://www.w3.org/XML/1998/namespace> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+
+<http://www.semanticweb.org/v0cn037/ontologies/2024/11/archimate32> rdf:type owl:Ontology ;
+    owl:versionInfo "3.2" ;
+    rdfs:label "ArchiMate 3.2 Advanced OWL Ontology"@en , "ArchiMate 3.2 Avanceret OWL-ontologi"@da ;
+    rdfs:comment "A formal OWL ontology representing the complete ArchiMate 3.2 specification, mapping layers, aspects, elements, and bidirectional relationships."@en , "En formel OWL-ontologi, der repræsenterer den fulde ArchiMate 3.2-specifikation med kortlægning af lag, aspekter, elementer og tovejsrelationer."@da ;
+    dct:title "ArchiMate 3.2 Specification OWL Ontology" ;
+    dct:creator "TypeGraph Knowledge Graph Studio Agent" ;
+    dct:created "2026-05-30"^^xsd:date .
+
+### =========================================================================
+### 1. Annotation Properties
+### =========================================================================
+
+<http://swrl.stanford.edu/ontologies/3.3/swrla.owl#isRuleEnabled> rdf:type owl:AnnotationProperty .
+:Perspective rdf:type owl:AnnotationProperty .
+
+### =========================================================================
+### 2. Object Properties (Relationships with Inverses)
+### =========================================================================
+
+:Relationship rdf:type owl:ObjectProperty ;
+    rdfs:label "Relationship"@en , "Relation"@da .
+
+### Structural Relationships
+:Structural_Relationship rdf:type owl:Class ;
+    rdfs:subClassOf :Relationship ;
+    rdfs:label "Structural Relationship"@en , "Strukturel relation"@da .
+
+:composed_of rdf:type owl:ObjectProperty , owl:TransitiveProperty ;
+    rdfs:subPropertyOf owl:topObjectProperty ;
+    owl:inverseOf :composed_in ;
+    rdfs:label "composed of"@en , "sammensat af"@da ;
+    rdfs:comment "Composition relationship represents that an element consists of one or more other concepts."@en .
+
+:composed_in rdf:type owl:ObjectProperty ;
+    rdfs:subPropertyOf owl:topObjectProperty ;
+    rdfs:label "composed in"@en , "indgår i sammensætning af"@da .
+
+:aggregates rdf:type owl:ObjectProperty , owl:TransitiveProperty ;
+    rdfs:subPropertyOf owl:topObjectProperty ;
+    owl:inverseOf :aggregated_in ;
+    rdfs:label "aggregates"@en , "aggregerer"@da ;
+    rdfs:comment "Aggregation relationship represents that an element combines one or more other concepts."@en .
+
+:aggregated_in rdf:type owl:ObjectProperty ;
+    rdfs:label "aggregated in"@en , "indgår i aggregering af"@da .
+
+:has_assigned rdf:type owl:ObjectProperty ;
+    owl:inverseOf :assigned_to ;
+    rdfs:label "has assigned"@en , "har tildelt"@da .
+
+:assigned_to rdf:type owl:ObjectProperty , owl:TransitiveProperty ;
+    rdfs:subPropertyOf owl:topObjectProperty ;
+    rdfs:label "assigned to"@en , "tildelt til"@da ;
+    rdfs:comment "Assignment represents the allocation of responsibility, performance of behavior, storage, or execution."@en .
+
+:realizes rdf:type owl:ObjectProperty , owl:TransitiveProperty ;
+    rdfs:subPropertyOf owl:topObjectProperty ;
+    owl:inverseOf :realized_by ;
+    rdfs:label "realizes"@en , "realiserer"@da ;
+    rdfs:comment "Realization represents that an element plays a critical role in the creation, achievement, sustenance, or operation of a more abstract element."@en .
+
+:realized_by rdf:type owl:ObjectProperty ;
+    rdfs:label "realized by"@en , "realiseret af"@da .
+
+### Dependency Relationships
+:Depdendency_Relationship rdf:type owl:Class ;
+    rdfs:subClassOf :Relationship ;
+    rdfs:label "Dependency Relationship"@en , "Afhængighedsrelation"@da .
+
+:serves rdf:type owl:ObjectProperty ;
+    rdfs:subPropertyOf owl:topObjectProperty ;
+    owl:inverseOf :served_by ;
+    rdfs:label "serves"@en , "betjener"@da ;
+    rdfs:comment "Serving indicates that an element provides its functionality to another element."@en .
+
+:served_by rdf:type owl:ObjectProperty ;
+    rdfs:label "served by"@en , "betjenes af"@da .
+
+:accesses rdf:type owl:ObjectProperty ;
+    rdfs:subPropertyOf owl:topObjectProperty ;
+    owl:inverseOf :accessed_by ;
+    rdfs:label "accesses"@en , "tilgår"@da ;
+    rdfs:comment "Access represents the ability of behavior and active structure elements to observe or act upon passive structure elements."@en .
+
+:accessed_by rdf:type owl:ObjectProperty ;
+    rdfs:label "accessed by"@en , "tilgås af"@da .
+
+:influences rdf:type owl:ObjectProperty ;
+    owl:inverseOf :influenced_by ;
+    rdfs:label "influences"@en , "påvirker"@da ;
+    rdfs:comment "Influence represents that an element affects the implementation or achievement of some motivation element."@en .
+
+:influenced_by rdf:type owl:ObjectProperty ;
+    rdfs:label "influenced by"@en , "påvirkes af"@da .
+
+:associated_to rdf:type owl:ObjectProperty ;
+    owl:inverseOf :associated_from ;
+    rdfs:label "associated to"@en , "associeret til"@da .
+
+:associated_from rdf:type owl:ObjectProperty ;
+    rdfs:label "associated from"@en , "associeret fra"@da .
+
+:associated_with rdf:type owl:ObjectProperty , owl:SymmetricProperty ;
+    owl:inverseOf :associated_with ;
+    rdfs:label "associated with"@en , "associeret med"@da ;
+    rdfs:comment "Association represents an unspecified relationship, or one that is not represented by another ArchiMate relationship."@en .
+
+### Dynamic Relationships
+:Dynamic_Relationship rdf:type owl:Class ;
+    rdfs:subClassOf :Relationship ;
+    rdfs:label "Dynamic Relationship"@en , "Dynamisk relation"@da .
+
+:triggers rdf:type owl:ObjectProperty ;
+    owl:inverseOf :triggered_by ;
+    rdfs:label "triggers"@en , "udløser"@da ;
+    rdfs:comment "Triggering represents a temporal or causal relationship between elements."@en .
+
+:triggered_by rdf:type owl:ObjectProperty ;
+    rdfs:label "triggered by"@en , "udløst af"@da .
+
+:flows_to rdf:type owl:ObjectProperty ;
+    rdfs:subPropertyOf owl:topObjectProperty ;
+    owl:inverseOf :flows_from ;
+    rdfs:label "flows to"@en , "strømmer til"@da ;
+    rdfs:comment "Flow represents transfer from one element to another."@en .
+
+:flows_from rdf:type owl:ObjectProperty ;
+    rdfs:label "flows from"@en , "strømmer fra"@da .
+
+### Other Relationships
+:specializes_of rdf:type owl:ObjectProperty , owl:TransitiveProperty ;
+    owl:inverseOf :specialized_by ;
+    rdfs:label "specializes of"@en , "specialiserer"@da ;
+    rdfs:comment "Specialization represents that an element is a particular kind of another element."@en .
+
+:specialized_by rdf:type owl:ObjectProperty , owl:TransitiveProperty ;
+    rdfs:label "specialized by"@en , "specialiseres af"@da .
+
+### Generic Properties
+:addresses rdf:type owl:ObjectProperty ; rdfs:label "addresses"@en .
+:exhibits rdf:type owl:ObjectProperty ; rdfs:label "exhibits"@en .
+:expresses rdf:type owl:ObjectProperty ; rdfs:label "expresses"@en .
+:frames rdf:type owl:ObjectProperty ; rdfs:label "frames"@en .
+:governs rdf:type owl:ObjectProperty ; rdfs:label "governs"@en .
+:has rdf:type owl:ObjectProperty ; rdfs:label "has"@en .
+:hasConcern rdf:type owl:ObjectProperty ; rdfs:label "has concern"@en .
+:hasPurpose rdf:type owl:ObjectProperty ; rdfs:label "has purpose"@en .
+:hasScope rdf:type owl:ObjectProperty ; rdfs:label "has scope"@en .
+:hasStakeholder rdf:type owl:ObjectProperty ; rdfs:label "has stakeholder"@en .
+:has_interested_in rdf:type owl:ObjectProperty ; rdfs:label "has interested in"@en .
+:identifies rdf:type owl:ObjectProperty ; rdfs:label "identifies"@en .
+:covered_in rdf:type owl:ObjectProperty ; owl:inverseOf :covered_Element ; rdfs:label "covered in"@en .
+:covered_Element rdf:type owl:ObjectProperty ; rdfs:label "covered element"@en .
+
+owl:topObjectProperty rdfs:range :Stakeholder .
+
+### =========================================================================
+### 3. Core Ontology Elements & Framework Dimensions
+### =========================================================================
+
+:ArchiMate_Metamodel rdf:type owl:Class ;
+    rdfs:label "ArchiMate Metamodel"@en , "ArchiMate Metamodel"@da .
+
+:Concept rdf:type owl:Class ;
+    rdfs:subClassOf :ArchiMate_Metamodel ;
+    rdfs:label "Concept"@en , "Koncept"@da .
+
+:Element rdf:type owl:Class ;
+    rdfs:subClassOf :Concept ;
+    rdfs:label "Element"@en , "Element"@da .
+
+:Core_Elements rdf:type owl:Class ;
+    rdfs:subClassOf :Element ;
+    rdfs:label "Core Elements"@en , "Kerneelementer"@da .
+
+:Extended_Elements rdf:type owl:Class ;
+    rdfs:subClassOf :Element ;
+    rdfs:label "Extended Elements"@en , "Udvidede elementer"@da .
+
+:Composite_Element rdf:type owl:Class ;
+    rdfs:subClassOf :Extended_Elements ;
+    rdfs:label "Composite Element"@en , "Sammensat element"@da .
+
+### ArchiMate Layers (Lag)
+:archimate_layer rdf:type owl:Class ;
+    rdfs:subClassOf :ArchiMate_Metamodel ;
+    rdfs:label "ArchiMate Layer"@en , "ArchiMate Lag"@da .
+
+:Motivation rdf:type owl:Class ;
+    rdfs:subClassOf :archimate_layer ;
+    rdfs:label "Motivation"@en , "Motivation"@da .
+
+:Strategy rdf:type owl:Class ;
+    rdfs:subClassOf :archimate_layer ;
+    rdfs:label "Strategy"@en , "Strategi"@da .
+
+:Business rdf:type owl:Class ;
+    rdfs:subClassOf :archimate_layer ;
+    rdfs:label "Business"@en , "Forretning"@da .
+
+:Application rdf:type owl:Class ;
+    rdfs:subClassOf :archimate_layer ;
+    rdfs:label "Application"@en , "Applikation"@da .
+
+:Technology rdf:type owl:Class ;
+    rdfs:subClassOf :archimate_layer ;
+    rdfs:label "Technology"@en , "Teknologi"@da .
+
+:Physical rdf:type owl:Class ;
+    rdfs:subClassOf :archimate_layer ;
+    rdfs:label "Physical"@en , "Fysisk"@da .
+
+<http://www.semanticweb.org/v0cn037/ontologies/2024/11/archimate32#Implementation&Migration> rdf:type owl:Class ;
+    rdfs:subClassOf :archimate_layer ;
+    rdfs:label "Implementation & Migration"@en , "Implementering & Migration"@da .
+
+### ArchiMate Aspects (Aspekter)
+:archimate_aspect rdf:type owl:Class ;
+    rdfs:subClassOf :ArchiMate_Metamodel ;
+    rdfs:label "ArchiMate Aspect"@en , "ArchiMate Aspekt"@da .
+
+:ActiveStructure rdf:type owl:Class ;
+    rdfs:subClassOf :archimate_aspect ;
+    rdfs:label "Active Structure"@en , "Aktiv struktur"@da .
+
+:Behavior rdf:type owl:Class ;
+    rdfs:subClassOf :archimate_aspect ;
+    rdfs:label "Behavior"@en , "Adfærd"@da .
+
+:PassiveStructure rdf:type owl:Class ;
+    rdfs:subClassOf :archimate_aspect ;
+    rdfs:label "Passive Structure"@en , "Passiv struktur"@da .
+
+### Structure & Behavior Classification
+:Structure_Element rdf:type owl:Class ;
+    rdfs:subClassOf :Core_Elements ;
+    rdfs:label "Structure Element"@en , "Strukturelement"@da .
+
+:Active_Structure_Element rdf:type owl:Class ;
+    rdfs:subClassOf :Structure_Element ;
+    rdfs:label "Active Structure Element"@en , "Aktivt strukturelement"@da .
+
+:Passive_Structure_Element rdf:type owl:Class ;
+    rdfs:subClassOf :Structure_Element ;
+    rdfs:label "Passive Structure Element"@en , "Passivt strukturelement"@da .
+
+:Behavior_Element rdf:type owl:Class ;
+    rdfs:subClassOf :Core_Elements ;
+    rdfs:label "Behavior Element"@en , "Adfærdselement"@da .
+
+:Internal_Active_Structure_Element rdf:type owl:Class ;
+    rdfs:subClassOf :Active_Structure_Element ;
+    rdfs:label "Internal Active Structure Element"@en , "Internt aktivt strukturelement"@da .
+
+:External_Active_Structure_Element rdf:type owl:Class ;
+    rdfs:subClassOf :Active_Structure_Element ;
+    rdfs:label "External Active Structure Element"@en , "Eksternt aktivt strukturelement"@da .
+
+:Internal_Behavior_Element rdf:type owl:Class ;
+    rdfs:subClassOf :Behavior_Element ;
+    rdfs:label "Internal Behavior Element"@en , "Internt adfærdselement"@da .
+
+:External_Behavior_Element rdf:type owl:Class ;
+    rdfs:subClassOf :Behavior_Element ;
+    rdfs:label "External Behavior Element"@en , "Eksternt adfærdselement"@da .
+
+:Collaboration rdf:type owl:Class ;
+    rdfs:subClassOf :Internal_Active_Structure_Element ;
+    rdfs:label "Collaboration"@en , "Samarbejde"@da .
+
+:Event rdf:type owl:Class ;
+    rdfs:subClassOf :Behavior_Element ;
+    rdfs:label "Event"@en , "Hændelse"@da .
+
+:Process rdf:type owl:Class ;
+    rdfs:subClassOf :Internal_Behavior_Element ;
+    rdfs:label "Process"@en , "Proces"@da .
+
+:Function rdf:type owl:Class ;
+    rdfs:subClassOf :Internal_Behavior_Element ;
+    rdfs:label "Function"@en , "Funktion"@da .
+
+:Interaction rdf:type owl:Class ;
+    rdfs:subClassOf :Internal_Behavior_Element ;
+    rdfs:label "Interaction"@en , "Interaktion"@da .
+
+:Service rdf:type owl:Class ;
+    rdfs:subClassOf :External_Behavior_Element ;
+    rdfs:label "Service"@en , "Service"@da .
+
+### =========================================================================
+### 4. Class Hierarchies for Elements
+### =========================================================================
+
+### Motivation Elements
+:Motivation_Element rdf:type owl:Class ;
+    rdfs:subClassOf :Motivation , :Element ;
+    rdfs:label "Motivation Element"@en , "Motivationselement"@da .
+
+:Stakeholder rdf:type owl:Class ;
+    rdfs:subClassOf :Motivation_Element ;
+    rdfs:label "Stakeholder"@en , "Interessent"@da .
+
+:Driver rdf:type owl:Class ;
+    rdfs:subClassOf :Motivation_Element ;
+    rdfs:label "Driver"@en , "Drivkraft"@da .
+
+:Assessment rdf:type owl:Class ;
+    rdfs:subClassOf :Motivation_Element ;
+    rdfs:label "Assessment"@en , "Vurdering"@da .
+
+:Goal rdf:type owl:Class ;
+    rdfs:subClassOf :Motivation_Element ;
+    rdfs:label "Goal"@en , "Mål"@da .
+
+:Outcome rdf:type owl:Class ;
+    rdfs:subClassOf :Motivation_Element ;
+    rdfs:label "Outcome"@en , "Resultat"@da .
+
+:Principle rdf:type owl:Class ;
+    rdfs:subClassOf :Motivation_Element ;
+    rdfs:label "Principle"@en , "Princip"@da .
+
+:Architectural_Principles rdf:type owl:Class ;
+    rdfs:subClassOf :Principle ;
+    rdfs:label "Architectural Principle"@en , "Arkitekturprincip"@da .
+
+:Requirement rdf:type owl:Class ;
+    rdfs:subClassOf :Motivation_Element ;
+    rdfs:label "Requirement"@en , "Krav"@da .
+
+:Constraint rdf:type owl:Class ;
+    rdfs:subClassOf :Motivation_Element ;
+    rdfs:label "Constraint"@en , "Begrænsning"@da .
+
+:Meaning rdf:type owl:Class ;
+    rdfs:subClassOf :Motivation_Element ;
+    rdfs:label "Meaning"@en , "Betydning"@da .
+
+:Value rdf:type owl:Class ;
+    rdfs:subClassOf :Motivation_Element ;
+    rdfs:label "Value"@en , "Værdi"@da .
+
+### Strategy Layer
+:Strategy_Active_Structure_Element rdf:type owl:Class ;
+    rdfs:subClassOf :Active_Structure_Element ;
+    rdfs:label "Strategy Active Structure Element"@en .
+
+:Strategy_Behavior_Element rdf:type owl:Class ;
+    rdfs:subClassOf :Behavior_Element ;
+    rdfs:label "Strategy Behavior Element"@en .
+
+:Resource rdf:type owl:Class ;
+    rdfs:subClassOf :Strategy , :Strategy_Active_Structure_Element ;
+    rdfs:label "Resource"@en , "Ressource"@da .
+
+:Capability rdf:type owl:Class ;
+    rdfs:subClassOf :Strategy , :Strategy_Behavior_Element ;
+    rdfs:label "Capability"@en , "Evne"@da .
+
+:Value_Stream rdf:type owl:Class ;
+    rdfs:subClassOf :Strategy , :Strategy_Behavior_Element ;
+    rdfs:label "Value Stream"@en , "Værdistrøm"@da .
+
+:Course_of_Action rdf:type owl:Class ;
+    rdfs:subClassOf :Strategy , :Strategy_Behavior_Element ;
+    rdfs:label "Course of Action"@en , "Strategisk kurs"@da .
+
+### Business Layer
+:Business_Active_Structure_Element rdf:type owl:Class ;
+    rdfs:subClassOf :Active_Structure_Element ;
+    rdfs:label "Business Active Structure Element"@en .
+
+:Business_Behavior_Element rdf:type owl:Class ;
+    rdfs:subClassOf :Behavior_Element ;
+    rdfs:label "Business Behavior Element"@en .
+
+:Business_Passive_Structure_Element rdf:type owl:Class ;
+    rdfs:subClassOf :Passive_Structure_Element ;
+    rdfs:label "Business Passive Structure Element"@en .
+
+:Business_Internal_Active_Structure_Element rdf:type owl:Class ;
+    rdfs:subClassOf :Business_Active_Structure_Element , :Internal_Active_Structure_Element ;
+    rdfs:label "Business Internal Active Structure Element"@en .
+
+:Business_Internal_Behavior_Element rdf:type owl:Class ;
+    rdfs:subClassOf :Business_Behavior_Element , :Internal_Behavior_Element ;
+    rdfs:label "Business Internal Behavior Element"@en .
+
+:Business_External_Behavior_Element rdf:type owl:Class ;
+    rdfs:subClassOf :External_Behavior_Element ;
+    rdfs:label "Business External Behavior Element"@en .
+
+:Business_Actor rdf:type owl:Class ;
+    rdfs:subClassOf :Business , :Business_Internal_Active_Structure_Element ;
+    rdfs:label "Business Actor"@en , "Forretningsaktør"@da .
+
+:Business_Role rdf:type owl:Class ;
+    rdfs:subClassOf :Business , :Business_Internal_Active_Structure_Element ;
+    rdfs:label "Business Role"@en , "Forretningsrolle"@da .
+
+:Business_Collaboration rdf:type owl:Class ;
+    rdfs:subClassOf :Business , :Business_Internal_Active_Structure_Element , :Collaboration ;
+    rdfs:label "Business Collaboration"@en , "Forretningssamarbejde"@da .
+
+:Business_Interface rdf:type owl:Class ;
+    rdfs:subClassOf :Business , :Business_Internal_Active_Structure_Element ;
+    rdfs:label "Business Interface"@en , "Forretningsgrænseflade"@da .
+
+:Business_Process rdf:type owl:Class ;
+    rdfs:subClassOf :Business , :Business_Behavior_Element , :Business_Internal_Behavior_Element , :Process ;
+    rdfs:label "Business Process"@en , "Forretningsproces"@da .
+
+:Business_Function rdf:type owl:Class ;
+    rdfs:subClassOf :Business , :Business_Behavior_Element , :Business_Internal_Behavior_Element , :Function ;
+    rdfs:label "Business Function"@en , "Forretningsfunktion"@da .
+
+:Business_Interaction rdf:type owl:Class ;
+    rdfs:subClassOf :Business , :Business_Behavior_Element , :Business_Internal_Behavior_Element , :Interaction ;
+    rdfs:label "Business Interaction"@en , "Forretningsinteraktion"@da .
+
+:Business_Event rdf:type owl:Class ;
+    rdfs:subClassOf :Business , :Business_Behavior_Element , :Event ;
+    rdfs:label "Business Event"@en , "Forretningshændelse"@da .
+
+:Business_Service rdf:type owl:Class ;
+    rdfs:subClassOf :Business , :Business_External_Behavior_Element , :Service ;
+    rdfs:label "Business Service"@en , "Forretningsservice"@da .
+
+:Business_Object rdf:type owl:Class ;
+    rdfs:subClassOf :Business , :Business_Passive_Structure_Element ;
+    rdfs:label "Business Object"@en , "Forretningsobjekt"@da .
+
+:Contract rdf:type owl:Class ;
+    rdfs:subClassOf :Business_Object ;
+    rdfs:label "Contract"@en , "Kontrakt"@da .
+
+:Representation rdf:type owl:Class ;
+    rdfs:subClassOf :Business_Object ;
+    rdfs:label "Representation"@en , "Repræsentation"@da .
+
+:Product rdf:type owl:Class ;
+    rdfs:subClassOf :Business ;
+    rdfs:label "Product"@en , "Produkt"@da .
+
+### Application Layer
+:Application_Active_Structure_Element rdf:type owl:Class ;
+    rdfs:subClassOf :Active_Structure_Element ;
+    rdfs:label "Application Active Structure Element"@en .
+
+:Application_Behavior_Element rdf:type owl:Class ;
+    rdfs:subClassOf :Behavior_Element ;
+    rdfs:label "Application Behavior Element"@en .
+
+:Application_Internal_Active_Structure_Element rdf:type owl:Class ;
+    rdfs:subClassOf :Application_Active_Structure_Element , :Internal_Active_Structure_Element ;
+    rdfs:label "Application Internal Active Structure Element"@en .
+
+:Application_Internal_Behavior_Element rdf:type owl:Class ;
+    rdfs:subClassOf :Application_Behavior_Element , :Internal_Behavior_Element ;
+    rdfs:label "Application Internal Behavior Element"@en .
+
+:Application_Component rdf:type owl:Class ;
+    rdfs:subClassOf :Application , :Application_Internal_Active_Structure_Element ;
+    rdfs:label "Application Component"@en , "Applikationskomponent"@da .
+
+:Application_Collaboration rdf:type owl:Class ;
+    rdfs:subClassOf :Application , :Application_Internal_Active_Structure_Element ;
+    rdfs:label "Application Collaboration"@en , "Applikationssamarbejde"@da .
+
+:Application_Interface rdf:type owl:Class ;
+    rdfs:subClassOf :Application ;
+    rdfs:label "Application Interface"@en , "Applikationsgrænseflade"@da .
+
+:Application_Function rdf:type owl:Class ;
+    rdfs:subClassOf :Application , :Application_Behavior_Element , :Application_Internal_Behavior_Element ;
+    rdfs:label "Application Function"@en , "Applikationsfunktion"@da .
+
+:Application_Interaction rdf:type owl:Class ;
+    rdfs:subClassOf :Application , :Application_Behavior_Element , :Application_Internal_Behavior_Element ;
+    rdfs:label "Application Interaction"@en , "Applikationsinteraktion"@da .
+
+:Application_Process rdf:type owl:Class ;
+    rdfs:subClassOf :Application , :Application_Behavior_Element , :Application_Internal_Behavior_Element ;
+    rdfs:label "Application Process"@en , "Applikationsproces"@da .
+
+:Application_Event rdf:type owl:Class ;
+    rdfs:subClassOf :Application , :Application_Behavior_Element , :Event ;
+    rdfs:label "Application Event"@en , "Applikationshændelse"@da .
+
+:Application_Service rdf:type owl:Class ;
+    rdfs:subClassOf :Application , :Application_Behavior_Element ;
+    rdfs:label "Application Service"@en , "Applikationsservice"@da .
+
+:Data_Object rdf:type owl:Class ;
+    rdfs:subClassOf :Application ;
+    rdfs:label "Data Object"@en , "Dataobjekt"@da .
+
+### Technology Layer
+:Technology_Active_Structure_Element rdf:type owl:Class ;
+    rdfs:subClassOf :Active_Structure_Element ;
+    rdfs:label "Technology Active Structure Element"@en .
+
+:Technology_Behavior_Element rdf:type owl:Class ;
+    rdfs:subClassOf :Behavior_Element ;
+    rdfs:label "Technology Behavior Element"@en .
+
+:Technology_Passive_Structure_Element rdf:type owl:Class ;
+    rdfs:subClassOf :Passive_Structure_Element ;
+    rdfs:label "Technology Passive Structure Element"@en .
+
+:Technology_Internal_Active_Structure_Element rdf:type owl:Class ;
+    rdfs:subClassOf :Technology_Active_Structure_Element , :Internal_Active_Structure_Element ;
+    rdfs:label "Technology Internal Active Structure Element"@en .
+
+:Technology_Internal_Behavior_Element rdf:type owl:Class ;
+    rdfs:subClassOf :Technology_Behavior_Element , :Internal_Behavior_Element ;
+    rdfs:label "Technology Internal Behavior Element"@en .
+
+:Node rdf:type owl:Class ;
+    rdfs:subClassOf :Technology , :Technology_Internal_Active_Structure_Element ;
+    rdfs:label "Node"@en , "Knude"@da .
+
+:Device rdf:type owl:Class ;
+    rdfs:subClassOf :Technology , :Technology_Internal_Active_Structure_Element ;
+    rdfs:label "Device"@en , "Enhed"@da .
+
+:SystemSoftware rdf:type owl:Class ;
+    rdfs:subClassOf :Technology , :Technology_Internal_Active_Structure_Element ;
+    rdfs:label "System Software"@en , "Systemsoftware"@da .
+
+:Technology_Collaboration rdf:type owl:Class ;
+    rdfs:subClassOf :Technology , :Technology_Internal_Active_Structure_Element ;
+    rdfs:label "Technology Collaboration"@en , "Teknologisamarbejde"@da .
+
+:Technology_Interface rdf:type owl:Class ;
+    rdfs:subClassOf :Technology ;
+    rdfs:label "Technology Interface"@en , "Teknologigrænseflade"@da .
+
+:Path rdf:type owl:Class ;
+    rdfs:subClassOf :Technology_Active_Structure_Element ;
+    rdfs:label "Path"@en , "Sti"@da .
+
+:Communication_Network rdf:type owl:Class ;
+    rdfs:subClassOf :Technology , :Technology_Active_Structure_Element ;
+    rdfs:label "Communication Network"@en , "Kommunikationsnetværk"@da .
+
+:Technology_Function rdf:type owl:Class ;
+    rdfs:subClassOf :Technology , :Technology_Behavior_Element , :Technology_Internal_Behavior_Element ;
+    rdfs:label "Technology Function"@en , "Teknologifunktion"@da .
+
+:Technology_Process rdf:type owl:Class ;
+    rdfs:subClassOf :Technology , :Technology_Behavior_Element , :Technology_Internal_Behavior_Element ;
+    rdfs:label "Technology Process"@en , "Teknologiproces"@da .
+
+:Technology_Interaction rdf:type owl:Class ;
+    rdfs:subClassOf :Technology , :Technology_Behavior_Element , :Technology_Internal_Behavior_Element ;
+    rdfs:label "Technology Interaction"@en , "Teknologiinteraktion"@da .
+
+:Technology_Event rdf:type owl:Class ;
+    rdfs:subClassOf :Technology , :Technology_Behavior_Element , :Event ;
+    rdfs:label "Technology Event"@en , "Teknologihændelse"@da .
+
+:Technology_Service rdf:type owl:Class ;
+    rdfs:subClassOf :Technology , :Technology_Behavior_Element ;
+    rdfs:label "Technology Service"@en , "Teknologiservice"@da .
+
+:Artifact rdf:type owl:Class ;
+    rdfs:subClassOf :Technology , :Technology_Passive_Structure_Element ;
+    rdfs:label "Artifact"@en , "Artefakt"@da .
+
+### Physical Layer
+:Physical_Active_Structure_Element rdf:type owl:Class ;
+    rdfs:subClassOf :Active_Structure_Element ;
+    rdfs:label "Physical Active Structure Element"@en .
+
+:Equipment rdf:type owl:Class ;
+    rdfs:subClassOf :Physical , :Physical_Active_Structure_Element ;
+    rdfs:label "Equipment"@en , "Udstyr"@da .
+
+:Facility rdf:type owl:Class ;
+    rdfs:subClassOf :Physical ;
+    rdfs:label "Facility"@en , "Facilitet"@da .
+
+:Distribution_Network rdf:type owl:Class ;
+    rdfs:subClassOf :Physical , :Physical_Active_Structure_Element ;
+    rdfs:label "Distribution Network"@en , "Distributionsnetværk"@da .
+
+:Material rdf:type owl:Class ;
+    rdfs:subClassOf :Physical ;
+    rdfs:label "Material"@en , "Materiale"@da .
+
+### Implementation & Migration Layer
+:Work_Package rdf:type owl:Class ;
+    rdfs:subClassOf :Behavior_Element , <http://www.semanticweb.org/v0cn037/ontologies/2024/11/archimate32#Implementation&Migration> ;
+    rdfs:label "Work Package"@en , "Arbejdspakke"@da .
+
+:Deliverable rdf:type owl:Class ;
+    rdfs:subClassOf :Passive_Structure_Element , <http://www.semanticweb.org/v0cn037/ontologies/2024/11/archimate32#Implementation&Migration> ;
+    rdfs:label "Deliverable"@en , "Leverance"@da .
+
+:Implementation_Event rdf:type owl:Class ;
+    rdfs:subClassOf :Event , <http://www.semanticweb.org/v0cn037/ontologies/2024/11/archimate32#Implementation&Migration> ;
+    rdfs:label "Implementation Event"@en , "Implementeringshændelse"@da .
+
+:Plateau rdf:type owl:Class ;
+    rdfs:subClassOf <http://www.semanticweb.org/v0cn037/ontologies/2024/11/archimate32#Implementation&Migration> ;
+    rdfs:label "Plateau"@en , "Plateau"@da .
+
+:Gap rdf:type owl:Class ;
+    rdfs:subClassOf <http://www.semanticweb.org/v0cn037/ontologies/2024/11/archimate32#Implementation&Migration> ;
+    rdfs:label "Gap"@en , "Gab"@da .
+
+### Composite & Other Elements
+:Grouping rdf:type owl:Class ;
+    rdfs:subClassOf :Composite_Element ;
+    rdfs:label "Grouping"@en , "Gruppering"@da .
+
+:Location rdf:type owl:Class ;
+    rdfs:subClassOf :Composite_Element ;
+    rdfs:label "Location"@en , "Lokation"@da .
+
+:Junction rdf:type owl:Class ;
+    rdfs:subClassOf :Element ;
+    rdfs:label "Junction"@en , "Forgrening"@da .
+
+### Viewpoint & Architecture Descriptions
+:ArchiMate_Viewpoint rdf:type owl:Class ;
+    rdfs:label "ArchiMate Viewpoint"@en , "ArchiMate Viewpoint"@da .
+
+:Basic_Viewpoint rdf:type owl:Class ;
+    rdfs:subClassOf :ArchiMate_Viewpoint ;
+    rdfs:label "Basic Viewpoint"@en .
+
+:Composition_Category rdf:type owl:Class ;
+    rdfs:subClassOf :Basic_Viewpoint ;
+    rdfs:label "Composition Category Viewpoint"@en .
+
+:Cooperation_Category rdf:type owl:Class ;
+    rdfs:subClassOf :Basic_Viewpoint ;
+    rdfs:label "Cooperation Category Viewpoint"@en .
+
+:Architect rdf:type owl:Class ;
+    rdfs:subClassOf :Stakeholder ;
+    rdfs:label "Architect"@en , "Arkitekt"@da .
+
+:Conceptual_Model_of_Architecture_Description rdf:type owl:Class ;
+    rdfs:label "Conceptual Model of Architecture Description"@en .
+
+:Architecture rdf:type owl:Class ;
+    rdfs:subClassOf :Conceptual_Model_of_Architecture_Description ;
+    rdfs:label "Architecture"@en , "Arkitektur"@da .
+
+:Architecture_Description rdf:type owl:Class ;
+    rdfs:subClassOf :Conceptual_Model_of_Architecture_Description ;
+    rdfs:label "Architecture Description"@en , "Arkitekturbeskrivelse"@da .
+
+:Architecture_Model rdf:type owl:Class ;
+    rdfs:subClassOf :Architecture_View ;
+    rdfs:label "Architecture Model"@en , "Arkitekturmodel"@da .
+
+:Architecture_Rationale rdf:type owl:Class ;
+    rdfs:subClassOf :Architecture_Description ;
+    rdfs:label "Architecture Rationale"@en .
+
+:Architecture_View rdf:type owl:Class ;
+    rdfs:subClassOf :Architecture_Description ;
+    rdfs:label "Architecture View"@en , "Arkitekturview"@da .
+
+:Architecture_Viewpoint rdf:type owl:Class ;
+    rdfs:subClassOf :Architecture_Description ;
+    rdfs:label "Architecture Viewpoint"@en , "Arkitekturviewpoint"@da .
+
+:Concern rdf:type owl:Class ;
+    rdfs:subClassOf :ArchiMate_Viewpoint , :Conceptual_Model_of_Architecture_Description ;
+    rdfs:label "Concern"@en , "Bekymring/Interesseområde"@da .
+
+:Correspondance rdf:type owl:Class ;
+    rdfs:subClassOf :Architecture_Description ;
+    rdfs:label "Correspondance"@en .
+
+:Correspondance_Rule rdf:type owl:Class ;
+    rdfs:subClassOf :Architecture_Description ;
+    rdfs:label "Correspondance Rule"@en .

@@ -295,7 +295,11 @@ export const useGraphStore = create<GraphStoreState>()(
         selectedConceptId: ids.length > 0 ? ids[0] : null,
         selectedRelationId: ids.length > 0 ? null : get().selectedRelationId
       }),
-      selectRelation: (id) => set({ selectedRelationId: id }),
+      selectRelation: (id) => set({ 
+        selectedRelationId: id,
+        selectedConceptId: id ? null : get().selectedConceptId,
+        selectedConceptIds: id ? [] : get().selectedConceptIds,
+      }),
       centerSelectedNode: () => set((s) => ({ centerSelectionCount: s.centerSelectionCount + 1 })),
       setFocusMode: (focus) => set({ focusMode: focus }),
       setRelationBuilderOpen: (open, sourceId = null) => set({ 

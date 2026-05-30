@@ -310,10 +310,11 @@ export function RelationBuilder() {
     setSelectedIndex(0);
   }, [options.length, filteredRelations.length, filteredTypes.length, step]);
 
-  // Scroll selected item into view
+  // Scroll selected item into view with safety padding to prevent cut-off borders/shadows
   useEffect(() => {
     if (listRef.current) {
-      const selectedElement = listRef.current.children[selectedIndex] as HTMLElement;
+      const buttons = listRef.current.querySelectorAll('button');
+      const selectedElement = buttons[selectedIndex] as HTMLElement;
       if (selectedElement) {
         const container = listRef.current;
         const elemTop = selectedElement.offsetTop;
@@ -321,10 +322,12 @@ export function RelationBuilder() {
         const containerTop = container.scrollTop;
         const containerBottom = containerTop + container.clientHeight;
 
-        if (elemTop < containerTop) {
-          container.scrollTo({ top: elemTop, behavior: 'smooth' });
-        } else if (elemBottom > containerBottom) {
-          container.scrollTo({ top: elemBottom - container.clientHeight, behavior: 'smooth' });
+        const padding = 12; // safety padding for borders, shadows and rings
+
+        if (elemTop - padding < containerTop) {
+          container.scrollTo({ top: elemTop - padding, behavior: 'auto' });
+        } else if (elemBottom + padding > containerBottom) {
+          container.scrollTo({ top: elemBottom + padding - container.clientHeight, behavior: 'auto' });
         }
       }
     }
@@ -511,17 +514,29 @@ export function RelationBuilder() {
     return isNewTarget ? targetIdOrName : targetNode?.name || 'Select Target';
   }, [step, options, selectedIndex, query, isNewTarget, targetIdOrName, targetNode]);
 
-  const displayTargetType = useMemo(() => {
-    let rawType: string | null = null;
+  const activeTargetType = useMemo(() => {
     if (step === 'target') {
       const currentSelection = options[selectedIndex];
-      if (currentSelection) rawType = currentSelection.virtualType || currentSelection.description;
-    } else {
-      rawType = isNewTarget ? selectedType : (targetNode ? GraphService.getVirtualType(targetNode, views) : null);
+      if (currentSelection) {
+        if (currentSelection.isNew) return null;
+        return (currentSelection.virtualType || currentSelection.description) as ConceptType | null;
+      }
+      return null;
     }
-    if (!rawType) return null;
-    return getDisplayLabelForType(rawType, activePlugin);
-  }, [step, options, selectedIndex, isNewTarget, selectedType, targetNode, views, activePlugin]);
+    if (step === 'type') {
+      if (baseAllowedTypes.length === 1) {
+        return baseAllowedTypes[0].type;
+      }
+      const highlighted = filteredTypes[selectedIndex];
+      return highlighted ? highlighted.type : selectedType;
+    }
+    return isNewTarget ? selectedType : (targetNode?.conceptType || null);
+  }, [step, options, selectedIndex, filteredTypes, baseAllowedTypes, selectedType, isNewTarget, targetNode]);
+
+  const displayTargetType = useMemo(() => {
+    if (!activeTargetType) return null;
+    return getDisplayLabelForType(activeTargetType, activePlugin);
+  }, [activeTargetType, activePlugin]);
 
   if (!open || !sourceNode) return null;
 
@@ -710,10 +725,10 @@ export function RelationBuilder() {
         </div>
 
         {/* Content Area */}
-        <div className="flex-1 overflow-hidden px-10 pb-10">
-          <div className="h-full min-h-[350px] max-h-[450px]">
+        <div className="flex-1 flex flex-col overflow-hidden px-10 pb-10">
+          <div className="flex-1 min-h-0">
             {step === 'target' ? (
-              <div ref={listRef} className="h-full relative overflow-y-auto custom-scrollbar pr-2 pt-2 flex flex-col gap-2">
+              <div ref={listRef} className="h-full relative overflow-y-auto custom-scrollbar pr-2 pt-2 pb-6 flex flex-col gap-2">
                 {options.map((opt, idx) => (
                   <button
                     key={opt.id === 'new' ? `new-${query}` : opt.id}
@@ -777,6 +792,7 @@ export function RelationBuilder() {
                     )}
                   </button>
                 ))}
+                {options.length > 0 && <div className="h-4 shrink-0" />}
               </div>
             ) : step === 'type' ? (
               baseAllowedTypes.length === 1 ? (
@@ -800,7 +816,7 @@ export function RelationBuilder() {
                   </button>
                 </div>
               ) : (
-                <div ref={listRef} className="h-full relative grid grid-cols-1 sm:grid-cols-2 content-start gap-3 overflow-y-auto custom-scrollbar pr-2 pt-2 pb-4">
+                <div ref={listRef} className="h-full relative grid grid-cols-1 sm:grid-cols-2 content-start gap-3 overflow-y-auto custom-scrollbar pr-2 pt-2 pb-6">
                   {filteredTypes.map((ct, idx) => {
                     const allowedRels = activePlugin?.getAvailableRelations
                       ? activePlugin.getAvailableRelations(sourceNode.conceptType, ct.type)
@@ -819,7 +835,7 @@ export function RelationBuilder() {
                         className={`
                           flex flex-col gap-4 p-5 rounded-[1.25rem] border transition-all duration-300 group outline-none
                           ${idx === selectedIndex
-                            ? 'bg-white border-emerald-500 shadow-lg shadow-emerald-200/20 translate-y--1 ring-1 ring-emerald-500/10'
+                            ? 'bg-white border-emerald-500 shadow-lg shadow-emerald-200/20 -translate-y-1 ring-1 ring-emerald-500/10'
                             : 'bg-white/40 border-slate-100 hover:bg-white hover:border-slate-200'}
                           ${!isCompatible ? 'opacity-40 cursor-not-allowed border-dashed' : ''}
                         `}
@@ -863,11 +879,12 @@ export function RelationBuilder() {
                       </button>
                     );
                   })}
+                  {filteredTypes.length > 0 && <div className="col-span-1 sm:col-span-2 h-4" />}
                 </div>
               )
             ) : (
               <div className="h-full flex flex-col gap-6">
-                <div ref={listRef} className="flex-1 relative overflow-y-auto custom-scrollbar pr-2 pt-2 flex flex-col gap-2">
+                <div ref={listRef} className="flex-1 relative overflow-y-auto custom-scrollbar pr-2 pt-2 pb-6 flex flex-col gap-2">
                   <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1 mb-1">Common Relations</div>
                   {filteredRelations.map((rel, idx) => (
                     <button
@@ -897,6 +914,7 @@ export function RelationBuilder() {
                       )}
                     </button>
                   ))}
+                  {filteredRelations.length > 0 && <div className="h-4 shrink-0" />}
                   {filteredRelations.length === 0 && (
                     <div className="text-center py-8 text-slate-400 font-bold uppercase tracking-widest text-[11px]">
                       Ingen tilladte relationer under denne notation
@@ -973,11 +991,15 @@ export function RelationBuilder() {
                   <div className="flex items-center gap-2 text-[12px] font-bold text-slate-700">
                     <span className="w-4 h-4 rounded bg-emerald-500/10 text-emerald-600 flex items-center justify-center text-[10px] font-black shrink-0">T</span>
                     <span className="truncate max-w-[120px]">{targetNode?.name || targetIdOrName}</span>
-                    <span className="text-[9px] px-1.5 py-0.5 bg-emerald-100 text-emerald-600 rounded uppercase font-black tracking-tighter shrink-0">
-                      {isNewTarget
-                        ? (activePlugin?.conceptTypeLabels?.[selectedType] || selectedType)
-                        : (targetNode ? (activePlugin?.conceptTypeLabels?.[targetNode.conceptType] || targetNode.conceptType) : 'Unknown')}
-                    </span>
+                    {activeTargetType ? (
+                      <span className="text-[9px] px-1.5 py-0.5 bg-emerald-100 text-emerald-600 rounded uppercase font-black tracking-tighter shrink-0">
+                        {activePlugin?.conceptTypeLabels?.[activeTargetType] || activeTargetType}
+                      </span>
+                    ) : (
+                      <span className="text-[9px] px-1.5 py-0.5 bg-slate-100 text-slate-400 rounded uppercase font-black tracking-tighter shrink-0">
+                        Not Selected
+                      </span>
+                    )}
                   </div>
                 ) : (
                   <div className="text-[11px] italic text-slate-400">Select target node to view active rules...</div>
@@ -988,11 +1010,11 @@ export function RelationBuilder() {
             {/* Rules List */}
             <div className="flex-1 flex flex-col gap-3">
               <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">
-                {targetNode || (isNewTarget && selectedType) ? 'Allowed Relationships' : `Relationships from ${activePlugin?.conceptTypeLabels?.[sourceNode.conceptType] || sourceNode.conceptType}`}
+                {activeTargetType ? 'Allowed Relationships' : `Relationships from ${activePlugin?.conceptTypeLabels?.[sourceNode.conceptType] || sourceNode.conceptType}`}
               </div>
 
               {(() => {
-                const targetT = isNewTarget ? selectedType : targetNode?.conceptType;
+                const targetT = activeTargetType;
                 if (targetT) {
                   const allowedRels = activePlugin.getAvailableRelations?.(sourceNode.conceptType, targetT) || [];
                   if (allowedRels.length === 0) {

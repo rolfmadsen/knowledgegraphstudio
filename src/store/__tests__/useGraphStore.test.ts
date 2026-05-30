@@ -166,6 +166,63 @@ describe('useGraphStore', () => {
       expect(groupNode?.height).toBe(386);
     });
 
+    it('groups concepts with an existing name, generating a unique name without crashing', () => {
+      const mockConcepts: ConceptNode[] = [
+        {
+          id: toElementId('c:1'),
+          conceptType: 'actor',
+          name: 'Actor 1',
+          properties: [],
+          policies: [],
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          lifecycleState: 'active',
+          aliases: []
+        },
+        {
+          id: toElementId('g:existing'),
+          conceptType: 'bounded_context',
+          name: 'My Test Group',
+          policies: [],
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          lifecycleState: 'active',
+          aliases: []
+        }
+      ];
+      const mockViews: View[] = [
+        {
+          id: toElementId('v:1'),
+          name: 'My View',
+          type: 'archimate',
+          layoutAlgorithm: 'manual',
+          nodes: [
+            { conceptId: toElementId('c:1'), x: 100, y: 100, width: 210, height: 76 },
+          ],
+          edges: [],
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          lifecycleState: 'active',
+        },
+      ];
+
+      useGraphStore.setState({
+        concepts: mockConcepts,
+        views: mockViews,
+        activeViewId: toElementId('v:1'),
+      });
+
+      // Group elements under the name "My Test Group", which already exists.
+      useGraphStore.getState().groupConcepts(toElementId('v:1'), [toElementId('c:1')], 'My Test Group');
+
+      const state = useGraphStore.getState();
+      expect(state.concepts).toBeDefined();
+      
+      const newGroup = state.concepts.find(c => c.conceptType === 'bounded_context' && c.id !== 'g:existing');
+      expect(newGroup).toBeDefined();
+      expect(newGroup?.name).toBe('My Test Group 1');
+    });
+
     it('ungroups a concept', () => {
       const mockConcepts: ConceptNode[] = [
         { 
@@ -334,6 +391,21 @@ describe('useGraphStore', () => {
 
       useGraphStore.getState().deleteConcept(toElementId('concept:1'));
 
+    });
+
+    it('deselects concept selection when selectRelation is called', () => {
+      useGraphStore.setState({
+        selectedConceptId: toElementId('concept:1'),
+        selectedConceptIds: [toElementId('concept:1')],
+        selectedRelationId: null,
+      });
+
+      useGraphStore.getState().selectRelation(toElementId('relation:1'));
+
+      const state = useGraphStore.getState();
+      expect(state.selectedRelationId).toBe(toElementId('relation:1'));
+      expect(state.selectedConceptId).toBeNull();
+      expect(state.selectedConceptIds).toEqual([]);
     });
   });
 

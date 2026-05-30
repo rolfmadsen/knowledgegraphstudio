@@ -1,0 +1,2031 @@
+{
+  "classes": {
+    "Structural_Relationship": {
+      "superClasses": [
+        "Relationship"
+      ],
+      "labels": {
+        "en": "Structural Relationship",
+        "da": "Strukturel relation"
+      }
+    },
+    "Relationship": {
+      "superClasses": [],
+      "labels": {}
+    },
+    "Depdendency_Relationship": {
+      "superClasses": [
+        "Relationship"
+      ],
+      "labels": {
+        "en": "Dependency Relationship",
+        "da": "Afhængighedsrelation"
+      }
+    },
+    "Dynamic_Relationship": {
+      "superClasses": [
+        "Relationship"
+      ],
+      "labels": {
+        "en": "Dynamic Relationship",
+        "da": "Dynamisk relation"
+      }
+    },
+    "ArchiMate_Metamodel": {
+      "superClasses": [],
+      "labels": {
+        "en": "ArchiMate Metamodel",
+        "da": "ArchiMate Metamodel"
+      }
+    },
+    "Concept": {
+      "superClasses": [
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Concept",
+        "da": "Koncept"
+      }
+    },
+    "Element": {
+      "superClasses": [
+        "Concept",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Element",
+        "da": "Element"
+      }
+    },
+    "Core_Elements": {
+      "superClasses": [
+        "Element",
+        "Concept",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Core Elements",
+        "da": "Kerneelementer"
+      }
+    },
+    "Extended_Elements": {
+      "superClasses": [
+        "Element",
+        "Concept",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Extended Elements",
+        "da": "Udvidede elementer"
+      }
+    },
+    "Composite_Element": {
+      "superClasses": [
+        "Extended_Elements",
+        "Element",
+        "Concept",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Composite Element",
+        "da": "Sammensat element"
+      }
+    },
+    "archimate_layer": {
+      "superClasses": [
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "ArchiMate Layer",
+        "da": "ArchiMate Lag"
+      }
+    },
+    "Motivation": {
+      "superClasses": [
+        "archimate_layer",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Motivation",
+        "da": "Motivation"
+      }
+    },
+    "Strategy": {
+      "superClasses": [
+        "archimate_layer",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Strategy",
+        "da": "Strategi"
+      }
+    },
+    "Business": {
+      "superClasses": [
+        "archimate_layer",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Business",
+        "da": "Forretning"
+      }
+    },
+    "Application": {
+      "superClasses": [
+        "archimate_layer",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Application",
+        "da": "Applikation"
+      }
+    },
+    "Technology": {
+      "superClasses": [
+        "archimate_layer",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Technology",
+        "da": "Teknologi"
+      }
+    },
+    "Physical": {
+      "superClasses": [
+        "archimate_layer",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Physical",
+        "da": "Fysisk"
+      }
+    },
+    "Implementation&Migration": {
+      "superClasses": [
+        "archimate_layer",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Implementation & Migration",
+        "da": "Implementering & Migration"
+      }
+    },
+    "archimate_aspect": {
+      "superClasses": [
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "ArchiMate Aspect",
+        "da": "ArchiMate Aspekt"
+      }
+    },
+    "ActiveStructure": {
+      "superClasses": [
+        "archimate_aspect",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Active Structure",
+        "da": "Aktiv struktur"
+      }
+    },
+    "Behavior": {
+      "superClasses": [
+        "archimate_aspect",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Behavior",
+        "da": "Adfærd"
+      }
+    },
+    "PassiveStructure": {
+      "superClasses": [
+        "archimate_aspect",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Passive Structure",
+        "da": "Passiv struktur"
+      }
+    },
+    "Structure_Element": {
+      "superClasses": [
+        "Core_Elements",
+        "Element",
+        "Concept",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Structure Element",
+        "da": "Strukturelement"
+      }
+    },
+    "Active_Structure_Element": {
+      "superClasses": [
+        "Structure_Element",
+        "Core_Elements",
+        "Element",
+        "Concept",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Active Structure Element",
+        "da": "Aktivt strukturelement"
+      }
+    },
+    "Passive_Structure_Element": {
+      "superClasses": [
+        "Structure_Element",
+        "Core_Elements",
+        "Element",
+        "Concept",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Passive Structure Element",
+        "da": "Passivt strukturelement"
+      }
+    },
+    "Behavior_Element": {
+      "superClasses": [
+        "Core_Elements",
+        "Element",
+        "Concept",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Behavior Element",
+        "da": "Adfærdselement"
+      }
+    },
+    "Internal_Active_Structure_Element": {
+      "superClasses": [
+        "Active_Structure_Element",
+        "Structure_Element",
+        "Core_Elements",
+        "Element",
+        "Concept",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Internal Active Structure Element",
+        "da": "Internt aktivt strukturelement"
+      }
+    },
+    "External_Active_Structure_Element": {
+      "superClasses": [
+        "Active_Structure_Element",
+        "Structure_Element",
+        "Core_Elements",
+        "Element",
+        "Concept",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "External Active Structure Element",
+        "da": "Eksternt aktivt strukturelement"
+      }
+    },
+    "Internal_Behavior_Element": {
+      "superClasses": [
+        "Behavior_Element",
+        "Core_Elements",
+        "Element",
+        "Concept",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Internal Behavior Element",
+        "da": "Internt adfærdselement"
+      }
+    },
+    "External_Behavior_Element": {
+      "superClasses": [
+        "Behavior_Element",
+        "Core_Elements",
+        "Element",
+        "Concept",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "External Behavior Element",
+        "da": "Eksternt adfærdselement"
+      }
+    },
+    "Collaboration": {
+      "superClasses": [
+        "Internal_Active_Structure_Element",
+        "Active_Structure_Element",
+        "Structure_Element",
+        "Core_Elements",
+        "Element",
+        "Concept",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Collaboration",
+        "da": "Samarbejde"
+      }
+    },
+    "Event": {
+      "superClasses": [
+        "Behavior_Element",
+        "Core_Elements",
+        "Element",
+        "Concept",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Event",
+        "da": "Hændelse"
+      }
+    },
+    "Process": {
+      "superClasses": [
+        "Internal_Behavior_Element",
+        "Behavior_Element",
+        "Core_Elements",
+        "Element",
+        "Concept",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Process",
+        "da": "Proces"
+      }
+    },
+    "Function": {
+      "superClasses": [
+        "Internal_Behavior_Element",
+        "Behavior_Element",
+        "Core_Elements",
+        "Element",
+        "Concept",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Function",
+        "da": "Funktion"
+      }
+    },
+    "Interaction": {
+      "superClasses": [
+        "Internal_Behavior_Element",
+        "Behavior_Element",
+        "Core_Elements",
+        "Element",
+        "Concept",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Interaction",
+        "da": "Interaktion"
+      }
+    },
+    "Service": {
+      "superClasses": [
+        "External_Behavior_Element",
+        "Behavior_Element",
+        "Core_Elements",
+        "Element",
+        "Concept",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Service",
+        "da": "Service"
+      }
+    },
+    "Motivation_Element": {
+      "superClasses": [
+        "Motivation",
+        "Element",
+        "archimate_layer",
+        "ArchiMate_Metamodel",
+        "Concept"
+      ],
+      "labels": {
+        "en": "Motivation Element",
+        "da": "Motivationselement"
+      }
+    },
+    "Stakeholder": {
+      "superClasses": [
+        "Motivation_Element",
+        "Motivation",
+        "Element",
+        "archimate_layer",
+        "ArchiMate_Metamodel",
+        "Concept"
+      ],
+      "labels": {
+        "en": "Stakeholder",
+        "da": "Interessent"
+      }
+    },
+    "Driver": {
+      "superClasses": [
+        "Motivation_Element",
+        "Motivation",
+        "Element",
+        "archimate_layer",
+        "ArchiMate_Metamodel",
+        "Concept"
+      ],
+      "labels": {
+        "en": "Driver",
+        "da": "Drivkraft"
+      }
+    },
+    "Assessment": {
+      "superClasses": [
+        "Motivation_Element",
+        "Motivation",
+        "Element",
+        "archimate_layer",
+        "ArchiMate_Metamodel",
+        "Concept"
+      ],
+      "labels": {
+        "en": "Assessment",
+        "da": "Vurdering"
+      }
+    },
+    "Goal": {
+      "superClasses": [
+        "Motivation_Element",
+        "Motivation",
+        "Element",
+        "archimate_layer",
+        "ArchiMate_Metamodel",
+        "Concept"
+      ],
+      "labels": {
+        "en": "Goal",
+        "da": "Mål"
+      }
+    },
+    "Outcome": {
+      "superClasses": [
+        "Motivation_Element",
+        "Motivation",
+        "Element",
+        "archimate_layer",
+        "ArchiMate_Metamodel",
+        "Concept"
+      ],
+      "labels": {
+        "en": "Outcome",
+        "da": "Resultat"
+      }
+    },
+    "Principle": {
+      "superClasses": [
+        "Motivation_Element",
+        "Motivation",
+        "Element",
+        "archimate_layer",
+        "ArchiMate_Metamodel",
+        "Concept"
+      ],
+      "labels": {
+        "en": "Principle",
+        "da": "Princip"
+      }
+    },
+    "Architectural_Principles": {
+      "superClasses": [
+        "Principle",
+        "Motivation_Element",
+        "Motivation",
+        "Element",
+        "archimate_layer",
+        "ArchiMate_Metamodel",
+        "Concept"
+      ],
+      "labels": {
+        "en": "Architectural Principle",
+        "da": "Arkitekturprincip"
+      }
+    },
+    "Requirement": {
+      "superClasses": [
+        "Motivation_Element",
+        "Motivation",
+        "Element",
+        "archimate_layer",
+        "ArchiMate_Metamodel",
+        "Concept"
+      ],
+      "labels": {
+        "en": "Requirement",
+        "da": "Krav"
+      }
+    },
+    "Constraint": {
+      "superClasses": [
+        "Motivation_Element",
+        "Motivation",
+        "Element",
+        "archimate_layer",
+        "ArchiMate_Metamodel",
+        "Concept"
+      ],
+      "labels": {
+        "en": "Constraint",
+        "da": "Begrænsning"
+      }
+    },
+    "Meaning": {
+      "superClasses": [
+        "Motivation_Element",
+        "Motivation",
+        "Element",
+        "archimate_layer",
+        "ArchiMate_Metamodel",
+        "Concept"
+      ],
+      "labels": {
+        "en": "Meaning",
+        "da": "Betydning"
+      }
+    },
+    "Value": {
+      "superClasses": [
+        "Motivation_Element",
+        "Motivation",
+        "Element",
+        "archimate_layer",
+        "ArchiMate_Metamodel",
+        "Concept"
+      ],
+      "labels": {
+        "en": "Value",
+        "da": "Værdi"
+      }
+    },
+    "Strategy_Active_Structure_Element": {
+      "superClasses": [
+        "Active_Structure_Element",
+        "Structure_Element",
+        "Core_Elements",
+        "Element",
+        "Concept",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Strategy Active Structure Element"
+      }
+    },
+    "Strategy_Behavior_Element": {
+      "superClasses": [
+        "Behavior_Element",
+        "Core_Elements",
+        "Element",
+        "Concept",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Strategy Behavior Element"
+      }
+    },
+    "Resource": {
+      "superClasses": [
+        "Strategy",
+        "Strategy_Active_Structure_Element",
+        "archimate_layer",
+        "ArchiMate_Metamodel",
+        "Active_Structure_Element",
+        "Structure_Element",
+        "Core_Elements",
+        "Element",
+        "Concept"
+      ],
+      "labels": {
+        "en": "Resource",
+        "da": "Ressource"
+      }
+    },
+    "Capability": {
+      "superClasses": [
+        "Strategy",
+        "Strategy_Behavior_Element",
+        "archimate_layer",
+        "ArchiMate_Metamodel",
+        "Behavior_Element",
+        "Core_Elements",
+        "Element",
+        "Concept"
+      ],
+      "labels": {
+        "en": "Capability",
+        "da": "Evne"
+      }
+    },
+    "Value_Stream": {
+      "superClasses": [
+        "Strategy",
+        "Strategy_Behavior_Element",
+        "archimate_layer",
+        "ArchiMate_Metamodel",
+        "Behavior_Element",
+        "Core_Elements",
+        "Element",
+        "Concept"
+      ],
+      "labels": {
+        "en": "Value Stream",
+        "da": "Værdistrøm"
+      }
+    },
+    "Course_of_Action": {
+      "superClasses": [
+        "Strategy",
+        "Strategy_Behavior_Element",
+        "archimate_layer",
+        "ArchiMate_Metamodel",
+        "Behavior_Element",
+        "Core_Elements",
+        "Element",
+        "Concept"
+      ],
+      "labels": {
+        "en": "Course of Action",
+        "da": "Strategisk kurs"
+      }
+    },
+    "Business_Active_Structure_Element": {
+      "superClasses": [
+        "Active_Structure_Element",
+        "Structure_Element",
+        "Core_Elements",
+        "Element",
+        "Concept",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Business Active Structure Element"
+      }
+    },
+    "Business_Behavior_Element": {
+      "superClasses": [
+        "Behavior_Element",
+        "Core_Elements",
+        "Element",
+        "Concept",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Business Behavior Element"
+      }
+    },
+    "Business_Passive_Structure_Element": {
+      "superClasses": [
+        "Passive_Structure_Element",
+        "Structure_Element",
+        "Core_Elements",
+        "Element",
+        "Concept",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Business Passive Structure Element"
+      }
+    },
+    "Business_Internal_Active_Structure_Element": {
+      "superClasses": [
+        "Business_Active_Structure_Element",
+        "Internal_Active_Structure_Element",
+        "Active_Structure_Element",
+        "Structure_Element",
+        "Core_Elements",
+        "Element",
+        "Concept",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Business Internal Active Structure Element"
+      }
+    },
+    "Business_Internal_Behavior_Element": {
+      "superClasses": [
+        "Business_Behavior_Element",
+        "Internal_Behavior_Element",
+        "Behavior_Element",
+        "Core_Elements",
+        "Element",
+        "Concept",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Business Internal Behavior Element"
+      }
+    },
+    "Business_External_Behavior_Element": {
+      "superClasses": [
+        "External_Behavior_Element",
+        "Behavior_Element",
+        "Core_Elements",
+        "Element",
+        "Concept",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Business External Behavior Element"
+      }
+    },
+    "Business_Actor": {
+      "superClasses": [
+        "Business",
+        "Business_Internal_Active_Structure_Element",
+        "archimate_layer",
+        "ArchiMate_Metamodel",
+        "Business_Active_Structure_Element",
+        "Internal_Active_Structure_Element",
+        "Active_Structure_Element",
+        "Structure_Element",
+        "Core_Elements",
+        "Element",
+        "Concept"
+      ],
+      "labels": {
+        "en": "Business Actor",
+        "da": "Forretningsaktør"
+      }
+    },
+    "Business_Role": {
+      "superClasses": [
+        "Business",
+        "Business_Internal_Active_Structure_Element",
+        "archimate_layer",
+        "ArchiMate_Metamodel",
+        "Business_Active_Structure_Element",
+        "Internal_Active_Structure_Element",
+        "Active_Structure_Element",
+        "Structure_Element",
+        "Core_Elements",
+        "Element",
+        "Concept"
+      ],
+      "labels": {
+        "en": "Business Role",
+        "da": "Forretningsrolle"
+      }
+    },
+    "Business_Collaboration": {
+      "superClasses": [
+        "Business",
+        "Business_Internal_Active_Structure_Element",
+        "Collaboration",
+        "archimate_layer",
+        "ArchiMate_Metamodel",
+        "Business_Active_Structure_Element",
+        "Internal_Active_Structure_Element",
+        "Active_Structure_Element",
+        "Structure_Element",
+        "Core_Elements",
+        "Element",
+        "Concept"
+      ],
+      "labels": {
+        "en": "Business Collaboration",
+        "da": "Forretningssamarbejde"
+      }
+    },
+    "Business_Interface": {
+      "superClasses": [
+        "Business",
+        "Business_Internal_Active_Structure_Element",
+        "archimate_layer",
+        "ArchiMate_Metamodel",
+        "Business_Active_Structure_Element",
+        "Internal_Active_Structure_Element",
+        "Active_Structure_Element",
+        "Structure_Element",
+        "Core_Elements",
+        "Element",
+        "Concept"
+      ],
+      "labels": {
+        "en": "Business Interface",
+        "da": "Forretningsgrænseflade"
+      }
+    },
+    "Business_Process": {
+      "superClasses": [
+        "Business",
+        "Business_Behavior_Element",
+        "Business_Internal_Behavior_Element",
+        "Process",
+        "archimate_layer",
+        "ArchiMate_Metamodel",
+        "Behavior_Element",
+        "Core_Elements",
+        "Element",
+        "Concept",
+        "Internal_Behavior_Element"
+      ],
+      "labels": {
+        "en": "Business Process",
+        "da": "Forretningsproces"
+      }
+    },
+    "Business_Function": {
+      "superClasses": [
+        "Business",
+        "Business_Behavior_Element",
+        "Business_Internal_Behavior_Element",
+        "Function",
+        "archimate_layer",
+        "ArchiMate_Metamodel",
+        "Behavior_Element",
+        "Core_Elements",
+        "Element",
+        "Concept",
+        "Internal_Behavior_Element"
+      ],
+      "labels": {
+        "en": "Business Function",
+        "da": "Forretningsfunktion"
+      }
+    },
+    "Business_Interaction": {
+      "superClasses": [
+        "Business",
+        "Business_Behavior_Element",
+        "Business_Internal_Behavior_Element",
+        "Interaction",
+        "archimate_layer",
+        "ArchiMate_Metamodel",
+        "Behavior_Element",
+        "Core_Elements",
+        "Element",
+        "Concept",
+        "Internal_Behavior_Element"
+      ],
+      "labels": {
+        "en": "Business Interaction",
+        "da": "Forretningsinteraktion"
+      }
+    },
+    "Business_Event": {
+      "superClasses": [
+        "Business",
+        "Business_Behavior_Element",
+        "Event",
+        "archimate_layer",
+        "ArchiMate_Metamodel",
+        "Behavior_Element",
+        "Core_Elements",
+        "Element",
+        "Concept"
+      ],
+      "labels": {
+        "en": "Business Event",
+        "da": "Forretningshændelse"
+      }
+    },
+    "Business_Service": {
+      "superClasses": [
+        "Business",
+        "Business_External_Behavior_Element",
+        "Service",
+        "archimate_layer",
+        "ArchiMate_Metamodel",
+        "External_Behavior_Element",
+        "Behavior_Element",
+        "Core_Elements",
+        "Element",
+        "Concept"
+      ],
+      "labels": {
+        "en": "Business Service",
+        "da": "Forretningsservice"
+      }
+    },
+    "Business_Object": {
+      "superClasses": [
+        "Business",
+        "Business_Passive_Structure_Element",
+        "archimate_layer",
+        "ArchiMate_Metamodel",
+        "Passive_Structure_Element",
+        "Structure_Element",
+        "Core_Elements",
+        "Element",
+        "Concept"
+      ],
+      "labels": {
+        "en": "Business Object",
+        "da": "Forretningsobjekt"
+      }
+    },
+    "Contract": {
+      "superClasses": [
+        "Business_Object",
+        "Business",
+        "Business_Passive_Structure_Element",
+        "archimate_layer",
+        "ArchiMate_Metamodel",
+        "Passive_Structure_Element",
+        "Structure_Element",
+        "Core_Elements",
+        "Element",
+        "Concept"
+      ],
+      "labels": {
+        "en": "Contract",
+        "da": "Kontrakt"
+      }
+    },
+    "Representation": {
+      "superClasses": [
+        "Business_Object",
+        "Business",
+        "Business_Passive_Structure_Element",
+        "archimate_layer",
+        "ArchiMate_Metamodel",
+        "Passive_Structure_Element",
+        "Structure_Element",
+        "Core_Elements",
+        "Element",
+        "Concept"
+      ],
+      "labels": {
+        "en": "Representation",
+        "da": "Repræsentation"
+      }
+    },
+    "Product": {
+      "superClasses": [
+        "Business",
+        "archimate_layer",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Product",
+        "da": "Produkt"
+      }
+    },
+    "Application_Active_Structure_Element": {
+      "superClasses": [
+        "Active_Structure_Element",
+        "Structure_Element",
+        "Core_Elements",
+        "Element",
+        "Concept",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Application Active Structure Element"
+      }
+    },
+    "Application_Behavior_Element": {
+      "superClasses": [
+        "Behavior_Element",
+        "Core_Elements",
+        "Element",
+        "Concept",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Application Behavior Element"
+      }
+    },
+    "Application_Internal_Active_Structure_Element": {
+      "superClasses": [
+        "Application_Active_Structure_Element",
+        "Internal_Active_Structure_Element",
+        "Active_Structure_Element",
+        "Structure_Element",
+        "Core_Elements",
+        "Element",
+        "Concept",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Application Internal Active Structure Element"
+      }
+    },
+    "Application_Internal_Behavior_Element": {
+      "superClasses": [
+        "Application_Behavior_Element",
+        "Internal_Behavior_Element",
+        "Behavior_Element",
+        "Core_Elements",
+        "Element",
+        "Concept",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Application Internal Behavior Element"
+      }
+    },
+    "Application_Component": {
+      "superClasses": [
+        "Application",
+        "Application_Internal_Active_Structure_Element",
+        "archimate_layer",
+        "ArchiMate_Metamodel",
+        "Application_Active_Structure_Element",
+        "Internal_Active_Structure_Element",
+        "Active_Structure_Element",
+        "Structure_Element",
+        "Core_Elements",
+        "Element",
+        "Concept"
+      ],
+      "labels": {
+        "en": "Application Component",
+        "da": "Applikationskomponent"
+      }
+    },
+    "Application_Collaboration": {
+      "superClasses": [
+        "Application",
+        "Application_Internal_Active_Structure_Element",
+        "archimate_layer",
+        "ArchiMate_Metamodel",
+        "Application_Active_Structure_Element",
+        "Internal_Active_Structure_Element",
+        "Active_Structure_Element",
+        "Structure_Element",
+        "Core_Elements",
+        "Element",
+        "Concept"
+      ],
+      "labels": {
+        "en": "Application Collaboration",
+        "da": "Applikationssamarbejde"
+      }
+    },
+    "Application_Interface": {
+      "superClasses": [
+        "Application",
+        "archimate_layer",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Application Interface",
+        "da": "Applikationsgrænseflade"
+      }
+    },
+    "Application_Function": {
+      "superClasses": [
+        "Application",
+        "Application_Behavior_Element",
+        "Application_Internal_Behavior_Element",
+        "archimate_layer",
+        "ArchiMate_Metamodel",
+        "Behavior_Element",
+        "Core_Elements",
+        "Element",
+        "Concept",
+        "Internal_Behavior_Element"
+      ],
+      "labels": {
+        "en": "Application Function",
+        "da": "Applikationsfunktion"
+      }
+    },
+    "Application_Interaction": {
+      "superClasses": [
+        "Application",
+        "Application_Behavior_Element",
+        "Application_Internal_Behavior_Element",
+        "archimate_layer",
+        "ArchiMate_Metamodel",
+        "Behavior_Element",
+        "Core_Elements",
+        "Element",
+        "Concept",
+        "Internal_Behavior_Element"
+      ],
+      "labels": {
+        "en": "Application Interaction",
+        "da": "Applikationsinteraktion"
+      }
+    },
+    "Application_Process": {
+      "superClasses": [
+        "Application",
+        "Application_Behavior_Element",
+        "Application_Internal_Behavior_Element",
+        "archimate_layer",
+        "ArchiMate_Metamodel",
+        "Behavior_Element",
+        "Core_Elements",
+        "Element",
+        "Concept",
+        "Internal_Behavior_Element"
+      ],
+      "labels": {
+        "en": "Application Process",
+        "da": "Applikationsproces"
+      }
+    },
+    "Application_Event": {
+      "superClasses": [
+        "Application",
+        "Application_Behavior_Element",
+        "Event",
+        "archimate_layer",
+        "ArchiMate_Metamodel",
+        "Behavior_Element",
+        "Core_Elements",
+        "Element",
+        "Concept"
+      ],
+      "labels": {
+        "en": "Application Event",
+        "da": "Applikationshændelse"
+      }
+    },
+    "Application_Service": {
+      "superClasses": [
+        "Application",
+        "Application_Behavior_Element",
+        "archimate_layer",
+        "ArchiMate_Metamodel",
+        "Behavior_Element",
+        "Core_Elements",
+        "Element",
+        "Concept"
+      ],
+      "labels": {
+        "en": "Application Service",
+        "da": "Applikationsservice"
+      }
+    },
+    "Data_Object": {
+      "superClasses": [
+        "Application",
+        "archimate_layer",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Data Object",
+        "da": "Dataobjekt"
+      }
+    },
+    "Technology_Active_Structure_Element": {
+      "superClasses": [
+        "Active_Structure_Element",
+        "Structure_Element",
+        "Core_Elements",
+        "Element",
+        "Concept",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Technology Active Structure Element"
+      }
+    },
+    "Technology_Behavior_Element": {
+      "superClasses": [
+        "Behavior_Element",
+        "Core_Elements",
+        "Element",
+        "Concept",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Technology Behavior Element"
+      }
+    },
+    "Technology_Passive_Structure_Element": {
+      "superClasses": [
+        "Passive_Structure_Element",
+        "Structure_Element",
+        "Core_Elements",
+        "Element",
+        "Concept",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Technology Passive Structure Element"
+      }
+    },
+    "Technology_Internal_Active_Structure_Element": {
+      "superClasses": [
+        "Technology_Active_Structure_Element",
+        "Internal_Active_Structure_Element",
+        "Active_Structure_Element",
+        "Structure_Element",
+        "Core_Elements",
+        "Element",
+        "Concept",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Technology Internal Active Structure Element"
+      }
+    },
+    "Technology_Internal_Behavior_Element": {
+      "superClasses": [
+        "Technology_Behavior_Element",
+        "Internal_Behavior_Element",
+        "Behavior_Element",
+        "Core_Elements",
+        "Element",
+        "Concept",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Technology Internal Behavior Element"
+      }
+    },
+    "Node": {
+      "superClasses": [
+        "Technology",
+        "Technology_Internal_Active_Structure_Element",
+        "archimate_layer",
+        "ArchiMate_Metamodel",
+        "Technology_Active_Structure_Element",
+        "Internal_Active_Structure_Element",
+        "Active_Structure_Element",
+        "Structure_Element",
+        "Core_Elements",
+        "Element",
+        "Concept"
+      ],
+      "labels": {
+        "en": "Node",
+        "da": "Knude"
+      }
+    },
+    "Device": {
+      "superClasses": [
+        "Technology",
+        "Technology_Internal_Active_Structure_Element",
+        "archimate_layer",
+        "ArchiMate_Metamodel",
+        "Technology_Active_Structure_Element",
+        "Internal_Active_Structure_Element",
+        "Active_Structure_Element",
+        "Structure_Element",
+        "Core_Elements",
+        "Element",
+        "Concept"
+      ],
+      "labels": {
+        "en": "Device",
+        "da": "Enhed"
+      }
+    },
+    "SystemSoftware": {
+      "superClasses": [
+        "Technology",
+        "Technology_Internal_Active_Structure_Element",
+        "archimate_layer",
+        "ArchiMate_Metamodel",
+        "Technology_Active_Structure_Element",
+        "Internal_Active_Structure_Element",
+        "Active_Structure_Element",
+        "Structure_Element",
+        "Core_Elements",
+        "Element",
+        "Concept"
+      ],
+      "labels": {
+        "en": "System Software",
+        "da": "Systemsoftware"
+      }
+    },
+    "Technology_Collaboration": {
+      "superClasses": [
+        "Technology",
+        "Technology_Internal_Active_Structure_Element",
+        "archimate_layer",
+        "ArchiMate_Metamodel",
+        "Technology_Active_Structure_Element",
+        "Internal_Active_Structure_Element",
+        "Active_Structure_Element",
+        "Structure_Element",
+        "Core_Elements",
+        "Element",
+        "Concept"
+      ],
+      "labels": {
+        "en": "Technology Collaboration",
+        "da": "Teknologisamarbejde"
+      }
+    },
+    "Technology_Interface": {
+      "superClasses": [
+        "Technology",
+        "archimate_layer",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Technology Interface",
+        "da": "Teknologigrænseflade"
+      }
+    },
+    "Path": {
+      "superClasses": [
+        "Technology_Active_Structure_Element",
+        "Active_Structure_Element",
+        "Structure_Element",
+        "Core_Elements",
+        "Element",
+        "Concept",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Path",
+        "da": "Sti"
+      }
+    },
+    "Communication_Network": {
+      "superClasses": [
+        "Technology",
+        "Technology_Active_Structure_Element",
+        "archimate_layer",
+        "ArchiMate_Metamodel",
+        "Active_Structure_Element",
+        "Structure_Element",
+        "Core_Elements",
+        "Element",
+        "Concept"
+      ],
+      "labels": {
+        "en": "Communication Network",
+        "da": "Kommunikationsnetværk"
+      }
+    },
+    "Technology_Function": {
+      "superClasses": [
+        "Technology",
+        "Technology_Behavior_Element",
+        "Technology_Internal_Behavior_Element",
+        "archimate_layer",
+        "ArchiMate_Metamodel",
+        "Behavior_Element",
+        "Core_Elements",
+        "Element",
+        "Concept",
+        "Internal_Behavior_Element"
+      ],
+      "labels": {
+        "en": "Technology Function",
+        "da": "Teknologifunktion"
+      }
+    },
+    "Technology_Process": {
+      "superClasses": [
+        "Technology",
+        "Technology_Behavior_Element",
+        "Technology_Internal_Behavior_Element",
+        "archimate_layer",
+        "ArchiMate_Metamodel",
+        "Behavior_Element",
+        "Core_Elements",
+        "Element",
+        "Concept",
+        "Internal_Behavior_Element"
+      ],
+      "labels": {
+        "en": "Technology Process",
+        "da": "Teknologiproces"
+      }
+    },
+    "Technology_Interaction": {
+      "superClasses": [
+        "Technology",
+        "Technology_Behavior_Element",
+        "Technology_Internal_Behavior_Element",
+        "archimate_layer",
+        "ArchiMate_Metamodel",
+        "Behavior_Element",
+        "Core_Elements",
+        "Element",
+        "Concept",
+        "Internal_Behavior_Element"
+      ],
+      "labels": {
+        "en": "Technology Interaction",
+        "da": "Teknologiinteraktion"
+      }
+    },
+    "Technology_Event": {
+      "superClasses": [
+        "Technology",
+        "Technology_Behavior_Element",
+        "Event",
+        "archimate_layer",
+        "ArchiMate_Metamodel",
+        "Behavior_Element",
+        "Core_Elements",
+        "Element",
+        "Concept"
+      ],
+      "labels": {
+        "en": "Technology Event",
+        "da": "Teknologihændelse"
+      }
+    },
+    "Technology_Service": {
+      "superClasses": [
+        "Technology",
+        "Technology_Behavior_Element",
+        "archimate_layer",
+        "ArchiMate_Metamodel",
+        "Behavior_Element",
+        "Core_Elements",
+        "Element",
+        "Concept"
+      ],
+      "labels": {
+        "en": "Technology Service",
+        "da": "Teknologiservice"
+      }
+    },
+    "Artifact": {
+      "superClasses": [
+        "Technology",
+        "Technology_Passive_Structure_Element",
+        "archimate_layer",
+        "ArchiMate_Metamodel",
+        "Passive_Structure_Element",
+        "Structure_Element",
+        "Core_Elements",
+        "Element",
+        "Concept"
+      ],
+      "labels": {
+        "en": "Artifact",
+        "da": "Artefakt"
+      }
+    },
+    "Physical_Active_Structure_Element": {
+      "superClasses": [
+        "Active_Structure_Element",
+        "Structure_Element",
+        "Core_Elements",
+        "Element",
+        "Concept",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Physical Active Structure Element"
+      }
+    },
+    "Equipment": {
+      "superClasses": [
+        "Physical",
+        "Physical_Active_Structure_Element",
+        "archimate_layer",
+        "ArchiMate_Metamodel",
+        "Active_Structure_Element",
+        "Structure_Element",
+        "Core_Elements",
+        "Element",
+        "Concept"
+      ],
+      "labels": {
+        "en": "Equipment",
+        "da": "Udstyr"
+      }
+    },
+    "Facility": {
+      "superClasses": [
+        "Physical",
+        "archimate_layer",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Facility",
+        "da": "Facilitet"
+      }
+    },
+    "Distribution_Network": {
+      "superClasses": [
+        "Physical",
+        "Physical_Active_Structure_Element",
+        "archimate_layer",
+        "ArchiMate_Metamodel",
+        "Active_Structure_Element",
+        "Structure_Element",
+        "Core_Elements",
+        "Element",
+        "Concept"
+      ],
+      "labels": {
+        "en": "Distribution Network",
+        "da": "Distributionsnetværk"
+      }
+    },
+    "Material": {
+      "superClasses": [
+        "Physical",
+        "archimate_layer",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Material",
+        "da": "Materiale"
+      }
+    },
+    "Work_Package": {
+      "superClasses": [
+        "Behavior_Element",
+        "Implementation&Migration",
+        "Core_Elements",
+        "Element",
+        "Concept",
+        "ArchiMate_Metamodel",
+        "archimate_layer"
+      ],
+      "labels": {
+        "en": "Work Package",
+        "da": "Arbejdspakke"
+      }
+    },
+    "Deliverable": {
+      "superClasses": [
+        "Passive_Structure_Element",
+        "Implementation&Migration",
+        "Structure_Element",
+        "Core_Elements",
+        "Element",
+        "Concept",
+        "ArchiMate_Metamodel",
+        "archimate_layer"
+      ],
+      "labels": {
+        "en": "Deliverable",
+        "da": "Leverance"
+      }
+    },
+    "Implementation_Event": {
+      "superClasses": [
+        "Event",
+        "Implementation&Migration",
+        "Behavior_Element",
+        "Core_Elements",
+        "Element",
+        "Concept",
+        "ArchiMate_Metamodel",
+        "archimate_layer"
+      ],
+      "labels": {
+        "en": "Implementation Event",
+        "da": "Implementeringshændelse"
+      }
+    },
+    "Plateau": {
+      "superClasses": [
+        "Implementation&Migration",
+        "archimate_layer",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Plateau",
+        "da": "Plateau"
+      }
+    },
+    "Gap": {
+      "superClasses": [
+        "Implementation&Migration",
+        "archimate_layer",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Gap",
+        "da": "Gab"
+      }
+    },
+    "Grouping": {
+      "superClasses": [
+        "Composite_Element",
+        "Extended_Elements",
+        "Element",
+        "Concept",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Grouping",
+        "da": "Gruppering"
+      }
+    },
+    "Location": {
+      "superClasses": [
+        "Composite_Element",
+        "Extended_Elements",
+        "Element",
+        "Concept",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Location",
+        "da": "Lokation"
+      }
+    },
+    "Junction": {
+      "superClasses": [
+        "Element",
+        "Concept",
+        "ArchiMate_Metamodel"
+      ],
+      "labels": {
+        "en": "Junction",
+        "da": "Forgrening"
+      }
+    },
+    "ArchiMate_Viewpoint": {
+      "superClasses": [],
+      "labels": {
+        "en": "ArchiMate Viewpoint",
+        "da": "ArchiMate Viewpoint"
+      }
+    },
+    "Basic_Viewpoint": {
+      "superClasses": [
+        "ArchiMate_Viewpoint"
+      ],
+      "labels": {
+        "en": "Basic Viewpoint"
+      }
+    },
+    "Composition_Category": {
+      "superClasses": [
+        "Basic_Viewpoint",
+        "ArchiMate_Viewpoint"
+      ],
+      "labels": {
+        "en": "Composition Category Viewpoint"
+      }
+    },
+    "Cooperation_Category": {
+      "superClasses": [
+        "Basic_Viewpoint",
+        "ArchiMate_Viewpoint"
+      ],
+      "labels": {
+        "en": "Cooperation Category Viewpoint"
+      }
+    },
+    "Architect": {
+      "superClasses": [
+        "Stakeholder",
+        "Motivation_Element",
+        "Motivation",
+        "Element",
+        "archimate_layer",
+        "ArchiMate_Metamodel",
+        "Concept"
+      ],
+      "labels": {
+        "en": "Architect",
+        "da": "Arkitekt"
+      }
+    },
+    "Conceptual_Model_of_Architecture_Description": {
+      "superClasses": [],
+      "labels": {
+        "en": "Conceptual Model of Architecture Description"
+      }
+    },
+    "Architecture": {
+      "superClasses": [
+        "Conceptual_Model_of_Architecture_Description"
+      ],
+      "labels": {
+        "en": "Architecture",
+        "da": "Arkitektur"
+      }
+    },
+    "Architecture_Description": {
+      "superClasses": [
+        "Conceptual_Model_of_Architecture_Description"
+      ],
+      "labels": {
+        "en": "Architecture Description",
+        "da": "Arkitekturbeskrivelse"
+      }
+    },
+    "Architecture_Model": {
+      "superClasses": [
+        "Architecture_View",
+        "Architecture_Description",
+        "Conceptual_Model_of_Architecture_Description"
+      ],
+      "labels": {
+        "en": "Architecture Model",
+        "da": "Arkitekturmodel"
+      }
+    },
+    "Architecture_View": {
+      "superClasses": [
+        "Architecture_Description",
+        "Conceptual_Model_of_Architecture_Description"
+      ],
+      "labels": {
+        "en": "Architecture View",
+        "da": "Arkitekturview"
+      }
+    },
+    "Architecture_Rationale": {
+      "superClasses": [
+        "Architecture_Description",
+        "Conceptual_Model_of_Architecture_Description"
+      ],
+      "labels": {
+        "en": "Architecture Rationale"
+      }
+    },
+    "Architecture_Viewpoint": {
+      "superClasses": [
+        "Architecture_Description",
+        "Conceptual_Model_of_Architecture_Description"
+      ],
+      "labels": {
+        "en": "Architecture Viewpoint",
+        "da": "Arkitekturviewpoint"
+      }
+    },
+    "Concern": {
+      "superClasses": [
+        "ArchiMate_Viewpoint",
+        "Conceptual_Model_of_Architecture_Description"
+      ],
+      "labels": {
+        "en": "Concern",
+        "da": "Bekymring/Interesseområde"
+      }
+    },
+    "Correspondance": {
+      "superClasses": [
+        "Architecture_Description",
+        "Conceptual_Model_of_Architecture_Description"
+      ],
+      "labels": {
+        "en": "Correspondance"
+      }
+    },
+    "Correspondance_Rule": {
+      "superClasses": [
+        "Architecture_Description",
+        "Conceptual_Model_of_Architecture_Description"
+      ],
+      "labels": {
+        "en": "Correspondance Rule"
+      }
+    }
+  },
+  "properties": {
+    "archimate32": {
+      "labels": {
+        "en": "ArchiMate 3.2 Advanced OWL Ontology",
+        "da": "ArchiMate 3.2 Avanceret OWL-ontologi"
+      }
+    },
+    "Relationship": {
+      "labels": {
+        "en": "Relationship",
+        "da": "Relation"
+      }
+    },
+    "composed_of": {
+      "labels": {
+        "en": "composed of",
+        "da": "sammensat af"
+      },
+      "transitive": true,
+      "inverseOf": "composed_in"
+    },
+    "composed_in": {
+      "labels": {
+        "en": "composed in",
+        "da": "indgår i sammensætning af"
+      },
+      "inverseOf": "composed_of"
+    },
+    "aggregates": {
+      "labels": {
+        "en": "aggregates",
+        "da": "aggregerer"
+      },
+      "transitive": true,
+      "inverseOf": "aggregated_in"
+    },
+    "aggregated_in": {
+      "labels": {
+        "en": "aggregated in",
+        "da": "indgår i aggregering af"
+      },
+      "inverseOf": "aggregates"
+    },
+    "has_assigned": {
+      "labels": {
+        "en": "has assigned",
+        "da": "har tildelt"
+      },
+      "inverseOf": "assigned_to"
+    },
+    "assigned_to": {
+      "labels": {
+        "en": "assigned to",
+        "da": "tildelt til"
+      },
+      "inverseOf": "has_assigned",
+      "transitive": true
+    },
+    "realizes": {
+      "labels": {
+        "en": "realizes",
+        "da": "realiserer"
+      },
+      "transitive": true,
+      "inverseOf": "realized_by"
+    },
+    "realized_by": {
+      "labels": {
+        "en": "realized by",
+        "da": "realiseret af"
+      },
+      "inverseOf": "realizes"
+    },
+    "serves": {
+      "labels": {
+        "en": "serves",
+        "da": "betjener"
+      },
+      "inverseOf": "served_by"
+    },
+    "served_by": {
+      "labels": {
+        "en": "served by",
+        "da": "betjenes af"
+      },
+      "inverseOf": "serves"
+    },
+    "accesses": {
+      "labels": {
+        "en": "accesses",
+        "da": "tilgår"
+      },
+      "inverseOf": "accessed_by"
+    },
+    "accessed_by": {
+      "labels": {
+        "en": "accessed by",
+        "da": "tilgås af"
+      },
+      "inverseOf": "accesses"
+    },
+    "influences": {
+      "labels": {
+        "en": "influences",
+        "da": "påvirker"
+      },
+      "inverseOf": "influenced_by"
+    },
+    "influenced_by": {
+      "labels": {
+        "en": "influenced by",
+        "da": "påvirkes af"
+      },
+      "inverseOf": "influences"
+    },
+    "associated_to": {
+      "labels": {
+        "en": "associated to",
+        "da": "associeret til"
+      },
+      "inverseOf": "associated_from"
+    },
+    "associated_from": {
+      "labels": {
+        "en": "associated from",
+        "da": "associeret fra"
+      },
+      "inverseOf": "associated_to"
+    },
+    "associated_with": {
+      "labels": {
+        "en": "associated with",
+        "da": "associeret med"
+      },
+      "inverseOf": "associated_with"
+    },
+    "triggers": {
+      "labels": {
+        "en": "triggers",
+        "da": "udløser"
+      },
+      "inverseOf": "triggered_by"
+    },
+    "triggered_by": {
+      "labels": {
+        "en": "triggered by",
+        "da": "udløst af"
+      },
+      "inverseOf": "triggers"
+    },
+    "flows_to": {
+      "labels": {
+        "en": "flows to",
+        "da": "strømmer til"
+      },
+      "inverseOf": "flows_from"
+    },
+    "flows_from": {
+      "labels": {
+        "en": "flows from",
+        "da": "strømmer fra"
+      },
+      "inverseOf": "flows_to"
+    },
+    "specializes_of": {
+      "labels": {
+        "en": "specializes of",
+        "da": "specialiserer"
+      },
+      "transitive": true,
+      "inverseOf": "specialized_by"
+    },
+    "specialized_by": {
+      "labels": {
+        "en": "specialized by",
+        "da": "specialiseres af"
+      },
+      "inverseOf": "specializes_of",
+      "transitive": true
+    },
+    "addresses": {
+      "labels": {
+        "en": "addresses"
+      }
+    },
+    "exhibits": {
+      "labels": {
+        "en": "exhibits"
+      }
+    },
+    "expresses": {
+      "labels": {
+        "en": "expresses"
+      }
+    },
+    "frames": {
+      "labels": {
+        "en": "frames"
+      }
+    },
+    "governs": {
+      "labels": {
+        "en": "governs"
+      }
+    },
+    "has": {
+      "labels": {
+        "en": "has"
+      }
+    },
+    "hasConcern": {
+      "labels": {
+        "en": "has concern"
+      }
+    },
+    "hasPurpose": {
+      "labels": {
+        "en": "has purpose"
+      }
+    },
+    "hasScope": {
+      "labels": {
+        "en": "has scope"
+      }
+    },
+    "hasStakeholder": {
+      "labels": {
+        "en": "has stakeholder"
+      }
+    },
+    "has_interested_in": {
+      "labels": {
+        "en": "has interested in"
+      }
+    },
+    "identifies": {
+      "labels": {
+        "en": "identifies"
+      }
+    },
+    "covered_in": {
+      "labels": {
+        "en": "covered in"
+      },
+      "inverseOf": "covered_Element"
+    },
+    "covered_Element": {
+      "labels": {
+        "en": "covered element"
+      },
+      "inverseOf": "covered_in"
+    }
+  }
+}

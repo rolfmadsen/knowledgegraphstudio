@@ -693,8 +693,16 @@ export class GraphService {
     const view = state.views?.find((v) => v.id === viewId);
     if (!view || conceptIds.length === 0) return {};
 
+    // Generate unique name for the group to avoid clashes
+    let uniqueGroupName = groupName;
+    let counter = 1;
+    while (state.concepts.some(c => c.conceptType === 'bounded_context' && c.name.trim().toLowerCase() === uniqueGroupName.trim().toLowerCase())) {
+      uniqueGroupName = `${groupName} ${counter}`;
+      counter++;
+    }
+
     // 1. Create the new Grouping concept node (bounded_context)
-    const { concept: groupConcept, nextState: addConceptState } = this.addConcept(state, 'bounded_context', groupName);
+    const { concept: groupConcept, nextState: addConceptState } = this.addConcept(state, 'bounded_context', uniqueGroupName);
 
     // Calculate the bounding box of selected nodes in the view to place the group container
     const viewNodes = view.nodes.filter((n) => conceptIds.includes(n.conceptId));
@@ -747,7 +755,7 @@ export class GraphService {
     });
 
     return {
-      concepts: addConceptState.concepts,
+      concepts: addConceptState.concepts || state.concepts,
       views: nextViews,
       selectedConceptId: groupConcept.id,
     };
