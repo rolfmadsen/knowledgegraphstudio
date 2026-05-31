@@ -30,7 +30,7 @@ import { PersistenceService, type BootstrapResult } from '../services/Persistenc
 import { GitService, type PullResult } from '../services/GitService';
 import { PluginRegistry } from '../plugins/PluginRegistry';
 import git from 'isomorphic-git';
-import { getFS, REPO_DIR, writeYaml } from '../core/fileSystem';
+import { getFS, REPO_DIR, writeYaml, setRepoDir } from '../core/fileSystem';
 
 // ============================================================
 // Sync Status (Spec §10.5)
@@ -1250,7 +1250,6 @@ export const useGraphStore = create<GraphStoreState>()(
         );
         
         // Update the global repository directory
-        const { setRepoDir } = await import('../core/fileSystem');
         setRepoDir(dir);
 
         // Update the store status

@@ -3,6 +3,7 @@ import type { NotationPlugin, PluginCanvasProps } from '../types';
 import { ReactFlowCanvas } from '../../features/viewport/graph/ReactFlowCanvas';
 import { ConceptualNodeComponent } from './sharedComponents';
 import { dagreLayoutEngine } from '../knowledge-graph';
+import { isValidRelation, getAvailableRelations } from './conceptualValidator';
 
 function ConceptualCanvas(props: PluginCanvasProps) {
   const nodeTypes = useMemo(() => ({ conceptNode: ConceptualNodeComponent }), []);
@@ -20,6 +21,8 @@ export const conceptualPlugin: NotationPlugin = {
   conceptTypeLabels: {
     class: 'Begreb / Klasse',
   },
+  isValidRelation,
+  getAvailableRelations,
 };
 
 export default conceptualPlugin;

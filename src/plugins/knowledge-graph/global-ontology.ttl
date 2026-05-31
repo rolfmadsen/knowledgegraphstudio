@@ -1,0 +1,51 @@
+@prefix : <http://www.semanticweb.org/v0cn037/ontologies/2026/05/global#> .
+@prefix archimate: <http://www.semanticweb.org/v0cn037/ontologies/2024/11/archimate32#> .
+@prefix c4: <http://www.semanticweb.org/v0cn037/ontologies/2026/05/c4#> .
+@prefix dcr: <http://www.semanticweb.org/v0cn037/ontologies/2026/05/dcr#> .
+@prefix conceptual: <http://www.semanticweb.org/v0cn037/ontologies/2026/05/conceptual#> .
+@prefix information: <http://www.semanticweb.org/v0cn037/ontologies/2026/05/information#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+
+<http://www.semanticweb.org/v0cn037/ontologies/2026/05/global> rdf:type owl:Ontology ;
+    owl:versionInfo "1.0" ;
+    rdfs:label "TypeGraph Federated Over-Ontology"@en , "TypeGraph Fødereret Over-ontologi"@da ;
+    rdfs:comment "A global ontology importing and connecting all notation-specific ontologies (ArchiMate, C4, DCR, Conceptual Model, and Information Model)."@en ;
+    dct:title "TypeGraph Federated Over-Ontology" ;
+    dct:creator "TypeGraph Agent" ;
+    dct:created "2026-05-31"^^xsd:date .
+
+### =========================================================================
+### 1. Cross-Notation Class Equivalence / Alignments
+### =========================================================================
+
+# Actor / Role alignments
+:GlobalActor rdf:type owl:Class ;
+    owl:unionOf (c4:Person archimate:BusinessActor archimate:BusinessRole dcr:Role) ;
+    rdfs:label "Global Actor / Role"@en ;
+    rdfs:comment "Unifies human actors and roles across C4, ArchiMate, and DCR."@en .
+
+# Software System / Application Component alignments
+:GlobalSoftwareComponent rdf:type owl:Class ;
+    owl:unionOf (c4:SoftwareSystem c4:Container c4:Component archimate:ApplicationComponent) ;
+    rdfs:label "Global Software Component"@en ;
+    rdfs:comment "Unifies software systems, containers, components, and application components."@en .
+
+# Data Class / Business Object / concept alignments
+:GlobalDataEntity rdf:type owl:Class ;
+    owl:unionOf (conceptual:Conceptual_Class information:Information_Class archimate:DataObject) ;
+    rdfs:label "Global Data Entity"@en ;
+    rdfs:comment "Unifies business concepts, information classes, and data objects."@en .
+
+### =========================================================================
+### 2. Alignment Properties
+### =========================================================================
+
+:realizesConcept rdf:type owl:ObjectProperty ;
+    rdfs:domain :GlobalSoftwareComponent ;
+    rdfs:range :GlobalDataEntity ;
+    rdfs:label "realizes concept"@en , "realiserer begreb"@da ;
+    rdfs:comment "Maps software systems or components to the data classes/concepts they store or process."@en .

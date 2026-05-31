@@ -9,6 +9,7 @@
 import { useGraphStore } from '../../store/useGraphStore';
 import { useShallow } from 'zustand/react/shallow';
 import { GitBranch, RefreshCw, CheckCircle2, Clock, CloudOff, AlertTriangle, Cloud } from 'lucide-react';
+import { useValidationWarnings } from '../validation/useValidation';
 
 interface StatusBarProps {
   onOpenRemoteConfig: () => void;
@@ -22,15 +23,23 @@ interface PillConfig {
 }
 
 export function StatusBar({ onOpenRemoteConfig }: StatusBarProps) {
-  const { syncStatus, remoteConfig, aheadBy, behindBy, lastSyncedAt } = useGraphStore(
+  const warnings = useValidationWarnings();
+  const { syncStatus, remoteConfig, aheadBy, behindBy, lastSyncedAt, selectConcept, selectRelation } = useGraphStore(
     useShallow((s) => ({
       syncStatus: s?.syncStatus || 'idle',
       remoteConfig: s?.remoteConfig,
       aheadBy: s?.aheadBy || 0,
       behindBy: s?.behindBy || 0,
       lastSyncedAt: s?.lastSyncedAt,
+      selectConcept: s?.selectConcept,
+      selectRelation: s?.selectRelation
     })),
   );
+
+  const handleValidationClick = () => {
+    selectConcept(null);
+    selectRelation(null);
+  };
 
   const hasRemote = !!remoteConfig;
 
@@ -132,13 +141,40 @@ export function StatusBar({ onOpenRemoteConfig }: StatusBarProps) {
         )}
       </div>
 
-      {/* Center — ahead/behind */}
-      {hasRemote && (aheadBy > 0 || behindBy > 0) && (
-        <div className="flex items-center gap-3 text-slate-500">
-          {aheadBy > 0 && <span title="Lokale commits ikke på remote">↑{aheadBy}</span>}
-          {behindBy > 0 && <span title="Remote commits ikke lokalt">↓{behindBy}</span>}
+      {/* Center — ahead/behind & validation */}
+      <div className="flex items-center gap-6">
+        {hasRemote && (aheadBy > 0 || behindBy > 0) && (
+          <div className="flex items-center gap-3 text-slate-500">
+            {aheadBy > 0 && <span title="Lokale commits ikke på remote">↑{aheadBy}</span>}
+            {behindBy > 0 && <span title="Remote commits ikke lokalt">↓{behindBy}</span>}
+          </div>
+        )}
+        
+        {/* Validation indicator */}
+        <div 
+          onClick={handleValidationClick}
+          className={`flex items-center gap-1.5 cursor-pointer transition-all hover:text-white px-2 py-0.5 rounded ${
+            warnings.length === 0 
+              ? 'text-emerald-400 hover:bg-emerald-950/20' 
+              : warnings.some(w => w.level === 'error')
+                ? 'text-red-400 bg-red-950/20 hover:bg-red-950/40 animate-pulse'
+                : 'text-amber-400 bg-amber-950/20 hover:bg-amber-950/40'
+          }`}
+          title={warnings.length === 0 ? 'Grafen er konsistent' : `${warnings.length} valideringsfejl/advarsler fundet. Klik for at se.`}
+        >
+          {warnings.length === 0 ? (
+            <>
+              <CheckCircle2 size={10} />
+              <span className="font-black">GRAF KONSISTENT</span>
+            </>
+          ) : (
+            <>
+              <AlertTriangle size={10} />
+              <span className="font-black">{warnings.length} ADVARSLER</span>
+            </>
+          )}
         </div>
-      )}
+      </div>
 
       {/* Right — sync status */}
       <div

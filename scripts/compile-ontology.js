@@ -12,6 +12,26 @@ const ontologies = [
     ttlPath: path.resolve('src/plugins/dcr/ontology.ttl'),
     outputPath: path.resolve('src/plugins/dcr/ontology.json'),
     ns: 'http://www.semanticweb.org/v0cn037/ontologies/2026/05/dcr#'
+  },
+  {
+    ttlPath: path.resolve('src/plugins/c4/ontology.ttl'),
+    outputPath: path.resolve('src/plugins/c4/ontology.json'),
+    ns: 'http://www.semanticweb.org/v0cn037/ontologies/2026/05/c4#'
+  },
+  {
+    ttlPath: path.resolve('src/plugins/core-model/conceptual-ontology.ttl'),
+    outputPath: path.resolve('src/plugins/core-model/conceptual-ontology.json'),
+    ns: 'http://www.semanticweb.org/v0cn037/ontologies/2026/05/conceptual#'
+  },
+  {
+    ttlPath: path.resolve('src/plugins/core-model/information-ontology.ttl'),
+    outputPath: path.resolve('src/plugins/core-model/information-ontology.json'),
+    ns: 'http://www.semanticweb.org/v0cn037/ontologies/2026/05/information#'
+  },
+  {
+    ttlPath: path.resolve('src/plugins/knowledge-graph/global-ontology.ttl'),
+    outputPath: path.resolve('src/plugins/knowledge-graph/global-ontology.json'),
+    ns: 'http://www.semanticweb.org/v0cn037/ontologies/2026/05/global#'
   }
 ];
 

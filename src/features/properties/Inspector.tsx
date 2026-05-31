@@ -3,6 +3,7 @@ import { useGraphStore } from '../../store/useGraphStore';
 import { useShallow } from 'zustand/react/shallow';
 import { LifecycleState, ConceptType, type ConceptProperty, type ConceptNode, type ElementId, type DataType, toElementId } from '../../schema/graphSchema';
 import { PluginRegistry } from '../../plugins/PluginRegistry';
+import { useValidationWarnings } from '../validation/useValidation';
 import { 
   Plus, 
   Trash2,
@@ -35,7 +36,9 @@ export function Inspector() {
     dissolveGroup,
     updateViewNodeParentId,
     setSelectedConceptIds,
-    setActiveViewId
+    setActiveViewId,
+    selectConcept,
+    selectRelation
   } = useGraphStore(
     useShallow((s) => ({
       concepts: s?.concepts || [],
@@ -57,7 +60,9 @@ export function Inspector() {
       dissolveGroup: s?.dissolveGroup,
       updateViewNodeParentId: s?.updateViewNodeParentId,
       setSelectedConceptIds: s?.setSelectedConceptIds,
-      setActiveViewId: s?.setActiveViewId
+      setActiveViewId: s?.setActiveViewId,
+      selectConcept: s?.selectConcept,
+      selectRelation: s?.selectRelation
     }))
   );
 
@@ -219,21 +224,74 @@ export function Inspector() {
     );
   }
 
+  const warnings = useValidationWarnings();
+
   if (!concept && !relation) {
     return (
-      <div className="h-full flex items-center justify-center p-8 text-center px-4 bg-white/50 backdrop-blur-sm select-none">
-        <div className="flex flex-col items-center gap-6">
-          <div className="w-16 h-16 rounded-[24px] bg-white border border-slate-200/60 flex items-center justify-center text-slate-300 shadow-xl shadow-slate-100 animate-in fade-in zoom-in duration-500">
-             <Info size={28} strokeWidth={1.5} />
+      <div 
+        id="inspector-root"
+        className="flex-1 flex flex-col min-h-0 overflow-y-auto custom-scrollbar bg-slate-50/30 backdrop-blur-sm outline-none select-none"
+        tabIndex={-1}
+        style={{ padding: '32px' }}
+      >
+        {/* Header Section */}
+        <div className="mb-10 flex items-center justify-between border-b border-slate-200 pb-4">
+          <span className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-800">Properties</span>
+        </div>
+
+        <div className="flex flex-col gap-8">
+          <div className="flex flex-col items-center gap-5 p-6 bg-white border border-slate-200/60 rounded-[24px] shadow-sm text-center">
+            <div className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 shadow-sm animate-in fade-in zoom-in duration-300">
+               <Info size={18} strokeWidth={2} />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-[13px] font-black text-slate-900 tracking-tight">Nothing Selected</h3>
+              <p className="text-[11px] text-slate-400 leading-relaxed max-w-[200px] mx-auto">
+                Select an element on the graph to see details.
+              </p>
+            </div>
           </div>
-          <div className="space-y-1.5">
-            <h3 className="text-[13px] font-black text-slate-900 tracking-tight">Nothing Selected</h3>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] max-w-[160px] leading-relaxed">Select an element on the graph to see details</p>
-          </div>
+
+          <InspectorSection title={`Vidensgraf Validering (${warnings.length})`}>
+            {warnings.length === 0 ? (
+              <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-xl text-emerald-800 text-[11px] font-bold flex items-center gap-2">
+                <span className="text-[14px]">✅</span> Grafen er fuldstændig konsistent. Ingen fejl eller advarsler fundet.
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2 max-h-[400px] overflow-y-auto custom-scrollbar pr-1">
+                {warnings.map((w) => (
+                  <div 
+                    key={w.id} 
+                    onClick={() => {
+                      if (w.nodeId) selectConcept(w.nodeId as ElementId);
+                      else if (w.relationId) selectRelation(w.relationId as ElementId);
+                    }}
+                    className={`p-3 bg-white border rounded-xl shadow-sm hover:scale-[1.01] hover:shadow-md cursor-pointer transition-all flex flex-col gap-1 border-l-4 text-left ${
+                      w.level === 'error' ? 'border-red-500 hover:border-red-600' : 'border-amber-500 hover:border-amber-600'
+                    }`}
+                  >
+                    <div className="flex justify-between items-center">
+                      <span className={`text-[8px] font-black font-mono px-1.5 py-0.5 rounded border uppercase tracking-wider ${
+                        w.level === 'error' ? 'bg-red-50 border-red-200 text-red-700' : 'bg-amber-50 border-amber-200 text-amber-700'
+                      }`}>
+                        {w.level}
+                      </span>
+                    </div>
+                    <p className="text-[11px] font-bold text-slate-700 leading-relaxed">
+                      {w.message}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </InspectorSection>
         </div>
       </div>
     );
   }
+
+  const conceptWarnings = concept ? warnings.filter(w => w.nodeId === concept.id) : [];
+  const relationWarnings = relation ? warnings.filter(w => w.relationId === relation.id) : [];
 
   return (
     <div 
@@ -260,6 +318,23 @@ export function Inspector() {
       </div>
 
       <div className="flex flex-col gap-8">
+        {(conceptWarnings.length > 0 || relationWarnings.length > 0) && (
+          <div className="flex flex-col gap-2">
+            {[...conceptWarnings, ...relationWarnings].map((w) => (
+              <div 
+                key={w.id} 
+                className={`p-3 bg-white border border-l-4 rounded-xl shadow-sm flex items-start gap-2 text-left ${
+                  w.level === 'error' ? 'border-red-500 border-l-red-500 bg-red-50/5' : 'border-amber-500 border-l-amber-500 bg-amber-50/5'
+                }`}
+              >
+                <span className="text-[12px] pt-0.5">{w.level === 'error' ? '❌' : '⚠️'}</span>
+                <p className="text-[11px] font-bold text-slate-700 leading-relaxed">
+                  {w.message}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
         {concept && (
             <>
                 {/* 1. CONCEPTUAL VIEW INSPECTOR */}

@@ -1,0 +1,36 @@
+{
+  "classes": {
+    "GlobalActor": {
+      "superClasses": [],
+      "labels": {
+        "en": "Global Actor / Role"
+      }
+    },
+    "GlobalSoftwareComponent": {
+      "superClasses": [],
+      "labels": {
+        "en": "Global Software Component"
+      }
+    },
+    "GlobalDataEntity": {
+      "superClasses": [],
+      "labels": {
+        "en": "Global Data Entity"
+      }
+    }
+  },
+  "properties": {
+    "global": {
+      "labels": {
+        "en": "TypeGraph Federated Over-Ontology",
+        "da": "TypeGraph Fødereret Over-ontologi"
+      }
+    },
+    "realizesConcept": {
+      "labels": {
+        "en": "realizes concept",
+        "da": "realiserer begreb"
+      }
+    }
+  }
+}

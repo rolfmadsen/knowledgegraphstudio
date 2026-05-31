@@ -1,0 +1,395 @@
+{
+  "classes": {
+    "C4_Metamodel": {
+      "superClasses": [],
+      "labels": {
+        "en": "C4 Metamodel",
+        "da": "C4 Metamodel"
+      }
+    },
+    "C4_Element": {
+      "superClasses": [
+        "C4_Metamodel"
+      ],
+      "labels": {
+        "en": "C4 Element",
+        "da": "C4 Element"
+      }
+    },
+    "Software_Element": {
+      "superClasses": [
+        "C4_Element",
+        "C4_Metamodel"
+      ],
+      "labels": {
+        "en": "Software Element",
+        "da": "Softwareelement"
+      }
+    },
+    "Boundary": {
+      "superClasses": [
+        "C4_Metamodel"
+      ],
+      "labels": {
+        "en": "Boundary",
+        "da": "Grænse"
+      }
+    },
+    "Enterprise_Boundary": {
+      "superClasses": [
+        "Boundary",
+        "C4_Metamodel"
+      ],
+      "labels": {
+        "en": "Enterprise Boundary",
+        "da": "Virksomhedsgrænse"
+      }
+    },
+    "System_Boundary": {
+      "superClasses": [
+        "Boundary",
+        "C4_Metamodel"
+      ],
+      "labels": {
+        "en": "Software System Boundary",
+        "da": "Systemgrænse"
+      }
+    },
+    "Person": {
+      "superClasses": [
+        "C4_Element",
+        "C4_Metamodel"
+      ],
+      "labels": {
+        "en": "Person",
+        "da": "Person"
+      }
+    },
+    "Software_System": {
+      "superClasses": [
+        "Software_Element",
+        "C4_Element",
+        "C4_Metamodel"
+      ],
+      "labels": {
+        "en": "Software System",
+        "da": "Softwaresystem"
+      }
+    },
+    "External_System": {
+      "superClasses": [
+        "Software_System",
+        "Software_Element",
+        "C4_Element",
+        "C4_Metamodel"
+      ],
+      "labels": {
+        "en": "External Software System",
+        "da": "Eksternt Softwaresystem"
+      }
+    },
+    "Container": {
+      "superClasses": [
+        "Software_Element",
+        "C4_Element",
+        "C4_Metamodel"
+      ],
+      "labels": {
+        "en": "Container",
+        "da": "Container"
+      }
+    },
+    "Component": {
+      "superClasses": [
+        "Software_Element",
+        "C4_Element",
+        "C4_Metamodel"
+      ],
+      "labels": {
+        "en": "Component",
+        "da": "Komponent"
+      }
+    },
+    "Code_Element": {
+      "superClasses": [
+        "Software_Element",
+        "C4_Element",
+        "C4_Metamodel"
+      ],
+      "labels": {
+        "en": "Code Element",
+        "da": "Kodeelement"
+      }
+    },
+    "Web_Application": {
+      "superClasses": [
+        "Container",
+        "Software_Element",
+        "C4_Element",
+        "C4_Metamodel"
+      ],
+      "labels": {
+        "en": "Web Application",
+        "da": "Webapplikation"
+      }
+    },
+    "Single_Page_Application": {
+      "superClasses": [
+        "Container",
+        "Software_Element",
+        "C4_Element",
+        "C4_Metamodel"
+      ],
+      "labels": {
+        "en": "Single-Page Application (SPA)",
+        "da": "Single-Page Applikation (SPA)"
+      }
+    },
+    "Mobile_Application": {
+      "superClasses": [
+        "Container",
+        "Software_Element",
+        "C4_Element",
+        "C4_Metamodel"
+      ],
+      "labels": {
+        "en": "Mobile Application",
+        "da": "Mobilapplikation"
+      }
+    },
+    "Database": {
+      "superClasses": [
+        "Container",
+        "Software_Element",
+        "C4_Element",
+        "C4_Metamodel"
+      ],
+      "labels": {
+        "en": "Database",
+        "da": "Database"
+      }
+    },
+    "Microservice": {
+      "superClasses": [
+        "Container",
+        "Software_Element",
+        "C4_Element",
+        "C4_Metamodel"
+      ],
+      "labels": {
+        "en": "Microservice",
+        "da": "Mikroservice"
+      }
+    },
+    "Message_Bus": {
+      "superClasses": [
+        "Container",
+        "Software_Element",
+        "C4_Element",
+        "C4_Metamodel"
+      ],
+      "labels": {
+        "en": "Message Bus / Topic",
+        "da": "Message Bus / Topic"
+      }
+    },
+    "Deployment_Element": {
+      "superClasses": [
+        "C4_Metamodel"
+      ],
+      "labels": {
+        "en": "Deployment Element",
+        "da": "Udrulningselement"
+      }
+    },
+    "Deployment_Node": {
+      "superClasses": [
+        "Deployment_Element",
+        "C4_Metamodel"
+      ],
+      "labels": {
+        "en": "Deployment Node",
+        "da": "Udrulningsknude"
+      }
+    },
+    "Infrastructure_Node": {
+      "superClasses": [
+        "Deployment_Element",
+        "C4_Metamodel"
+      ],
+      "labels": {
+        "en": "Infrastructure Node",
+        "da": "Infrastrukturknude"
+      }
+    },
+    "C4_View": {
+      "superClasses": [
+        "C4_Metamodel"
+      ],
+      "labels": {
+        "en": "C4 Diagram View",
+        "da": "C4-diagramvisning"
+      }
+    },
+    "System_Landscape_View": {
+      "superClasses": [
+        "C4_View",
+        "C4_Metamodel"
+      ],
+      "labels": {
+        "en": "System Landscape Diagram",
+        "da": "Systemlandskabsdiagram"
+      }
+    },
+    "System_Context_View": {
+      "superClasses": [
+        "C4_View",
+        "C4_Metamodel"
+      ],
+      "labels": {
+        "en": "System Context Diagram",
+        "da": "Systemkontekstdiagram"
+      }
+    },
+    "Container_View": {
+      "superClasses": [
+        "C4_View",
+        "C4_Metamodel"
+      ],
+      "labels": {
+        "en": "Container Diagram",
+        "da": "Containerdiagram"
+      }
+    },
+    "Component_View": {
+      "superClasses": [
+        "C4_View",
+        "C4_Metamodel"
+      ],
+      "labels": {
+        "en": "Component Diagram",
+        "da": "Komponentdiagram"
+      }
+    },
+    "Code_View": {
+      "superClasses": [
+        "C4_View",
+        "C4_Metamodel"
+      ],
+      "labels": {
+        "en": "Code Diagram",
+        "da": "Kodediagram"
+      }
+    },
+    "Dynamic_View": {
+      "superClasses": [
+        "C4_View",
+        "C4_Metamodel"
+      ],
+      "labels": {
+        "en": "Dynamic Diagram",
+        "da": "Dynamisk diagram"
+      }
+    },
+    "Deployment_View": {
+      "superClasses": [
+        "C4_View",
+        "C4_Metamodel"
+      ],
+      "labels": {
+        "en": "Deployment Diagram",
+        "da": "Udrulningsdiagram"
+      }
+    }
+  },
+  "properties": {
+    "c4": {
+      "labels": {
+        "en": "C4 Model Advanced OWL Ontology",
+        "da": "C4 Model Avanceret OWL-ontologi"
+      }
+    },
+    "C4_Relationship": {
+      "labels": {
+        "en": "C4 Relationship",
+        "da": "C4 Relation"
+      }
+    },
+    "contains": {
+      "labels": {
+        "en": "contains",
+        "da": "indeholder"
+      },
+      "transitive": true,
+      "inverseOf": "contained_in"
+    },
+    "contained_in": {
+      "labels": {
+        "en": "contained in",
+        "da": "indeholdt i"
+      },
+      "inverseOf": "contains",
+      "transitive": true
+    },
+    "uses": {
+      "labels": {
+        "en": "uses",
+        "da": "bruger"
+      },
+      "inverseOf": "used_by"
+    },
+    "used_by": {
+      "labels": {
+        "en": "used by",
+        "da": "bruges af"
+      },
+      "inverseOf": "uses"
+    },
+    "delivers_to": {
+      "labels": {
+        "en": "delivers to",
+        "da": "leverer til"
+      },
+      "inverseOf": "receives_from"
+    },
+    "receives_from": {
+      "labels": {
+        "en": "receives from",
+        "da": "modtager fra"
+      },
+      "inverseOf": "delivers_to"
+    },
+    "deployed_on": {
+      "labels": {
+        "en": "deployed on",
+        "da": "udrullet på"
+      },
+      "inverseOf": "hosts"
+    },
+    "hosts": {
+      "labels": {
+        "en": "hosts",
+        "da": "værtsliggør"
+      },
+      "inverseOf": "deployed_on"
+    },
+    "technology": {
+      "labels": {
+        "en": "technology",
+        "da": "teknologi"
+      }
+    },
+    "description": {
+      "labels": {
+        "en": "description",
+        "da": "beskrivelse"
+      }
+    },
+    "protocol": {
+      "labels": {
+        "en": "protocol/technology",
+        "da": "protokol/teknologi"
+      }
+    }
+  }
+}

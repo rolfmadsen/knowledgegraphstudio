@@ -1,0 +1,121 @@
+{
+  "classes": {
+    "Information_Class": {
+      "superClasses": [],
+      "labels": {
+        "en": "Information Class",
+        "da": "Informationsklasse"
+      }
+    },
+    "DataType": {
+      "superClasses": [],
+      "labels": {
+        "en": "Data Type",
+        "da": "Datatype"
+      }
+    },
+    "Enumeration": {
+      "superClasses": [],
+      "labels": {
+        "en": "Enumeration",
+        "da": "Enumeration"
+      }
+    },
+    "n3-0": {
+      "superClasses": [],
+      "labels": {}
+    }
+  },
+  "properties": {
+    "information": {
+      "labels": {
+        "en": "Information Model (Informationsmodel) OWL Ontology",
+        "da": "Informationsmodel OWL-ontologi"
+      }
+    },
+    "Information_Relationship": {
+      "labels": {
+        "en": "Information Relationship",
+        "da": "Informationsrelation"
+      }
+    },
+    "generalizes": {
+      "labels": {
+        "en": "generalizes",
+        "da": "generaliserer"
+      },
+      "inverseOf": "specializes_of"
+    },
+    "specializes_of": {
+      "labels": {
+        "en": "specializes of",
+        "da": "specialiserer af"
+      },
+      "inverseOf": "generalizes"
+    },
+    "associates_with": {
+      "labels": {
+        "en": "associates with",
+        "da": "associerer med"
+      }
+    },
+    "aggregates": {
+      "labels": {
+        "en": "aggregates",
+        "da": "aggregerer"
+      },
+      "transitive": true,
+      "inverseOf": "aggregated_in"
+    },
+    "aggregated_in": {
+      "labels": {
+        "en": "aggregated in",
+        "da": "aggregeres i"
+      },
+      "inverseOf": "aggregates"
+    },
+    "composed_of": {
+      "labels": {
+        "en": "composed of",
+        "da": "sammensat af"
+      },
+      "transitive": true,
+      "inverseOf": "composed_in"
+    },
+    "composed_in": {
+      "labels": {
+        "en": "composed in",
+        "da": "indgår i sammensætning af"
+      },
+      "inverseOf": "composed_of"
+    },
+    "has_type": {
+      "labels": {
+        "en": "has type",
+        "da": "har type"
+      },
+      "inverseOf": "is_type_of"
+    },
+    "is_type_of": {
+      "labels": {
+        "en": "is type of",
+        "da": "er type for"
+      },
+      "inverseOf": "has_type"
+    },
+    "wasDerivedFrom": {
+      "labels": {
+        "en": "was derived from",
+        "da": "blev afledt af"
+      },
+      "inverseOf": "hasDerivative"
+    },
+    "hasDerivative": {
+      "labels": {
+        "en": "has derivative",
+        "da": "har afledning"
+      },
+      "inverseOf": "wasDerivedFrom"
+    }
+  }
+}

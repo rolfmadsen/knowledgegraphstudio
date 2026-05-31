@@ -1,0 +1,74 @@
+@prefix : <http://www.semanticweb.org/v0cn037/ontologies/2026/05/conceptual#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xml: <http://www.w3.org/XML/1998/namespace> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+
+<http://www.semanticweb.org/v0cn037/ontologies/2026/05/conceptual> rdf:type owl:Ontology ;
+    owl:versionInfo "1.0" ;
+    rdfs:label "Conceptual Model (Begrebsmodel) OWL Ontology"@en , "Begrebsmodel OWL-ontologi"@da ;
+    rdfs:comment "A formal OWL ontology representing the Conceptual Model notation with core UML relationship types."@en , "En formel OWL-ontologi, der repræsenterer Begrebsmodel-notationen med centrale UML-relationstyper."@da ;
+    dct:title "Conceptual Model OWL Ontology" ;
+    dct:creator "TypeGraph Knowledge Graph Studio Agent" ;
+    dct:created "2026-05-31"^^xsd:date .
+
+### =========================================================================
+### 1. Object Properties (UML Relationships)
+### =========================================================================
+
+:Conceptual_Relationship rdf:type owl:ObjectProperty ;
+    rdfs:label "Conceptual Relationship"@en , "Begrebsrelation"@da .
+
+### Generalization (Arv)
+:generalizes rdf:type owl:ObjectProperty ;
+    rdfs:subPropertyOf :Conceptual_Relationship ;
+    owl:inverseOf :specializes_of ;
+    rdfs:domain :Conceptual_Class ;
+    rdfs:range :Conceptual_Class ;
+    rdfs:label "generalizes"@en , "generaliserer"@da ;
+    rdfs:comment "Generalization relationship (inheritance)."@en .
+
+:specializes_of rdf:type owl:ObjectProperty ;
+    rdfs:label "specializes of"@en , "specialiserer af"@da .
+
+### Association
+:associates_with rdf:type owl:ObjectProperty , owl:SymmetricProperty ;
+    rdfs:subPropertyOf :Conceptual_Relationship ;
+    rdfs:domain :Conceptual_Class ;
+    rdfs:range :Conceptual_Class ;
+    rdfs:label "associates with"@en , "associerer med"@da ;
+    rdfs:comment "A standard bi-directional association between concepts."@en .
+
+### Aggregation
+:aggregates rdf:type owl:ObjectProperty , owl:TransitiveProperty ;
+    rdfs:subPropertyOf :Conceptual_Relationship ;
+    owl:inverseOf :aggregated_in ;
+    rdfs:domain :Conceptual_Class ;
+    rdfs:range :Conceptual_Class ;
+    rdfs:label "aggregates"@en , "aggregerer"@da ;
+    rdfs:comment "Aggregation represents a part-whole relationship where the part can exist independently."@en .
+
+:aggregated_in rdf:type owl:ObjectProperty ;
+    rdfs:label "aggregated in"@en , "aggregeres i"@da .
+
+### Composition
+:composed_of rdf:type owl:ObjectProperty , owl:TransitiveProperty ;
+    rdfs:subPropertyOf :Conceptual_Relationship ;
+    owl:inverseOf :composed_in ;
+    rdfs:domain :Conceptual_Class ;
+    rdfs:range :Conceptual_Class ;
+    rdfs:label "composed of"@en , "sammensat af"@da ;
+    rdfs:comment "Composition represents a strong part-whole relationship where the parts cannot exist without the whole."@en .
+
+:composed_in rdf:type owl:ObjectProperty ;
+    rdfs:label "composed in"@en , "indgår i sammensætning af"@da .
+
+### =========================================================================
+### 2. Core Classes
+### =========================================================================
+
+:Conceptual_Class rdf:type owl:Class ;
+    rdfs:label "Conceptual Class"@en , "Begrebsklasse"@da ;
+    rdfs:comment "A concept or business entity in the conceptual model."@en .

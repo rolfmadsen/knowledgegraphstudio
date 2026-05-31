@@ -261,7 +261,6 @@ export class GitService {
     const dir = `/workspace-${safeLabel}`;
 
     // Ensure the VFS directory exists and is EMPTY
-    const { getFS } = await import('../core/fileSystem');
     const fs = getFS();
     const pfs = fs.promises;
     

@@ -15,9 +15,12 @@ import {
   modelYamlExists,
   ensureWorkspaceDir,
   setRepoDir,
+  REPO_DIR,
 } from '../core/fileSystem';
 import { type GraphState, toElementId } from '../schema/graphSchema';
 import { GitService } from './GitService';
+import { resetGitCache, gitReset, gitLog } from '../core/gitEngine';
+import { FileSystemAccessService } from './FileSystemAccessService';
 
 export type PersistableState = Pick<GraphState, 'domains' | 'concepts' | 'relations' | 'views'>;
 
@@ -112,8 +115,6 @@ export class PersistenceService {
     }
 
     try {
-      const { FileSystemAccessService } = await import('./FileSystemAccessService');
-      const { REPO_DIR } = await import('../core/fileSystem');
       await FileSystemAccessService.loadHandleForWorkspace(REPO_DIR);
 
       await ensureWorkspaceDir();
@@ -290,13 +291,10 @@ export class PersistenceService {
 
       this.isBootstrapped = false;
 
-      // Load local directory handle for the target workspace
-      const { FileSystemAccessService } = await import('./FileSystemAccessService');
       await FileSystemAccessService.loadHandleForWorkspace(dir);
 
       setRepoDir(dir);
 
-      const { resetGitCache } = await import('../core/gitEngine');
       resetGitCache();
 
       return await this.bootstrap();
@@ -311,7 +309,6 @@ export class PersistenceService {
    */
   static async revertToPreviousCommit(): Promise<void> {
     try {
-      const { gitReset, gitLog } = await import('../core/gitEngine');
       const logs = await gitLog(2);
       if (logs.length < 2) {
         throw new Error('Ingen historik at rulle tilbage til.');

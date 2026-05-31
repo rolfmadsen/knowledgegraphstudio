@@ -1,0 +1,235 @@
+@prefix : <http://www.semanticweb.org/v0cn037/ontologies/2026/05/c4#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xml: <http://www.w3.org/XML/1998/namespace> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+
+<http://www.semanticweb.org/v0cn037/ontologies/2026/05/c4> rdf:type owl:Ontology ;
+    owl:versionInfo "1.1" ;
+    rdfs:label "C4 Model Advanced OWL Ontology"@en , "C4 Model Avanceret OWL-ontologi"@da ;
+    rdfs:comment "A strict formal OWL ontology representing the C4 model with enforced domain/range mapping, boundaries, and element attributes (technology, description)."@en , "En streng formel OWL-ontologi for C4-modellen med tvungen domain/range-kortlægning, grænser (boundaries) og elementattributter (teknologi, beskrivelse)."@da ;
+    dct:title "C4 Model Specification OWL Ontology" ;
+    dct:creator "TypeGraph Knowledge Graph Studio Agent" ;
+    dct:created "2026-05-31"^^xsd:date .
+
+### =========================================================================
+### 1. Object Properties (Relationships with Inverses & Restrictions)
+### =========================================================================
+
+:C4_Relationship rdf:type owl:ObjectProperty ;
+    rdfs:label "C4 Relationship"@en , "C4 Relation"@da .
+
+### Structural Relationships (Hierarki)
+:contains rdf:type owl:ObjectProperty , owl:TransitiveProperty ;
+    rdfs:subPropertyOf :C4_Relationship ;
+    owl:inverseOf :contained_in ;
+    rdfs:domain :C4_Metamodel ;
+    rdfs:range :C4_Metamodel ;
+    rdfs:label "contains"@en , "indeholder"@da ;
+    rdfs:comment "Structural containment. Strict hierarchy is enforced at application level."@en .
+
+:contained_in rdf:type owl:ObjectProperty , owl:TransitiveProperty ;
+    rdfs:label "contained in"@en , "indeholdt i"@da .
+
+### Behavioral Relationships (Kommunikation & Afhængigheder)
+:uses rdf:type owl:ObjectProperty ;
+    rdfs:subPropertyOf :C4_Relationship ;
+    owl:inverseOf :used_by ;
+    rdfs:domain :C4_Element ;
+    rdfs:range :C4_Element ;
+    rdfs:label "uses"@en , "bruger"@da ;
+    rdfs:comment "A generic relationship representing interaction, dependency, or data flow between elements. Can include protocol via data properties."@en .
+
+:used_by rdf:type owl:ObjectProperty ;
+    rdfs:label "used by"@en , "bruges af"@da .
+
+:delivers_to rdf:type owl:ObjectProperty ;
+    rdfs:subPropertyOf :C4_Relationship ;
+    owl:inverseOf :receives_from ;
+    rdfs:domain :C4_Element ;
+    rdfs:range :C4_Element ;
+    rdfs:label "delivers to"@en , "leverer til"@da ;
+    rdfs:comment "Used primarily for asynchronous communication via Message Buses or Topics."@en .
+
+:receives_from rdf:type owl:ObjectProperty ;
+    rdfs:label "receives from"@en , "modtager fra"@da .
+
+### Deployment Relationships
+:deployed_on rdf:type owl:ObjectProperty ;
+    rdfs:subPropertyOf :C4_Relationship ;
+    owl:inverseOf :hosts ;
+    rdfs:domain :Software_Element ;
+    rdfs:range :Deployment_Element ;
+    rdfs:label "deployed on"@en , "udrullet på"@da ;
+    rdfs:comment "Maps a software element (System, Container) to a Deployment Node."@en .
+
+:hosts rdf:type owl:ObjectProperty ;
+    rdfs:label "hosts"@en , "værtsliggør"@da .
+
+### =========================================================================
+### 2. Data Properties (C4 Specific Attributes)
+### =========================================================================
+
+:technology rdf:type owl:DatatypeProperty ;
+    rdfs:domain :C4_Element ;
+    rdfs:range xsd:string ;
+    rdfs:label "technology"@en , "teknologi"@da ;
+    rdfs:comment "The technology choice for a container or component (e.g., 'Spring Boot', 'React', 'PostgreSQL')."@en .
+
+:description rdf:type owl:DatatypeProperty ;
+    rdfs:domain :C4_Element ;
+    rdfs:range xsd:string ;
+    rdfs:label "description"@en , "beskrivelse"@da ;
+    rdfs:comment "A short statement explaining the responsibility of the element."@en .
+
+:protocol rdf:type owl:DatatypeProperty ;
+    rdfs:domain :C4_Relationship ;
+    rdfs:range xsd:string ;
+    rdfs:label "protocol/technology"@en , "protokol/teknologi"@da ;
+    rdfs:comment "The technology or protocol used for a relationship (e.g., 'HTTPS', 'gRPC', 'async')."@en .
+
+### =========================================================================
+### 3. Core Ontology Elements & Framework Dimensions
+### =========================================================================
+
+:C4_Metamodel rdf:type owl:Class ;
+    rdfs:label "C4 Metamodel"@en , "C4 Metamodel"@da .
+
+:C4_Element rdf:type owl:Class ;
+    rdfs:subClassOf :C4_Metamodel ;
+    rdfs:label "C4 Element"@en , "C4 Element"@da .
+
+:Software_Element rdf:type owl:Class ;
+    rdfs:subClassOf :C4_Element ;
+    rdfs:label "Software Element"@en , "Softwareelement"@da .
+
+### Boundaries (Grænser)
+:Boundary rdf:type owl:Class ;
+    rdfs:subClassOf :C4_Metamodel ;
+    rdfs:label "Boundary"@en , "Grænse"@da .
+
+:Enterprise_Boundary rdf:type owl:Class ;
+    rdfs:subClassOf :Boundary ;
+    rdfs:label "Enterprise Boundary"@en , "Virksomhedsgrænse"@da .
+
+:System_Boundary rdf:type owl:Class ;
+    rdfs:subClassOf :Boundary ;
+    rdfs:label "Software System Boundary"@en , "Systemgrænse"@da .
+
+### =========================================================================
+### 4. Core C4 Abstractions (The Hierarchy)
+### =========================================================================
+
+:Person rdf:type owl:Class ;
+    rdfs:subClassOf :C4_Element ;
+    rdfs:label "Person"@en , "Person"@da ;
+    rdfs:comment "A human user of the software system (actor, role, persona)."@en .
+
+:Software_System rdf:type owl:Class ;
+    rdfs:subClassOf :Software_Element ;
+    rdfs:label "Software System"@en , "Softwaresystem"@da ;
+    rdfs:comment "The highest level of abstraction. Delivers value to its users."@en .
+
+:External_System rdf:type owl:Class ;
+    rdfs:subClassOf :Software_System ;
+    rdfs:label "External Software System"@en , "Eksternt Softwaresystem"@da ;
+    rdfs:comment "A software system outside the immediate scope/control of the enterprise."@en .
+
+:Container rdf:type owl:Class ;
+    rdfs:subClassOf :Software_Element ;
+    rdfs:label "Container"@en , "Container"@da ;
+    rdfs:comment "An application or data store running inside a software system."@en .
+
+:Component rdf:type owl:Class ;
+    rdfs:subClassOf :Software_Element ;
+    rdfs:label "Component"@en , "Komponent"@da ;
+    rdfs:comment "A grouping of related functionality encapsulated behind an interface, running inside a container."@en .
+
+:Code_Element rdf:type owl:Class ;
+    rdfs:subClassOf :Software_Element ;
+    rdfs:label "Code Element"@en , "Kodeelement"@da ;
+    rdfs:comment "The lowest level of abstraction (e.g., classes, interfaces, functions)."@en .
+
+### =========================================================================
+### 5. Specialized Container Types 
+### =========================================================================
+
+:Web_Application rdf:type owl:Class ;
+    rdfs:subClassOf :Container ;
+    rdfs:label "Web Application"@en , "Webapplikation"@da .
+
+:Single_Page_Application rdf:type owl:Class ;
+    rdfs:subClassOf :Container ;
+    rdfs:label "Single-Page Application (SPA)"@en , "Single-Page Applikation (SPA)"@da .
+
+:Mobile_Application rdf:type owl:Class ;
+    rdfs:subClassOf :Container ;
+    rdfs:label "Mobile Application"@en , "Mobilapplikation"@da .
+
+:Database rdf:type owl:Class ;
+    rdfs:subClassOf :Container ;
+    rdfs:label "Database"@en , "Database"@da .
+
+:Microservice rdf:type owl:Class ;
+    rdfs:subClassOf :Container ;
+    rdfs:label "Microservice"@en , "Mikroservice"@da .
+
+:Message_Bus rdf:type owl:Class ;
+    rdfs:subClassOf :Container ;
+    rdfs:label "Message Bus / Topic"@en , "Message Bus / Topic"@da .
+
+### =========================================================================
+### 6. Deployment Abstractions
+### =========================================================================
+
+:Deployment_Element rdf:type owl:Class ;
+    rdfs:subClassOf :C4_Metamodel ;
+    rdfs:label "Deployment Element"@en , "Udrulningselement"@da .
+
+:Deployment_Node rdf:type owl:Class ;
+    rdfs:subClassOf :Deployment_Element ;
+    rdfs:label "Deployment Node"@en , "Udrulningsknude"@da ;
+    rdfs:comment "Physical or virtual environment, infrastructure, or platform where containers are deployed."@en .
+
+:Infrastructure_Node rdf:type owl:Class ;
+    rdfs:subClassOf :Deployment_Element ;
+    rdfs:label "Infrastructure Node"@en , "Infrastrukturknude"@da ;
+    rdfs:comment "Infrastructural services (e.g., Load Balancers, DNS, API Gateways)."@en .
+
+### =========================================================================
+### 7. C4 Diagram Views (Visninger)
+### =========================================================================
+
+:C4_View rdf:type owl:Class ;
+    rdfs:subClassOf :C4_Metamodel ;
+    rdfs:label "C4 Diagram View"@en , "C4-diagramvisning"@da .
+
+:System_Landscape_View rdf:type owl:Class ;
+    rdfs:subClassOf :C4_View ;
+    rdfs:label "System Landscape Diagram"@en , "Systemlandskabsdiagram"@da .
+
+:System_Context_View rdf:type owl:Class ;
+    rdfs:subClassOf :C4_View ;
+    rdfs:label "System Context Diagram"@en , "Systemkontekstdiagram"@da .
+
+:Container_View rdf:type owl:Class ;
+    rdfs:subClassOf :C4_View ;
+    rdfs:label "Container Diagram"@en , "Containerdiagram"@da .
+
+:Component_View rdf:type owl:Class ;
+    rdfs:subClassOf :C4_View ;
+    rdfs:label "Component Diagram"@en , "Komponentdiagram"@da .
+
+:Code_View rdf:type owl:Class ;
+    rdfs:subClassOf :C4_View ;
+    rdfs:label "Code Diagram"@en , "Kodediagram"@da .
+
+:Dynamic_View rdf:type owl:Class ;
+    rdfs:subClassOf :C4_View ;
+    rdfs:label "Dynamic Diagram"@en , "Dynamisk diagram"@da .
+
+:Deployment_View rdf:type owl:Class ;
+    rdfs:subClassOf :C4_View ;
+    rdfs:label "Deployment Diagram"@en , "Udrulningsdiagram"@da .

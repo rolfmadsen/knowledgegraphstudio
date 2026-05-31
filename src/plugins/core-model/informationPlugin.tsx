@@ -3,6 +3,7 @@ import type { NotationPlugin, PluginCanvasProps } from '../types';
 import { ReactFlowCanvas } from '../../features/viewport/graph/ReactFlowCanvas';
 import { InformationNodeComponent } from './sharedComponents';
 import { dagreLayoutEngine } from '../knowledge-graph';
+import { isValidRelation, getAvailableRelations } from './informationValidator';
 
 function InformationCanvas(props: PluginCanvasProps) {
   const nodeTypes = useMemo(() => ({ conceptNode: InformationNodeComponent }), []);
@@ -22,6 +23,8 @@ export const informationPlugin: NotationPlugin = {
     datatype: 'Struktureret Datatype',
     enumeration: 'Enumeration',
   },
+  isValidRelation,
+  getAvailableRelations,
 };
 
 export default informationPlugin;
