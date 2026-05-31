@@ -133,12 +133,15 @@ function DcrSimulationControls({ concepts }: { concepts: ConceptNode[]; relation
     }))
   );
 
-  // Initialize markings when simulation mode is toggled ON, or when concepts list updates
+  const lastSimulatingRef = useRef(false);
+
+  // Initialize markings only when simulation mode is toggled from OFF to ON
   useEffect(() => {
-    if (isSimulating) {
+    if (isSimulating && !lastSimulatingRef.current) {
       initialize(concepts);
     }
-  }, [isSimulating, concepts, initialize]);
+    lastSimulatingRef.current = isSimulating;
+  }, [isSimulating, initialize]); // Omit concepts to prevent simulation reset during active editing/dragging
 
   // Determine accepting state
   // DCR is accepting iff there are no included events that are pending response
@@ -148,7 +151,7 @@ function DcrSimulationControls({ concepts }: { concepts: ConceptNode[]; relation
   }, [isSimulating, markings]);
 
   const switcherWidth = headerSwitcherWidth || 260;
-  const simulationWidth = headerSimulationWidth || innerRef.current?.getBoundingClientRect().width || 180;
+  const simulationWidth = headerSimulationWidth || 180;
   const shouldStack = canvasWidth > 0 && canvasWidth < switcherWidth + simulationWidth + 80;
 
   return (

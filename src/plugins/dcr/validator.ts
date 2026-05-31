@@ -2,10 +2,27 @@ import ontology from './ontology.json';
 import type { ConceptType } from '../../schema/graphSchema';
 
 export const DCR_TYPE_MAP: Record<string, string> = {
+  // --- DCR EVENTS (Behavior) ---
   event: 'Event',
+  business_event: 'Event',
+  application_event: 'Event',
+  process: 'Event',
+  business_process: 'Event',
+  application_process: 'Event',
+  business_function: 'Event',
+  work_package: 'Event',
+
+  // --- DCR SUBGRAPHS (Containers) ---
   bounded_context: 'SubGraph',
+  domain: 'SubGraph',
+
+  // --- DCR ROLES ---
   business_role: 'Role',
+
+  // --- DCR PRINCIPALS (Active Structure) ---
   actor: 'Principal',
+  system: 'Principal',
+  application_component: 'Principal'
 };
 
 /**
@@ -30,7 +47,7 @@ export function isSubclass(className: string, parentClassName: string): boolean 
   const normClass = normalizeClassName(className);
   const normParent = normalizeClassName(parentClassName);
   if (normClass === normParent) return true;
-  
+
   const classInfo = normalizedClasses[normClass];
   if (!classInfo) return false;
   return classInfo.superClasses.includes(normParent);
@@ -107,7 +124,7 @@ export function isValidRelation(
 ): boolean {
   const available = getAvailableRelations(sourceType, targetType);
   const cleanSearch = label.toLowerCase().replace('relationship', '').trim();
-  
+
   return available.some((rel) => {
     const cleanRelLabel = rel.label.toLowerCase().replace('relationship', '').trim();
     return (
