@@ -22,6 +22,7 @@ import '@xyflow/react/dist/style.css';
 import type { PluginCanvasProps } from '../../../plugins/types';
 import { PluginRegistry } from '../../../plugins/PluginRegistry';
 import { useGraphStore } from '../../../store/useGraphStore';
+import { useShallow } from 'zustand/react/shallow';
 import { type ConceptNode, type ElementId, toElementId } from '../../../schema/graphSchema';
 
 // --- Padding for Grouping Containers ---
@@ -195,6 +196,7 @@ function FloatingEdge({ id, source, target, style, label, labelStyle, selected, 
   const selectRelation = data?.selectRelation as (id: string) => void;
   const strokeDasharray = (data?.strokeDasharray as string) || 'none';
   const markerEnd = data?.markerEnd as string | undefined;
+  const markerStart = data?.markerStart as string | undefined;
 
   return (
     <>
@@ -203,12 +205,13 @@ function FloatingEdge({ id, source, target, style, label, labelStyle, selected, 
         className="react-flow__edge-path"
         d={straightPath}
         markerEnd={markerEnd}
+        markerStart={markerStart}
         style={{
-          ...style,
-          stroke: selected ? '#10b981' : '#64748b',
           strokeWidth: selected ? 2.5 : 1.5,
           transition: 'stroke 0.2s ease, stroke-width 0.2s ease',
           strokeDasharray: strokeDasharray,
+          ...style,
+          stroke: selected ? '#10b981' : (style?.stroke || '#64748b'),
         }}
       />
       {displayName && (
@@ -283,6 +286,37 @@ export function ReactFlowCanvas({
   
   const currentAlgo = view.layoutAlgorithm;
   const containerRef = useRef<HTMLDivElement>(null);
+  const hintsRef = useRef<HTMLDivElement>(null);
+  const hintsObserverRef = useRef<ResizeObserver | null>(null);
+  const hintsRefCallback = useCallback((node: HTMLDivElement | null) => {
+    (hintsRef as any).current = node;
+
+    if (hintsObserverRef.current) {
+      hintsObserverRef.current.disconnect();
+      hintsObserverRef.current = null;
+    }
+
+    if (node) {
+      useGraphStore.getState().setFooterHintsWidth(node.getBoundingClientRect().width);
+
+      const observer = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          useGraphStore.getState().setFooterHintsWidth(entry.target.getBoundingClientRect().width);
+        }
+      });
+      observer.observe(node);
+      hintsObserverRef.current = observer;
+    }
+  }, []);
+
+  const { canvasWidth, footerLayoutWidth, footerHintsWidth } = useGraphStore(
+    useShallow((s) => ({
+      canvasWidth: s.canvasWidth,
+      footerLayoutWidth: s.footerLayoutWidth,
+      footerHintsWidth: s.footerHintsWidth,
+    }))
+  );
+
   const activeDraggingNode = useRef<ElementId | null>(null);
   const selectedConceptIdRef = useRef(selectedConceptId);
 
@@ -436,15 +470,22 @@ export function ReactFlowCanvas({
     return relations.map((r) => {
       const isSelected = r.id === selectedRelationId;
       let markerEndStr: string | undefined;
+      let markerStartStr: string | undefined;
       let strokeDash: string;
+      let edgeStyle: React.CSSProperties | undefined = undefined;
 
       if (activePlugin?.getEdgeStyle) {
         const style = activePlugin.getEdgeStyle(r, isSelected);
         strokeDash = style.strokeDasharray ?? 'none';
         markerEndStr = style.markerEnd;
+        markerStartStr = style.markerStart;
+        if (style.stroke) {
+          edgeStyle = { stroke: style.stroke };
+        }
       } else {
         // default triggered / flow / other
         markerEndStr = isSelected ? 'url(#arrow-closed-selected)' : 'url(#arrow-closed)';
+        markerStartStr = undefined;
         strokeDash = 'none';
       }
 
@@ -455,10 +496,12 @@ export function ReactFlowCanvas({
         type: 'floating',
         label: r.name,
         selected: isSelected,
+        style: edgeStyle,
         data: {
           selectRelation: onRelationSelect,
           strokeDasharray: strokeDash,
           markerEnd: markerEndStr,
+          markerStart: markerStartStr,
           multiplicity: r.multiplicity,
         },
       };
@@ -734,6 +777,10 @@ export function ReactFlowCanvas({
     }
   }, []);
 
+  const hintsWidth = footerHintsWidth || hintsRef.current?.getBoundingClientRect().width || 380;
+  const layoutWidth = footerLayoutWidth || 270;
+  const shouldStack = canvasWidth > 0 && canvasWidth < layoutWidth + hintsWidth + 220;
+
   return (
     <div
       ref={containerRef}
@@ -803,16 +850,24 @@ export function ReactFlowCanvas({
       </div>
 
       {/* Spatial Navigation Keyboard Hint */}
-      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-2 px-3 py-1.5 bg-white/95 backdrop-blur-sm border border-slate-200 rounded-xl shadow-lg pointer-events-none select-none">
-        <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Navigate Nodes:</span>
+      <div 
+        ref={hintsRefCallback}
+        className={`absolute z-[100] flex items-center gap-2 px-4 h-10 bg-white/90 backdrop-blur-xl border border-slate-200/80 rounded-2xl shadow-xl shadow-slate-200/60 pointer-events-none select-none transition-all duration-300
+          ${shouldStack 
+            ? 'bottom-6 left-1/2 -translate-x-1/2' 
+            : 'bottom-6 left-auto right-24 translate-x-0'
+          }
+        `}
+      >
+        <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Nodes:</span>
         <div className="flex gap-0.5">
           <kbd className="px-1.5 py-0.5 text-[9px] font-black text-slate-500 bg-slate-100 border border-slate-200 rounded">▲</kbd>
           <kbd className="px-1.5 py-0.5 text-[9px] font-black text-slate-500 bg-slate-100 border border-slate-200 rounded">▼</kbd>
           <kbd className="px-1.5 py-0.5 text-[9px] font-black text-slate-500 bg-slate-100 border border-slate-200 rounded">◀</kbd>
           <kbd className="px-1.5 py-0.5 text-[9px] font-black text-slate-500 bg-slate-100 border border-slate-200 rounded">▶</kbd>
         </div>
-        <div className="w-[1px] h-3 bg-slate-200 mx-2" />
-        <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Navigate Edges:</span>
+        <div className="w-px h-4 bg-slate-200 mx-1" />
+        <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Edges:</span>
         <div className="flex items-center gap-1">
           <kbd className="px-1.5 py-0.5 text-[9px] font-black text-slate-500 bg-slate-100 border border-slate-200 rounded">Alt</kbd>
           <span className="text-[9px] font-bold text-slate-400">+</span>
@@ -823,8 +878,8 @@ export function ReactFlowCanvas({
             <kbd className="px-1.5 py-0.5 text-[9px] font-black text-slate-500 bg-slate-100 border border-slate-200 rounded">▶</kbd>
           </div>
         </div>
-        <div className="w-[1px] h-3 bg-slate-200 mx-2" />
-        <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Delete:</span>
+        <div className="w-px h-4 bg-slate-200 mx-1" />
+        <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Delete:</span>
         <div className="flex items-center gap-1">
           <kbd className="px-1.5 py-0.5 text-[9px] font-black text-slate-500 bg-slate-100 border border-slate-200 rounded">Del</kbd>
         </div>

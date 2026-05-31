@@ -322,7 +322,22 @@ export class GraphService {
       else if (sType === 'capability' && tType === 'bounded_context') finalName = 'supported by';
       else if (sType === 'bounded_context' && tType === 'bounded_context') finalName = 'depends on';
       else if (sType === 'entity' && tType === 'capability') finalName = 'enables';
+      // DCR Graphs Defaults
+      else if (sType === 'event' && tType === 'event') finalName = 'Condition (->*)';
+      else if (sType === 'event' && tType === 'business_role') finalName = 'Has Role';
+      else if (sType === 'business_role' && tType === 'actor') finalName = 'Has Principal';
+      else if (sType === 'event' && tType === 'bounded_context') finalName = 'Is Nested In';
       else finalName = 'relates to';
+    }
+
+    let finalRelationType = options.relationType;
+    if (!finalRelationType) {
+      const sType = source?.conceptType;
+      const tType = target?.conceptType;
+      if (sType === 'event' && tType === 'event') finalRelationType = 'has_condition';
+      else if (sType === 'event' && tType === 'business_role') finalRelationType = 'has_role';
+      else if (sType === 'business_role' && tType === 'actor') finalRelationType = 'has_principal';
+      else if (sType === 'event' && tType === 'bounded_context') finalRelationType = 'is_nested_in';
     }
 
     const id = generateId('other', finalName);
@@ -336,7 +351,7 @@ export class GraphService {
       targetConceptId: targetId,
       name: finalName,
       category: options.category ?? 'semantic',
-      relationType: options.relationType as any,
+      relationType: finalRelationType as any,
       multiplicity: options.multiplicity,
       mappingPattern: options.mappingPattern,
       transformationDescription: options.transformationDescription,
@@ -566,7 +581,7 @@ export class GraphService {
    * Navigation: Select the nearest node in a spatial direction.
    * Looks up coordinates from the active view's ViewNodes.
    */
-  static selectNearestNode(state: GraphStateWithSelection, direction: 'up' | 'down' | 'left' | 'right'): { selectedConceptId: ElementId | null } {
+  static selectNearestNode(state: GraphStateWithSelection, direction: 'up' | 'down' | 'left' | 'right'): Partial<GraphStateWithSelection> {
     const currentId = state.selectedConceptId;
     const activeView = state.views?.find(v => v.id === state.activeViewId);
     if (!activeView) return { selectedConceptId: currentId ?? null };
@@ -575,7 +590,7 @@ export class GraphService {
 
     if (!currentId) {
       if (activeView.nodes.length > 0) {
-        return { selectedConceptId: activeView.nodes[0].conceptId };
+        return { selectedConceptId: activeView.nodes[0].conceptId, selectedRelationId: null };
       }
       return { selectedConceptId: null };
     }
@@ -604,14 +619,14 @@ export class GraphService {
       return { id: n.conceptId, score: dist * penalty };
     });
     scored.sort((a, b) => a.score - b.score);
-    return { selectedConceptId: scored[0].id };
+    return { selectedConceptId: scored[0].id, selectedRelationId: null };
   }
 
   /**
    * Navigation: Select the nearest edge connected to the current node in a spatial direction.
    * Looks up coordinates from the active view's ViewNodes.
    */
-  static selectNearestEdge(state: GraphStateWithSelection, direction: 'up' | 'down' | 'left' | 'right'): { selectedRelationId: ElementId | null } {
+  static selectNearestEdge(state: GraphStateWithSelection, direction: 'up' | 'down' | 'left' | 'right'): Partial<GraphStateWithSelection> {
     let currentId = state.selectedConceptId;
     if (!currentId && state.selectedRelationId) {
       const rel = state.relations.find(r => r.id === state.selectedRelationId);
@@ -658,7 +673,7 @@ export class GraphService {
       return { edgeId: d.edge.id, score: dist * penalty };
     });
     scored.sort((a, b) => a.score - b.score);
-    return { selectedRelationId: scored[0].edgeId };
+    return { selectedRelationId: scored[0].edgeId, selectedConceptId: null };
   }
 
   /**
@@ -711,8 +726,8 @@ export class GraphService {
     let maxX = -Infinity;
     let maxY = -Infinity;
 
-    const defaultW = view.type === 'c4' ? 240 : view.type === 'archimate' ? 210 : 200;
-    const defaultH = view.type === 'c4' ? 96 : view.type === 'archimate' ? 76 : 80;
+    const defaultW = view.type === 'c4' ? 240 : (view.type === 'archimate' || view.type === 'dcr') ? 210 : 200;
+    const defaultH = view.type === 'c4' ? 96 : (view.type === 'archimate' || view.type === 'dcr') ? 76 : 80;
 
     viewNodes.forEach((vn) => {
       minX = Math.min(minX, vn.x);

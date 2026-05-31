@@ -72,7 +72,9 @@ export interface PluginCanvasProps {
 
 export interface EdgeStyle {
   strokeDasharray?: string;
+  markerStart?: string;
   markerEnd?: string;
+  stroke?: string;
 }
 
 // ============================================================

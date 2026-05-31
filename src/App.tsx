@@ -148,6 +148,50 @@ function App() {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, []);
 
+  // --- Observe Canvas Width for Dynamic Responsive Layout ---
+  const canvasObserverRef = useRef<ResizeObserver | null>(null);
+  const canvasRefCallback = useCallback((node: HTMLDivElement | null) => {
+    (zone2Ref as any).current = node;
+
+    if (canvasObserverRef.current) {
+      canvasObserverRef.current.disconnect();
+      canvasObserverRef.current = null;
+    }
+
+    if (node) {
+      useGraphStore.getState().setCanvasWidth(node.getBoundingClientRect().width);
+
+      const observer = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          useGraphStore.getState().setCanvasWidth(entry.target.getBoundingClientRect().width);
+        }
+      });
+      observer.observe(node);
+      canvasObserverRef.current = observer;
+    }
+  }, []);
+
+  // --- Observe Switcher Width for Dynamic Responsive Layout ---
+  const switcherObserverRef = useRef<ResizeObserver | null>(null);
+  const switcherRefCallback = useCallback((node: HTMLDivElement | null) => {
+    if (switcherObserverRef.current) {
+      switcherObserverRef.current.disconnect();
+      switcherObserverRef.current = null;
+    }
+
+    if (node) {
+      useGraphStore.getState().setHeaderSwitcherWidth(node.getBoundingClientRect().width);
+
+      const observer = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          useGraphStore.getState().setHeaderSwitcherWidth(entry.target.getBoundingClientRect().width);
+        }
+      });
+      observer.observe(node);
+      switcherObserverRef.current = observer;
+    }
+  }, []);
+
   // --- View mode cycling ---
   const cycleViewMode = useCallback(() => {
     setDiffMode(false);
@@ -326,7 +370,7 @@ function App() {
         {indexOpen && !focusMode && (
           <>
             <aside
-              className="border-r border-slate-200 bg-slate-50 flex flex-col shrink-0 overflow-hidden"
+              className="relative z-30 border-r border-slate-200 bg-slate-50 flex flex-col shrink-0 overflow-hidden"
               style={{ width: `${lib.width}px` }}
             >
               <Navigator />
@@ -340,9 +384,9 @@ function App() {
 
         {/* Center Zone: Viewport & View Switcher */}
         <main
-          ref={zone2Ref}
+          ref={canvasRefCallback}
           tabIndex={-1}
-          className="flex-1 min-w-0 relative flex flex-col bg-slate-50 focus:outline-none"
+          className="flex-1 min-w-0 relative z-10 flex flex-col bg-slate-50 focus:outline-none @container"
           onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }}
           onDrop={(e) => {
             e.preventDefault();
@@ -360,10 +404,13 @@ function App() {
         >
           {/* Global View Switcher */}
           <div
-            className="absolute left-1/2 -translate-x-1/2 z-[100] flex items-center gap-3"
+            className="absolute left-6 z-[100] flex items-center gap-3"
             style={{ top: '24px' }}
           >
-            <div className="flex items-center gap-1.5 p-1.5 bg-white/95 backdrop-blur-xl border border-slate-200 rounded-full shadow-2xl shadow-slate-200/50">
+            <div 
+              ref={switcherRefCallback}
+              className="flex items-center gap-1 px-2 h-10 bg-white/90 backdrop-blur-xl border border-slate-200/80 rounded-2xl shadow-xl shadow-slate-200/60"
+            >
               {[
                 { id: 'graph', icon: LayoutGrid, label: 'Graph', tooltip: 'Show visual graph' },
                 { id: 'code', icon: Code2, label: 'Code', tooltip: 'Show YAML source' },
@@ -374,10 +421,10 @@ function App() {
                   disabled={isConflict && mode.id !== 'code'}
                   onClick={() => { setViewMode(mode.id as ViewMode); setDiffMode(false); }}
                   className={`
-                      flex items-center text-[10px] font-black uppercase tracking-wider transition-all px-6 py-2 gap-2 rounded-full
+                      flex items-center text-[10px] font-black uppercase tracking-wider transition-all px-3 py-1.5 rounded-xl gap-2
                       ${viewMode === mode.id && !diffMode
-                      ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-200'
-                      : 'text-slate-400 hover:text-slate-900 hover:bg-slate-50'}
+                      ? 'bg-emerald-600 text-white shadow-md shadow-emerald-200'
+                      : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'}
                       ${isConflict && mode.id !== 'code' ? 'opacity-20 cursor-not-allowed' : ''}
                     `}
                   title={mode.tooltip}
@@ -387,15 +434,15 @@ function App() {
                 </button>
               ))}
 
-              <div className="w-[1px] h-4 bg-slate-200 mx-1" />
+              <div className="w-px h-4 bg-slate-200 mx-1" />
 
               <button
                 onClick={() => setDiffMode(!diffMode)}
                 className={`
-                    flex items-center text-[10px] font-black uppercase tracking-wider transition-all px-6 py-2 gap-2 rounded-full
+                    flex items-center text-[10px] font-black uppercase tracking-wider transition-all px-3 py-1.5 rounded-xl gap-2
                     ${diffMode
-                    ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-200'
-                    : 'text-slate-400 hover:text-slate-900 hover:bg-slate-50'}
+                    ? 'bg-emerald-600 text-white shadow-md shadow-emerald-200'
+                    : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'}
                   `}
                 title="Show changes (Diff)"
               >
@@ -452,10 +499,10 @@ function App() {
           {/* Floating Help Trigger */}
           <button
             onClick={() => setIsHelpOpen(true)}
-            className="absolute bottom-8 right-8 z-50 w-12 h-12 bg-emerald-600 text-white rounded-full flex items-center justify-center shadow-xl shadow-emerald-200 hover:bg-emerald-700 hover:scale-110 transition-all active:scale-95 group"
+            className="absolute bottom-6 right-6 z-[110] w-10 h-10 bg-white/90 backdrop-blur-xl border border-slate-200/80 rounded-2xl shadow-xl shadow-slate-200/60 flex items-center justify-center text-slate-500 hover:text-emerald-600 hover:bg-slate-100 transition-all active:scale-95 group"
             title="Keyboard Shortcuts (?)"
           >
-            <HelpCircle size={24} strokeWidth={2.5} className="group-hover:rotate-12 transition-transform" />
+            <HelpCircle size={18} strokeWidth={3} className="group-hover:rotate-12 transition-transform" />
           </button>
         </main>
 
@@ -468,7 +515,7 @@ function App() {
             />
             <aside
               style={{ width: `${split.width}px` }}
-              className="border-l border-slate-200 bg-white flex flex-col shrink-0 overflow-hidden"
+              className="relative z-30 border-l border-slate-200 bg-white flex flex-col shrink-0 overflow-hidden"
             >
               <div className="zone-header px-6 pt-6 pb-4 border-b border-slate-200 shrink-0 flex items-center justify-between bg-white">
                 <span className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-800">
@@ -502,7 +549,7 @@ function App() {
         )}
 
         <aside
-          className="border-l border-slate-200 bg-white flex flex-col shrink-0 overflow-hidden"
+          className="relative z-30 border-l border-slate-200 bg-white flex flex-col shrink-0 overflow-hidden"
           style={{
             width: propertiesOpen && !focusMode ? `${prop.width}px` : '0px',
             borderLeft: propertiesOpen && !focusMode ? '1px solid #e2e8f0' : 'none'

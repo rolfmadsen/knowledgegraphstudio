@@ -21,6 +21,7 @@ import { archimatePlugin } from '../../plugins/archimate';
 import { c4Plugin } from '../../plugins/c4';
 import { conceptualPlugin } from '../../plugins/core-model/conceptualPlugin';
 import { informationPlugin } from '../../plugins/core-model/informationPlugin';
+import { dcrPlugin } from '../../plugins/dcr';
 
 // Register notation plugins for testing
 PluginRegistry.register(knowledgeGraphPlugin);
@@ -28,6 +29,7 @@ PluginRegistry.register(archimatePlugin);
 PluginRegistry.register(c4Plugin);
 PluginRegistry.register(conceptualPlugin);
 PluginRegistry.register(informationPlugin);
+PluginRegistry.register(dcrPlugin);
 
 describe('useGraphStore', () => {
   beforeEach(() => {

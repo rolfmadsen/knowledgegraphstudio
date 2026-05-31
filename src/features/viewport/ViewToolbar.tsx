@@ -1,13 +1,4 @@
-/**
- * ViewToolbar — Floating glassmorphic toolbar for Zone 2 (Canvas)
- *
- * Shows:
- *  - Active view name
- *  - Layout algorithm picker (Force Directed / Tree / Manual)
- *  - Re-layout trigger button
- *
- * Positioned absolutely over the canvas, above the navigation hints.
- */
+import { useRef, useCallback } from 'react';
 import { useGraphStore } from '../../store/useGraphStore';
 import { useShallow } from 'zustand/react/shallow';
 import { Shuffle, Hand, AlignVerticalDistributeCenter, Zap } from 'lucide-react';
@@ -40,9 +31,35 @@ const LAYOUT_OPTIONS: Array<{
 ];
 
 export function ViewToolbar() {
-  const { activeView } = useGraphStore(
+  const innerRef = useRef<HTMLDivElement>(null);
+  const toolbarObserverRef = useRef<ResizeObserver | null>(null);
+  const toolbarRefCallback = useCallback((node: HTMLDivElement | null) => {
+    (innerRef as any).current = node;
+
+    if (toolbarObserverRef.current) {
+      toolbarObserverRef.current.disconnect();
+      toolbarObserverRef.current = null;
+    }
+
+    if (node) {
+      useGraphStore.getState().setFooterLayoutWidth(node.getBoundingClientRect().width);
+
+      const observer = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          useGraphStore.getState().setFooterLayoutWidth(entry.target.getBoundingClientRect().width);
+        }
+      });
+      observer.observe(node);
+      toolbarObserverRef.current = observer;
+    }
+  }, []);
+
+  const { activeView, canvasWidth, footerLayoutWidth, footerHintsWidth } = useGraphStore(
     useShallow((s) => ({
       activeView: s.views.find((v) => v.id === s.activeViewId),
+      canvasWidth: s.canvasWidth,
+      footerLayoutWidth: s.footerLayoutWidth,
+      footerHintsWidth: s.footerHintsWidth,
     })),
   );
 
@@ -89,12 +106,23 @@ export function ViewToolbar() {
     useGraphStore.setState((s) => ({ layoutVersion: s.layoutVersion + 1 }));
   };
 
+  const layoutWidth = footerLayoutWidth || innerRef.current?.getBoundingClientRect().width || 270;
+  const hintsWidth = footerHintsWidth || 380;
+  const shouldStack = canvasWidth > 0 && canvasWidth < layoutWidth + hintsWidth + 220;
+
   return (
     <div
-      className="absolute left-1/2 -translate-x-1/2 z-[90] flex items-center gap-2 select-none"
-      style={{ bottom: '76px' }}
+      className={`absolute z-[110] flex items-center gap-2 select-none transition-all duration-300
+        ${shouldStack 
+          ? 'bottom-20 left-1/2 -translate-x-1/2' 
+          : 'bottom-6 left-20 translate-x-0'
+        }
+      `}
     >
-      <div className="flex items-center gap-2 px-4 py-2 bg-white/90 backdrop-blur-xl border border-slate-200/80 rounded-2xl shadow-xl shadow-slate-200/60">
+      <div 
+        ref={toolbarRefCallback}
+        className="flex items-center gap-2 px-4 h-10 bg-white/90 backdrop-blur-xl border border-slate-200/80 rounded-2xl shadow-xl shadow-slate-200/60"
+      >
 
         {/* Layout algorithm buttons */}
         <div className="flex items-center gap-0.5">

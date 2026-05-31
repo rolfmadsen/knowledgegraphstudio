@@ -9,6 +9,7 @@ import { archimatePlugin } from './plugins/archimate'
 import { c4Plugin } from './plugins/c4'
 import { conceptualPlugin } from './plugins/core-model/conceptualPlugin'
 import { informationPlugin } from './plugins/core-model/informationPlugin'
+import { dcrPlugin } from './plugins/dcr'
 
 // Polyfill Buffer for isomorphic-git
 (window as any).Buffer = Buffer;
@@ -45,6 +46,7 @@ PluginRegistry.register(archimatePlugin);
 PluginRegistry.register(c4Plugin);
 PluginRegistry.register(conceptualPlugin);
 PluginRegistry.register(informationPlugin);
+PluginRegistry.register(dcrPlugin);
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

@@ -78,6 +78,18 @@ export interface GraphStoreState {
    _viewMembershipUndo: Record<string, Array<{ type: 'add' | 'remove'; conceptId: ElementId; x: number; y: number }>>;
   _viewMembershipRedo: Record<string, Array<{ type: 'add' | 'remove'; conceptId: ElementId; x: number; y: number }>>;
 
+  // --- Canvas Dimensions for Responsive Calculations ---
+  canvasWidth: number;
+  footerLayoutWidth: number;
+  footerHintsWidth: number;
+  headerSwitcherWidth: number;
+  headerSimulationWidth: number;
+  setCanvasWidth: (width: number) => void;
+  setFooterLayoutWidth: (width: number) => void;
+  setFooterHintsWidth: (width: number) => void;
+  setHeaderSwitcherWidth: (width: number) => void;
+  setHeaderSimulationWidth: (width: number) => void;
+
   // --- Git Sync State (Spec §10.5, excluded from zundo) ---
   remoteConfig: RemoteConfig | null;
   syncStatus: SyncStatus;
@@ -280,6 +292,18 @@ export const useGraphStore = create<GraphStoreState>()(
       deleteViewConfirm: null,
       _viewMembershipUndo: {},
       _viewMembershipRedo: {},
+
+      // --- Canvas Dimensions ---
+      canvasWidth: 0,
+      footerLayoutWidth: 0,
+      footerHintsWidth: 0,
+      headerSwitcherWidth: 0,
+      headerSimulationWidth: 0,
+      setCanvasWidth: (width) => set({ canvasWidth: width }),
+      setFooterLayoutWidth: (width) => set({ footerLayoutWidth: width }),
+      setFooterHintsWidth: (width) => set({ footerHintsWidth: width }),
+      setHeaderSwitcherWidth: (width) => set({ headerSwitcherWidth: width }),
+      setHeaderSimulationWidth: (width) => set({ headerSimulationWidth: width }),
 
       // --- Git Sync State (initial) ---
       remoteConfig: null,

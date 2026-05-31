@@ -1,0 +1,162 @@
+@prefix : <http://www.semanticweb.org/v0cn037/ontologies/2026/05/dcr#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xml: <http://www.w3.org/XML/1998/namespace> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+
+<http://www.semanticweb.org/v0cn037/ontologies/2026/05/dcr> rdf:type owl:Ontology ;
+    owl:versionInfo "1.0" ;
+    rdfs:label "Dynamic Condition Response (DCR) Graphs OWL Ontology"@en , "Dynamic Condition Response (DCR) Graphs OWL-ontologi"@da ;
+    rdfs:comment "A formal OWL ontology representing the Dynamic Condition Response (DCR) Graphs specification, including nested graphs, milestones, roles, and marking states."@en , "En formel OWL-ontologi, der repræsenterer DCR Graphs-specifikationen, herunder indlejrede grafer, milepæle, roller og tilstandsmarkeringer."@da ;
+    dct:title "DCR Graphs Specification OWL Ontology" ;
+    dct:creator "TypeGraph Knowledge Graph Studio Agent" ;
+    dct:created "2026-05-31"^^xsd:date .
+
+### =========================================================================
+### 1. Object Properties (DCR Relations)
+### =========================================================================
+
+:DCR_Relationship rdf:type owl:ObjectProperty ;
+    rdfs:label "DCR Relationship"@en , "DCR-relation"@da .
+
+### Core Logical Relations
+:has_condition rdf:type owl:ObjectProperty ;
+    rdfs:subPropertyOf :DCR_Relationship ;
+    owl:inverseOf :is_condition_for ;
+    rdfs:domain :Event ;
+    rdfs:range :Event ;
+    rdfs:label "has condition"@en , "har betingelse"@da ;
+    rdfs:comment "Condition relation (->*): The source event must either be currently excluded or have happened for the target event to happen."@en .
+
+:is_condition_for rdf:type owl:ObjectProperty ;
+    rdfs:label "is condition for"@en , "er betingelse for"@da .
+
+:has_response rdf:type owl:ObjectProperty ;
+    rdfs:subPropertyOf :DCR_Relationship ;
+    owl:inverseOf :is_response_of ;
+    rdfs:domain :Event ;
+    rdfs:range :Event ;
+    rdfs:label "has response"@en , "har svar/respons"@da ;
+    rdfs:comment "Response relation (*->): The target event must eventually happen or always eventually be excluded after an occurrence of the source event."@en .
+
+:is_response_of rdf:type owl:ObjectProperty ;
+    rdfs:label "is response of"@en , "er respons for"@da .
+
+### Dynamic State Relations
+:includes rdf:type owl:ObjectProperty ;
+    rdfs:subPropertyOf :DCR_Relationship ;
+    owl:inverseOf :included_by ;
+    rdfs:domain :Event ;
+    rdfs:range :Event ;
+    rdfs:label "includes"@en , "inkluderer"@da ;
+    rdfs:comment "Dynamic inclusion relation (->+): Executing the source event includes the target event in the graph."@en .
+
+:included_by rdf:type owl:ObjectProperty ;
+    rdfs:label "included by"@en , "inkluderes af"@da .
+
+:excludes rdf:type owl:ObjectProperty ;
+    rdfs:subPropertyOf :DCR_Relationship ;
+    owl:inverseOf :excluded_by ;
+    rdfs:domain :Event ;
+    rdfs:range :Event ;
+    rdfs:label "excludes"@en , "ekskluderer"@da ;
+    rdfs:comment "Dynamic exclusion relation (->%): Executing the source event excludes the target event from the graph."@en .
+
+:excluded_by rdf:type owl:ObjectProperty ;
+    rdfs:label "excluded by"@en , "ekskluderes af"@da .
+
+### Extended Relations
+:has_milestone rdf:type owl:ObjectProperty ;
+    rdfs:subPropertyOf :DCR_Relationship ;
+    owl:inverseOf :is_milestone_for ;
+    rdfs:domain :Event ;
+    rdfs:range :Event ;
+    rdfs:label "has milestone"@en , "har milepæl"@da ;
+    rdfs:comment "Milestone relation: Used primarily in nested graphs to define non-blocking condition-like constraints."@en .
+
+:is_milestone_for rdf:type owl:ObjectProperty ;
+    rdfs:label "is milestone for"@en , "er milepæl for"@da .
+
+### Organizational & Structural Relations
+:has_role rdf:type owl:ObjectProperty ;
+    owl:inverseOf :assigned_to_event ;
+    rdfs:domain :Event ;
+    rdfs:range :Role ;
+    rdfs:label "has role"@en , "har rolle"@da .
+
+:assigned_to_event rdf:type owl:ObjectProperty ;
+    rdfs:label "assigned to event"@en , "tildelt hændelse"@da .
+
+:has_principal rdf:type owl:ObjectProperty ;
+    owl:inverseOf :assigned_to_role ;
+    rdfs:domain :Role ;
+    rdfs:range :Principal ;
+    rdfs:label "has principal"@en , "har aktør"@da .
+
+:assigned_to_role rdf:type owl:ObjectProperty ;
+    rdfs:label "assigned to role"@en , "tildelt rolle"@da .
+
+:is_nested_in rdf:type owl:ObjectProperty ;
+    owl:inverseOf :contains_sub_event ;
+    rdfs:domain :Event ;
+    rdfs:range :SubGraph ;
+    rdfs:label "is nested in"@en , "er indlejret i"@da .
+
+:contains_sub_event rdf:type owl:ObjectProperty ;
+    rdfs:label "contains sub event"@en , "indeholder underhændelse"@da .
+
+### =========================================================================
+### 2. Data Properties (Run-time Marking / State)
+### =========================================================================
+
+:is_executed rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Event ;
+    rdfs:range xsd:boolean ;
+    rdfs:label "is executed"@en , "er eksekveret"@da ;
+    rdfs:comment "Indicates if the event is currently in the set of Executed events (Ex)."@en .
+
+:is_included rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Event ;
+    rdfs:range xsd:boolean ;
+    rdfs:label "is included"@en , "er inkluderet"@da ;
+    rdfs:comment "Indicates if the event is currently in the set of Included events (In)."@en .
+
+:is_pending_response rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Event ;
+    rdfs:range xsd:boolean ;
+    rdfs:label "is pending response"@en , "afventer respons"@da ;
+    rdfs:comment "Indicates if the event is currently in the set of Pending Responses (Re)."@en .
+
+### =========================================================================
+### 3. Core Ontology Elements & Classes
+### =========================================================================
+
+:DCR_Metamodel rdf:type owl:Class ;
+    rdfs:label "DCR Metamodel"@en , "DCR Metamodel"@da .
+
+:Event rdf:type owl:Class ;
+    rdfs:subClassOf :DCR_Metamodel ;
+    rdfs:label "Event"@en , "Hændelse"@da ;
+    rdfs:comment "An activity or action that can be executed within the declarative process."@en .
+
+:SubGraph rdf:type owl:Class ;
+    rdfs:subClassOf :Event ;
+    rdfs:label "Nested Sub-Graph"@en , "Indlejret undergraf"@da ;
+    rdfs:comment "An event that has been refined to a sub-graph containing multiple sub-events."@en .
+
+:Role rdf:type owl:Class ;
+    rdfs:subClassOf :DCR_Metamodel ;
+    rdfs:label "Role"@en , "Rolle"@da ;
+    rdfs:comment "Represents the access rights or roles assigned to principals to execute specific actions."@en .
+
+:Principal rdf:type owl:Class ;
+    rdfs:subClassOf :DCR_Metamodel ;
+    rdfs:label "Principal"@en , "Aktør"@da ;
+    rdfs:comment "An entity (e.g. a person or processor) that can be assigned roles to execute events."@en .
+
+:Marking rdf:type owl:Class ;
+    rdfs:subClassOf :DCR_Metamodel ;
+    rdfs:label "Marking (State)"@en , "Tilstandsmarkering"@da ;
+    rdfs:comment "The run-time state of the DCR graph, consisting of sets for executed, included, and pending response events."@en .

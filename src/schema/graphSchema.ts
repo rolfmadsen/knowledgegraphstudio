@@ -139,6 +139,7 @@ export const ViewType = z.enum([
   'c4',
   'conceptual_model',
   'information_model',
+  'dcr',
 ]);
 export type ViewType = z.infer<typeof ViewType>;
 

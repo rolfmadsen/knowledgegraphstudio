@@ -1,0 +1,201 @@
+{
+  "classes": {
+    "DCR_Metamodel": {
+      "superClasses": [],
+      "labels": {
+        "en": "DCR Metamodel",
+        "da": "DCR Metamodel"
+      }
+    },
+    "Event": {
+      "superClasses": [
+        "DCR_Metamodel"
+      ],
+      "labels": {
+        "en": "Event",
+        "da": "Hændelse"
+      }
+    },
+    "SubGraph": {
+      "superClasses": [
+        "Event",
+        "DCR_Metamodel"
+      ],
+      "labels": {
+        "en": "Nested Sub-Graph",
+        "da": "Indlejret undergraf"
+      }
+    },
+    "Role": {
+      "superClasses": [
+        "DCR_Metamodel"
+      ],
+      "labels": {
+        "en": "Role",
+        "da": "Rolle"
+      }
+    },
+    "Principal": {
+      "superClasses": [
+        "DCR_Metamodel"
+      ],
+      "labels": {
+        "en": "Principal",
+        "da": "Aktør"
+      }
+    },
+    "Marking": {
+      "superClasses": [
+        "DCR_Metamodel"
+      ],
+      "labels": {
+        "en": "Marking (State)",
+        "da": "Tilstandsmarkering"
+      }
+    }
+  },
+  "properties": {
+    "dcr": {
+      "labels": {
+        "en": "Dynamic Condition Response (DCR) Graphs OWL Ontology",
+        "da": "Dynamic Condition Response (DCR) Graphs OWL-ontologi"
+      }
+    },
+    "DCR_Relationship": {
+      "labels": {
+        "en": "DCR Relationship",
+        "da": "DCR-relation"
+      }
+    },
+    "has_condition": {
+      "labels": {
+        "en": "has condition",
+        "da": "har betingelse"
+      },
+      "inverseOf": "is_condition_for"
+    },
+    "is_condition_for": {
+      "labels": {
+        "en": "is condition for",
+        "da": "er betingelse for"
+      },
+      "inverseOf": "has_condition"
+    },
+    "has_response": {
+      "labels": {
+        "en": "has response",
+        "da": "har svar/respons"
+      },
+      "inverseOf": "is_response_of"
+    },
+    "is_response_of": {
+      "labels": {
+        "en": "is response of",
+        "da": "er respons for"
+      },
+      "inverseOf": "has_response"
+    },
+    "includes": {
+      "labels": {
+        "en": "includes",
+        "da": "inkluderer"
+      },
+      "inverseOf": "included_by"
+    },
+    "included_by": {
+      "labels": {
+        "en": "included by",
+        "da": "inkluderes af"
+      },
+      "inverseOf": "includes"
+    },
+    "excludes": {
+      "labels": {
+        "en": "excludes",
+        "da": "ekskluderer"
+      },
+      "inverseOf": "excluded_by"
+    },
+    "excluded_by": {
+      "labels": {
+        "en": "excluded by",
+        "da": "ekskluderes af"
+      },
+      "inverseOf": "excludes"
+    },
+    "has_milestone": {
+      "labels": {
+        "en": "has milestone",
+        "da": "har milepæl"
+      },
+      "inverseOf": "is_milestone_for"
+    },
+    "is_milestone_for": {
+      "labels": {
+        "en": "is milestone for",
+        "da": "er milepæl for"
+      },
+      "inverseOf": "has_milestone"
+    },
+    "has_role": {
+      "labels": {
+        "en": "has role",
+        "da": "har rolle"
+      },
+      "inverseOf": "assigned_to_event"
+    },
+    "assigned_to_event": {
+      "labels": {
+        "en": "assigned to event",
+        "da": "tildelt hændelse"
+      },
+      "inverseOf": "has_role"
+    },
+    "has_principal": {
+      "labels": {
+        "en": "has principal",
+        "da": "har aktør"
+      },
+      "inverseOf": "assigned_to_role"
+    },
+    "assigned_to_role": {
+      "labels": {
+        "en": "assigned to role",
+        "da": "tildelt rolle"
+      },
+      "inverseOf": "has_principal"
+    },
+    "is_nested_in": {
+      "labels": {
+        "en": "is nested in",
+        "da": "er indlejret i"
+      },
+      "inverseOf": "contains_sub_event"
+    },
+    "contains_sub_event": {
+      "labels": {
+        "en": "contains sub event",
+        "da": "indeholder underhændelse"
+      },
+      "inverseOf": "is_nested_in"
+    },
+    "is_executed": {
+      "labels": {
+        "en": "is executed",
+        "da": "er eksekveret"
+      }
+    },
+    "is_included": {
+      "labels": {
+        "en": "is included",
+        "da": "er inkluderet"
+      }
+    },
+    "is_pending_response": {
+      "labels": {
+        "en": "is pending response",
+        "da": "afventer respons"
+      }
+    }
+  }
+}
