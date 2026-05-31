@@ -91,4 +91,71 @@ To enable synchronization, you need to provide a **Personal Access Token (PAT)**
 
 ---
 
-*Built with precision for the modern knowledge architect.*
+# Architektur Notationer
+
+## Begrebsmodel
+WORK-IN-PROGRESS
+
+## Informationsmodel
+WORK-IN-PROGRESS
+
+## Dynamic Response Condition Graph (DCR)
+
+### BPMN er et flowchart (Imperativt)
+BPMN er et imperativt sprog, hvor du dikterer præcis hvordan et mål nås gennem et eksplicit, centralstyret kontrolflow. Du tvinges til at kortlægge hver eneste mulige sti, forgrening og "happy path" fra start til slut. Denne tilgang er rigid og bliver lynhurtigt uoverskuelig, når du arbejder med sagsbehandling og vidensarbejde, hvor brugerne har brug for manøvrerum og fleksibilitet.
+
+### DCR er et regelsæt (Deklarativt og Hændelsesdrevet)
+DCR beskriver hvorfor og under hvilke begrænsninger (constraints) en proces kan eksekveres. I stedet for at tegne en dikteret køreplan, definerer du bare dine domænehændelser (Events) og lægger en logisk Declarativ Constraint af forretningsregler ned over dem. Inden for den Declarative Constraint er alt tilladt. Frem for at tvinge komplekse arbejdsgange ned i én standardiseret "happy path", omfavner DCR diversiteten i, hvordan processer faktisk udføres i den virkelige verden.
+
+DCR i 4 fundamentale grundregler og 2 dynamiske relationer
+Når du modellerer i DCR, starter du med at smide dine roller og hændelser ind på lærredet – helt uden forbindelser.
+
+For at undgå, at folk forveksler reglerne med BPMN-flowpile (og fejlagtigt læser grafen som en sekvens), har nyere DCR-designs droppet pilehovederne fuldstændigt.
+I stedet bruges:
+- Cirkler til at angive betingelser
+- Firkanter til at angive effekter
+
+#### 4 fundamentale grundregler
+De 4 fundamentale regler styrer den dynamiske tilstand af dine hændelser – altså om de er afventende, ekskluderede eller tilladte at udføre på et givent tidspunkt.
+
+** Condition (Betingelse - markeret med en gul cirkel)**: En bagudrettet afhængighed (Forudsætning), der sikrer, at der ikke sker noget forkert. Reglen er: "A skal ske før B". Eksempelvis kan man ikke betale en faktura (B), før godkendelsen (A) er på plads. En Condition-relation betyder helt lavpraktisk, at B passivt kigger tilbage på A's tilstand: B kan kun eksekveres, hvis A allerede er eksekveret eller slet ikke er inkluderet i grafen.
+- Logik: A 🠆● B
+- Regel: "Du kan ikke udføre B, før du har udført A."
+- Eksempel: Du kan ikke gå til eksamen (B), før du har afleveret de obligatoriske afleveringer (A).
+
+**Response (Krav/Udestående - markeret med en blå firkant)**: En afledt fremadrettet forpligtelse (Udestående), der sikrer, at noget nødvendigt bliver gjort ude i fremtiden. Reglen er: "Når A sker, opstår der et udestående om, at B skal ske senere". Hvis en betaling godkendes (A), så skal overførslen også gennemføres (B) på et eller andet tidspunkt. En Response-relation betyder, at når A eksekveres, udløses et aktivt krav, og B bliver omgående markeret som 'afventende' (pending). Hele processen efterlades i en urolig tilstand og er blokeret fra at kunne afsluttes, indtil B er eksekveret eller ekskluderet.
+- Logik: A ●🠆 B
+- Regel: "Hvis du gør A, opstår der et krav om, at du på et tidspunkt skal gøre B."
+- Eksempel: Hvis du bestiller en vare (A), opstår der et krav om, at du skal betale fakturaen (B), før forløbet kan afsluttes.
+
+**Exclude (Ekskludér - markeret med en rød firkant)**: "Når A sker, fjerner vi B som en mulighed." En Exclude-relation betyder simpelthen, at A sletter B fra brættet, så den ikke længere kan ske (eller blokere processen). Hvis f.eks. ansøgeren afvises i Nyt SIS, ekskluderes alle hændelser omkring indskrivning.
+- Logik: A 🠆% B
+- Regel: "At gøre A fjerner muligheden for at gøre B."
+- Eksempel: Hvis du melder dig ud af studiet (A), fjernes muligheden for at blive tilmeldt undervisning (B).
+
+**Include (Inkludér - markeret med en grøn firkant)**: "Når A sker, bringer vi B tilbage i spil." En Include-relation gør en tidligere ekskluderet hændelse relevant og mulig igen. Hvis de studerende anker et afslag (A), geninkluderes muligheden for sagsbehandling (B).
+- Logik: A 🠆+ B
+- Regel: "At gøre A gør B til en mulighed igen."
+- Eksempel: Hvis du dumper din eksamen (A), bliver det igen muligt at tilmelde dig reeksamen (B).
+
+#### 2 dynamiske relationer
+
+Den fulde DCR-standard indeholder yderligere to dynamiske relationer, som er afgørende for at håndtere komplekse forretningsregler og indlejrede sub-processer (Nested DCR):
+
+**Milestone (Milepæl - markeret med en lilla ruder)**: "A må ikke være et udestående krav, når du udfører B". Hvor en Condition dikterer, at en hændelse skal være udført mindst én gang før B, dikterer en Milestone blot, at A ikke må være markeret som afventende (Pending Response) på det tidspunkt, B eksekveres. Hvis A er en milepæl for B, og A er skemalagt til udførelse, er B blokeret. Bliver A derimod ekskluderet eller udført (så den ikke længere afventer), frigives B.
+- Logik: A 🠆♢ B
+- Regel: "Du kan ikke udføre B, så længe A stadig afventer at blive løst."
+- Eksempel: Du kan ikke udstede eksamensbeviset (B), så længe der afventer en aktiv klagesag (A). (Når klagesagen er afgjort eller afvist, frigives udstedelsen af beviset).
+
+**Spawn / Replication (Kloning - dynamisk oprettelse)**: "Når A sker, oprettes en ny, uafhængig instans af sub-processen B". Dette bruges (ofte i udvidelsen DCR*) til at håndtere situationer, hvor en proces kan forekomme et ukendt antal gange parallelt. For eksempel kan modtagelsen af en ny ansøgning (A) "spawne" et helt nyt, lokalt behandlings-flow (B) dedikeret specifikt til den ene ansøgning med sin egen livscyklus.
+- Logik: !A
+- Regel: "Når A sker, oprettes en ny, uafhængig instans af sub-processen B."
+- Eksempel: For hver gang der modtages en ny byggeansøgning (A), oprettes der et nyt sagsbehandlingsforløb (B), som har sin egen uafhængige livscyklus og skal behandles adskilt fra de andre ansøgninger.
+
+Når man migrerer fra et on-prem legacy-system over i én samlet SaaS-løsning, er det næsten umuligt (og dyrt) at kortlægge og hardcode alle BPMN-undtagelser og undtagelser på forhånd. Med DCR kan I starte i det små med de absolutte kernekrav og digitalisere løbende, mens I lader den konkrete rækkefølge af handlinger være styret af den enkelte cases virkelighed.
+
+## C4
+WORK-IN-PROGRESS
+
+## ArchiMate
+WORK-IN-PROGRESS
