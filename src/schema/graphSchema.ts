@@ -273,6 +273,7 @@ export const BaseConceptNode = BaseEntity.extend({
   source: z.string().optional(),
   legalSource: z.string().optional(),
   wasDerivedFrom: ElementId.optional().nullable(),
+  createdBy: z.enum(['user', 'ai']).optional(),
 });
 export type BaseConceptNode = z.infer<typeof BaseConceptNode>;
 
@@ -349,6 +350,7 @@ export const ConceptRelation = BaseEntity.extend({
   targetRole: z.string().optional(),
   sourceMultiplicity: z.string().optional(),
   targetMultiplicity: z.string().optional(),
+  createdBy: z.enum(['user', 'ai']).optional(),
 });
 export type ConceptRelation = z.infer<typeof ConceptRelation>;
 

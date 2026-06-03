@@ -3,13 +3,13 @@ import { createRoot } from 'react-dom/client'
 import { Buffer } from 'buffer'
 import { ReactFlowProvider } from '@xyflow/react'
 import App from './App.tsx'
-import { PluginRegistry } from './plugins/PluginRegistry'
-import { knowledgeGraphPlugin } from './plugins/knowledge-graph'
-import { archimatePlugin } from './plugins/archimate'
-import { c4Plugin } from './plugins/c4'
-import { conceptualPlugin } from './plugins/core-model/conceptualPlugin'
-import { informationPlugin } from './plugins/core-model/informationPlugin'
-import { dcrPlugin } from './plugins/dcr'
+import { NotationRegistry } from './notations/NotationRegistry'
+import { knowledgeGraphNotation } from './notations/knowledge-graph'
+import { archimateNotation } from './notations/archimate'
+import { c4Notation } from './notations/c4'
+import { conceptualNotation } from './notations/core-model/conceptualNotation'
+import { informationNotation } from './notations/core-model/informationNotation'
+import { dcrNotation } from './notations/dcr'
 
 // Polyfill Buffer for isomorphic-git
 (window as any).Buffer = Buffer;
@@ -40,13 +40,13 @@ import { dcrPlugin } from './plugins/dcr'
 })();
 
 
-// Register notation plugins before React mounts
-PluginRegistry.register(knowledgeGraphPlugin);
-PluginRegistry.register(archimatePlugin);
-PluginRegistry.register(c4Plugin);
-PluginRegistry.register(conceptualPlugin);
-PluginRegistry.register(informationPlugin);
-PluginRegistry.register(dcrPlugin);
+// Register notations before React mounts
+NotationRegistry.register(knowledgeGraphNotation);
+NotationRegistry.register(archimateNotation);
+NotationRegistry.register(c4Notation);
+NotationRegistry.register(conceptualNotation);
+NotationRegistry.register(informationNotation);
+NotationRegistry.register(dcrNotation);
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

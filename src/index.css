@@ -80,3 +80,39 @@ body {
   scrollbar-width: thin;
   scrollbar-color: #cbd5e1 transparent;
 }
+
+/* AI proposed elements styles */
+.react-flow__node.ai-proposed {
+  opacity: 0.65 !important;
+  outline: 2px dashed #10b981 !important;
+  outline-offset: 4px;
+  animation: ai-pulse 2s infinite ease-in-out;
+  pointer-events: none;
+}
+
+.react-flow__node.ai-proposed > div {
+  border-style: dashed !important;
+  border-color: #10b981 !important;
+}
+
+.react-flow__edge.ai-proposed-edge .react-flow__edge-path {
+  stroke: #10b981 !important;
+  stroke-dasharray: 6 4 !important;
+  opacity: 0.65 !important;
+  stroke-width: 2px !important;
+}
+
+@keyframes ai-pulse {
+  0% {
+    outline-color: rgba(16, 185, 129, 0.8);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
+  }
+  70% {
+    outline-color: rgba(16, 185, 129, 0.3);
+    box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+  }
+  100% {
+    outline-color: rgba(16, 185, 129, 0.8);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  }
+}

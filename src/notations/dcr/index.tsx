@@ -1,9 +1,10 @@
 import { useMemo, useEffect, useRef, useCallback } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
-import type { NotationPlugin, PluginCanvasProps } from '../types';
+import type { Notation, NotationCanvasProps } from '../types';
 import { ReactFlowCanvas } from '../../features/viewport/graph/ReactFlowCanvas';
 import { dagreLayoutEngine } from '../knowledge-graph';
-import type { ConceptNode, ConceptRelation } from '../../schema/graphSchema';
+import type { ConceptNode, ConceptRelation, ElementId, ConceptProperty, DataType } from '../../schema/graphSchema';
+import { InspectorSection } from '../../features/properties/Inspector';
 import { isValidRelation, getAvailableRelations } from './validator';
 import { create } from 'zustand';
 import { useGraphStore } from '../../store/useGraphStore';
@@ -387,7 +388,7 @@ export function DcrNodeComponent({ data, selected }: NodeProps) {
 // DCR Canvas component
 // ============================================================
 
-function DcrCanvas(props: PluginCanvasProps) {
+function DcrCanvas(props: NotationCanvasProps) {
   const nodeTypes = useMemo(() => ({ conceptNode: DcrNodeComponent }), []);
   
   return (
@@ -439,15 +440,98 @@ function DcrCanvas(props: PluginCanvasProps) {
 }
 
 // ============================================================
-// DCR Notation Plugin Definition
+// DCR Properties Inspector
 // ============================================================
 
-export const dcrPlugin: NotationPlugin = {
+function DcrInspector({
+  concept,
+  updateProperty,
+  addProperty,
+}: {
+  concept: ConceptNode;
+  updateProperty: (conceptId: ElementId, propertyId: ElementId, updates: Partial<ConceptProperty>) => void;
+  addProperty: (conceptId: ElementId, name: string, type: DataType, isRequired?: boolean) => void;
+}) {
+  if (concept.conceptType !== 'event') return null;
+
+  const isIncluded = !concept.properties?.some(
+    (p) => p.name.toLowerCase() === 'is_included' && String(p.type).toLowerCase().trim() === 'false'
+  );
+  const isPending = !!concept.properties?.some(
+    (p) => p.name.toLowerCase() === 'is_pending_response' && String(p.type).toLowerCase().trim() === 'true'
+  );
+  const isExecuted = !!concept.properties?.some(
+    (p) => p.name.toLowerCase() === 'is_executed' && String(p.type).toLowerCase().trim() === 'true'
+  );
+
+  const toggleProp = (name: string, current: boolean) => {
+    const propName = name.toLowerCase();
+    const next = !current;
+    const prop = concept.properties?.find((p) => p.name.toLowerCase() === propName);
+    if (prop) {
+      updateProperty(concept.id, prop.id, { type: next ? 'true' as any : 'false' as any });
+    } else {
+      addProperty(concept.id, name, next ? 'true' as any : 'false' as any);
+    }
+  };
+
+  return (
+    <InspectorSection title="DCR Initial Markings">
+      <div className="flex flex-col gap-4 p-4 bg-slate-50/50 rounded-2xl border border-slate-100 animate-in fade-in">
+        <label className="flex items-center gap-3 cursor-pointer group">
+          <input
+            type="checkbox"
+            checked={isIncluded}
+            onChange={() => toggleProp('is_included', isIncluded)}
+            className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 transition-all cursor-pointer"
+          />
+          <div className="flex flex-col">
+            <span className="text-[12px] font-bold text-slate-700 group-hover:text-slate-900 transition-colors">Included</span>
+            <span className="text-[9px] text-slate-400">Determines if the event is initially active in the simulation</span>
+          </div>
+        </label>
+
+        <label className="flex items-center gap-3 cursor-pointer group">
+          <input
+            type="checkbox"
+            checked={isPending}
+            onChange={() => toggleProp('is_pending_response', isPending)}
+            className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 transition-all cursor-pointer"
+          />
+          <div className="flex flex-col">
+            <span className="text-[12px] font-bold text-slate-700 group-hover:text-slate-900 transition-colors">Pending Response</span>
+            <span className="text-[9px] text-slate-400">Specifies if the event is waiting for a response simulation state</span>
+          </div>
+        </label>
+
+        <label className="flex items-center gap-3 cursor-pointer group">
+          <input
+            type="checkbox"
+            checked={isExecuted}
+            onChange={() => toggleProp('is_executed', isExecuted)}
+            className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 transition-all cursor-pointer"
+          />
+          <div className="flex flex-col">
+            <span className="text-[12px] font-bold text-slate-700 group-hover:text-slate-900 transition-colors">Executed</span>
+            <span className="text-[9px] text-slate-400">Sets if the event starts as already executed</span>
+          </div>
+        </label>
+      </div>
+    </InspectorSection>
+  );
+}
+
+// ============================================================
+// DCR Notation Definition
+// ============================================================
+
+export const dcrNotation: Notation = {
   id: 'dcr',
   displayName: 'DCR Graphs',
   icon: '⚡',
   supportedViewTypes: ['dcr'],
   CanvasComponent: DcrCanvas,
+  InspectorComponent: DcrInspector,
   layoutEngine: dagreLayoutEngine,
   allowedConceptTypes: [
     'event',           // Event
@@ -508,4 +592,4 @@ export const dcrPlugin: NotationPlugin = {
   },
 };
 
-export default dcrPlugin;
+export default dcrNotation;

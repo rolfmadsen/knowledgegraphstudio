@@ -90,6 +90,7 @@ export class GraphService {
     classification?: DataClassification;
     definition?: string;
     aliases?: string[];
+    createdBy?: 'user' | 'ai';
   } = {}): { concept: ConceptNode; nextState: Partial<GraphStateWithSelection> } {
     const trimmedName = name.trim().toLowerCase();
     const views = state.views || [];
@@ -136,6 +137,7 @@ export class GraphService {
       parentId: options.parentId,
       classification: options.classification,
       policies: [],
+      createdBy: options.createdBy,
     };
 
     // Build type-correct concept: enumerations get enumerators,
@@ -303,6 +305,7 @@ export class GraphService {
     mappingPattern?: ConceptRelation['mappingPattern'];
     transformationDescription?: string;
     isDirected?: boolean;
+    createdBy?: 'user' | 'ai';
   } = {}): { relation: ConceptRelation; nextState: Partial<GraphStateWithSelection> } {
     const source = state.concepts.find(c => c.id === sourceId);
     const target = state.concepts.find(c => c.id === targetId);
@@ -357,6 +360,7 @@ export class GraphService {
       transformationDescription: options.transformationDescription,
       isDirected: options.isDirected ?? true,
       policies: [],
+      createdBy: options.createdBy,
     };
 
     return {

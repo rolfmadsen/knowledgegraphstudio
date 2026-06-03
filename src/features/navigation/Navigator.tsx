@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useGraphStore } from '../../store/useGraphStore';
 import { useShallow } from 'zustand/react/shallow';
-import { PluginRegistry } from '../../plugins/PluginRegistry';
+import { NotationRegistry } from '../../notations/NotationRegistry';
 import { GraphService } from '../../services/GraphService';
 import {
   Plus,
@@ -231,13 +231,13 @@ const PREFERRED_ORDER: string[] = [
  */
 function getFolderLabel(
   type: string,
-  pluginLabels?: Partial<Record<string, string>>,
+  notationLabels?: Partial<Record<string, string>>,
 ): string {
-  const pluginSingular = pluginLabels?.[type];
-  if (pluginSingular) {
+  const notationSingular = notationLabels?.[type];
+  if (notationSingular) {
     // Simple pluralisation: avoid double-s (e.g. "Process" → "Processes" handled
     // by TYPE_HEADERS; here we just add 's' unless it already ends in one).
-    return pluginSingular.endsWith('s') ? pluginSingular : `${pluginSingular}s`;
+    return notationSingular.endsWith('s') ? notationSingular : `${notationSingular}s`;
   }
   return TYPE_HEADERS[type] ?? type;
 }
@@ -316,14 +316,14 @@ export function Navigator() {
     groups[key].sort((a, b) => a.name.localeCompare(b.name));
   });
 
-  // Resolve the active view's plugin so we can filter to only allowed concept types
+  // Resolve the active view's notation so we can filter to only allowed concept types
   const activeView = views.find((v) => v.id === activeViewId);
-  const activePlugin = activeView ? PluginRegistry.forViewType(activeView.type) : undefined;
-  const allowedConceptTypes = activePlugin?.allowedConceptTypes;
+  const activeNotation = activeView ? NotationRegistry.forViewType(activeView.type) : undefined;
+  const allowedConceptTypes = activeNotation?.allowedConceptTypes;
 
   const activeTypes = (Object.keys(groups) as string[])
     .filter((type) => groups[type].length > 0)
-    // When a notation plugin restricts types, hide folders whose type isn't in the allowed list.
+    // When a notation restricts types, hide folders whose type isn't in the allowed list.
     // 'conceptual_class' and 'information_class' are virtual UI types derived from 'class'.
     .filter((type) => {
       if (!allowedConceptTypes) return true; // knowledge_graph or no active view: show all
@@ -517,7 +517,7 @@ export function Navigator() {
                           <Folder size={14} className="text-amber-500 shrink-0" />
                         )}
                         <span className="text-[12px] font-bold text-slate-700 whitespace-nowrap">
-                          {getFolderLabel(type, activePlugin?.conceptTypeLabels as Record<string, string> | undefined)}
+                          {getFolderLabel(type, activeNotation?.conceptTypeLabels as Record<string, string> | undefined)}
                         </span>
                         <span className="text-[9px] font-semibold text-slate-400 bg-slate-200/40 px-1.5 py-0.5 rounded-full shrink-0">
                           {folderItems.length}

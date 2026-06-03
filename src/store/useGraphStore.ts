@@ -28,7 +28,7 @@ import { CredentialService, type RemoteConfig } from '../services/CredentialServ
 import { GraphService } from '../services/GraphService';
 import { PersistenceService, type BootstrapResult } from '../services/PersistenceService';
 import { GitService, type PullResult } from '../services/GitService';
-import { PluginRegistry } from '../plugins/PluginRegistry';
+import { NotationRegistry } from '../notations/NotationRegistry';
 import git from 'isomorphic-git';
 import { getFS, REPO_DIR, writeYaml, setRepoDir } from '../core/fileSystem';
 
@@ -67,7 +67,7 @@ export interface GraphStoreState {
   centerSelectionCount: number;
   focusMode: boolean;
   /** Non-null while the styled "last view" delete modal is open. */
-  deleteConceptConfirm: { conceptId: ElementId; conceptName: string; viewId: ElementId } | null;
+  deleteConceptConfirm: { conceptIds: ElementId[]; conceptNames: string[]; viewId: ElementId } | null;
   /** Non-null while the styled view delete confirmation modal is open. */
   deleteViewConfirm: { viewId: ElementId; viewName: string; orphanedConcepts: Array<{ id: ElementId; name: string }> } | null;
   /**
@@ -107,7 +107,7 @@ export interface GraphStoreState {
   setNodeCreatorOpen: (open: boolean) => void;
   setCreateViewModalOpen: (open: boolean) => void;
   setQuickFindOpen: (open: boolean) => void;
-  requestDeleteConceptConfirm: (conceptId: ElementId, conceptName: string, viewId: ElementId) => void;
+  requestDeleteConceptConfirm: (conceptIds: ElementId[], conceptNames: string[], viewId: ElementId) => void;
   clearDeleteConceptConfirm: () => void;
   requestDeleteViewConfirm: (viewId: ElementId) => void;
   clearDeleteViewConfirm: () => void;
@@ -127,6 +127,7 @@ export interface GraphStoreState {
   batchUpdateViewNodePositions: (viewId: ElementId, positions: Array<{ conceptId: ElementId; x: number; y: number }>) => void;
   addConceptToView: (viewId: ElementId, conceptId: ElementId, x: number, y: number) => void;
   removeConceptFromView: (viewId: ElementId, conceptId: ElementId) => void;
+  removeConceptsFromView: (viewId: ElementId, conceptIds: ElementId[]) => void;
   createView: (name: string, type?: View['type'], layoutAlgorithm?: View['layoutAlgorithm']) => View;
   deleteView: (viewId: ElementId, deleteConceptIds?: ElementId[]) => void;
   addAllConceptsToActiveView: () => void;
@@ -150,9 +151,11 @@ export interface GraphStoreState {
     // Optional initial position for the ViewNode in the active view
     x?: number;
     y?: number;
+    createdBy?: 'user' | 'ai';
   }) => ConceptNode;
   updateConcept: (id: ElementId, updates: Partial<BaseConceptNode> & { conceptType?: ConceptType; properties?: ConceptProperty[]; enumerators?: string[] }) => void;
   deleteConcept: (id: ElementId) => void;
+  deleteConcepts: (ids: ElementId[]) => void;
 
   // --- Relation Actions ---
   addRelation: (sourceId: ElementId, targetId: ElementId, name?: string, options?: {
@@ -161,6 +164,7 @@ export interface GraphStoreState {
     mappingPattern?: ConceptRelation['mappingPattern'];
     transformationDescription?: string;
     isDirected?: boolean;
+    createdBy?: 'user' | 'ai';
   }) => ConceptRelation;
   updateRelation: (id: ElementId, updates: Partial<ConceptRelation>) => void;
   deleteRelation: (id: ElementId) => void;
@@ -333,8 +337,8 @@ export const useGraphStore = create<GraphStoreState>()(
       setNodeCreatorOpen: (open) => set({ isNodeCreatorOpen: open }),
       setCreateViewModalOpen: (open) => set({ isCreateViewModalOpen: open }),
       setQuickFindOpen: (open) => set({ isQuickFindOpen: open }),
-      requestDeleteConceptConfirm: (conceptId, conceptName, viewId) =>
-        set({ deleteConceptConfirm: { conceptId, conceptName, viewId } }),
+      requestDeleteConceptConfirm: (conceptIds, conceptNames, viewId) =>
+        set({ deleteConceptConfirm: { conceptIds, conceptNames, viewId } }),
       clearDeleteConceptConfirm: () => set({ deleteConceptConfirm: null }),
       requestDeleteViewConfirm: (viewId) => {
         const state = get();
@@ -537,9 +541,9 @@ export const useGraphStore = create<GraphStoreState>()(
         // Skip if already present
         if (view.nodes.some((n) => n.conceptId === conceptId)) return;
 
-        // Resolve notation plugin and filter allowed concept types
-        const plugin = PluginRegistry.forViewType(view.type);
-        const allowedTypes = plugin?.allowedConceptTypes;
+        // Resolve notation and filter allowed concept types
+        const notation = NotationRegistry.forViewType(view.type);
+        const allowedTypes = notation?.allowedConceptTypes;
         if (allowedTypes) {
           if (!allowedTypes.includes(concept.conceptType)) return;
 
@@ -592,6 +596,50 @@ export const useGraphStore = create<GraphStoreState>()(
           _viewMembershipUndo: { ...get()._viewMembershipUndo, [viewId]: [...undoStack, { type: 'remove', conceptId, x, y }] },
           _viewMembershipRedo: { ...get()._viewMembershipRedo, [viewId]: [] },
         });
+        PersistenceService.scheduleAutoSave(get());
+      },
+
+      removeConceptsFromView: (viewId, ids) => {
+        const deleteSet = new Set<string>(ids);
+        const temporal = getTemporalState();
+        temporal.pause();
+
+        const currentView = get().views.find((v) => v.id === viewId);
+        const undoStack = get()._viewMembershipUndo[viewId] ?? [];
+        const nextUndoActions = [...undoStack];
+
+        if (currentView) {
+          ids.forEach((id) => {
+            const vn = currentView.nodes.find((n) => n.conceptId === id);
+            if (vn) {
+              nextUndoActions.push({
+                type: 'remove',
+                conceptId: id,
+                x: vn.x,
+                y: vn.y
+              });
+            }
+          });
+        }
+
+        set((s) => ({
+          views: s.views.map((v) =>
+            v.id !== viewId ? v : {
+              ...v,
+              nodes: v.nodes.filter((n) => !deleteSet.has(n.conceptId)),
+            }
+          ),
+          _viewMembershipUndo: {
+            ...s._viewMembershipUndo,
+            [viewId]: nextUndoActions
+          },
+          _viewMembershipRedo: {
+            ...s._viewMembershipRedo,
+            [viewId]: []
+          }
+        }));
+
+        temporal.resume();
         PersistenceService.scheduleAutoSave(get());
       },
 
@@ -654,9 +702,9 @@ export const useGraphStore = create<GraphStoreState>()(
         const view = views.find((v) => v.id === activeViewId);
         if (!view) return;
 
-        // Resolve notation plugin to filter concepts to only allowed types
-        const plugin = PluginRegistry.forViewType(view.type);
-        const allowedTypes = plugin?.allowedConceptTypes;
+        // Resolve notation to filter concepts to only allowed types
+        const notation = NotationRegistry.forViewType(view.type);
+        const allowedTypes = notation?.allowedConceptTypes;
 
         const existingIds = new Set(view.nodes.map((n) => n.conceptId));
         const existingNames = new Set(
@@ -781,6 +829,73 @@ export const useGraphStore = create<GraphStoreState>()(
           nodes: v.nodes.filter((vn) => vn.conceptId !== id),
         }));
         set({ ...nextState, views: prunedViews });
+        PersistenceService.scheduleAutoSave(get());
+      },
+
+      deleteConcepts: (ids) => {
+        const deleteSet = new Set<string>(ids);
+        const now = Date.now();
+        console.log(`%c[Store Action] 🔴 Deleted Concepts: ${ids.join(', ')}`, 'color: #ef4444; font-weight: bold;');
+        
+        const nextConcepts = get().concepts
+          .filter((c) => !deleteSet.has(c.id))
+          .map((c) => {
+            let hasChanges = false;
+            let nextWasDerivedFrom = c.wasDerivedFrom;
+            if (c.wasDerivedFrom && deleteSet.has(c.wasDerivedFrom)) {
+              nextWasDerivedFrom = null;
+              hasChanges = true;
+            }
+            if ('properties' in c && c.properties) {
+              const nextProperties = c.properties.map((p) => {
+                if (p.wasDerivedFrom && deleteSet.has(p.wasDerivedFrom)) {
+                  return { ...p, wasDerivedFrom: null };
+                }
+                return p;
+              });
+              if (nextProperties.some((p, idx) => p !== (c as any).properties[idx])) {
+                hasChanges = true;
+              }
+              if (hasChanges) {
+                return {
+                  ...c,
+                  wasDerivedFrom: nextWasDerivedFrom,
+                  properties: nextProperties,
+                  updatedAt: now,
+                } as ConceptNode;
+              }
+            } else {
+              if (hasChanges) {
+                return {
+                  ...c,
+                  wasDerivedFrom: nextWasDerivedFrom,
+                  updatedAt: now,
+                } as ConceptNode;
+              }
+            }
+            return c;
+          });
+
+        const nextRelations = get().relations.filter(
+          (r) => !deleteSet.has(r.sourceConceptId) && !deleteSet.has(r.targetConceptId)
+        );
+
+        const prunedViews = get().views.map((v) => ({
+          ...v,
+          nodes: v.nodes.filter((vn) => !deleteSet.has(vn.conceptId)),
+        }));
+
+        const selectedId = get().selectedConceptId;
+        const isSelectedDeleted = selectedId ? deleteSet.has(selectedId) : false;
+
+        set({
+          concepts: nextConcepts,
+          relations: nextRelations,
+          views: prunedViews,
+          selectedConceptId: isSelectedDeleted ? null : selectedId,
+          selectedConceptIds: get().selectedConceptIds.filter(cid => !deleteSet.has(cid)),
+        });
+
         PersistenceService.scheduleAutoSave(get());
       },
 

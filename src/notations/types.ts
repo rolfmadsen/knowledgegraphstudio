@@ -1,21 +1,21 @@
 /**
- * Plugin System Types — Notation Plugin Interface
+ * Notation System Types — Notation Interface
  *
- * A NotationPlugin encapsulates all rendering and layout logic for a
+ * A Notation encapsulates all rendering and layout logic for a
  * specific visual notation (e.g., Global Explorer / D3 force-directed,
  * ArchiMate, Entity-Relationship, etc.).
  *
- * The plugin is responsible for:
+ * The notation is responsible for:
  *  - Declaring which ViewType(s) it handles
  *  - Providing a React component that renders the canvas for that notation
  *  - Optionally providing a layout engine that positions ViewNodes
  *
- * Rule: UI components MUST NOT instantiate plugins directly.
- * All plugin access goes through PluginRegistry.
+ * Rule: UI components MUST NOT instantiate notations directly.
+ * All notation access goes through NotationRegistry.
  */
 
 import type { ComponentType } from 'react';
-import type { ViewType, View, ConceptType, ConceptRelation, ElementId } from '../schema/graphSchema';
+import type { ViewType, View, ConceptType, ConceptRelation, ElementId, ConceptNode, ConceptProperty, DataType } from '../schema/graphSchema';
 import type { GraphStoreState } from '../store/useGraphStore';
 
 // ============================================================
@@ -58,12 +58,12 @@ export type LayoutEngine = (input: LayoutInput) => Promise<LayoutOutput>;
 // Canvas Component Props
 // ============================================================
 
-export interface PluginCanvasProps {
+export interface NotationCanvasProps {
   /** The view being rendered */
   view: View;
-  /** Full store state — plugin reads concepts/relations for rendering */
+  /** Full store state — notation reads concepts/relations for rendering */
   storeState: Pick<GraphStoreState, 'concepts' | 'relations' | 'selectedConceptId' | 'selectedRelationId'>;
-  /** Callbacks the plugin uses to update the store */
+  /** Callbacks the notation uses to update the store */
   onNodePositionChange: (conceptId: ElementId, x: number, y: number) => void;
   onNodeSelect: (conceptId: ElementId | null) => void;
   onRelationSelect: (relationId: ElementId | null) => void;
@@ -78,23 +78,23 @@ export interface EdgeStyle {
 }
 
 // ============================================================
-// Plugin Definition
+// Notation Definition
 // ============================================================
 
-export interface NotationPlugin {
-  /** Unique identifier matching ViewType values this plugin handles */
+export interface Notation {
+  /** Unique identifier matching ViewType values this notation handles */
   readonly id: string;
   /** Display name shown in the UI */
   readonly displayName: string;
   /** Icon name or emoji for the Views tab */
   readonly icon: string;
-  /** Which ViewType(s) this plugin supports */
+  /** Which ViewType(s) this notation supports */
   readonly supportedViewTypes: ViewType[];
   /** The React component that renders the canvas for this notation */
-  readonly CanvasComponent: ComponentType<PluginCanvasProps>;
+  readonly CanvasComponent: ComponentType<NotationCanvasProps>;
   /**
    * Optional layout engine. If provided, the floating toolbar will offer
-   * "Auto Layout" for this plugin's views.
+   * "Auto Layout" for this notation's views.
    */
   readonly layoutEngine?: LayoutEngine;
   /**
@@ -117,9 +117,32 @@ export interface NotationPlugin {
    */
   readonly conceptTypeLabels?: Partial<Record<ConceptType, string>>;
   /**
-   * Optional custom edge styler. Enables plugins to define their own visual edge line properties
+   * Optional custom edge styler. Enables notations to define their own visual edge line properties
    * (e.g. dashed vs solid, custom markers).
    */
   readonly getEdgeStyle?: (relation: ConceptRelation, isSelected: boolean) => EdgeStyle;
+  /**
+   * Optional custom properties Inspector component.
+   */
+  readonly InspectorComponent?: ComponentType<{
+    concept: ConceptNode;
+    updateProperty: (conceptId: ElementId, propertyId: ElementId, updates: Partial<ConceptProperty>) => void;
+    deleteProperty: (conceptId: ElementId, propertyId: ElementId) => void;
+    addProperty: (conceptId: ElementId, name: string, type: DataType, isRequired?: boolean) => void;
+    updateConcept: (id: ElementId, updates: Partial<ConceptNode>) => void;
+    concepts: ConceptNode[];
+  }>;
+  /**
+   * Optional custom relation Inspector component.
+   */
+  readonly RelationInspectorComponent?: ComponentType<{
+    relation: ConceptRelation;
+    updateRelation: (id: ElementId, updates: Partial<ConceptRelation>) => void;
+    concepts: ConceptNode[];
+  }>;
+  /**
+   * Optional flag to suppress the generic views membership section in the properties inspector.
+   */
+  readonly hideViewsSection?: boolean;
 }
 

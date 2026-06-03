@@ -18,6 +18,7 @@ interface KeyboardConfig {
   onToggleFocusMode?: () => void;
   onFocusZone: (zone: 1 | 2 | 4) => void;
   onAddProperty?: () => void;
+  onToggleAI?: () => void;
   // Git shortcuts (Spec §10.7)
   onGitPush?: () => void;
   onGitPull?: () => void;
@@ -80,6 +81,13 @@ export function useKeyboard(config: KeyboardConfig) {
         return;
       }
 
+      // Alt+A — Toggle AI Assistant
+      if (alt && e.key === 'a') {
+        e.preventDefault();
+        config.onToggleAI?.();
+        return;
+      }
+
       // Alt+N — New Concept (Specialized UI)
       if (alt && e.key === 'n') {
         e.preventDefault();
@@ -115,27 +123,32 @@ export function useKeyboard(config: KeyboardConfig) {
         if (!isInputFocused()) {
           const state = useGraphStore.getState();
 
-          const conceptId = state.selectedConceptId;
+          const conceptIds = state.selectedConceptIds;
           const activeViewId = state.activeViewId;
-          if (conceptId) {
+          if (conceptIds.length > 0) {
             e.preventDefault();
             e.stopPropagation(); // ← kill the event; no other handler should see it
             const views = state.views;
 
-            const viewsContaining = views.filter((v) =>
-              v.nodes.some((vn) => vn.conceptId === conceptId),
-            );
+            const hasLastOccurrence = conceptIds.some((cid) => {
+              const viewsContaining = views.filter((v) =>
+                v.nodes.some((vn) => vn.conceptId === cid),
+              );
+              return viewsContaining.length <= 1;
+            });
 
-            if (viewsContaining.length <= 1) {
-              // Last (or no) view — open the styled confirmation modal
+            if (hasLastOccurrence) {
+              // Show the confirmation modal for all of them
               if (activeViewId) {
-                const concept = state.concepts.find((c) => c.id === conceptId);
-                const conceptName = concept?.name ?? conceptId;
-                state.requestDeleteConceptConfirm(conceptId, conceptName, activeViewId);
+                const names = conceptIds.map((cid) => {
+                  const concept = state.concepts.find((c) => c.id === cid);
+                  return concept?.name ?? cid;
+                });
+                state.requestDeleteConceptConfirm(conceptIds, names, activeViewId);
               }
             } else if (activeViewId) {
-              // In multiple views — silently remove from active view only
-              state.removeConceptFromView(activeViewId, conceptId);
+              // Silently remove all from active view only
+              state.removeConceptsFromView(activeViewId, conceptIds);
             }
           } else if (state.selectedRelationId) {
             e.preventDefault();

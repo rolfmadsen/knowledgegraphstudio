@@ -15,21 +15,21 @@ vi.hoisted(() => {
 
 import { useGraphStore, getTemporalState } from '../useGraphStore';
 import { toElementId, type Domain, type ConceptNode, type View } from '../../schema/graphSchema';
-import { PluginRegistry } from '../../plugins/PluginRegistry';
-import { knowledgeGraphPlugin } from '../../plugins/knowledge-graph';
-import { archimatePlugin } from '../../plugins/archimate';
-import { c4Plugin } from '../../plugins/c4';
-import { conceptualPlugin } from '../../plugins/core-model/conceptualPlugin';
-import { informationPlugin } from '../../plugins/core-model/informationPlugin';
-import { dcrPlugin } from '../../plugins/dcr';
+import { NotationRegistry } from '../../notations/NotationRegistry';
+import { knowledgeGraphNotation } from '../../notations/knowledge-graph';
+import { archimateNotation } from '../../notations/archimate';
+import { c4Notation } from '../../notations/c4';
+import { conceptualNotation } from '../../notations/core-model/conceptualNotation';
+import { informationNotation } from '../../notations/core-model/informationNotation';
+import { dcrNotation } from '../../notations/dcr';
 
-// Register notation plugins for testing
-PluginRegistry.register(knowledgeGraphPlugin);
-PluginRegistry.register(archimatePlugin);
-PluginRegistry.register(c4Plugin);
-PluginRegistry.register(conceptualPlugin);
-PluginRegistry.register(informationPlugin);
-PluginRegistry.register(dcrPlugin);
+// Register notations for testing
+NotationRegistry.register(knowledgeGraphNotation);
+NotationRegistry.register(archimateNotation);
+NotationRegistry.register(c4Notation);
+NotationRegistry.register(conceptualNotation);
+NotationRegistry.register(informationNotation);
+NotationRegistry.register(dcrNotation);
 
 describe('useGraphStore', () => {
   beforeEach(() => {
@@ -408,6 +408,106 @@ describe('useGraphStore', () => {
       expect(state.selectedRelationId).toBe(toElementId('relation:1'));
       expect(state.selectedConceptId).toBeNull();
       expect(state.selectedConceptIds).toEqual([]);
+    });
+  });
+
+  describe('Bulk Deletion Actions', () => {
+    it('deletes multiple concepts and their relations from the model and views', () => {
+      const c1 = {
+        id: toElementId('concept:1'),
+        conceptType: 'actor',
+        name: 'Actor 1',
+        properties: [],
+        policies: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        lifecycleState: 'active',
+        aliases: [],
+      } as ConceptNode;
+      const c2 = {
+        id: toElementId('concept:2'),
+        conceptType: 'process',
+        name: 'Process 1',
+        properties: [],
+        policies: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        lifecycleState: 'active',
+        aliases: [],
+      } as ConceptNode;
+      const rel = {
+        id: toElementId('relation:1'),
+        sourceConceptId: c1.id,
+        targetConceptId: c2.id,
+        name: 'relates to',
+        lifecycleState: 'active',
+      } as any;
+      const mockViews: View[] = [
+        {
+          id: toElementId('v:1'),
+          name: 'My View',
+          type: 'archimate',
+          layoutAlgorithm: 'manual',
+          nodes: [
+            { conceptId: c1.id, x: 100, y: 100 },
+            { conceptId: c2.id, x: 200, y: 200 },
+          ],
+          edges: [],
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          lifecycleState: 'active',
+        },
+      ];
+
+      useGraphStore.setState({
+        concepts: [c1, c2],
+        relations: [rel],
+        views: mockViews,
+        activeViewId: toElementId('v:1'),
+        selectedConceptIds: [c1.id, c2.id],
+      });
+
+      useGraphStore.getState().deleteConcepts([c1.id, c2.id]);
+
+      const state = useGraphStore.getState();
+      expect(state.concepts).toEqual([]);
+      expect(state.relations).toEqual([]);
+      expect(state.views[0].nodes).toEqual([]);
+      expect(state.selectedConceptIds).toEqual([]);
+    });
+
+    it('removes multiple concepts from a specific view', () => {
+      const c1 = { id: toElementId('concept:1'), name: 'Actor 1' } as ConceptNode;
+      const c2 = { id: toElementId('concept:2'), name: 'Process 1' } as ConceptNode;
+      const mockViews: View[] = [
+        {
+          id: toElementId('v:1'),
+          name: 'My View',
+          type: 'archimate',
+          layoutAlgorithm: 'manual',
+          nodes: [
+            { conceptId: c1.id, x: 100, y: 100 },
+            { conceptId: c2.id, x: 200, y: 200 },
+          ],
+          edges: [],
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          lifecycleState: 'active',
+        },
+      ];
+
+      useGraphStore.setState({
+        concepts: [c1, c2],
+        views: mockViews,
+        activeViewId: toElementId('v:1'),
+        selectedConceptIds: [c1.id, c2.id],
+      });
+
+      useGraphStore.getState().removeConceptsFromView(toElementId('v:1'), [c1.id, c2.id]);
+
+      const state = useGraphStore.getState();
+      expect(state.concepts).toHaveLength(2); // Still exists in model
+      expect(state.views[0].nodes).toEqual([]);
     });
   });
 

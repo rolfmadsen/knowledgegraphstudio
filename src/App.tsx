@@ -9,12 +9,14 @@
 import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import './index.css';
 import { useGraphStore, useTemporalStore } from './store/useGraphStore';
+import { useAIStore } from './features/ai/store/useAIStore';
+import { AIChatPanel } from './features/ai/components/AIChatPanel';
 import { toElementId } from './schema/graphSchema';
 import { useShallow } from 'zustand/react/shallow';
 import { useKeyboard } from './hooks/useKeyboard';
 import { ViewportContainer } from './features/viewport/ViewportContainer';
 import { type ViewMode } from './types/view';
-import { PluginCanvasWrapper } from './features/viewport/PluginCanvasWrapper';
+import { NotationCanvasWrapper } from './features/viewport/NotationCanvasWrapper';
 import { Inspector } from './features/properties/Inspector';
 import { Navigator } from './features/navigation/Navigator';
 import { ViewToolbar } from './features/viewport/ViewToolbar';
@@ -44,6 +46,12 @@ import { useResizable } from './hooks/useResizable';
 function App() {
   // --- App State ---
   const [propertiesOpen, setPropertiesOpen] = useState(true);
+  const { activeTab, setActiveTab } = useAIStore(
+    useShallow((s) => ({
+      activeTab: s.activeTab,
+      setActiveTab: s.setActiveTab,
+    }))
+  );
   const [indexOpen, setIndexOpen] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>('graph');
   const [diffMode, setDiffMode] = useState(false);
@@ -135,6 +143,9 @@ function App() {
 
     // Load stored remote config into Zustand + start auto-fetch
     useGraphStore.getState().bootstrapRemoteConfig();
+
+    // Load stored AI configuration
+    useAIStore.getState().loadConfig();
 
     return () => useGraphStore.getState().stopAutoFetch();
   }, []);
@@ -282,6 +293,14 @@ function App() {
     onGitPush: handleGitPush,
     onGitPull: handleGitPull,
     onOpenRemoteConfig: () => setRemoteConfigOpen(true),
+    onToggleAI: () => {
+      if (propertiesOpen && activeTab === 'ai') {
+        setPropertiesOpen(false);
+      } else {
+        setPropertiesOpen(true);
+        setActiveTab('ai');
+      }
+    },
   });
 
   // Global '?' shortcut for help
@@ -363,6 +382,15 @@ function App() {
         onToggleFocusMode={() => setFocusMode(!focusMode)}
         onOpenRemoteConfig={() => setRemoteConfigOpen(true)}
         onOpenWorkspaces={() => setWorkspacesOpen(true)}
+        onToggleAI={() => {
+          if (propertiesOpen && activeTab === 'ai') {
+            setPropertiesOpen(false);
+          } else {
+            setPropertiesOpen(true);
+            setActiveTab('ai');
+          }
+        }}
+        isAIPanelActive={propertiesOpen && activeTab === 'ai'}
         focusMode={focusMode}
       />
       <div className="flex-1 flex overflow-hidden bg-slate-50">
@@ -458,7 +486,7 @@ function App() {
           >
             <ViewportContainer
               diffMode={diffMode}
-              graphViewport={<PluginCanvasWrapper focusMode={focusMode} />}
+              graphViewport={<NotationCanvasWrapper focusMode={focusMode} isAIPanelActive={propertiesOpen && activeTab === 'ai'} />}
               diffViewport={
                 <Suspense fallback={<div className="flex-1 flex items-center justify-center"><div className="animate-pulse text-xs text-slate-400">Loading Diff...</div></div>}>
                   <DiffViewport />
@@ -556,7 +584,33 @@ function App() {
           }}
         >
           <div ref={zone4Ref} tabIndex={0} className="h-full flex flex-col min-h-0 focus:outline-none">
-            <Inspector />
+            {/* Sidebar Tab Header */}
+            <div className="flex border-b border-slate-200 bg-slate-50 shrink-0 select-none">
+              <button
+                onClick={() => setActiveTab('properties')}
+                className={`flex-1 py-3 text-[9px] font-black uppercase tracking-wider text-center border-b-2 transition-all ${
+                  activeTab === 'properties'
+                    ? 'border-emerald-600 text-slate-800 bg-white'
+                    : 'border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-100/50'
+                }`}
+              >
+                Egenskaber
+              </button>
+              <button
+                onClick={() => setActiveTab('ai')}
+                className={`flex-1 py-3 text-[9px] font-black uppercase tracking-wider text-center border-b-2 transition-all ${
+                  activeTab === 'ai'
+                    ? 'border-emerald-600 text-slate-800 bg-white'
+                    : 'border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-100/50'
+                }`}
+              >
+                AI Assistent
+              </button>
+            </div>
+            {/* Active Panel Content */}
+            <div className="flex-1 min-h-0 flex flex-col">
+              {activeTab === 'properties' ? <Inspector /> : <AIChatPanel />}
+            </div>
           </div>
         </aside>
       </div>

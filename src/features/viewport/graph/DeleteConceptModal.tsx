@@ -15,11 +15,11 @@ import { useGraphStore } from '../../../store/useGraphStore';
 import { useShallow } from 'zustand/react/shallow';
 
 export function DeleteConceptModal() {
-  const { pending, deleteConcept, removeConceptFromView, clear } = useGraphStore(
+  const { pending, deleteConcepts, removeConceptsFromView, clear } = useGraphStore(
     useShallow((s) => ({
       pending: s.deleteConceptConfirm,
-      deleteConcept: s.deleteConcept,
-      removeConceptFromView: s.removeConceptFromView,
+      deleteConcepts: s.deleteConcepts,
+      removeConceptsFromView: s.removeConceptsFromView,
       clear: s.clearDeleteConceptConfirm,
     })),
   );
@@ -36,11 +36,11 @@ export function DeleteConceptModal() {
       if (e.key === 'Enter') {
         e.preventDefault();
         e.stopPropagation();
-        deleteConcept(pending.conceptId);
+        deleteConcepts(pending.conceptIds);
         clear();
       }
     },
-    [pending, deleteConcept, clear],
+    [pending, deleteConcepts, clear],
   );
 
   useEffect(() => {
@@ -50,15 +50,16 @@ export function DeleteConceptModal() {
 
   if (!pending) return null;
 
-  const { conceptName } = pending;
+  const { conceptIds, conceptNames } = pending;
+  const isMultiple = conceptIds.length > 1;
 
   const handleDeleteFromModel = () => {
-    deleteConcept(pending.conceptId);
+    deleteConcepts(pending.conceptIds);
     clear();
   };
 
   const handleRemoveFromView = () => {
-    removeConceptFromView(pending.viewId, pending.conceptId);
+    removeConceptsFromView(pending.viewId, pending.conceptIds);
     clear();
   };
 
@@ -77,10 +78,10 @@ export function DeleteConceptModal() {
             </div>
             <div>
               <h2 className="text-[16px] font-black text-slate-900 tracking-tight leading-tight">
-                Last occurrence
+                {isMultiple ? 'Last occurrences' : 'Last occurrence'}
               </h2>
               <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400 mt-0.5">
-                Not in any other view
+                {isMultiple ? 'Not in other views' : 'Not in any other view'}
               </p>
             </div>
           </div>
@@ -96,7 +97,15 @@ export function DeleteConceptModal() {
         {/* Body */}
         <div className="px-8 pb-8">
           <p className="text-[13px] text-slate-500 leading-relaxed mb-1">
-            <span className="font-black text-slate-800">"{conceptName}"</span> exists only in this view.
+            {isMultiple ? (
+              <>
+                The selected <span className="font-black text-slate-800">{conceptIds.length} elements</span> exist only in this view.
+              </>
+            ) : (
+              <>
+                <span className="font-black text-slate-800">"{conceptNames[0]}"</span> exists only in this view.
+              </>
+            )}
           </p>
           <p className="text-[13px] text-slate-500 leading-relaxed mb-7">
             What would you like to do?
@@ -123,7 +132,9 @@ export function DeleteConceptModal() {
             >
               <div className="flex items-center gap-3">
                 <Trash2 size={16} strokeWidth={2.5} className="shrink-0" />
-                <span className="text-[13px] font-bold tracking-tight">Delete from model</span>
+                <span className="text-[13px] font-bold tracking-tight">
+                  {isMultiple ? 'Delete from model entirely' : 'Delete from model'}
+                </span>
               </div>
               <kbd className="px-2 py-1 rounded-lg bg-red-100 text-[10px] font-mono text-red-400 shrink-0">↵</kbd>
             </button>

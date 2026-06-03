@@ -19,8 +19,8 @@ import {
   useReactFlow,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import type { PluginCanvasProps } from '../../../plugins/types';
-import { PluginRegistry } from '../../../plugins/PluginRegistry';
+import type { NotationCanvasProps } from '../../../notations/types';
+import { NotationRegistry } from '../../../notations/NotationRegistry';
 import { useGraphStore } from '../../../store/useGraphStore';
 import { useShallow } from 'zustand/react/shallow';
 import { type ConceptNode, type ElementId, toElementId } from '../../../schema/graphSchema';
@@ -155,8 +155,12 @@ function truncate(str: string, maxLen: number): string {
   return maxLen > 3 ? str.slice(0, maxLen - 3) + '...' : str.slice(0, Math.max(1, maxLen)) + '..';
 }
 
+interface FloatingEdgeProps extends EdgeProps {
+  className?: string;
+}
+
 // Custom FloatingEdge
-function FloatingEdge({ id, source, target, style, label, labelStyle, selected, data }: EdgeProps) {
+function FloatingEdge({ id, source, target, style, label, labelStyle, selected, data, className }: FloatingEdgeProps) {
   const sourceNode = useInternalNode(source);
   const targetNode = useInternalNode(target);
 
@@ -202,7 +206,7 @@ function FloatingEdge({ id, source, target, style, label, labelStyle, selected, 
     <>
       <path
         id={id}
-        className="react-flow__edge-path"
+        className={`react-flow__edge-path ${className || ''}`}
         d={straightPath}
         markerEnd={markerEnd}
         markerStart={markerStart}
@@ -265,7 +269,7 @@ function FloatingEdge({ id, source, target, style, label, labelStyle, selected, 
   );
 }
 
-export interface ReactFlowCanvasProps extends PluginCanvasProps {
+export interface ReactFlowCanvasProps extends NotationCanvasProps {
   nodeTypes: NodeTypes;
 }
 
@@ -437,13 +441,15 @@ export function ReactFlowCanvas({
         }
       }
 
+      const isProposed = (c as any).isProposed;
       return [{
         id: c.id,
         type: 'conceptNode',
         position,
         parentId,
         selected: selectedConceptIds.includes(c.id),
-        draggable: currentAlgo === 'manual',
+        draggable: currentAlgo === 'manual' && !isProposed,
+        className: isProposed ? 'ai-proposed' : undefined,
         style,
         data: {
           name: c.name,
@@ -465,7 +471,7 @@ export function ReactFlowCanvas({
   }, [concepts, selectedConceptIds, view, currentAlgo]);
 
   const initialEdges: Edge[] = useMemo(() => {
-    const activePlugin = PluginRegistry.forViewType(view.type);
+    const activeNotation = NotationRegistry.forViewType(view.type);
 
     return relations.map((r) => {
       const isSelected = r.id === selectedRelationId;
@@ -474,8 +480,8 @@ export function ReactFlowCanvas({
       let strokeDash: string;
       let edgeStyle: React.CSSProperties | undefined = undefined;
 
-      if (activePlugin?.getEdgeStyle) {
-        const style = activePlugin.getEdgeStyle(r, isSelected);
+      if (activeNotation?.getEdgeStyle) {
+        const style = activeNotation.getEdgeStyle(r, isSelected);
         strokeDash = style.strokeDasharray ?? 'none';
         markerEndStr = style.markerEnd;
         markerStartStr = style.markerStart;
@@ -489,6 +495,7 @@ export function ReactFlowCanvas({
         strokeDash = 'none';
       }
 
+      const isProposed = (r as any).isProposed;
       return {
         id: r.id,
         source: r.sourceConceptId,
@@ -496,6 +503,7 @@ export function ReactFlowCanvas({
         type: 'floating',
         label: r.name,
         selected: isSelected,
+        className: isProposed ? 'ai-proposed-edge' : undefined,
         style: edgeStyle,
         data: {
           selectRelation: onRelationSelect,
@@ -585,7 +593,46 @@ export function ReactFlowCanvas({
 
       return hasChanges ? nextNodes : currentNodes;
     });
-    setEdges(initialEdges);
+    setEdges((currentEdges) => {
+      let hasChanges = false;
+      const nextEdges = initialEdges.map((e) => {
+        const existingEdge = currentEdges.find((ce) => ce.id === e.id);
+        if (existingEdge) {
+          const changed =
+            existingEdge.source !== e.source ||
+            existingEdge.target !== e.target ||
+            existingEdge.label !== e.label ||
+            existingEdge.selected !== e.selected ||
+            existingEdge.className !== e.className ||
+            existingEdge.style?.stroke !== e.style?.stroke ||
+            existingEdge.data?.strokeDasharray !== e.data?.strokeDasharray ||
+            existingEdge.data?.markerEnd !== e.data?.markerEnd ||
+            existingEdge.data?.markerStart !== e.data?.markerStart ||
+            existingEdge.data?.multiplicity !== e.data?.multiplicity;
+          if (!changed) return existingEdge;
+          hasChanges = true;
+          return {
+            ...existingEdge,
+            source: e.source,
+            target: e.target,
+            label: e.label,
+            selected: e.selected,
+            className: e.className,
+            style: e.style,
+            data: e.data,
+          };
+        }
+        hasChanges = true;
+        return e;
+      });
+
+      const orderChanged =
+        currentEdges.length !== nextEdges.length ||
+        currentEdges.some((ce, idx) => nextEdges[idx] && ce.id !== nextEdges[idx].id);
+      if (orderChanged) hasChanges = true;
+
+      return hasChanges ? nextEdges : currentEdges;
+    });
   }, [computedNodes, initialEdges, setNodes, setEdges]);
 
   const onConnectHandler: OnConnect = useCallback((connection) => {
@@ -599,18 +646,18 @@ export function ReactFlowCanvas({
     const targetNode = concepts.find((c) => c.id === connection.target);
     if (!sourceNode || !targetNode) return false;
 
-    const plugin = PluginRegistry.forViewType(view.type);
-    if (!plugin) return true;
+    const notation = NotationRegistry.forViewType(view.type);
+    if (!notation) return true;
 
-    if (plugin.allowedConceptTypes) {
-      if (!plugin.allowedConceptTypes.includes(sourceNode.conceptType) ||
-          !plugin.allowedConceptTypes.includes(targetNode.conceptType)) {
+    if (notation.allowedConceptTypes) {
+      if (!notation.allowedConceptTypes.includes(sourceNode.conceptType) ||
+          !notation.allowedConceptTypes.includes(targetNode.conceptType)) {
         return false;
       }
     }
 
-    if (plugin.getAvailableRelations) {
-      const allowed = plugin.getAvailableRelations(sourceNode.conceptType, targetNode.conceptType);
+    if (notation.getAvailableRelations) {
+      const allowed = notation.getAvailableRelations(sourceNode.conceptType, targetNode.conceptType);
       return allowed.length > 0;
     }
 

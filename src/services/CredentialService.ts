@@ -19,6 +19,12 @@ export interface RemoteConfig {
   authorEmail?: string;
 }
 
+export interface AIConfig {
+  baseUrl: string;
+  model: string;
+  apiKey?: string;
+}
+
 interface CredentialRow {
   key: string;
   value: string;
@@ -47,6 +53,7 @@ const db = new CredentialDatabase();
 
 const KEY_PAT = 'github_pat';
 const KEY_REMOTE = 'remote_config';
+const KEY_AI_CONFIG = 'ai_config';
 const DEFAULT_CORS_PROXY = 'https://cors.isomorphic-git.org';
 
 // ============================================================
@@ -54,6 +61,37 @@ const DEFAULT_CORS_PROXY = 'https://cors.isomorphic-git.org';
 // ============================================================
 
 export class CredentialService {
+  /**
+   * Save the AIConfig (baseUrl + model + apiKey) to IndexedDB.
+   */
+  static async saveAIConfig(config: AIConfig): Promise<void> {
+    await db.credentials.put({
+      key: KEY_AI_CONFIG,
+      value: JSON.stringify(config),
+    });
+  }
+
+  /**
+   * Load AIConfig from IndexedDB. Returns default config if not configured.
+   */
+  static async loadAIConfig(): Promise<AIConfig> {
+    const row = await db.credentials.get(KEY_AI_CONFIG);
+    if (!row) {
+      return {
+        baseUrl: 'http://localhost:11434/v1',
+        model: 'llama3',
+      };
+    }
+    try {
+      return JSON.parse(row.value) as AIConfig;
+    } catch {
+      return {
+        baseUrl: 'http://localhost:11434/v1',
+        model: 'llama3',
+      };
+    }
+  }
+
   /**
    * Save a GitHub Personal Access Token to IndexedDB.
    * Rejects http:// remote URLs (HTTPS-only rule from §10.8).
@@ -114,10 +152,10 @@ export class CredentialService {
   }
 
   /**
-   * Clear all stored credentials (PAT + RemoteConfig).
+   * Clear all stored credentials (PAT + RemoteConfig + AIConfig).
    * Called when the user explicitly signs out or resets.
    */
   static async clearAll(): Promise<void> {
-    await db.credentials.bulkDelete([KEY_PAT, KEY_REMOTE]);
+    await db.credentials.bulkDelete([KEY_PAT, KEY_REMOTE, KEY_AI_CONFIG]);
   }
 }

@@ -1,6 +1,6 @@
 import { useMemo, createElement } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
-import type { NotationPlugin, PluginCanvasProps } from '../types';
+import type { Notation, NotationCanvasProps } from '../types';
 import { ReactFlowCanvas } from '../../features/viewport/graph/ReactFlowCanvas';
 import { dagreLayoutEngine } from '../knowledge-graph';
 import type { ConceptNode } from '../../schema/graphSchema';
@@ -169,7 +169,7 @@ export function ArchimateNodeComponent({ data, selected }: NodeProps) {
     );
   }
 
-  const label = archimatePlugin.conceptTypeLabels?.[conceptType] || conceptType.toUpperCase().replace('_', ' ');
+  const label = archimateNotation.conceptTypeLabels?.[conceptType] || conceptType.toUpperCase().replace('_', ' ');
   const stereotype = `«${label}»`;
 
   return (
@@ -196,12 +196,12 @@ export function ArchimateNodeComponent({ data, selected }: NodeProps) {
   );
 }
 
-function ArchimateCanvas(props: PluginCanvasProps) {
+function ArchimateCanvas(props: NotationCanvasProps) {
   const nodeTypes = useMemo(() => ({ conceptNode: ArchimateNodeComponent }), []);
   return createElement(ReactFlowCanvas, { ...props, nodeTypes });
 }
 
-export const archimatePlugin: NotationPlugin = {
+export const archimateNotation: Notation = {
   id: 'archimate',
   displayName: 'ArchiMate View',
   icon: '🏛️',
@@ -330,4 +330,4 @@ export const archimatePlugin: NotationPlugin = {
     return { strokeDasharray: strokeDash, markerEnd: markerEndStr };
   },
 };
-export default archimatePlugin;
+export default archimateNotation;

@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import type { PluginCanvasProps } from '../../../plugins/types';
+import type { NotationCanvasProps } from '../../../notations/types';
 import { ReactFlowCanvas } from './ReactFlowCanvas';
 import { Handle, Position, type NodeProps, type Node } from '@xyflow/react';
 import type { ConceptNode } from '../../../schema/graphSchema';
@@ -66,7 +66,7 @@ export function ConceptNodeComponent({ data, selected }: NodeProps<ConceptNodeTy
   );
 }
 
-export function GraphViewport(props: PluginCanvasProps) {
+export function GraphViewport(props: NotationCanvasProps) {
   const nodeTypes = useMemo(() => ({ conceptNode: ConceptNodeComponent }), []);
   return <ReactFlowCanvas {...props} nodeTypes={nodeTypes} />;
 }

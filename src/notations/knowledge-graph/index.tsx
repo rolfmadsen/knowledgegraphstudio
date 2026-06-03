@@ -1,11 +1,11 @@
 /**
- * Knowledge Graph Plugin
+ * Knowledge Graph Notation
  *
  * Handles the 'knowledge_graph' ViewType using force-directed / Dagre layout.
  * The canvas delegates to the existing GraphViewport component.
  */
 
-import type { NotationPlugin, LayoutEngine, LayoutInput, LayoutOutput, PluginCanvasProps } from '../types';
+import type { Notation, LayoutEngine, LayoutInput, LayoutOutput, NotationCanvasProps } from '../types';
 import { GraphViewport } from '../../features/viewport/graph/GraphViewport';
 
 // ============================================================
@@ -55,18 +55,18 @@ export const dagreLayoutEngine: LayoutEngine = async (input: LayoutInput): Promi
 };
 
 // ============================================================
-// Adapter: bridge PluginCanvasProps → existing GraphViewport
+// Adapter: bridge NotationCanvasProps → existing GraphViewport
 // ============================================================
 
-function KnowledgeGraphCanvas(props: PluginCanvasProps) {
+function KnowledgeGraphCanvas(props: NotationCanvasProps) {
   return <GraphViewport {...props} />;
 }
 
 // ============================================================
-// Plugin Export
+// Notation Export
 // ============================================================
 
-export const knowledgeGraphPlugin: NotationPlugin = {
+export const knowledgeGraphNotation: Notation = {
   id: 'knowledge-graph',
   displayName: 'Knowledge Graph',
   icon: '🌐',
@@ -74,4 +74,4 @@ export const knowledgeGraphPlugin: NotationPlugin = {
   CanvasComponent: KnowledgeGraphCanvas,
   layoutEngine: dagreLayoutEngine,
 };
-export default knowledgeGraphPlugin;
+export default knowledgeGraphNotation;

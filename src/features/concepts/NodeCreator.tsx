@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useGraphStore } from '../../store/useGraphStore';
 import { ConceptType } from '../../schema/graphSchema';
-import { PluginRegistry } from '../../plugins/PluginRegistry';
+import { NotationRegistry } from '../../notations/NotationRegistry';
 import { GraphService } from '../../services/GraphService';
 import { X, Plus, User, Activity, Box, Server, Zap, Shield, Layout, Globe, Search } from 'lucide-react';
 
@@ -19,7 +19,7 @@ export const NodeCreator: React.FC = () => {
   const closeBtnRef = useRef<HTMLButtonElement>(null);
 
   const activeView = views.find((v) => v.id === activeViewId);
-  const activePlugin = activeView ? PluginRegistry.forViewType(activeView.type) : undefined;
+  const activeNotation = activeView ? NotationRegistry.forViewType(activeView.type) : undefined;
 
   const getIconForType = (t: ConceptType) => {
     // 1. Strategy & Motivation Layer (Shield)
@@ -76,11 +76,11 @@ export const NodeCreator: React.FC = () => {
   const allTypes = useMemo(() => {
     return ConceptType.options
       .filter((t) => {
-        if (!activePlugin?.allowedConceptTypes) return true;
-        return activePlugin.allowedConceptTypes.includes(t as ConceptType);
+        if (!activeNotation?.allowedConceptTypes) return true;
+        return activeNotation.allowedConceptTypes.includes(t as ConceptType);
       })
       .map((t) => {
-        const customLabel = activePlugin?.conceptTypeLabels?.[t as ConceptType];
+        const customLabel = activeNotation?.conceptTypeLabels?.[t as ConceptType];
         const displayLabel = customLabel || t.toUpperCase().replace('_', ' ');
         return {
           id: t,
@@ -88,7 +88,7 @@ export const NodeCreator: React.FC = () => {
           icon: getIconForType(t as ConceptType),
         };
       });
-  }, [activePlugin]);
+  }, [activeNotation]);
 
   const filteredTypes = allTypes.filter(t => 
     t.label.toLowerCase().includes(typeQuery.toLowerCase()) ||
@@ -172,7 +172,7 @@ export const NodeCreator: React.FC = () => {
       if (!matchName) return false;
 
       // Filter by notation allowed types
-      if (activePlugin?.allowedConceptTypes && !activePlugin.allowedConceptTypes.includes(c.conceptType)) {
+      if (activeNotation?.allowedConceptTypes && !activeNotation.allowedConceptTypes.includes(c.conceptType)) {
         return false;
       }
 
@@ -181,7 +181,7 @@ export const NodeCreator: React.FC = () => {
       }
       return c.conceptType === type;
     });
-  }, [name, type, concepts, activePlugin]);
+  }, [name, type, concepts, activeNotation]);
 
   const handleCreate = () => {
     if (!name.trim() || isDuplicate) return;

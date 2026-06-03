@@ -5,7 +5,8 @@ import {
   RefreshCw,
   Layers,
   GitBranch,
-  Folder
+  Folder,
+  Sparkles
 } from 'lucide-react';
 
 interface RefinedToolbarProps {
@@ -18,6 +19,8 @@ interface RefinedToolbarProps {
   onToggleFocusMode: () => void;
   onOpenRemoteConfig: () => void;
   onOpenWorkspaces: () => void;
+  onToggleAI: () => void;
+  isAIPanelActive: boolean;
   focusMode: boolean;
 }
 
@@ -31,6 +34,8 @@ export function RefinedToolbar({
   onToggleFocusMode,
   onOpenRemoteConfig,
   onOpenWorkspaces,
+  onToggleAI,
+  isAIPanelActive,
   focusMode
 }: RefinedToolbarProps) {
   return (
@@ -69,6 +74,18 @@ export function RefinedToolbar({
 
         <div className="flex-1 flex items-center justify-end gap-6">
           <div className="flex items-center gap-3 pr-6 border-r border-slate-100/50">
+            <button
+              onClick={onToggleAI}
+              className={`
+                w-10 h-10 flex items-center justify-center rounded-xl border transition-all shadow-sm active:scale-90
+                ${isAIPanelActive
+                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-lg shadow-emerald-200/50'
+                  : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-900 hover:border-slate-300'}
+              `}
+              title="AI Assistent (Alt+A)"
+            >
+              <Sparkles size={16} strokeWidth={2.5} />
+            </button>
             <button
               onClick={onToggleFocusMode}
               className={`

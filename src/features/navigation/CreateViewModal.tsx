@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { X, Check, Layers } from 'lucide-react';
 import { useGraphStore } from '../../store/useGraphStore';
 import { useShallow } from 'zustand/react/shallow';
-import { PluginRegistry } from '../../plugins/PluginRegistry';
+import { NotationRegistry } from '../../notations/NotationRegistry';
 import type { View } from '../../schema/graphSchema';
 
 // ──────────────────────────────────────────────────────────
@@ -108,7 +108,7 @@ export function CreateViewModal() {
 
   if (!isOpen) return null;
 
-  const plugins = PluginRegistry.all();
+  const notations = NotationRegistry.all();
 
   return (
     <div
@@ -164,7 +164,7 @@ export function CreateViewModal() {
               View type
             </label>
             <div className="flex flex-col gap-2">
-              {plugins.map((p) => {
+              {notations.map((p) => {
                 const type = p.supportedViewTypes[0];
                 return (
                   <ViewTypeCard

@@ -4,33 +4,33 @@ import N3 from 'n3';
 
 const ontologies = [
   {
-    ttlPath: path.resolve('src/plugins/archimate/ontology.ttl'),
-    outputPath: path.resolve('src/plugins/archimate/ontology.json'),
+    ttlPath: path.resolve('src/notations/archimate/ontology.ttl'),
+    outputPath: path.resolve('src/notations/archimate/ontology.json'),
     ns: 'http://www.semanticweb.org/v0cn037/ontologies/2024/11/archimate32#'
   },
   {
-    ttlPath: path.resolve('src/plugins/dcr/ontology.ttl'),
-    outputPath: path.resolve('src/plugins/dcr/ontology.json'),
+    ttlPath: path.resolve('src/notations/dcr/ontology.ttl'),
+    outputPath: path.resolve('src/notations/dcr/ontology.json'),
     ns: 'http://www.semanticweb.org/v0cn037/ontologies/2026/05/dcr#'
   },
   {
-    ttlPath: path.resolve('src/plugins/c4/ontology.ttl'),
-    outputPath: path.resolve('src/plugins/c4/ontology.json'),
+    ttlPath: path.resolve('src/notations/c4/ontology.ttl'),
+    outputPath: path.resolve('src/notations/c4/ontology.json'),
     ns: 'http://www.semanticweb.org/v0cn037/ontologies/2026/05/c4#'
   },
   {
-    ttlPath: path.resolve('src/plugins/core-model/conceptual-ontology.ttl'),
-    outputPath: path.resolve('src/plugins/core-model/conceptual-ontology.json'),
+    ttlPath: path.resolve('src/notations/core-model/conceptual-ontology.ttl'),
+    outputPath: path.resolve('src/notations/core-model/conceptual-ontology.json'),
     ns: 'http://www.semanticweb.org/v0cn037/ontologies/2026/05/conceptual#'
   },
   {
-    ttlPath: path.resolve('src/plugins/core-model/information-ontology.ttl'),
-    outputPath: path.resolve('src/plugins/core-model/information-ontology.json'),
+    ttlPath: path.resolve('src/notations/core-model/information-ontology.ttl'),
+    outputPath: path.resolve('src/notations/core-model/information-ontology.json'),
     ns: 'http://www.semanticweb.org/v0cn037/ontologies/2026/05/information#'
   },
   {
-    ttlPath: path.resolve('src/plugins/knowledge-graph/global-ontology.ttl'),
-    outputPath: path.resolve('src/plugins/knowledge-graph/global-ontology.json'),
+    ttlPath: path.resolve('src/notations/knowledge-graph/global-ontology.ttl'),
+    outputPath: path.resolve('src/notations/knowledge-graph/global-ontology.json'),
     ns: 'http://www.semanticweb.org/v0cn037/ontologies/2026/05/global#'
   }
 ];

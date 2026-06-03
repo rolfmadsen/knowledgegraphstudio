@@ -3,15 +3,18 @@ import { useReactFlow } from '@xyflow/react';
 import { useGraphStore } from '../../store/useGraphStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useFocusedGraph } from '../../store/selectors';
-import { PluginRegistry } from '../../plugins/PluginRegistry';
-import { type ElementId, toElementId } from '../../schema/graphSchema';
+import { NotationRegistry } from '../../notations/NotationRegistry';
+import { type ElementId, toElementId, type ConceptNode, type ConceptRelation, type ViewNode } from '../../schema/graphSchema';
 import { PADDING_LEFT, PADDING_TOP } from './graph/ReactFlowCanvas';
 
-interface PluginCanvasWrapperProps {
+import { useAIStore } from '../ai/store/useAIStore';
+
+interface NotationCanvasWrapperProps {
   focusMode: boolean;
+  isAIPanelActive: boolean;
 }
 
-export function PluginCanvasWrapper({ focusMode }: PluginCanvasWrapperProps) {
+export function NotationCanvasWrapper({ focusMode, isAIPanelActive }: NotationCanvasWrapperProps) {
   const reactFlow = useReactFlow();
 
   // Get store state and mutation functions
@@ -44,19 +47,53 @@ export function PluginCanvasWrapper({ focusMode }: PluginCanvasWrapperProps) {
   const activeView = views.find((v) => v.id === activeViewId);
   const { concepts, relations } = useFocusedGraph(focusMode);
 
-  // Resolve the active notation plugin
-  const plugin = activeView ? PluginRegistry.forViewType(activeView.type) : undefined;
+  // Load udestående AI-forslag
+  const pendingProposals = useAIStore(
+    useShallow((s) => {
+      const session = activeViewId ? s.sessions[activeViewId] : null;
+      return session ? session.proposals.filter((p) => p.status === 'pending') : [];
+    }),
+  );
 
-  // Filter concepts based on the plugin's allowedConceptTypes constraint
+  // Resolve the active notation
+  const notation = activeView ? NotationRegistry.forViewType(activeView.type) : undefined;
+
+  // Filter concepts based on the notation's allowedConceptTypes constraint
   const filteredConcepts = useMemo(() => {
-    if (!plugin?.allowedConceptTypes) return concepts;
-    const allowed = plugin.allowedConceptTypes;
+    if (!notation?.allowedConceptTypes) return concepts;
+    const allowed = notation.allowedConceptTypes;
     return concepts.filter((c) => allowed.includes(c.conceptType));
-  }, [concepts, plugin]);
+  }, [concepts, notation]);
 
-  // Filter relations to only keep valid connections based on allowed concept types and notation-specific rules (Approach A)
+  // Construct proposed dummy concepts
+  const proposedConcepts = useMemo(() => {
+    if (!isAIPanelActive || !activeView) return [];
+    return pendingProposals
+      .filter((p): p is Extract<typeof p, { action: 'addConcept' }> => p.action === 'addConcept')
+      .map((p) => {
+        const expectedId = `${p.conceptType}:${p.name.trim().toLowerCase().replace(/\s+/g, '-')}`;
+        return {
+          id: toElementId(expectedId),
+          conceptType: p.conceptType,
+          name: p.name,
+          aliases: [],
+          policies: [],
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          lifecycleState: 'proposed' as const,
+          isProposed: true, // Custom flag for ReactFlow class mapping
+        } as unknown as ConceptNode;
+      });
+  }, [pendingProposals, isAIPanelActive, activeView]);
+
+  // Merge committed concepts with proposed ones
+  const conceptsWithProposals = useMemo(() => {
+    return [...filteredConcepts, ...proposedConcepts];
+  }, [filteredConcepts, proposedConcepts]);
+
+  // Filter relations to only keep valid connections
   const filteredRelations = useMemo(() => {
-    const conceptMap = new Map(filteredConcepts.map((c) => [c.id, c]));
+    const conceptMap = new Map(conceptsWithProposals.map((c) => [c.id, c]));
     return relations.filter((r) => {
       const sourceConcept = conceptMap.get(r.sourceConceptId);
       const targetConcept = conceptMap.get(r.targetConceptId);
@@ -66,9 +103,9 @@ export function PluginCanvasWrapper({ focusMode }: PluginCanvasWrapperProps) {
         return false;
       }
       
-      // Execute plugin-specific relation syntax validation if defined
-      if (plugin?.isValidRelation) {
-        return plugin.isValidRelation(
+      // Execute notation-specific relation syntax validation if defined
+      if (notation?.isValidRelation) {
+        return notation.isValidRelation(
           sourceConcept.conceptType,
           targetConcept.conceptType,
           r.relationType || r.name
@@ -77,29 +114,86 @@ export function PluginCanvasWrapper({ focusMode }: PluginCanvasWrapperProps) {
       
       return true;
     });
-  }, [relations, filteredConcepts, plugin]);
+  }, [relations, conceptsWithProposals, notation]);
+
+  // Construct proposed dummy relations
+  const proposedRelations = useMemo(() => {
+    if (!isAIPanelActive || !activeView) return [];
+    return pendingProposals
+      .filter((p): p is Extract<typeof p, { action: 'addRelation' }> => p.action === 'addRelation')
+      .map((p, index) => {
+        return {
+          id: toElementId(`relation:proposed-${index}`),
+          sourceConceptId: p.sourceConceptId,
+          targetConceptId: p.targetConceptId,
+          name: p.name,
+          relationType: p.relationType as any,
+          category: 'semantic' as const,
+          policies: [],
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          lifecycleState: 'proposed' as const,
+          isProposed: true, // Custom flag for ReactFlow class mapping
+        } as unknown as ConceptRelation;
+      });
+  }, [pendingProposals, isAIPanelActive, activeView]);
+
+  // Merge committed relations with proposed ones
+  const relationsWithProposals = useMemo(() => {
+    return [...filteredRelations, ...proposedRelations];
+  }, [filteredRelations, proposedRelations]);
+
+  // Construct proposed ViewNodes (with standard placement offset)
+  const proposedViewNodes = useMemo((): ViewNode[] => {
+    if (!activeView || !isAIPanelActive) return [];
+    const canvasWidth = useGraphStore.getState().canvasWidth || 800;
+    const defaultW = activeView.type === 'c4' ? 240 : (activeView.type === 'archimate' || activeView.type === 'dcr') ? 210 : 200;
+    const defaultH = activeView.type === 'c4' ? 96 : (activeView.type === 'archimate' || activeView.type === 'dcr') ? 76 : 80;
+
+    return proposedConcepts.map((pc, i) => {
+      const x = canvasWidth / 2 - defaultW / 2 + i * 40;
+      const y = 300 - defaultH / 2 + i * 40;
+      return {
+        conceptId: pc.id,
+        x,
+        y,
+        width: defaultW,
+        height: defaultH,
+      };
+    });
+  }, [proposedConcepts, activeView, isAIPanelActive]);
+
+  // Merge committed ViewNodes with proposed ones
+  const viewWithProposals = useMemo(() => {
+    if (!activeView) return undefined;
+    if (!isAIPanelActive || proposedViewNodes.length === 0) return activeView;
+    return {
+      ...activeView,
+      nodes: [...activeView.nodes, ...proposedViewNodes],
+    };
+  }, [activeView, proposedViewNodes, isAIPanelActive]);
 
   // Use refs to avoid recreating the layout loop when rendering updates occur
-  const activeViewRef = useRef(activeView);
-  const relationsRef = useRef(filteredRelations);
-  const conceptsRef = useRef(filteredConcepts);
-  const pluginRef = useRef(plugin);
+  const activeViewRef = useRef(viewWithProposals);
+  const relationsRef = useRef(relationsWithProposals);
+  const conceptsRef = useRef(conceptsWithProposals);
+  const notationRef = useRef(notation);
 
   useEffect(() => {
-    activeViewRef.current = activeView;
-    relationsRef.current = filteredRelations;
-    conceptsRef.current = filteredConcepts;
-    pluginRef.current = plugin;
-  }, [activeView, filteredRelations, filteredConcepts, plugin]);
+    activeViewRef.current = viewWithProposals;
+    relationsRef.current = relationsWithProposals;
+    conceptsRef.current = conceptsWithProposals;
+    notationRef.current = notation;
+  }, [viewWithProposals, relationsWithProposals, conceptsWithProposals, notation]);
 
   // Unified layout execution loop
   const runLayout = useCallback(async () => {
-    const currentPlugin = pluginRef.current;
+    const currentNotation = notationRef.current;
     const currentView = activeViewRef.current;
     const currentRelations = relationsRef.current;
     const currentConcepts = conceptsRef.current;
 
-    if (!currentPlugin?.layoutEngine || !currentView) return;
+    if (!currentNotation?.layoutEngine || !currentView) return;
     const algo = currentView.layoutAlgorithm;
     if (algo === 'manual') return;
 
@@ -128,7 +222,7 @@ export function PluginCanvasWrapper({ focusMode }: PluginCanvasWrapperProps) {
       .map((r) => ({ id: r.id, source: r.sourceConceptId, target: r.targetConceptId }));
 
     try {
-      const result = await currentPlugin.layoutEngine({
+      const result = await currentNotation.layoutEngine({
         nodes: layoutNodes,
         links: layoutLinks,
         layoutAlgorithm: currentView.layoutAlgorithm,
@@ -158,6 +252,7 @@ export function PluginCanvasWrapper({ focusMode }: PluginCanvasWrapperProps) {
             let maxX = -Infinity;
             let maxY = -Infinity;
 
+ 
             const defaultW = currentView.type === 'c4' ? 240 : currentView.type === 'archimate' ? 210 : 200;
             const defaultH = currentView.type === 'c4' ? 96 : currentView.type === 'archimate' ? 76 : 80;
 
@@ -202,7 +297,7 @@ export function PluginCanvasWrapper({ focusMode }: PluginCanvasWrapperProps) {
         }
       }
     } catch (err) {
-      console.error('[PluginCanvasWrapper] Layout calculation failed:', err);
+      console.error('[NotationCanvasWrapper] Layout calculation failed:', err);
     }
   }, [reactFlow, batchUpdateViewNodePositions]);
 
@@ -232,22 +327,22 @@ export function PluginCanvasWrapper({ focusMode }: PluginCanvasWrapperProps) {
     );
   }
 
-  if (!plugin) {
+  if (!notation) {
     return (
       <div className="flex-1 flex items-center justify-center bg-slate-50 text-red-500 font-sans text-xs font-bold">
-        Error: No notation plugin registered for ViewType "{activeView.type}"
+        Error: No notation registered for ViewType "{activeView.type}"
       </div>
     );
   }
 
-  const CanvasComponent = plugin.CanvasComponent;
+  const CanvasComponent = notation.CanvasComponent;
 
   // Prepare standard props with filtered concepts & relations
   const canvasProps = {
-    view: activeView,
+    view: viewWithProposals || activeView,
     storeState: {
-      concepts: filteredConcepts,
-      relations: filteredRelations,
+      concepts: conceptsWithProposals,
+      relations: relationsWithProposals,
       selectedConceptId,
       selectedRelationId,
     },
@@ -262,4 +357,4 @@ export function PluginCanvasWrapper({ focusMode }: PluginCanvasWrapperProps) {
   // Enforce complete remounting on active view or notation switch to reload node types without caching issues
   return <CanvasComponent key={`${activeView.id}-${activeView.type}`} {...canvasProps} />;
 }
-export default PluginCanvasWrapper;
+export default NotationCanvasWrapper;

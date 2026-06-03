@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import { useGraphStore } from '../../store/useGraphStore';
 import { useShallow } from 'zustand/react/shallow';
 import { ConceptType } from '../../schema/graphSchema';
-import { PluginRegistry } from '../../plugins/PluginRegistry';
+import { NotationRegistry } from '../../notations/NotationRegistry';
 import { GraphService } from '../../services/GraphService';
 import {
   Search,
@@ -129,10 +129,10 @@ const RELATIONSHIP_DESCRIPTIONS: Record<string, { label: string; symbol: string;
   }
 };
 
-const getDisplayLabelForType = (type: string, activePlugin?: any) => {
+const getDisplayLabelForType = (type: string, activeNotation?: any) => {
   if (type === 'conceptual_class') return 'Begreb';
   if (type === 'information_class') return 'Klasse';
-  return activePlugin?.conceptTypeLabels?.[type as ConceptType] || type.toUpperCase().replace('_', ' ');
+  return activeNotation?.conceptTypeLabels?.[type as ConceptType] || type.toUpperCase().replace(/_/g, ' ');
 };
 
 export function RelationBuilder() {
@@ -157,21 +157,21 @@ export function RelationBuilder() {
   );
 
   const activeView = views.find(v => v.id === activeViewId);
-  const activePlugin = activeView ? PluginRegistry.forViewType(activeView.type) : undefined;
+  const activeNotation = activeView ? NotationRegistry.forViewType(activeView.type) : undefined;
 
   const baseAllowedTypes = useMemo(() => {
-    const rawTypes = activePlugin?.allowedConceptTypes
-      ? CONCEPT_TYPES.filter(ct => activePlugin.allowedConceptTypes!.includes(ct.type))
+    const rawTypes = activeNotation?.allowedConceptTypes
+      ? CONCEPT_TYPES.filter(ct => activeNotation.allowedConceptTypes!.includes(ct.type))
       : CONCEPT_TYPES;
 
     return rawTypes.map(ct => {
-      const customLabel = activePlugin?.conceptTypeLabels?.[ct.type];
+      const customLabel = activeNotation?.conceptTypeLabels?.[ct.type];
       return {
         ...ct,
         label: customLabel || ct.label
       };
     });
-  }, [activePlugin]);
+  }, [activeNotation]);
 
   const [step, setStep] = useState<'target' | 'type' | 'label'>('target');
   const [query, setQuery] = useState('');
@@ -215,8 +215,8 @@ export function RelationBuilder() {
     const filtered = concepts.filter(c => c.id !== sourceId);
     
     // Filter targets by notation allowed types
-    const notationFiltered = activePlugin?.allowedConceptTypes
-      ? filtered.filter(c => activePlugin.allowedConceptTypes!.includes(c.conceptType))
+    const notationFiltered = activeNotation?.allowedConceptTypes
+      ? filtered.filter(c => activeNotation.allowedConceptTypes!.includes(c.conceptType))
       : filtered;
 
     const fuse = new Fuse(notationFiltered, {
@@ -236,8 +236,8 @@ export function RelationBuilder() {
 
     if (q) {
       // Only offer to create new if the current view doesn't restrict concept types,
-      // or if at least one concept type is supported by the active plugin
-      const hasAllowedTypes = !activePlugin?.allowedConceptTypes || activePlugin.allowedConceptTypes.length > 0;
+      // or if at least one concept type is supported by the active notation
+      const hasAllowedTypes = !activeNotation?.allowedConceptTypes || activeNotation.allowedConceptTypes.length > 0;
       if (hasAllowedTypes) {
         finalOptions.unshift({
           id: 'new',
@@ -249,7 +249,7 @@ export function RelationBuilder() {
     }
 
     return finalOptions;
-  }, [query, concepts, sourceId, activePlugin, views]);
+  }, [query, concepts, sourceId, activeNotation, views]);
 
   // Filtered archetypes for new node creation
   const filteredTypes = useMemo(() => {
@@ -268,9 +268,9 @@ export function RelationBuilder() {
     const sourceT = sourceNode.conceptType;
     const targetT = isNewTarget ? selectedType : targetNode?.conceptType;
 
-    // Use plugin allowed relations if defined
-    if (activePlugin?.getAvailableRelations && targetT) {
-      const pluginRelations = activePlugin.getAvailableRelations(sourceT, targetT);
+    // Use notation allowed relations if defined
+    if (activeNotation?.getAvailableRelations && targetT) {
+      const pluginRelations = activeNotation.getAvailableRelations(sourceT, targetT);
       return pluginRelations
         .map(r => ({
           id: r.id,
@@ -303,7 +303,7 @@ export function RelationBuilder() {
     return baseList.filter(r =>
       r.label.toLowerCase().includes(label.toLowerCase())
     );
-  }, [label, step, sourceNode, targetNode, isNewTarget, selectedType, activePlugin]);
+  }, [label, step, sourceNode, targetNode, isNewTarget, selectedType, activeNotation]);
 
   // Reset selection when options/step change
   useEffect(() => {
@@ -466,10 +466,10 @@ export function RelationBuilder() {
         e.preventDefault();
         const selected = visibleTypes[selectedIndex];
         if (selected) {
-          const allowedRels = activePlugin?.getAvailableRelations && sourceNode
-            ? activePlugin.getAvailableRelations(sourceNode.conceptType, selected.type)
+          const allowedRels = activeNotation?.getAvailableRelations && sourceNode
+            ? activeNotation.getAvailableRelations(sourceNode.conceptType, selected.type)
             : [];
-          const isCompatible = !activePlugin?.getAvailableRelations || allowedRels.length > 0;
+          const isCompatible = !activeNotation?.getAvailableRelations || allowedRels.length > 0;
           if (isCompatible) {
             setSelectedType(selected.type);
             setStep('label');
@@ -535,12 +535,12 @@ export function RelationBuilder() {
 
   const displayTargetType = useMemo(() => {
     if (!activeTargetType) return null;
-    return getDisplayLabelForType(activeTargetType, activePlugin);
-  }, [activeTargetType, activePlugin]);
+    return getDisplayLabelForType(activeTargetType, activeNotation);
+  }, [activeTargetType, activeNotation]);
 
   if (!open || !sourceNode) return null;
 
-  const showRulesPanel = !!activePlugin?.getAvailableRelations;
+  const showRulesPanel = !!activeNotation?.getAvailableRelations;
 
   return (
     <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 sm:p-12">
@@ -762,20 +762,20 @@ export function RelationBuilder() {
                         <span className={`text-[13px] font-bold ${idx === selectedIndex ? 'text-slate-900' : 'text-slate-600'}`}>{opt.label}</span>
                         <div className="flex flex-wrap items-center gap-1.5 mt-1">
                           <span className={`text-[10px] font-bold uppercase tracking-widest ${idx === selectedIndex ? 'text-emerald-600' : 'text-slate-400'}`}>
-                            {opt.isNew ? 'PROPOSE NEW' : getDisplayLabelForType(opt.virtualType || opt.description, activePlugin)}
+                            {opt.isNew ? 'PROPOSE NEW' : getDisplayLabelForType(opt.virtualType || opt.description, activeNotation)}
                           </span>
-                          {!opt.isNew && activePlugin?.getAvailableRelations && (
+                          {!opt.isNew && activeNotation?.getAvailableRelations && (
                             <>
                               <span className="text-[10px] text-slate-300">•</span>
                               <div className="flex flex-wrap gap-1">
-                                {activePlugin.getAvailableRelations(sourceNode.conceptType, opt.description as ConceptType).slice(0, 3).map(r => (
+                                {activeNotation.getAvailableRelations(sourceNode.conceptType, opt.description as ConceptType).slice(0, 3).map(r => (
                                   <span key={r.id} className="px-1.5 py-0.5 bg-slate-100 border border-slate-200/50 text-slate-500 rounded text-[8px] font-black uppercase tracking-tight">
                                     {r.label}
                                   </span>
                                 ))}
-                                {activePlugin.getAvailableRelations(sourceNode.conceptType, opt.description as ConceptType).length > 3 && (
+                                {activeNotation.getAvailableRelations(sourceNode.conceptType, opt.description as ConceptType).length > 3 && (
                                   <span className="px-1.5 py-0.5 bg-slate-100 border border-slate-200/50 text-slate-400 rounded text-[8px] font-black uppercase tracking-tight">
-                                    +{activePlugin.getAvailableRelations(sourceNode.conceptType, opt.description as ConceptType).length - 3} More
+                                    +{activeNotation.getAvailableRelations(sourceNode.conceptType, opt.description as ConceptType).length - 3} More
                                   </span>
                                 )}
                               </div>
@@ -818,10 +818,10 @@ export function RelationBuilder() {
               ) : (
                 <div ref={listRef} className="h-full relative grid grid-cols-1 sm:grid-cols-2 content-start gap-3 overflow-y-auto custom-scrollbar pr-2 pt-2 pb-6">
                   {filteredTypes.map((ct, idx) => {
-                    const allowedRels = activePlugin?.getAvailableRelations
-                      ? activePlugin.getAvailableRelations(sourceNode.conceptType, ct.type)
+                    const allowedRels = activeNotation?.getAvailableRelations
+                      ? activeNotation.getAvailableRelations(sourceNode.conceptType, ct.type)
                       : [];
-                    const isCompatible = !activePlugin?.getAvailableRelations || allowedRels.length > 0;
+                    const isCompatible = !activeNotation?.getAvailableRelations || allowedRels.length > 0;
 
                     return (
                       <button
@@ -855,7 +855,7 @@ export function RelationBuilder() {
                             {ct.type.replace('_', ' ')}
                           </span>
                           <span className="text-[13px] font-black text-slate-800 mt-0.5">{ct.label}</span>
-                          {activePlugin?.getAvailableRelations && (
+                          {activeNotation?.getAvailableRelations && (
                             <div className="flex flex-wrap items-center gap-1 mt-2.5">
                               {allowedRels.length > 0 ? (
                                 allowedRels.slice(0, 3).map(r => (
@@ -985,7 +985,7 @@ export function RelationBuilder() {
                 <div className="flex items-center gap-2 text-[12px] font-bold text-slate-700">
                   <span className="w-4 h-4 rounded bg-amber-500/10 text-amber-600 flex items-center justify-center text-[10px] font-black shrink-0">S</span>
                   <span className="truncate max-w-[120px]">{sourceNode.name}</span>
-                  <span className="text-[9px] px-1.5 py-0.5 bg-slate-200 text-slate-500 rounded uppercase font-black tracking-tighter shrink-0">{activePlugin?.conceptTypeLabels?.[sourceNode.conceptType] || sourceNode.conceptType}</span>
+                  <span className="text-[9px] px-1.5 py-0.5 bg-slate-200 text-slate-500 rounded uppercase font-black tracking-tighter shrink-0">{activeNotation?.conceptTypeLabels?.[sourceNode.conceptType] || sourceNode.conceptType}</span>
                 </div>
                 {targetNode || targetIdOrName ? (
                   <div className="flex items-center gap-2 text-[12px] font-bold text-slate-700">
@@ -993,7 +993,7 @@ export function RelationBuilder() {
                     <span className="truncate max-w-[120px]">{targetNode?.name || targetIdOrName}</span>
                     {activeTargetType ? (
                       <span className="text-[9px] px-1.5 py-0.5 bg-emerald-100 text-emerald-600 rounded uppercase font-black tracking-tighter shrink-0">
-                        {activePlugin?.conceptTypeLabels?.[activeTargetType] || activeTargetType}
+                        {activeNotation?.conceptTypeLabels?.[activeTargetType] || activeTargetType}
                       </span>
                     ) : (
                       <span className="text-[9px] px-1.5 py-0.5 bg-slate-100 text-slate-400 rounded uppercase font-black tracking-tighter shrink-0">
@@ -1010,13 +1010,13 @@ export function RelationBuilder() {
             {/* Rules List */}
             <div className="flex-1 flex flex-col gap-3">
               <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">
-                {activeTargetType ? 'Allowed Relationships' : `Relationships from ${activePlugin?.conceptTypeLabels?.[sourceNode.conceptType] || sourceNode.conceptType}`}
+                {activeTargetType ? 'Allowed Relationships' : `Relationships from ${activeNotation?.conceptTypeLabels?.[sourceNode.conceptType] || sourceNode.conceptType}`}
               </div>
 
               {(() => {
                 const targetT = activeTargetType;
                 if (targetT) {
-                  const allowedRels = activePlugin.getAvailableRelations?.(sourceNode.conceptType, targetT) || [];
+                  const allowedRels = activeNotation.getAvailableRelations?.(sourceNode.conceptType, targetT) || [];
                   if (allowedRels.length === 0) {
                     return (
                       <div className="text-center py-6 bg-rose-50/50 border border-dashed border-rose-200 rounded-2xl p-4">
@@ -1042,10 +1042,10 @@ export function RelationBuilder() {
                 }
 
                 // If no target selected yet, summarize outgoing options from source type
-                const allTypes = activePlugin?.allowedConceptTypes || [];
+                const allTypes = activeNotation?.allowedConceptTypes || [];
                 const optionsWithRules = allTypes
                   .map(t => {
-                    const rels = activePlugin.getAvailableRelations?.(sourceNode.conceptType, t) || [];
+                    const rels = activeNotation.getAvailableRelations?.(sourceNode.conceptType, t) || [];
                     return { type: t, rels };
                   })
                   .filter(o => o.rels.length > 0);
@@ -1061,7 +1061,7 @@ export function RelationBuilder() {
                     {optionsWithRules.map(o => (
                       <div key={o.type} className="flex items-start justify-between gap-3 text-[11px] py-2 border-b border-slate-100">
                         <span className="font-bold text-slate-600 uppercase tracking-tight shrink-0">
-                          {activePlugin?.conceptTypeLabels?.[o.type] || o.type}
+                          {activeNotation?.conceptTypeLabels?.[o.type] || o.type}
                         </span>
                         <div className="flex flex-wrap gap-1 justify-end max-w-[60%]">
                           {o.rels.map(r => (

@@ -1,6 +1,6 @@
 import { useMemo, createElement } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
-import type { NotationPlugin, PluginCanvasProps } from '../types';
+import type { Notation, NotationCanvasProps } from '../types';
 import { ReactFlowCanvas } from '../../features/viewport/graph/ReactFlowCanvas';
 import { dagreLayoutEngine } from '../knowledge-graph';
 import type { ConceptNode } from '../../schema/graphSchema';
@@ -146,13 +146,13 @@ export function C4NodeComponent({ data, selected }: NodeProps) {
   );
 }
 
-function C4Canvas(props: PluginCanvasProps) {
+function C4Canvas(props: NotationCanvasProps) {
   const nodeTypes = useMemo(() => ({ conceptNode: C4NodeComponent }), []);
   return createElement(ReactFlowCanvas, { ...props, nodeTypes });
 }
 
-// --- C4 Notation Plugin ---
-export const c4Plugin: NotationPlugin = {
+// --- C4 Notation ---
+export const c4Notation: Notation = {
   id: 'c4',
   displayName: 'C4 Modeling',
   icon: '🎛️',
@@ -181,4 +181,4 @@ export const c4Plugin: NotationPlugin = {
   }),
 };
 
-export default c4Plugin;
+export default c4Notation;
