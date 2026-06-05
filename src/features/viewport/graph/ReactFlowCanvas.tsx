@@ -41,7 +41,7 @@ function getGroupBounds(
   if (!vn) return null;
 
   const children = viewNodes.filter(n => n.parentId === groupId);
-  
+
   const defaultW = viewType === 'c4' ? 240 : viewType === 'archimate' ? 210 : 200;
   const defaultH = viewType === 'c4' ? 96 : viewType === 'archimate' ? 76 : 80;
 
@@ -129,7 +129,7 @@ function parseRelationLabel(rawLabel: string, multiplicityFromData?: string) {
   matches.forEach((m) => {
     const content = m[1];
     const fullMatch = m[0];
-    
+
     // If it looks like a multiplicity (contains numbers, dots, or asterisks/wildcards)
     const isMult = /^[\d\s.*]+$/.test(content);
     if (isMult) {
@@ -167,16 +167,63 @@ function FloatingEdge({ id, source, target, style, label, labelStyle, selected, 
   if (!sourceNode || !targetNode) return null;
 
   const { sx, sy, tx, ty } = getEdgeParams(sourceNode as InternalNode, targetNode as InternalNode);
-  const straightPath = `M ${sx} ${sy} L ${tx} ${ty}`;
 
-  const angle = Math.atan2(ty - sy, tx - sx);
-  const arrowOffset = 10;
-  const midX = (sx + tx) / 2 - Math.cos(angle) * arrowOffset;
-  const midY = (sy + ty) / 2 - Math.sin(angle) * arrowOffset;
+  const edgeIndex = data?.edgeIndex as number | undefined;
+  const totalEdges = data?.totalEdges as number | undefined;
 
   const dx = tx - sx;
   const dy = ty - sy;
-  const distance = Math.sqrt(dx * dx + dy * dy);
+  const distance = Math.sqrt(dx * dx + dy * dy) || 1;
+
+  let path = `M ${sx} ${sy} L ${tx} ${ty}`;
+  let midX = (sx + tx) / 2;
+  let midY = (sy + ty) / 2;
+
+  const tangentAngle = Math.atan2(ty - sy, tx - sx);
+  const arrowOffset = 10;
+
+  if (totalEdges && totalEdges > 1 && edgeIndex !== undefined) {
+    // Determine a consistent normal vector direction by sorting node IDs lexicographically.
+    // This prevents edges running in opposite directions from curving on top of each other.
+    let nx = -dy / distance;
+    let ny = dx / distance;
+    if (source > target) {
+      nx = -nx;
+      ny = -ny;
+    }
+
+    const step = 40; // px offset spacing per parallel edge
+    const offsetIndex = edgeIndex - (totalEdges - 1) / 2;
+    const offsetVal = offsetIndex * step;
+
+    if (Math.abs(offsetVal) > 0.01) {
+      // Midpoint coordinate of the line segment
+      const mx = (sx + tx) / 2;
+      const my = (sy + ty) / 2;
+
+      // Quadratic Bezier control point (cx, cy)
+      const cx = mx + nx * offsetVal;
+      const cy = my + ny * offsetVal;
+
+      path = `M ${sx} ${sy} Q ${cx} ${cy} ${tx} ${ty}`;
+
+      // Calculate midpoint on the quadratic Bezier curve (t = 0.5)
+      const curveMidX = 0.25 * sx + 0.5 * cx + 0.25 * tx;
+      const curveMidY = 0.25 * sy + 0.5 * cy + 0.25 * ty;
+
+      // Center the label along the tangent of the midpoint
+      midX = curveMidX - Math.cos(tangentAngle) * arrowOffset;
+      midY = curveMidY - Math.sin(tangentAngle) * arrowOffset;
+    } else {
+      // Middle edge of odd counts is straight
+      midX = midX - Math.cos(tangentAngle) * arrowOffset;
+      midY = midY - Math.sin(tangentAngle) * arrowOffset;
+    }
+  } else {
+    // Single edge is straight
+    midX = midX - Math.cos(tangentAngle) * arrowOffset;
+    midY = midY - Math.sin(tangentAngle) * arrowOffset;
+  }
 
   const { name: cleanName, multiplicity } = parseRelationLabel(String(label || ''), data?.multiplicity as string);
 
@@ -207,7 +254,7 @@ function FloatingEdge({ id, source, target, style, label, labelStyle, selected, 
       <path
         id={id}
         className={`react-flow__edge-path ${className || ''}`}
-        d={straightPath}
+        d={path}
         markerEnd={markerEnd}
         markerStart={markerStart}
         style={{
@@ -287,7 +334,7 @@ export function ReactFlowCanvas({
   const relations = storeState.relations;
   const selectedConceptId = storeState.selectedConceptId;
   const selectedRelationId = storeState.selectedRelationId;
-  
+
   const currentAlgo = view.layoutAlgorithm;
   const containerRef = useRef<HTMLDivElement>(null);
   const hintsRef = useRef<HTMLDivElement>(null);
@@ -345,7 +392,7 @@ export function ReactFlowCanvas({
       const nodeHeight = selectedNode.measured?.height ?? 80;
       const x = selectedNode.position.x + nodeWidth / 2;
       const y = selectedNode.position.y + nodeHeight / 2;
-      
+
       // Smoothly pan to the center of the node
       reactFlow.setCenter(x, y, {
         zoom: Math.min(reactFlow.getZoom(), 1.0),
@@ -375,7 +422,7 @@ export function ReactFlowCanvas({
       if (!c || c.conceptType !== 'bounded_context') return;
 
       const childIds = groupChildrenMap.get(vn.conceptId) || [];
-      
+
       const defaultW = view.type === 'c4' ? 240 : view.type === 'archimate' ? 210 : 200;
       const defaultH = view.type === 'c4' ? 96 : view.type === 'archimate' ? 76 : 80;
 
@@ -422,7 +469,8 @@ export function ReactFlowCanvas({
       if (!c) return [];
 
       const isGroup = c.conceptType === 'bounded_context';
-      const parentId = vn.parentId && nodesMap.has(vn.parentId) && conceptMap.has(vn.parentId) ? vn.parentId : undefined;
+      const parentConcept = vn.parentId ? conceptMap.get(vn.parentId) : undefined;
+      const parentId = vn.parentId && nodesMap.has(vn.parentId) && parentConcept && parentConcept.conceptType === 'bounded_context' ? vn.parentId : undefined;
 
       // Calculate position
       let position = { x: vn.x, y: vn.y };
@@ -460,20 +508,48 @@ export function ReactFlowCanvas({
       }];
     });
 
-    // Sort nodes so parent nodes (bounded_context/groups) are processed before child nodes
-    return mappedNodes.sort((a, b) => {
-      const aIsParent = a.data.concept?.conceptType === 'bounded_context';
-      const bIsParent = b.data.concept?.conceptType === 'bounded_context';
-      if (aIsParent && !bIsParent) return -1;
-      if (!aIsParent && bIsParent) return 1;
-      return 0;
-    });
+    // Sort nodes by nesting depth so parent nodes are processed before child nodes
+    const depthMap = new Map<string, number>();
+    const getDepth = (id: string, visited = new Set<string>()): number => {
+      if (depthMap.has(id)) return depthMap.get(id)!;
+      if (visited.has(id)) {
+        depthMap.set(id, 0);
+        return 0;
+      }
+      const vn = nodesMap.get(id as ElementId);
+      if (!vn || !vn.parentId) {
+        depthMap.set(id, 0);
+        return 0;
+      }
+      visited.add(id);
+      const d = 1 + getDepth(vn.parentId, visited);
+      visited.delete(id);
+      depthMap.set(id, d);
+      return d;
+    };
+
+    return mappedNodes.sort((a, b) => getDepth(a.id) - getDepth(b.id));
   }, [concepts, selectedConceptIds, view, currentAlgo]);
 
   const initialEdges: Edge[] = useMemo(() => {
     const activeNotation = NotationRegistry.forViewType(view.type);
 
+    // Group relations by unordered node pairs to calculate index and total parallel edges
+    const pairGroups: Record<string, string[]> = {};
+    relations.forEach((r) => {
+      const key = [r.sourceConceptId, r.targetConceptId].sort().join('---');
+      if (!pairGroups[key]) {
+        pairGroups[key] = [];
+      }
+      pairGroups[key].push(r.id);
+    });
+
     return relations.map((r) => {
+      const key = [r.sourceConceptId, r.targetConceptId].sort().join('---');
+      const group = pairGroups[key] || [];
+      const totalEdges = group.length;
+      const edgeIndex = group.indexOf(r.id);
+
       const isSelected = r.id === selectedRelationId;
       let markerEndStr: string | undefined;
       let markerStartStr: string | undefined;
@@ -511,6 +587,8 @@ export function ReactFlowCanvas({
           markerEnd: markerEndStr,
           markerStart: markerStartStr,
           multiplicity: r.multiplicity,
+          edgeIndex,
+          totalEdges,
         },
       };
     });
@@ -519,19 +597,32 @@ export function ReactFlowCanvas({
   const [nodes, setNodes] = useNodesState(computedNodes);
   const [edges, setEdges] = useEdgesState(initialEdges);
 
-  // Safety filter to block ReactFlow removing nodes/edges unilaterally
   const onNodesChange = useCallback((changes: NodeChange[]) => {
     const safe = changes.filter((c) => c.type !== 'remove');
     if (safe.length > 0) {
       setNodes((prev) => {
         const next = applyNodeChanges(safe, prev);
-        return [...next].sort((a, b) => {
-          const aIsParent = (a.data as { concept?: ConceptNode })?.concept?.conceptType === 'bounded_context';
-          const bIsParent = (b.data as { concept?: ConceptNode })?.concept?.conceptType === 'bounded_context';
-          if (aIsParent && !bIsParent) return -1;
-          if (!aIsParent && bIsParent) return 1;
-          return 0;
-        });
+        const nodeMap = new Map(next.map((n) => [n.id, n]));
+        const depthMap = new Map<string, number>();
+        const getDepth = (id: string, visited = new Set<string>()): number => {
+          if (depthMap.has(id)) return depthMap.get(id)!;
+          if (visited.has(id)) {
+            depthMap.set(id, 0);
+            return 0;
+          }
+          const n = nodeMap.get(id);
+          if (!n || !n.parentId) {
+            depthMap.set(id, 0);
+            return 0;
+          }
+          visited.add(id);
+          const d = 1 + getDepth(n.parentId, visited);
+          visited.delete(id);
+          depthMap.set(id, d);
+          return d;
+        };
+
+        return [...next].sort((a, b) => getDepth(a.id) - getDepth(b.id));
       });
     }
   }, [setNodes]);
@@ -558,6 +649,21 @@ export function ReactFlowCanvas({
             return '';
           };
 
+          const conceptA = existingNode.data.concept as ConceptNode;
+          const conceptB = n.data.concept as ConceptNode;
+          const conceptChanged =
+            conceptA.definition !== conceptB.definition ||
+            conceptA.preferredTerm !== conceptB.preferredTerm ||
+            conceptA.acceptedTerm !== conceptB.acceptedTerm ||
+            conceptA.deprecatedTerm !== conceptB.deprecatedTerm ||
+            conceptA.source !== conceptB.source ||
+            conceptA.legalSource !== conceptB.legalSource ||
+            conceptA.classification !== conceptB.classification ||
+            conceptA.createdBy !== conceptB.createdBy ||
+            conceptA.wasDerivedFrom !== conceptB.wasDerivedFrom ||
+            (conceptA.aliases ?? []).join(',') !== (conceptB.aliases ?? []).join(',') ||
+            propsFingerprint(conceptA) !== propsFingerprint(conceptB);
+
           const changed =
             Math.abs(existingNode.position.x - n.position.x) > 0.1 ||
             Math.abs(existingNode.position.y - n.position.y) > 0.1 ||
@@ -569,7 +675,7 @@ export function ReactFlowCanvas({
             existingNode.data.name !== n.data.name ||
             existingNode.data.type !== n.data.type ||
             existingNode.data.lifecycle !== n.data.lifecycle ||
-            propsFingerprint(existingNode.data.concept as ConceptNode) !== propsFingerprint(n.data.concept as ConceptNode);
+            conceptChanged;
           if (!changed) return existingNode;
           hasChanges = true;
           return {
@@ -608,7 +714,9 @@ export function ReactFlowCanvas({
             existingEdge.data?.strokeDasharray !== e.data?.strokeDasharray ||
             existingEdge.data?.markerEnd !== e.data?.markerEnd ||
             existingEdge.data?.markerStart !== e.data?.markerStart ||
-            existingEdge.data?.multiplicity !== e.data?.multiplicity;
+            existingEdge.data?.multiplicity !== e.data?.multiplicity ||
+            existingEdge.data?.edgeIndex !== e.data?.edgeIndex ||
+            existingEdge.data?.totalEdges !== e.data?.totalEdges;
           if (!changed) return existingEdge;
           hasChanges = true;
           return {
@@ -651,7 +759,7 @@ export function ReactFlowCanvas({
 
     if (notation.allowedConceptTypes) {
       if (!notation.allowedConceptTypes.includes(sourceNode.conceptType) ||
-          !notation.allowedConceptTypes.includes(targetNode.conceptType)) {
+        !notation.allowedConceptTypes.includes(targetNode.conceptType)) {
         return false;
       }
     }
@@ -733,7 +841,7 @@ export function ReactFlowCanvas({
       if (draggedVn.parentId) {
         const parentId = draggedVn.parentId;
         const parentVn = nodesMap.get(parentId);
-        
+
         if (parentVn) {
           const bounds = getGroupBounds(parentId, viewNodes, view.type);
           if (bounds) {
@@ -753,7 +861,7 @@ export function ReactFlowCanvas({
               for (const otherVn of viewNodes) {
                 const otherC = conceptMap.get(otherVn.conceptId);
                 if (!otherC || otherC.conceptType !== 'bounded_context' || otherVn.conceptId === parentId) continue;
-                
+
                 const otherBounds = getGroupBounds(otherVn.conceptId, viewNodes, view.type);
                 if (otherBounds) {
                   const inNewGroup =
@@ -897,11 +1005,11 @@ export function ReactFlowCanvas({
       </div>
 
       {/* Spatial Navigation Keyboard Hint */}
-      <div 
+      <div
         ref={hintsRefCallback}
         className={`absolute z-[100] flex items-center gap-2 px-4 h-10 bg-white/90 backdrop-blur-xl border border-slate-200/80 rounded-2xl shadow-xl shadow-slate-200/60 pointer-events-none select-none transition-all duration-300
-          ${shouldStack 
-            ? 'bottom-6 left-1/2 -translate-x-1/2' 
+          ${shouldStack
+            ? 'bottom-6 left-1/2 -translate-x-1/2'
             : 'bottom-6 left-auto right-24 translate-x-0'
           }
         `}

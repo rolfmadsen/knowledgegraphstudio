@@ -82,13 +82,8 @@ export function WorkspaceSwitcherModal({ isOpen, onClose }: WorkspaceSwitcherMod
   const loadWorkspaceHandles = async (list: string[]) => {
     const statuses: Record<string, { isLinked: boolean; isGranted: boolean }> = {};
     for (const path of list) {
-      const handle = await FileSystemAccessService.loadHandleForWorkspace(path);
-      if (handle) {
-        const granted = FileSystemAccessService.isPermissionGranted();
-        statuses[path] = { isLinked: true, isGranted: granted };
-      } else {
-        statuses[path] = { isLinked: false, isGranted: false };
-      }
+      const status = await FileSystemAccessService.getWorkspaceHandleStatus(path);
+      statuses[path] = status;
     }
     setLinkedHandles(statuses);
   };

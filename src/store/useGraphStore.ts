@@ -823,10 +823,12 @@ export const useGraphStore = create<GraphStoreState>()(
         console.log(`%c[Store Action] 🔴 Deleted Concept: "${concept?.name || id}"`, 'color: #ef4444; font-weight: bold;');
         const nextState = GraphService.deleteConcept(get(), id);
         // Also remove this concept's ViewNode from every view so
-        // node-count badges in the Navigator stay accurate.
+        // node-count badges in the Navigator stay accurate, and clean up parentId.
         const prunedViews = get().views.map((v) => ({
           ...v,
-          nodes: v.nodes.filter((vn) => vn.conceptId !== id),
+          nodes: v.nodes
+            .filter((vn) => vn.conceptId !== id)
+            .map((vn) => vn.parentId === id ? { ...vn, parentId: undefined } : vn),
         }));
         set({ ...nextState, views: prunedViews });
         PersistenceService.scheduleAutoSave(get());
@@ -882,7 +884,9 @@ export const useGraphStore = create<GraphStoreState>()(
 
         const prunedViews = get().views.map((v) => ({
           ...v,
-          nodes: v.nodes.filter((vn) => !deleteSet.has(vn.conceptId)),
+          nodes: v.nodes
+            .filter((vn) => !deleteSet.has(vn.conceptId))
+            .map((vn) => vn.parentId && deleteSet.has(vn.parentId) ? { ...vn, parentId: undefined } : vn),
         }));
 
         const selectedId = get().selectedConceptId;
@@ -1148,17 +1152,29 @@ export const useGraphStore = create<GraphStoreState>()(
             };
             views = [defaultView];
           }
-          // If views already exist, load them exactly as persisted.
-          // Each view's node membership was intentionally set by the user and must
-          // not be altered on bootstrap — doing so caused concepts added to one view
-          // to bleed into unrelated views on every page reload.
+          // Attempt to restore the previously active view from the UI session.
+          // Reading sessionStorage here (inside the store) keeps the logic atomic:
+          // there is no window between "set views[0]" and "restore saved view"
+          // that can be clobbered by React 18 batching.
+          let restoredActiveViewId = views[0].id;
+          try {
+            const rawSession = sessionStorage.getItem('tg_ui_session');
+            if (rawSession) {
+              const session = JSON.parse(rawSession) as { activeViewId?: string };
+              if (session.activeViewId && views.some((v) => v.id === session.activeViewId)) {
+                restoredActiveViewId = toElementId(session.activeViewId);
+              }
+            }
+          } catch {
+            // sessionStorage unavailable — use views[0]
+          }
 
           set({
             domains: result.state.domains,
             concepts: result.state.concepts,
             relations: result.state.relations,
             views,
-            activeViewId: views[0].id,
+            activeViewId: restoredActiveViewId,
             syncStatus: result.isConflict ? 'conflict' : 'idle',
             rawYaml: result.rawYaml || null,
           });

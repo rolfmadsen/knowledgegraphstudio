@@ -87,6 +87,8 @@ export interface AIStoreState {
 
   // Chat Actions
   addMessage: (viewId: string, role: 'user' | 'assistant', content: string, proposals?: ProposedCommandInput[]) => string;
+  updateMessage: (viewId: string, messageId: string, content: string, proposals?: ProposedCommandInput[]) => void;
+  deleteMessage: (viewId: string, messageId: string) => void;
   clearChat: (viewId: string) => void;
 
   // Proposal Triage Actions
@@ -94,6 +96,12 @@ export interface AIStoreState {
   rejectProposal: (viewId: string, proposalId: string) => void;
   approveAllProposals: (viewId: string) => void;
   rejectAllProposals: (viewId: string) => void;
+
+  // WebLLM progress states
+  downloadProgress: string | null;
+  isModelLoaded: boolean;
+  setDownloadProgress: (progress: string | null) => void;
+  setIsModelLoaded: (loaded: boolean) => void;
 
   // Loading & Error States
   isGenerating: boolean;
@@ -117,8 +125,9 @@ const getOrCreateSession = (sessions: Record<string, ViewSession>, viewId: strin
 export const useAIStore = create<AIStoreState>((set, get) => ({
   // Configuration
   config: {
+    provider: 'local_browser',
     baseUrl: 'http://localhost:11434/v1',
-    model: 'llama3',
+    model: 'Qwen2.5-1.5B-Instruct-q4f16_1-MLC',
   },
   configLoaded: false,
   setConfig: async (config) => {
@@ -129,6 +138,12 @@ export const useAIStore = create<AIStoreState>((set, get) => ({
     const config = await CredentialService.loadAIConfig();
     set({ config, configLoaded: true });
   },
+
+  // WebLLM state actions
+  downloadProgress: null,
+  isModelLoaded: false,
+  setDownloadProgress: (progress) => set({ downloadProgress: progress }),
+  setIsModelLoaded: (loaded) => set({ isModelLoaded: loaded }),
 
   // UI state
   activeTab: 'properties',
@@ -199,6 +214,85 @@ export const useAIStore = create<AIStoreState>((set, get) => ({
     });
 
     return msgId;
+  },
+
+  updateMessage: (viewId, messageId, content, rawProposals) => {
+    const formattedProposals: ProposedCommand[] = rawProposals
+      ? rawProposals.map((p) => {
+          if (p.action === 'addConcept') {
+            return {
+              id: p.id,
+              action: 'addConcept' as const,
+              conceptType: p.conceptType,
+              name: p.name,
+              status: 'pending' as const,
+            };
+          } else if (p.action === 'setParent') {
+            return {
+              id: p.id,
+              action: 'setParent' as const,
+              conceptId: p.conceptId,
+              parentConceptId: p.parentConceptId,
+              status: 'pending' as const,
+            };
+          } else {
+            return {
+              id: p.id,
+              action: 'addRelation' as const,
+              sourceConceptId: p.sourceConceptId,
+              targetConceptId: p.targetConceptId,
+              name: p.name,
+              relationType: p.relationType,
+              status: 'pending' as const,
+            };
+          }
+        })
+      : [];
+
+    set((state) => {
+      const session = getOrCreateSession(state.sessions, viewId);
+      const nextMessages = session.messages.map((m) =>
+        m.id === messageId
+          ? {
+              ...m,
+              content,
+              proposals: formattedProposals.length > 0 ? formattedProposals : undefined,
+            }
+          : m
+      );
+
+      // Also append new proposals to the session proposals list if they are not already there
+      const existingProposalIds = new Set(session.proposals.map((p) => p.id));
+      const newProposals = formattedProposals.filter((p) => !existingProposalIds.has(p.id));
+      const nextProposals = [...session.proposals, ...newProposals];
+
+      return {
+        sessions: {
+          ...state.sessions,
+          [viewId]: {
+            ...session,
+            messages: nextMessages,
+            proposals: nextProposals,
+          },
+        },
+      };
+    });
+  },
+
+  deleteMessage: (viewId, messageId) => {
+    set((state) => {
+      const session = getOrCreateSession(state.sessions, viewId);
+      const nextMessages = session.messages.filter((m) => m.id !== messageId);
+      return {
+        sessions: {
+          ...state.sessions,
+          [viewId]: {
+            ...session,
+            messages: nextMessages,
+          },
+        },
+      };
+    });
   },
 
   clearChat: (viewId) => {

@@ -235,9 +235,18 @@ export class GraphService {
       views: idChanged && state.views
         ? state.views.map((v) => ({
           ...v,
-          nodes: v.nodes.map((n) =>
-            n.conceptId === id ? { ...n, conceptId: newId } : n
-          )
+          nodes: v.nodes.map((n) => {
+            let nextNode = n;
+            if (n.conceptId === id) {
+              nextNode = { ...nextNode, conceptId: newId };
+            }
+            if (n.parentId === id) {
+              const targetType = updates.conceptType || targetConcept?.conceptType;
+              const isStillGroup = targetType === 'bounded_context';
+              nextNode = { ...nextNode, parentId: isStillGroup ? newId : undefined };
+            }
+            return nextNode;
+          })
         }))
         : state.views,
       selectedConceptId: state.selectedConceptId === id ? newId : state.selectedConceptId

@@ -115,6 +115,7 @@ export class PersistenceService {
     }
 
     try {
+      FileSystemAccessService.setActiveWorkspacePath(REPO_DIR);
       await FileSystemAccessService.loadHandleForWorkspace(REPO_DIR);
 
       await ensureWorkspaceDir();
@@ -291,6 +292,7 @@ export class PersistenceService {
 
       this.isBootstrapped = false;
 
+      FileSystemAccessService.setActiveWorkspacePath(dir);
       await FileSystemAccessService.loadHandleForWorkspace(dir);
 
       setRepoDir(dir);

@@ -75,7 +75,7 @@ export function isRelationAllowed(
 
   // 1. UML structural relations inside Information Model
   const allowedUMLRels = [
-    'generalizes', 'specializes_of', 'specializes',
+    'generalizes', 'specializes_of', 'specializes', 'specialization',
     'associates_with', 'associates', 'associated_with', 'association',
     'aggregates', 'aggregated_in', 'aggregation',
     'composed_of', 'composed_in', 'composition'
@@ -122,12 +122,12 @@ export function isRelationAllowed(
 export function getAvailableRelations(
   sourceType: ConceptType,
   targetType: ConceptType
-): Array<{ id: string; label: string; description: string }> {
+): Array<{ id: string; label: string; description: string; aliases?: string[] }> {
   const rels = [
-    { id: 'generalizes', label: 'Generalization (specializes)', description: 'generalizes' },
-    { id: 'associates_with', label: 'Association (associated with)', description: 'associates_with' },
-    { id: 'aggregates', label: 'Aggregation (aggregates)', description: 'aggregates' },
-    { id: 'composed_of', label: 'Composition (consists of)', description: 'composed_of' },
+    { id: 'generalizes', label: 'Generalization (specializes)', description: 'generalizes', aliases: ['specialization', 'specializes', 'specializes_of'] },
+    { id: 'associates_with', label: 'Association (associated with)', description: 'associates_with', aliases: ['association', 'associates', 'associated_with'] },
+    { id: 'aggregates', label: 'Aggregation (aggregates)', description: 'aggregates', aliases: ['aggregation', 'aggregated_in'] },
+    { id: 'composed_of', label: 'Composition (consists of)', description: 'composed_of', aliases: ['composition', 'composed_in'] },
     { id: 'has_type', label: 'Type Reference (has type)', description: 'has_type' },
     { id: 'wasDerivedFrom', label: 'Traceability (was derived from)', description: 'wasDerivedFrom' }
   ];
@@ -143,14 +143,20 @@ export function isValidRelation(
   const available = getAvailableRelations(sourceType, targetType);
   const cleanSearch = label.toLowerCase().replace('relationship', '').trim();
 
-  return available.some((rel) => {
+  const matchByLabel = available.some((rel) => {
     const cleanRelLabel = rel.label.toLowerCase().replace('relationship', '').trim();
     const cleanRelId = rel.id.toLowerCase().replace('relationship', '').trim();
     return (
       cleanRelLabel === cleanSearch ||
       cleanRelId === cleanSearch ||
+      (rel.aliases ?? []).includes(cleanSearch) ||
       cleanRelLabel.includes(cleanSearch) ||
       cleanSearch.includes(cleanRelLabel)
     );
   });
+
+  if (matchByLabel) return true;
+
+  // Fallback: accept exact relationType enum values from graphSchema passed by canvas filter
+  return isRelationAllowed(sourceType, targetType, cleanSearch);
 }

@@ -11,6 +11,16 @@ describe('Conceptual Model (Begrebsmodel) Ontology Validator', () => {
       expect(isRelationAllowed('class', 'class', 'specializes_of')).toBe(true);
     });
 
+    it('allows relationType enum values from graphSchema (used by canvas filter)', () => {
+      // These are the exact values stored in relationType by AI and YAML parser.
+      // The canvas filter passes r.relationType directly to isValidRelation/isRelationAllowed.
+      expect(isRelationAllowed('class', 'class', 'specialization')).toBe(true);
+      expect(isRelationAllowed('class', 'class', 'association')).toBe(true);
+      expect(isRelationAllowed('class', 'class', 'composition')).toBe(true);
+      expect(isRelationAllowed('class', 'class', 'aggregation')).toBe(true);
+      expect(isRelationAllowed('class', 'class', 'realization')).toBe(true);
+    });
+
     it('denies unsupported relationship types', () => {
       expect(isRelationAllowed('class', 'class', 'uses')).toBe(false);
       expect(isRelationAllowed('class', 'class', 'delivers_to')).toBe(false);
@@ -47,6 +57,16 @@ describe('Conceptual Model (Begrebsmodel) Ontology Validator', () => {
       expect(isValidRelation('class', 'class', 'Composition')).toBe(true);
       
       expect(isValidRelation('class', 'class', 'uses')).toBe(false);
+    });
+
+    it('accepts graphSchema relationType enum values passed by canvas filter', () => {
+      // Regression: canvas passes r.relationType (e.g. 'specialization') directly.
+      // Previously these were rejected, causing relations to disappear from canvas.
+      expect(isValidRelation('class', 'class', 'specialization')).toBe(true);
+      expect(isValidRelation('class', 'class', 'association')).toBe(true);
+      expect(isValidRelation('class', 'class', 'composition')).toBe(true);
+      expect(isValidRelation('class', 'class', 'aggregation')).toBe(true);
+      expect(isValidRelation('class', 'class', 'realization')).toBe(true);
     });
   });
 });

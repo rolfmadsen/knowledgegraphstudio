@@ -11,6 +11,7 @@ vi.hoisted(() => {
 });
 
 import { AIService, parseProposedCommands } from '../services/AIService';
+import { parseQuickReplies } from '../components/AIChatPanel';
 import { useAIStore } from '../store/useAIStore';
 import { useGraphStore } from '../../../store/useGraphStore';
 import { toElementId, type View, type ConceptNode } from '../../../schema/graphSchema';
@@ -59,8 +60,11 @@ Håber det kan bruges!
 `;
       const result = parseProposedCommands(markdown);
       expect(result).toHaveLength(1);
-      expect(result[0].action).toBe('addConcept');
-      expect((result[0] as any).name).toBe('Kunde');
+      const cmd = result[0];
+      expect(cmd.action).toBe('addConcept');
+      if (cmd.action === 'addConcept') {
+        expect(cmd.name).toBe('Kunde');
+      }
     });
 
     it('falls back to bracket scan if JSON parsing fails directly', () => {
@@ -78,14 +82,118 @@ Det var det hele.
 `;
       const result = parseProposedCommands(messyResponse);
       expect(result).toHaveLength(1);
-      expect(result[0].action).toBe('addRelation');
-      expect((result[0] as any).name).toBe('uses');
+      const cmd = result[0];
+      expect(cmd.action).toBe('addRelation');
+      if (cmd.action === 'addRelation') {
+        expect(cmd.name).toBe('uses');
+      }
     });
 
     it('returns empty array if no JSON block or brackets found', () => {
       const text = 'Ingen json her';
       const result = parseProposedCommands(text);
       expect(result).toEqual([]);
+    });
+
+    it('wraps a single JSON object in an array and infers the addConcept action if missing', () => {
+      const singleObjectMessy = `
+[JSON-REGLER]
+{
+  "conceptType": "entity",
+  "name": "Organisation"
+}
+`;
+      const result = parseProposedCommands(singleObjectMessy);
+      expect(result).toHaveLength(1);
+      const cmd = result[0];
+      expect(cmd.action).toBe('addConcept');
+      if (cmd.action === 'addConcept') {
+        expect(cmd.conceptType).toBe('entity');
+        expect(cmd.name).toBe('Organisation');
+      }
+    });
+
+    it('infers addRelation action if sourceConceptId, targetConceptId and name are present without action key', () => {
+      const relationObject = `
+{
+  "sourceConceptId": "entity:kilde",
+  "targetConceptId": "entity:maal",
+  "name": "forbinder"
+}
+`;
+      const result = parseProposedCommands(relationObject);
+      expect(result).toHaveLength(1);
+      expect(result[0].action).toBe('addRelation');
+      expect((result[0] as any).sourceConceptId).toBe('entity:kilde');
+      expect((result[0] as any).targetConceptId).toBe('entity:maal');
+    });
+  });
+
+  describe('parseQuickReplies', () => {
+    it('parses standard [Valg A]: style replies', () => {
+      const text = `
+Dette er min besked.
+Hurtig-svar:
+* [Valg A]: Studerende
+* [Valg B]: Kursus
+`;
+      const { cleanText, replies } = parseQuickReplies(text);
+      expect(replies).toEqual(['Studerende', 'Kursus']);
+      expect(cleanText).toBe('Dette er min besked.');
+    });
+
+    it('parses direct bracket [* [Studerende]] style replies', () => {
+      const text = `
+Forretningsbegreb som det næste?
+**Quick Replies**
+* [Studerende]
+* [Kursus]
+* [Andet begreb]
+`;
+      const { cleanText, replies } = parseQuickReplies(text);
+      expect(replies).toEqual(['Studerende', 'Kursus', 'Andet begreb']);
+      expect(cleanText).toBe('Forretningsbegreb som det næste?');
+    });
+
+    it('does not parse task checkboxes as replies', () => {
+      const text = `
+Her er en liste:
+* [ ] Udført
+* [x] Aktivitet
+`;
+      const { cleanText, replies } = parseQuickReplies(text);
+      expect(replies).toEqual([]);
+      expect(cleanText).toContain('* [ ] Udført');
+    });
+  });
+
+  describe('cleanResponseText', () => {
+    it('removes closed and unclosed JSON blocks, and associated JSON command headers', () => {
+      const text = `
+Dette er min besked.
+
+3. **JSON-Kommandoer**
+\`\`\`json
+[{"action": "addConcept", "name": "Kunde"}]
+\`\`\`
+Venlig hilsen, AI.
+`;
+      const cleaned = AIService.cleanResponseText(text);
+      expect(cleaned).toBe("Dette er min besked.\nVenlig hilsen, AI.");
+    });
+
+    it('removes ArchiMate style JSON command headers', () => {
+      const text = `
+Arkitektur dialog.
+
+3.  **JSON Kommando (Kun ved accept):**
+\`\`\`json
+[{"action": "addConcept", "name": "Kunde"}]
+\`\`\`
+Hurtige valg...
+`;
+      const cleaned = AIService.cleanResponseText(text);
+      expect(cleaned).toBe("Arkitektur dialog.\nHurtige valg...");
     });
   });
 
@@ -118,8 +226,101 @@ Det var det hele.
       };
 
       const prompt = AIService.generateSystemPrompt(view, [concept], []);
-      expect(prompt).toContain('C4 Software-arkitektur diagram');
+      expect(prompt).toContain('C4 SOFTWARE-ARKITEKTUR DIAGRAM');
       expect(prompt).toContain('ID: "actor:kunde", Type: "actor", Navn: "Kunde"');
+      expect(prompt).toContain('AI-arkitekt/sparringspartner');
+      expect(prompt).toContain('Fokuseret interview (ét spørgsmål af gangen)');
+    });
+
+    it('creates DCR specific system prompt when view type is dcr', () => {
+      const view: View = {
+        id: toElementId('view:2'),
+        name: 'Test DCR View',
+        type: 'dcr',
+        layoutAlgorithm: 'manual',
+        nodes: [],
+        edges: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        lifecycleState: 'active',
+      };
+
+      const prompt = AIService.generateSystemPrompt(view, [], []);
+      expect(prompt).toContain('Du er en ekspert i forretningsprocesmodellering med speciale i Dynamic Condition Response');
+      expect(prompt).toContain('### METODE OG DIALOG (Dine Instruktioner)');
+      expect(prompt).toContain('### VIDENSBASE: DCR (Dynamic Condition Response) GRAFER');
+      expect(prompt).toContain('DIT OUTPUT FORMAT OG CHAIN OF THOUGHT');
+    });
+
+    it('creates ArchiMate specific system prompt when view type is archimate', () => {
+      const view: View = {
+        id: toElementId('view:3'),
+        name: 'Test ArchiMate View',
+        type: 'archimate',
+        layoutAlgorithm: 'manual',
+        nodes: [],
+        edges: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        lifecycleState: 'active',
+      };
+
+      const prompt = AIService.generateSystemPrompt(view, [], []);
+      expect(prompt).toContain('Du er en stærkt analytisk AI-arkitekt og ekspert i IT-arkitektur samt ArchiMate 3.2');
+      expect(prompt).toContain('### VIDENSBASE: ARCHIMATE 3.2 REGELSÆT');
+      expect(prompt).toContain('Fokuseret interview');
+      expect(prompt).toContain('Styr samtalen stramt');
+      expect(prompt).toContain('conceptType');
+      expect(prompt).toContain('sourceConceptId');
+      expect(prompt).toContain('targetConceptId');
+      expect(prompt).toContain('parentConceptId');
+    });
+
+    it('creates Conceptual Model specific system prompt when view type is conceptual_model', () => {
+      const view: View = {
+        id: toElementId('view:4'),
+        name: 'Test Conceptual Model View',
+        type: 'conceptual_model',
+        layoutAlgorithm: 'manual',
+        nodes: [],
+        edges: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        lifecycleState: 'active',
+      };
+
+      const prompt = AIService.generateSystemPrompt(view, [], []);
+      expect(prompt).toContain('Du fungerer som en erfaren domæneanalytiker og streng ekspert i den danske Fællesoffentlige Digitale Arkitektur (FDA)');
+      expect(prompt).toContain('### VIDENSBASE FOR BEGREBSMODEL (conceptual_model)');
+      expect(prompt).toContain('Aristoteliske form');
+      expect(prompt).toContain('conceptType');
+      expect(prompt).toContain('sourceConceptId');
+      expect(prompt).toContain('targetConceptId');
+      expect(prompt).toContain('parentConceptId');
+    });
+
+    it('creates Information Model specific system prompt when view type is information_model', () => {
+      const view: View = {
+        id: toElementId('view:5'),
+        name: 'Test Information Model View',
+        type: 'information_model',
+        layoutAlgorithm: 'manual',
+        nodes: [],
+        edges: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        lifecycleState: 'active',
+      };
+
+      const prompt = AIService.generateSystemPrompt(view, [], []);
+      expect(prompt).toContain('Du fungerer som en erfaren datamodellør og ekspert i den danske Fællesoffentlige Digitale Arkitektur (FDA)');
+      expect(prompt).toContain('### VIDENSBASE FOR INFORMATIONSMODEL (information_model)');
+      expect(prompt).toContain('wasDerivedFrom');
+      expect(prompt).toContain('has_type');
+      expect(prompt).toContain('conceptType');
+      expect(prompt).toContain('sourceConceptId');
+      expect(prompt).toContain('targetConceptId');
+      expect(prompt).toContain('parentConceptId');
     });
   });
 
@@ -248,11 +449,77 @@ Det var det hele.
       expect(fetchMock).toHaveBeenCalledTimes(1);
       expect(result.responseText).toBe('Her er dit C4 system:');
       expect(result.proposals).toHaveLength(1);
-      expect(result.proposals[0].action).toBe('addConcept');
-      if (result.proposals[0].action === 'addConcept') {
-        expect(result.proposals[0].name).toBe('Kunde');
+      const firstProposal = result.proposals[0];
+      expect(firstProposal.action).toBe('addConcept');
+      if (firstProposal.action === 'addConcept') {
+        expect(firstProposal.name).toBe('Kunde');
       }
 
+    });
+
+    it('retries when JSON syntax is invalid', async () => {
+      const view: View = {
+        id: toElementId('view:1'),
+        name: 'Test View',
+        type: 'c4',
+        layoutAlgorithm: 'manual',
+        nodes: [],
+        edges: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        lifecycleState: 'active',
+      };
+      
+      useGraphStore.setState({
+        views: [view],
+        concepts: [],
+        relations: [],
+      });
+
+      // Attempt 1: Syntax error (missing comma between properties)
+      const mockResponseSyntaxError = {
+        choices: [
+          {
+            message: {
+              role: 'assistant',
+              content: 'Her er mit svar:\n```json\n[{"action": "addConcept" "conceptType": "actor", "name": "Kunde"}]\n```'
+            }
+          }
+        ]
+      };
+
+      // Attempt 2: Correct JSON
+      const mockResponseValid = {
+        choices: [
+          {
+            message: {
+              role: 'assistant',
+              content: 'Nu er det rettet:\n```json\n[{"action": "addConcept", "conceptType": "actor", "name": "Kunde"}]\n```'
+            }
+          }
+        ]
+      };
+
+      let count = 0;
+      const fetchMock = vi.fn().mockImplementation(async () => {
+        count++;
+        return {
+          ok: true,
+          json: async () => count === 1 ? mockResponseSyntaxError : mockResponseValid,
+        };
+      });
+      vi.stubGlobal('fetch', fetchMock);
+
+      const result = await AIService.sendChatMessage(view.id, 'Opret en kunde');
+
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(result.proposals).toHaveLength(1);
+      const firstProposal = result.proposals[0];
+      expect(firstProposal.action).toBe('addConcept');
+      if (firstProposal.action === 'addConcept') {
+        expect(firstProposal.name).toBe('Kunde');
+      }
+      expect(result.responseText).toBe('Nu er det rettet:');
     });
 
     it('retries up to 3 times if validation fails, and fails gracefully', async () => {

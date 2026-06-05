@@ -99,7 +99,7 @@ WORK-IN-PROGRESS
 ## Informationsmodel
 WORK-IN-PROGRESS
 
-## Dynamic Response Condition Graph (DCR)
+## Dynamic Response Condition Graph (DCR Graph)
 
 ### BPMN er et flowchart (Imperativt)
 BPMN er et imperativt sprog, hvor du dikterer præcis hvordan et mål nås gennem et eksplicit, centralstyret kontrolflow. Du tvinges til at kortlægge hver eneste mulige sti, forgrening og "happy path" fra start til slut. Denne tilgang er rigid og bliver lynhurtigt uoverskuelig, når du arbejder med sagsbehandling og vidensarbejde, hvor brugerne har brug for manøvrerum og fleksibilitet.

@@ -24,6 +24,7 @@ import type { PullResult } from './services/GitService';
 import { RefinedToolbar } from './components/ui/RefinedToolbar';
 import { LayoutGrid, Code2, Columns2, HelpCircle, Copy } from 'lucide-react';
 import { StatusBar } from './features/statusbar/StatusBar';
+import { useUISession, readUISession } from './hooks/useUISession';
 
 // Lazy load heavy views and modals for code splitting
 const CodeViewport = lazy(() => import('./features/viewport/code/CodeViewport').then(m => ({ default: m.CodeViewport })));
@@ -44,8 +45,11 @@ const EMPTY_HISTORY = { pastStates: [], futureStates: [] };
 import { useResizable } from './hooks/useResizable';
 
 function App() {
+  // Restore UI session from sessionStorage (survives reloads within the same tab)
+  const _session = readUISession();
+
   // --- App State ---
-  const [propertiesOpen, setPropertiesOpen] = useState(true);
+  const [propertiesOpen, setPropertiesOpen] = useState(_session.propertiesOpen);
   const { activeTab, setActiveTab } = useAIStore(
     useShallow((s) => ({
       activeTab: s.activeTab,
@@ -53,7 +57,7 @@ function App() {
     }))
   );
   const [indexOpen, setIndexOpen] = useState(true);
-  const [viewMode, setViewMode] = useState<ViewMode>('graph');
+  const [viewMode, setViewMode] = useState<ViewMode>(_session.viewMode);
   const [diffMode, setDiffMode] = useState(false);
   const [isConflict, setIsConflict] = useState(false);
   const [booted, setBooted] = useState(false);
@@ -123,6 +127,10 @@ function App() {
   );
 
   const selectedConceptId = useGraphStore((s) => s?.selectedConceptId);
+  const activeViewId = useGraphStore((s) => s?.activeViewId ?? null);
+
+  // --- Auto-save UI session to sessionStorage on every change ---
+  useUISession({ booted, activeViewId, propertiesOpen, activeTab, viewMode });
 
   // --- Refs for zone focus ---
   const zone2Ref = useRef<HTMLDivElement>(null);
@@ -131,6 +139,13 @@ function App() {
   // --- Bootstrap on mount ---
   useEffect(() => {
     useGraphStore.getState().bootstrap().then((result) => {
+      // Restore active tab from session (useAIStore is a separate store,
+      // so it must be restored here rather than inside useGraphStore bootstrap)
+      const session = readUISession();
+      if (session.activeTab) {
+        useAIStore.getState().setActiveTab(session.activeTab);
+      }
+
       setBooted(true);
       if (result.isConflict) {
         setIsConflict(true);
@@ -149,6 +164,7 @@ function App() {
 
     return () => useGraphStore.getState().stopAutoFetch();
   }, []);
+
 
   // --- Force Save on Refresh/Close ---
   useEffect(() => {

@@ -39,3 +39,14 @@ Zustand fungerer som applikationens absolutte "Source of Truth" (SSOT) i hukomme
 *   **UI og Features er dumme:** UI-komponenter må aldrig udføre domænelogik, generere id'er eller kalde infrastruktur (`src/core/`) eller I/O-services direkte. UI må kun kalde actions på Zustand-storen.
 *   **Storen som orkestrator:** Zustand-storen modtager kald fra UI, uddelegerer domænemutationerne til de synkrone Computational Services (fx `GraphService`), anvender ændringerne reaktivt i hukommelsen via `set()` (hvilket trigger re-renders i UI), og udløser asynkrone I/O-services i baggrunden (fx automatisk lagring via `PersistenceService`).
 *   **Uafhængige services:** Moduler i `src/services/` må aldrig importere eller skrive direkte til Zustand-storen (`useGraphStore`). De modtager tilstanden som parametre og returnerer svar til kalderen.
+
+## AI Arkitektur & WebGPU (Lokal LLM)
+
+For at tilbyde lokale AI-funktioner uden eksterne afhængigheder (som f.eks. en kørende Ollama-instans) understøtter TypeGraph kørsel af en browser-baseret LLM via WebGPU.
+
+*   **WebGPU Inference:** Vi anvender `@mlc-ai/web-llm` til at køre modeller (såsom `Qwen2.5-1.5B`) direkte i browseren.
+*   **Web Worker Tråd (`src/features/ai/workers/ai.worker.ts`):** For at undgå at blokere hovedtråden og fryse brugerfladen under tekstgenerering og modelindlæsning, køres hele WebLLM-motoren i en baggrundstråd (Web Worker) ved hjælp af `WebWorkerMLCEngineHandler`.
+*   **Moduleret Indlæsning & Fejlsikring:** Forbindelsen oprettes asynkront via `CreateWebWorkerMLCEngine` i `AIService.ts`. Hvis browseren ikke understøtter WebGPU (`navigator.gpu` er udefineret), kastes en klar og hjælpsom fejlmeddelelse, og systemet falder tilbage på ekstern API.
+*   **Automatisk GPU-RAM Oprydning (Lifecycle Management):** For at forhindre at modellen optager unødig hukommelse (GPU RAM) på brugerens maskine, styres Web Workerens levetid med to timere:
+    1.  **Inaktivitetstimer:** Hvis motoren er ubenyttet i 5 minutter, lukkes workeren.
+    2.  **Grace-timer på faneskift:** Hvis panelet lukkes eller brugeren skifter fane, startes en grace-timer på 15 sekunder. Hvis panelet ikke genåbnes, lukkes workeren for at frigøre 100% af dens GPU RAM.

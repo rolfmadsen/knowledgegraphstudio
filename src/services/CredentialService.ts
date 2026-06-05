@@ -20,6 +20,7 @@ export interface RemoteConfig {
 }
 
 export interface AIConfig {
+  provider?: 'local_browser' | 'api';
   baseUrl: string;
   model: string;
   apiKey?: string;
@@ -78,16 +79,24 @@ export class CredentialService {
     const row = await db.credentials.get(KEY_AI_CONFIG);
     if (!row) {
       return {
+        provider: 'local_browser',
         baseUrl: 'http://localhost:11434/v1',
-        model: 'llama3',
+        model: 'Qwen2.5-1.5B-Instruct-q4f16_1-MLC',
       };
     }
     try {
-      return JSON.parse(row.value) as AIConfig;
+      const parsed = JSON.parse(row.value) as AIConfig;
+      return {
+        provider: parsed.provider || 'local_browser',
+        baseUrl: parsed.baseUrl || 'http://localhost:11434/v1',
+        model: parsed.model || 'Qwen2.5-1.5B-Instruct-q4f16_1-MLC',
+        apiKey: parsed.apiKey,
+      };
     } catch {
       return {
+        provider: 'local_browser',
         baseUrl: 'http://localhost:11434/v1',
-        model: 'llama3',
+        model: 'Qwen2.5-1.5B-Instruct-q4f16_1-MLC',
       };
     }
   }

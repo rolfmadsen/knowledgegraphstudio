@@ -15,8 +15,9 @@ export function AIConfigModal({ onClose }: AIConfigModalProps) {
     }))
   );
 
+  const [provider, setProvider] = useState<'local_browser' | 'api'>('local_browser');
   const [baseUrl, setBaseUrl] = useState('http://localhost:11434/v1');
-  const [model, setModel] = useState('llama3');
+  const [model, setModel] = useState('Qwen2.5-1.5B-Instruct-q4f16_1-MLC');
   const [apiKey, setApiKey] = useState('');
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -26,17 +27,20 @@ export function AIConfigModal({ onClose }: AIConfigModalProps) {
   useEffect(() => {
     loadConfig().then(() => {
       const current = useAIStore.getState().config;
+      setProvider(current.provider || 'local_browser');
       setBaseUrl(current.baseUrl || 'http://localhost:11434/v1');
-      setModel(current.model || 'llama3');
+      setModel(current.model || 'Qwen2.5-1.5B-Instruct-q4f16_1-MLC');
       setApiKey(current.apiKey || '');
     });
   }, [loadConfig]);
 
   const handleSave = async () => {
     setError(null);
-    if (!baseUrl.trim()) {
-      setError('Base URL er påkrævet');
-      return;
+    if (provider === 'api') {
+      if (!baseUrl.trim()) {
+        setError('Base URL er påkrævet');
+        return;
+      }
     }
     if (!model.trim()) {
       setError('Modelnavn er påkrævet');
@@ -46,9 +50,10 @@ export function AIConfigModal({ onClose }: AIConfigModalProps) {
     setSaving(true);
     try {
       await setConfig({
+        provider,
         baseUrl: baseUrl.trim(),
         model: model.trim(),
-        apiKey: apiKey.trim() || undefined,
+        apiKey: provider === 'api' ? (apiKey.trim() || undefined) : undefined,
       });
       setSuccess(true);
       setTimeout(onClose, 800);
@@ -66,8 +71,8 @@ export function AIConfigModal({ onClose }: AIConfigModalProps) {
           e.preventDefault();
           handleSave();
         }}
-        className="bg-white rounded-3xl shadow-2xl flex flex-col overflow-hidden"
-        style={{ width: '480px', maxHeight: '80vh' }}
+        className="bg-white rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+        style={{ width: '480px', maxHeight: '85vh' }}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-8 py-6 border-b border-slate-100 shrink-0">
@@ -77,7 +82,7 @@ export function AIConfigModal({ onClose }: AIConfigModalProps) {
             </div>
             <div>
               <h2 className="text-base font-black text-slate-900 tracking-tight">AI Konfiguration</h2>
-              <p className="text-[11px] text-slate-400">Forbind lokalt (Ollama/LM Studio) eller cloud LLM</p>
+              <p className="text-[11px] text-slate-400">Kør direkte i browseren eller forbind ekstern API</p>
             </div>
           </div>
           <button
@@ -91,48 +96,138 @@ export function AIConfigModal({ onClose }: AIConfigModalProps) {
 
         {/* Body */}
         <div className="overflow-y-auto flex-1 px-8 py-6 flex flex-col gap-5">
-          <Field
-            label="Base URL"
-            hint="Forbindelse URL til LLM-tjenesten (Standard Ollama: http://localhost:11434/v1)"
-            icon={<Link size={14} />}
-          >
-            <input
-              type="url"
-              value={baseUrl}
-              onChange={(e) => setBaseUrl(e.target.value)}
-              placeholder="http://localhost:11434/v1"
-              className="w-full px-4 py-3 rounded-2xl border border-slate-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-emerald-400/40 focus:border-emerald-400"
-            />
-          </Field>
+          {/* Provider Selection */}
+          <div className="flex flex-col gap-2">
+            <label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">
+              AI Udbyder
+            </label>
+            <div className="flex p-1 bg-slate-50 rounded-2xl border border-slate-200/60">
+              <button
+                type="button"
+                onClick={() => {
+                  setProvider('local_browser');
+                  setModel('Qwen2.5-1.5B-Instruct-q4f16_1-MLC');
+                }}
+                className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+                  provider === 'local_browser'
+                    ? 'bg-white text-emerald-700 shadow-sm border border-slate-100'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                Kør i browser (WebGPU)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setProvider('api');
+                  setModel('llama3');
+                }}
+                className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+                  provider === 'api'
+                    ? 'bg-white text-emerald-700 shadow-sm border border-slate-100'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                Ekstern API (Ollama)
+              </button>
+            </div>
+          </div>
 
-          <Field
-            label="Model Navn"
-            hint="Navnet på den model du har downloaded (f.eks. llama3, qwen2.5, mistral)"
-            icon={<Cpu size={14} />}
-          >
-            <input
-              type="text"
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              placeholder="llama3"
-              className="w-full px-4 py-3 rounded-2xl border border-slate-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-emerald-400/40 focus:border-emerald-400"
-            />
-          </Field>
+          {provider === 'local_browser' ? (
+            <div className="flex flex-col gap-3">
+              <label className="text-[11px] font-bold uppercase tracking-widest text-slate-500">
+                Vælg Model (Downloades automatisk)
+              </label>
+              <div className="flex flex-col gap-2.5">
+                {[
+                  {
+                    name: 'Standard (Qwen 1.5B)',
+                    id: 'Qwen2.5-1.5B-Instruct-q4f16_1-MLC',
+                    desc: 'Anbefalet. Bedste balance mellem hastighed og kvalitet (~950 MB)',
+                    recommended: true,
+                  },
+                  {
+                    name: 'Avanceret (Llama 3.2 1B)',
+                    id: 'Llama-3.2-1B-Instruct-q4f16_1-MLC',
+                    desc: 'Høj kvalitet, god til logiske ræsonnementer (~880 MB)',
+                  },
+                ].map((mOption) => (
+                  <button
+                    key={mOption.id}
+                    type="button"
+                    onClick={() => setModel(mOption.id)}
+                    className={`flex flex-col text-left p-3.5 rounded-2xl border transition-all cursor-pointer ${
+                      model === mOption.id
+                        ? 'border-emerald-500 bg-emerald-50/10 shadow-sm'
+                        : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50/40'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                        {mOption.name}
+                        {mOption.recommended && (
+                          <span className="text-[8px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-black uppercase">
+                            Anbefalet
+                          </span>
+                        )}
+                      </span>
+                      {model === mOption.id && (
+                        <div className="w-2.5 h-2.5 rounded-full bg-emerald-600 shadow-md shadow-emerald-600/20 animate-scale-in" />
+                      )}
+                    </div>
+                    <span className="text-[10px] text-slate-400 leading-normal font-medium">
+                      {mOption.desc}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <>
+              <Field
+                label="Base URL"
+                hint="Forbindelse URL til LLM-tjenesten (Standard Ollama: http://localhost:11434/v1)"
+                icon={<Link size={14} />}
+              >
+                <input
+                  type="url"
+                  value={baseUrl}
+                  onChange={(e) => setBaseUrl(e.target.value)}
+                  placeholder="http://localhost:11434/v1"
+                  className="w-full px-4 py-3 rounded-2xl border border-slate-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-emerald-400/40 focus:border-emerald-400 animate-in slide-in-from-top-1 duration-150"
+                />
+              </Field>
 
-          <Field
-            label="API Nøgle (Valgfri)"
-            hint="Nødvendig hvis du bruger cloud-tjenester eller et sikret endpoint"
-            icon={<Key size={14} />}
-          >
-            <input
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              autoComplete="current-password"
-              placeholder="Valgfri (kan efterlades tom for lokal Ollama)"
-              className="w-full px-4 py-3 rounded-2xl border border-slate-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-emerald-400/40 focus:border-emerald-400"
-            />
-          </Field>
+              <Field
+                label="Model Navn"
+                hint="Navnet på den model du har downloaded (f.eks. llama3, qwen2.5, mistral)"
+                icon={<Cpu size={14} />}
+              >
+                <input
+                  type="text"
+                  value={model}
+                  onChange={(e) => setModel(e.target.value)}
+                  placeholder="llama3"
+                  className="w-full px-4 py-3 rounded-2xl border border-slate-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-emerald-400/40 focus:border-emerald-400 animate-in slide-in-from-top-1 duration-150"
+                />
+              </Field>
+
+              <Field
+                label="API Nøgle (Valgfri)"
+                hint="Nødvendig hvis du bruger cloud-tjenester eller et sikret endpoint"
+                icon={<Key size={14} />}
+              >
+                <input
+                  type="password"
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  autoComplete="current-password"
+                  placeholder="Valgfri (kan efterlades tom for lokal Ollama)"
+                  className="w-full px-4 py-3 rounded-2xl border border-slate-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-emerald-400/40 focus:border-emerald-400 animate-in slide-in-from-top-1 duration-150"
+                />
+              </Field>
+            </>
+          )}
         </div>
 
         {/* Error Notification */}

@@ -25,6 +25,9 @@ export default defineConfig({
             return 'git';
           }
           if (id.includes('node_modules')) {
+            if (id.includes('@mlc-ai/web-llm')) {
+              return 'webllm';
+            }
             if (id.includes('react') || id.includes('zustand') || id.includes('lucide')) {
               return 'vendor';
             }
