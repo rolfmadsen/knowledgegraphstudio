@@ -57,3 +57,27 @@ const conceptChanged =
 ```
 Dette sikrer, at ændringer i alle metadata-felter (inklusive Definition) straks udløser en re-render og opdaterer nodernes visning på canvasset.
 
+## Konflikt-loop og tabte visninger (YAML Parser & Code Viewport)
+**Problem**:
+Når applikationen fejlede i at parse eller validere model-filen `model.typegraph.yaml` ved opstart (fx på grund af manglende metadata-felter som `createdAt`, `updatedAt` eller `lifecycleState` i en manuelt redigeret model), gik systemet i konflikt-tilstand (`isConflict: true`). Brugeren blev låst i "Code"-visningen, og de to faner "GRAPH" og "SPLIT" blev deaktiveret.
+Ydermere var der tre kritiske problemer i denne tilstand:
+1. Fejlbeskrivelsen fra bootstrap-fejlen blev kasseret, så brugeren så en tom konfliktskærm uden detaljer om syntaks- eller valideringsfejlen.
+2. "Resolve & Restore"-knappen blev kun vist, hvis brugeren foretog en manuel ændring i editoren (hvilket satte `localYaml`).
+3. Hvis brugeren klikkede på "Resolve & Restore", blev `resolveConflictFromYaml` udløst, hvilket kørte `PersistenceService.parse(yaml)`. Denne funktion returnerede altid et tomt `views`-array. Da disse tomme visninger blev gemt direkte i workspace, blev `views.typegraph.yaml` overskrevet med `[]`, hvilket slettede alle brugerens layout-koordinater og visninger.
+
+**Løsning**:
+1. **Robuste standardværdier**: Parseren (`yamlToState` i `yamlParser.ts`) er opdateret til automatisk at udfylde manglende valideringskrævende felter i det indlæste YAML med standardværdier (`createdAt`/`updatedAt` til nuværende tidspunkt, `lifecycleState` til `'active'`, `aliases` og `policies` til `[]`). Underelementer (nested relations) får også automatisk tildelt `sourceConceptId` baseret på forældre-nodens ID.
+2. **Udbredelse og visning af fejl**: Zustand-storen har fået tilføjet en `conflictError`-tilstand, som gemmer den rå validerings-/syntaksfejl under bootstrap. Fejlen renderes nu i bunden af kodeeditoren i en kompakt, scrollbar og kopierbar fejltoast, så brugeren præcist ved, hvilken Zod- eller YAML-undtagelse der opstod.
+3. **Fleksibel gendannelse**: Knappen "Resolve & Restore" vises nu altid under konflikter uden krav om, at editoren først skal redigeres. Hvis editoren ikke er ændret, falder systemet tilbage til editorens nuværende indhold.
+4. **Bevaring af visninger**: Før en konflikt gemmes og løses i `resolveConflictFromYaml`, indlæses de eksisterende visninger direkte fra disken (`views.typegraph.yaml`) og flettes ind i den nyligt rekonstruerede tilstand. Dette forhindrer, at visninger og layoutkoordinater slettes ved konfliktløsning.
+
+## Navnekollision ved hurtig-oprettelse af noder via NodeToolbar
+**Problem**:
+Når brugeren benyttede "+" ikonet under en aktiv node i canvassets `NodeToolbar` til hurtigt at oprette en ny, forbunden target-node, dukkede værktøjslinjen (menuen) ikke op, når den nye node blev valgt. Desuden blev relationen og layoutet fejlagtigt mappet tilbage til den oprindelige node.
+
+**Årsag**:
+1. **Navne-unikhed i model-store**: I vores domænemodel er begreber unikke pr. type + navn. Hvis vi forsøger at oprette et koncept med et navn, der allerede eksisterer (i dette tilfælde default-navnet `"Nyt Begreb"`), returnerer `GraphService.addConcept` det eksisterende koncept frem for et nyt.
+2. **Dublerede React Flow node-ID'er**: Fordi det eksisterende koncept blev genbrugt, blev der tilføjet endnu en `ViewNode` til visningen med det samme koncept-ID. React Flow modtog derfor to noder med samme ID på canvasset. Dette forårsagede interne fejl i React Flow ved valg/interaktion, hvilket forhindrede `NodeToolbar` i at lokalisere den valgte node i DOM'en og vise menuen.
+
+**Løsning**:
+Opdateret `handleCreateTargetNodeClick` i [ReactFlowCanvas.tsx](file:///home/rolfmadsen/Github/knowledgegraphstudio/src/features/viewport/graph/ReactFlowCanvas.tsx) til dynamisk at beregne et unikt standardnavn (fx `"Nyt Begreb"`, `"Nyt Begreb 2"`, `"Nyt Begreb 3"`, etc.) ved at tjekke mod eksisterende begreber af samme type, før `addConcept` kaldes. Dette sikrer unikke navne, unikke UUID-baserede node-ID'er og korrekt fungerende værktøjslinjer på alle noder.

@@ -30,7 +30,8 @@ import { PersistenceService, type BootstrapResult } from '../services/Persistenc
 import { GitService, type PullResult } from '../services/GitService';
 import { NotationRegistry } from '../notations/NotationRegistry';
 import git from 'isomorphic-git';
-import { getFS, REPO_DIR, writeYaml, setRepoDir } from '../core/fileSystem';
+import { getFS, REPO_DIR, writeYaml, setRepoDir, readViewsYaml } from '../core/fileSystem';
+import { yamlToViews } from '../core/yamlParser';
 
 // ============================================================
 // Sync Status (Spec §10.5)
@@ -59,6 +60,7 @@ export interface GraphStoreState {
   selectedConceptIds: ElementId[];
   selectedRelationId: ElementId | null;
   rawYaml: string | null; // For conflict mode
+  conflictError: string | null; // Detailed validation error message when in conflict mode
   isRelationBuilderOpen: boolean;
   isNodeCreatorOpen: boolean;
   isCreateViewModalOpen: boolean;
@@ -286,6 +288,7 @@ export const useGraphStore = create<GraphStoreState>()(
       selectedConceptIds: [],
       selectedRelationId: null,
       rawYaml: null,
+      conflictError: null,
       isRelationBuilderOpen: false,
       isNodeCreatorOpen: false,
       isCreateViewModalOpen: false,
@@ -1181,12 +1184,19 @@ export const useGraphStore = create<GraphStoreState>()(
             activeViewId: restoredActiveViewId,
             syncStatus: result.isConflict ? 'conflict' : 'idle',
             rawYaml: result.rawYaml || null,
+            conflictError: result.isConflict ? (result.error || 'Unknown validation/syntax error') : null,
           });
           getTemporalState().clear();
           set((s) => ({ layoutVersion: s.layoutVersion + 1 }));
           if (!result.isConflict) {
             get().startAutoFetch();
           }
+        } else if (result.isConflict) {
+          set({
+            syncStatus: 'conflict',
+            rawYaml: result.rawYaml || null,
+            conflictError: result.error || 'Unknown validation/syntax error',
+          });
         }
         return result;
       },
@@ -1314,12 +1324,19 @@ export const useGraphStore = create<GraphStoreState>()(
             activeViewId: get().activeViewId ?? result.state.views?.[0]?.id ?? null,
             syncStatus: result.isConflict ? 'conflict' : 'idle',
             rawYaml: result.rawYaml || null,
+            conflictError: result.isConflict ? (result.error || 'Unknown validation/syntax error') : null,
           });
           getTemporalState().clear();
           set((s) => ({ layoutVersion: s.layoutVersion + 1 }));
           if (!result.isConflict) {
             get().startAutoFetch();
           }
+        } else if (result.isConflict) {
+          set({
+            syncStatus: 'conflict',
+            rawYaml: result.rawYaml || null,
+            conflictError: result.error || 'Unknown validation/syntax error',
+          });
         }
         return result;
       },
@@ -1418,13 +1435,18 @@ export const useGraphStore = create<GraphStoreState>()(
       },
       resolveConflictFromYaml: async (yaml) => {
         const state = PersistenceService.parse(yaml);
+        const viewsYaml = await readViewsYaml();
+        const views = viewsYaml ? yamlToViews(viewsYaml) : [];
+        const fullState = { ...state, views };
         set({
-          domains: state.domains,
-          concepts: state.concepts,
-          relations: state.relations,
+          domains: fullState.domains,
+          concepts: fullState.concepts,
+          relations: fullState.relations,
+          views: fullState.views,
           rawYaml: null,
+          conflictError: null,
         });
-        await PersistenceService.saveWorkspace(state);
+        await PersistenceService.saveWorkspace(fullState);
       },
       getHeadVersion: async () => {
         return (await GitService.getHeadVersion()) || '';

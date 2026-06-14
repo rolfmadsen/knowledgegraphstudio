@@ -396,4 +396,43 @@ concepts:
     expect(state.concepts[1]).toHaveProperty('properties');
     expect(state.concepts[1]).not.toHaveProperty('enumerators');
   });
+
+  it('applies default fallback values for missing metadata fields in concepts, relations, and domains', () => {
+    const minimalYaml = `
+version: "1.0"
+domains:
+  - id: "bounded_context:default"
+    name: "Default Domain"
+concepts:
+  - id: "class:test"
+    conceptType: "class"
+    name: "Test"
+    relations:
+      - id: "other:rel"
+        name: "relates to"
+        targetConceptId: "class:target"
+  - id: "class:target"
+    conceptType: "class"
+    name: "Target"
+`;
+    const state = yamlToState(minimalYaml);
+    
+    // Domain fallbacks
+    expect(state.domains[0].createdAt).toBeTypeOf('number');
+    expect(state.domains[0].updatedAt).toBeTypeOf('number');
+    expect(state.domains[0].lifecycleState).toBe('active');
+
+    // Concept fallbacks
+    expect(state.concepts[0].createdAt).toBeTypeOf('number');
+    expect(state.concepts[0].updatedAt).toBeTypeOf('number');
+    expect(state.concepts[0].lifecycleState).toBe('active');
+    expect(state.concepts[0].aliases).toEqual([]);
+    expect(state.concepts[0].policies).toEqual([]);
+
+    // Relation fallbacks
+    expect(state.relations[0].createdAt).toBeTypeOf('number');
+    expect(state.relations[0].updatedAt).toBeTypeOf('number');
+    expect(state.relations[0].lifecycleState).toBe('active');
+    expect(state.relations[0].policies).toEqual([]);
+  });
 });

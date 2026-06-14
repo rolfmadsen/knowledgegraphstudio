@@ -198,8 +198,15 @@ export function yamlToState(yamlString: string): {
 
   const graph = parsed as Record<string, unknown>;
 
-  // Extract domains
-  const domains = (graph.domains as Domain[]) ?? [];
+  // Extract domains with default fallback values
+  const rawDomains = (graph.domains as Domain[]) ?? [];
+  const now = Date.now();
+  const domains = rawDomains.map((d) => ({
+    ...d,
+    createdAt: d.createdAt ?? now,
+    updatedAt: d.updatedAt ?? now,
+    lifecycleState: d.lifecycleState ?? 'active',
+  }));
 
   // Extract concepts and flatten nested relations
   const rawConcepts = (graph.concepts as YamlConcept[]) ?? [];
@@ -224,10 +231,14 @@ export function yamlToState(yamlString: string): {
     let conceptType = conceptData.conceptType as string;
     if (conceptType === 'information') conceptType = 'entity';
 
-    // Ensure required array fields exist
+    // Ensure required array fields and metadata exist
     const baseFields = {
       ...conceptData,
       conceptType: conceptType as any,
+      createdAt: conceptData.createdAt ?? now,
+      updatedAt: conceptData.updatedAt ?? now,
+      lifecycleState: conceptData.lifecycleState ?? 'active',
+      aliases: conceptData.aliases ?? [],
       policies: conceptData.policies ?? [],
     };
 
@@ -304,6 +315,11 @@ export function yamlToState(yamlString: string): {
 
         relations.push({
           ...rel,
+          sourceConceptId: yamlConcept.id,
+          createdAt: rel.createdAt ?? now,
+          updatedAt: rel.updatedAt ?? now,
+          lifecycleState: rel.lifecycleState ?? 'active',
+          policies: rel.policies ?? [],
           relationType: type as any,
         });
       }

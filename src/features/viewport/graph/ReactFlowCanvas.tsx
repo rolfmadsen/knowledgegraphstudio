@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useMemo } from 'react';
+import { useCallback, useEffect, useRef, useMemo, useState } from 'react';
 import {
   ReactFlow,
   Background,
@@ -19,7 +19,9 @@ import {
   useReactFlow,
   getSmoothStepPath,
   Position,
+  NodeToolbar,
 } from '@xyflow/react';
+import { Trash2, ArrowUpRight, Plus, X } from 'lucide-react';
 import '@xyflow/react/dist/style.css';
 import type { NotationCanvasProps } from '../../../notations/types';
 import { NotationRegistry } from '../../../notations/NotationRegistry';
@@ -629,7 +631,22 @@ export function ReactFlowCanvas({
   const reactFlow = useReactFlow();
   const centerSelectionCount = useGraphStore((s) => s.centerSelectionCount);
 
-  const { batchUpdateViewNodePositions, ungroupConcept, updateViewNodeParentId, setSelectedConceptIds, selectedConceptIds } = useGraphStore();
+  const {
+    batchUpdateViewNodePositions,
+    ungroupConcept,
+    updateViewNodeParentId,
+    setSelectedConceptIds,
+    selectedConceptIds,
+    requestDeleteConceptConfirm,
+    removeConceptFromView,
+    addConcept,
+    addRelation,
+    selectConcept,
+    triggerLayout,
+    views,
+  } = useGraphStore();
+
+  const [connectingSourceId, setConnectingSourceId] = useState<ElementId | null>(null);
 
   const selectedConceptIdsRef = useRef(selectedConceptIds);
 
@@ -1000,7 +1017,10 @@ export function ReactFlowCanvas({
   }, [computedNodes, initialEdges, setNodes, setEdges]);
 
   const onConnectHandler: OnConnect = useCallback((connection) => {
-    if (connection.source && connection.target) onConnect(toElementId(connection.source), toElementId(connection.target));
+    if (connection.source && connection.target) {
+      onConnect(toElementId(connection.source), toElementId(connection.target));
+      setConnectingSourceId(null);
+    }
   }, [onConnect]);
 
   const isValidConnection = useCallback((connection: { source: string; target: string }) => {
@@ -1171,9 +1191,100 @@ export function ReactFlowCanvas({
     }
   }, [view, concepts, currentAlgo, onNodePositionChange, batchUpdateViewNodePositions, ungroupConcept, updateViewNodeParentId]);
 
-  const onNodeClick: NodeMouseHandler = useCallback((_, node) => {
-    onNodeSelect(toElementId(node.id));
-  }, [onNodeSelect]);
+  // --- Selected Node Toolbar Event Handlers ---
+  const handleDeleteClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!selectedConceptId) return;
+
+    const viewsContaining = views.filter((v) =>
+      v.nodes.some((vn) => vn.conceptId === selectedConceptId),
+    );
+    const hasLastOccurrence = viewsContaining.length <= 1;
+
+    if (hasLastOccurrence) {
+      const concept = concepts.find((c) => c.id === selectedConceptId);
+      const name = concept?.name ?? selectedConceptId;
+      requestDeleteConceptConfirm([selectedConceptId], [name], view.id);
+    } else {
+      removeConceptFromView(view.id, selectedConceptId);
+    }
+  }, [selectedConceptId, views, concepts, requestDeleteConceptConfirm, removeConceptFromView, view.id]);
+
+  const handleArrowClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (selectedConceptId) {
+      setConnectingSourceId((prev) => (prev === selectedConceptId ? null : selectedConceptId));
+    }
+  }, [selectedConceptId]);
+
+  const handleCreateTargetNodeClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!selectedConceptId) return;
+
+    const sourceConcept = concepts.find((c) => c.id === selectedConceptId);
+    if (!sourceConcept) return;
+
+    const currentViewNode = view.nodes.find((vn) => vn.conceptId === selectedConceptId);
+    const newX = (currentViewNode?.x ?? 150) + 250;
+    const newY = currentViewNode?.y ?? 150;
+
+    // Find a unique name like "Nyt Begreb", "Nyt Begreb 2", "Nyt Begreb 3", etc.
+    const defaultName = 'Nyt Begreb';
+    let targetName = defaultName;
+    let counter = 2;
+    while (
+      concepts.some(
+        (c) =>
+          c.conceptType === sourceConcept.conceptType &&
+          c.name.trim().toLowerCase() === targetName.trim().toLowerCase()
+      )
+    ) {
+      targetName = `${defaultName} ${counter}`;
+      counter++;
+    }
+
+    const newConcept = addConcept(sourceConcept.conceptType, targetName, {
+      x: newX,
+      y: newY,
+      createdBy: 'user'
+    });
+
+    addRelation(selectedConceptId, newConcept.id, undefined, { createdBy: 'user' });
+    selectConcept(newConcept.id);
+
+    if (view.layoutAlgorithm !== 'manual') {
+      triggerLayout();
+    }
+  }, [selectedConceptId, concepts, view, addConcept, addRelation, selectConcept, triggerLayout]);
+
+  // Global escape key handler to exit click-to-connect mode
+  useEffect(() => {
+    if (!connectingSourceId) return;
+
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        setConnectingSourceId(null);
+      }
+    };
+
+    document.addEventListener('keydown', handleGlobalKeyDown, { capture: true });
+    return () => document.removeEventListener('keydown', handleGlobalKeyDown, { capture: true });
+  }, [connectingSourceId]);
+
+  const onNodeClick: NodeMouseHandler = useCallback((e, node) => {
+    if (connectingSourceId) {
+      e.stopPropagation();
+      const targetId = toElementId(node.id);
+      if (connectingSourceId !== targetId) {
+        addRelation(connectingSourceId, targetId, undefined, { createdBy: 'user' });
+      }
+      setConnectingSourceId(null);
+    } else {
+      onNodeSelect(toElementId(node.id));
+    }
+  }, [connectingSourceId, addRelation, onNodeSelect]);
 
   const onNodeDoubleClick: NodeMouseHandler = useCallback((_, node) => {
     onNodeSelect(toElementId(node.id));
@@ -1181,16 +1292,24 @@ export function ReactFlowCanvas({
   }, [onNodeSelect]);
 
   const onKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Escape' && connectingSourceId) {
+      e.preventDefault();
+      e.stopPropagation();
+      setConnectingSourceId(null);
+      return;
+    }
     const isDelete = e.key === 'Delete' || e.key === 'Backspace';
     if (isDelete) {
       e.preventDefault();
       e.stopPropagation();
     }
-  }, []);
+  }, [connectingSourceId]);
 
   const hintsWidth = footerHintsWidth || hintsRef.current?.getBoundingClientRect().width || 380;
   const layoutWidth = footerLayoutWidth || 270;
   const shouldStack = canvasWidth > 0 && canvasWidth < layoutWidth + hintsWidth + 220;
+
+  const showToolbar = selectedConceptIds.length === 1 && selectedConceptId;
 
   return (
     <div
@@ -1229,6 +1348,19 @@ export function ReactFlowCanvas({
         </defs>
       </svg>
 
+      {/* Click-to-connect Mode Indicator Banner */}
+      {connectingSourceId && (
+        <div className="absolute top-6 left-1/2 -translate-x-1/2 z-[200] flex items-center gap-3 px-5 py-3 bg-emerald-600/90 backdrop-blur-md border border-emerald-500/30 rounded-2xl shadow-xl text-white font-sans text-[12px] font-bold animate-bounce select-none pointer-events-auto">
+          <span>🔗 Klik på en anden node for at oprette relation</span>
+          <button
+            onClick={() => setConnectingSourceId(null)}
+            className="p-1 hover:bg-white/20 rounded-lg transition-colors text-white/80 hover:text-white cursor-pointer"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
       <div className="absolute inset-0">
         <ReactFlow
           nodes={nodes}
@@ -1257,6 +1389,51 @@ export function ReactFlowCanvas({
         >
           <Background variant={BackgroundVariant.Dots} color="#1C1917" gap={24} size={1} style={{ opacity: 0.05 }} />
           <Controls showInteractive={false} fitViewOptions={{ maxZoom: 1.0 }} className="!bg-white !border-slate-200 !shadow-studio !rounded-xl !mb-6 !ml-6 p-1 flex flex-col gap-1 overflow-hidden" />
+
+          {/* Premium Mouse-based Interactive Selected Node Overlay Toolbar */}
+          {showToolbar && (
+            <NodeToolbar
+              nodeId={selectedConceptId}
+              position={Position.Bottom}
+              align="center"
+              offset={12}
+              className="z-50"
+            >
+              <div className="flex items-center gap-1 p-1 bg-white/90 backdrop-blur-md border border-slate-200/80 rounded-2xl shadow-xl shadow-slate-200/40 select-none no-drag">
+                {/* Delete Button */}
+                <button
+                  onClick={handleDeleteClick}
+                  title="Fjern fra visning eller slet helt (Delete)"
+                  className="p-2.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50/50 rounded-xl transition-all duration-200 cursor-pointer active:scale-90"
+                >
+                  <Trash2 size={15} strokeWidth={2.5} />
+                </button>
+
+                <div className="w-px h-5 bg-slate-200/80 self-center mx-0.5" />
+                {/* Arrow Connector Button (Click-to-connect mode) */}
+                <button
+                  onClick={handleArrowClick}
+                  title="Opret relation (Klik her, og klik derefter på modtager-noden)"
+                  className={`p-2.5 rounded-xl transition-all duration-200 cursor-pointer active:scale-90 flex items-center justify-center
+                    ${connectingSourceId === selectedConceptId
+                      ? 'text-emerald-500 bg-emerald-50'
+                      : 'text-slate-400 hover:text-emerald-500 hover:bg-emerald-50/50'
+                    }`}
+                >
+                  <ArrowUpRight size={15} strokeWidth={2.5} />
+                </button>
+
+                {/* Create Linked Target Concept Button (Alt+N counterpart with auto-connect) */}
+                <button
+                  onClick={handleCreateTargetNodeClick}
+                  title="Opret og forbind nyt begreb"
+                  className="p-2.5 text-slate-400 hover:text-emerald-500 hover:bg-emerald-50/50 rounded-xl transition-all duration-200 cursor-pointer active:scale-90"
+                >
+                  <Plus size={15} strokeWidth={2.5} />
+                </button>
+              </div>
+            </NodeToolbar>
+          )}
         </ReactFlow>
       </div>
 

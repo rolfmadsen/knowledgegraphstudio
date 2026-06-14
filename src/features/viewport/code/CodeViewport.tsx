@@ -20,6 +20,7 @@ export function CodeViewport({ isConflict = false }: CodeViewportProps) {
   const stringifyState = useGraphStore((s) => s?.stringifyState);
   const hydrateFromYaml = useGraphStore((s) => s?.hydrateFromYaml);
   const resolveConflictFromYaml = useGraphStore((s) => s?.resolveConflictFromYaml);
+  const conflictError = useGraphStore((s) => (s as any)?.conflictError || null);
 
   const [localYaml, setLocalYaml] = useState<string | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
@@ -69,16 +70,19 @@ export function CodeViewport({ isConflict = false }: CodeViewportProps) {
   };
 
   const handleFix = async () => {
-    if (!localYaml) return;
+    const yamlToResolve = localYaml ?? yamlContent;
+    if (!yamlToResolve) return;
     try {
       if (resolveConflictFromYaml) {
-        await resolveConflictFromYaml(localYaml);
+        await resolveConflictFromYaml(yamlToResolve);
       }
       window.location.reload();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Still invalid');
     }
   };
+
+  const displayError = error || (isConflict ? conflictError : null);
 
   const handleCopy = useCallback(() => {
     const toCopy = localYaml ?? yamlContent;
@@ -208,7 +212,7 @@ export function CodeViewport({ isConflict = false }: CodeViewportProps) {
         />
 
         {/* Conflict Resolution Button */}
-        {isConflict && localYaml && (
+        {isConflict && (
           <button
             onClick={handleFix}
             className="absolute bottom-6 right-6 bg-primary text-white font-black uppercase tracking-widest px-8 py-4 rounded-2xl shadow-2xl shadow-primary/30 hover:scale-105 active:scale-95 transition-all text-[11px] flex items-center gap-3"
@@ -218,13 +222,17 @@ export function CodeViewport({ isConflict = false }: CodeViewportProps) {
         )}
 
         {/* Error Notification Toast */}
-        {error && !isConflict && (
+        {displayError && (
           <div className="absolute bottom-4 left-4 right-4 bg-red-600 text-white p-4 rounded-2xl shadow-2xl text-[10px] font-mono leading-relaxed border border-red-500/50 backdrop-blur-md animate-in fade-in slide-in-from-bottom-4">
             <div className="flex items-start gap-3">
               <span className="bg-white/20 px-1.5 py-0.5 rounded text-[8px] font-black">ERR</span>
               <div className="flex-1">
-                <div className="font-black mb-1 text-white/70">YAML PARSE EXCEPTION</div>
-                {error}
+                <div className="font-black mb-1 text-white/70">
+                  {error ? 'YAML PARSE EXCEPTION' : 'BOOTSTRAP CONFLICT ERROR'}
+                </div>
+                <div className="max-h-32 overflow-y-auto whitespace-pre-wrap select-text">
+                  {typeof displayError === 'string' ? displayError : JSON.stringify(displayError, null, 2)}
+                </div>
               </div>
             </div>
           </div>
