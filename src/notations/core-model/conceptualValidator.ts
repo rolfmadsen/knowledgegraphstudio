@@ -34,6 +34,51 @@ export function isSubclass(className: string, parentClassName: string): boolean 
 }
 
 /**
+ * Maps Danish relation names/synonyms to standard English relation IDs/aliases
+ */
+function mapDanishRelation(idOrLabel: string): string {
+  const clean = idOrLabel.toLowerCase().trim();
+  if (
+    clean === 'generaliseres til' ||
+    clean === 'kan være en' ||
+    clean === 'er en' ||
+    clean === 'specialisering' ||
+    clean === 'specialiseres af' ||
+    clean === 'underklasse af'
+  ) {
+    return 'generalizes';
+  }
+  if (
+    clean === 'er optaget på' ||
+    clean === 'deltager i' ||
+    clean === 'relaterer til' ||
+    clean === 'forbindelse' ||
+    clean === 'tilknyttet' ||
+    clean === 'har' ||
+    clean === 'arbejder på' ||
+    clean === 'studerer' ||
+    clean === 'assisterer'
+  ) {
+    return 'associates_with';
+  }
+  if (
+    clean === 'aggregerer' ||
+    clean === 'aggregering'
+  ) {
+    return 'aggregates';
+  }
+  if (
+    clean === 'består af' ||
+    clean === 'komposition' ||
+    clean === 'del af' ||
+    clean === 'indgår i'
+  ) {
+    return 'composed_of';
+  }
+  return idOrLabel;
+}
+
+/**
  * Checks if a specific relationship is allowed between two concept types according to Begrebsmodel rules
  */
 export function isRelationAllowed(
@@ -45,7 +90,16 @@ export function isRelationAllowed(
   const targetClass = CONCEPTUAL_TYPE_MAP[targetType];
   if (!sourceClass || !targetClass) return false;
 
-  const relClean = relationId.toLowerCase().replace('relationship', '').trim();
+  const mappedRelationId = mapDanishRelation(relationId);
+  const relClean = mappedRelationId.toLowerCase().replace('relationship', '').trim();
+
+  // Explicitly deny relations that belong to other models (e.g. ArchiMate, DCR)
+  const forbiddenRels = [
+    'uses', 'delivers_to', 'has_condition', 'is_nested_in', 'has_role', 'has_principal', 'contained_in'
+  ];
+  if (forbiddenRels.includes(relClean)) {
+    return false;
+  }
 
   // All UML conceptual relations are allowed only between Conceptual Classes (represented by 'class' nodes)
   // NOTE: 'specialization' and 'realization' must be included because the graphSchema relationType enum
@@ -63,7 +117,8 @@ export function isRelationAllowed(
     return isSubclass(sourceClass, 'Conceptual_Class') && isSubclass(targetClass, 'Conceptual_Class');
   }
 
-  return false;
+  // Fallback: accept custom semantic relation names between Conceptual Classes as custom associations
+  return isSubclass(sourceClass, 'Conceptual_Class') && isSubclass(targetClass, 'Conceptual_Class');
 }
 
 export function getAvailableRelations(
@@ -85,8 +140,9 @@ export function isValidRelation(
   targetType: ConceptType,
   label: string
 ): boolean {
+  const mappedLabel = mapDanishRelation(label);
   const available = getAvailableRelations(sourceType, targetType);
-  const cleanSearch = label.toLowerCase().replace('relationship', '').trim();
+  const cleanSearch = mappedLabel.toLowerCase().replace('relationship', '').trim();
 
   const matchByLabel = available.some((rel) => {
     const cleanRelLabel = rel.label.toLowerCase().replace('relationship', '').trim();

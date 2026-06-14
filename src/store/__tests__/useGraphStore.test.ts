@@ -624,5 +624,123 @@ describe('useGraphStore', () => {
       expect(useGraphStore.getState().views.find(v => v.id === 'view:conceptual')?.nodes).toHaveLength(2);
     });
   });
+
+  describe('stringifyState', () => {
+    it('serializes full state when no viewId is provided', () => {
+      const c1 = {
+        id: toElementId('concept:1'),
+        conceptType: 'actor',
+        name: 'Actor 1',
+        properties: [],
+        policies: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        lifecycleState: 'active',
+        aliases: [],
+      } as ConceptNode;
+      useGraphStore.setState({
+        concepts: [c1],
+        domains: [],
+        relations: [],
+      });
+
+      const fullYaml = useGraphStore.getState().stringifyState();
+      expect(fullYaml).toContain('Actor 1');
+    });
+
+    it('filters concepts, relations, and domains to the active view when viewId is provided', () => {
+      const d1: Domain = {
+        id: toElementId('domain:1'),
+        name: 'Domain 1',
+        description: 'First Domain',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        lifecycleState: 'active',
+      };
+      const d2: Domain = {
+        id: toElementId('domain:2'),
+        name: 'Domain 2',
+        description: 'Second Domain',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        lifecycleState: 'active',
+      };
+      
+      const c1 = {
+        id: toElementId('concept:1'),
+        conceptType: 'actor',
+        name: 'Actor In View',
+        domainId: d1.id,
+        properties: [],
+        policies: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        lifecycleState: 'active',
+        aliases: [],
+      } as ConceptNode;
+      const c2 = {
+        id: toElementId('concept:2'),
+        conceptType: 'process',
+        name: 'Process Out Of View',
+        domainId: d2.id,
+        properties: [],
+        policies: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        lifecycleState: 'active',
+        aliases: [],
+      } as ConceptNode;
+
+      const relInView = {
+        id: toElementId('relation:1'),
+        sourceConceptId: c1.id,
+        targetConceptId: c1.id,
+        name: 'self relation',
+        lifecycleState: 'active',
+      } as any;
+      const relOutOfView = {
+        id: toElementId('relation:2'),
+        sourceConceptId: c1.id,
+        targetConceptId: c2.id,
+        name: 'cross relation',
+        lifecycleState: 'active',
+      } as any;
+
+      const mockViews: View[] = [
+        {
+          id: toElementId('v:1'),
+          name: 'My View',
+          type: 'archimate',
+          layoutAlgorithm: 'manual',
+          nodes: [
+            { conceptId: c1.id, x: 100, y: 100 },
+          ],
+          edges: [],
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          lifecycleState: 'active',
+        },
+      ];
+
+      useGraphStore.setState({
+        domains: [d1, d2],
+        concepts: [c1, c2],
+        relations: [relInView, relOutOfView],
+        views: mockViews,
+      });
+
+      const filteredYaml = useGraphStore.getState().stringifyState(toElementId('v:1'));
+      
+      // Should contain elements in the view
+      expect(filteredYaml).toContain('Actor In View');
+      expect(filteredYaml).toContain('Domain 1');
+      expect(filteredYaml).toContain('self relation');
+
+      // Should NOT contain elements that are out of the view
+      expect(filteredYaml).not.toContain('Process Out Of View');
+      expect(filteredYaml).not.toContain('Domain 2');
+      expect(filteredYaml).not.toContain('cross relation');
+    });
+  });
 });
 

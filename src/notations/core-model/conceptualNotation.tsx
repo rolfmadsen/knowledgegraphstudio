@@ -106,6 +106,7 @@ export const conceptualNotation: Notation = {
   displayName: 'Begrebsmodel',
   icon: '🧠',
   supportedViewTypes: ['conceptual_model'],
+  orthogonalEdges: true,
   CanvasComponent: ConceptualCanvas,
   layoutEngine: dagreLayoutEngine,
   allowedConceptTypes: ['class'],

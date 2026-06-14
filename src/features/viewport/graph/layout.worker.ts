@@ -62,8 +62,8 @@ self.onmessage = (event: MessageEvent<LayoutRequest>) => {
   g.setGraph({
     rankdir,
     ranker,
-    nodesep: rankdir === 'LR' ? 100 : 70,
-    ranksep: rankdir === 'LR' ? 120 : 100,
+    nodesep: rankdir === 'LR' ? 120 : 110,
+    ranksep: rankdir === 'LR' ? 200 : 180,
     marginx: 50,
     marginy: 50,
   });

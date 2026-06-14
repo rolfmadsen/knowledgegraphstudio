@@ -181,94 +181,453 @@ MODELLERINGSPRINCIPPER OG BEST PRACTICES:
 // JSON Command Parser
 // ============================================================
 
+// ============================================================
+// JSON Command Parser Helpers
+// ============================================================
+
+function extractJsonBlocks(text: string): string[] {
+  const regex = /```(?:json|JSON|javascript|js|text)?([\s\S]*?)```/g;
+  const blocks: string[] = [];
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    const block = match[1].trim();
+    if (block) {
+      blocks.push(block);
+    }
+  }
+
+  if (blocks.length === 0) {
+    const unclosedMatch = text.match(/```(?:json|JSON|javascript|js|text)?\s*([\s\S]*)$/i);
+    if (unclosedMatch) {
+      const block = unclosedMatch[1].trim();
+      if (block) {
+        blocks.push(block);
+      }
+    }
+  }
+
+  if (blocks.length === 0) {
+    blocks.push(text.trim());
+  }
+
+  return blocks;
+}
+
+export function repairJson(str: string): string {
+  let repaired = str.trim();
+  
+  // Remove block and line comments
+  repaired = repaired.replace(/\/\*[\s\S]*?\*\//g, '');
+  repaired = repaired.replace(/\/\/.*/g, '');
+  
+  // Replace single quotes with double quotes for keys and values
+  repaired = repaired.replace(/(?<=[{\s,])'([^'\\]*(?:\\.[^'\\]*)*)'(?=\s*:)/g, '"$1"');
+  repaired = repaired.replace(/(?<=:\s*)'([^'\\]*(?:\\.[^'\\]*)*)'(?=\s*[,}\]])/g, '"$1"');
+  repaired = repaired.replace(/(?<=[\[\s,])'([^'\\]*(?:\\.[^'\\]*)*)'(?=\s*[,\]])/g, '"$1"');
+
+  // Fix unquoted keys
+  repaired = repaired.replace(/(?<=[{,])\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '"$1":');
+
+  // Remove trailing commas
+  repaired = repaired.replace(/,\s*(?=[}\]])/g, '');
+
+  return repaired;
+}
+
+const VALID_CONCEPT_TYPES = [
+  'domain', 'capability', 'bounded_context', 'entity', 'process', 'event', 'system', 'actor', 'other',
+  'business_role', 'business_function', 'business_service', 'application_service', 'application_component',
+  'business_object', 'node', 'artifact', 'requirement', 'goal',
+  'resource', 'course_of_action', 'value_stream',
+  'business_collaboration', 'business_interface', 'business_interaction', 'contract', 'representation', 'product',
+  'application_collaboration', 'application_event', 'application_function', 'application_interaction', 'application_interface', 'application_process',
+  'device', 'system_software', 'technology_collaboration', 'technology_interface', 'technology_function', 'technology_process', 'technology_interaction', 'technology_event', 'technology_service', 'communication_network', 'path', 'equipment', 'facility', 'distribution_network', 'material',
+  'stakeholder', 'driver', 'assessment', 'outcome', 'principle', 'constraint', 'value', 'meaning',
+  'work_package', 'deliverable', 'plateau', 'gap', 'implementation_event',
+  'location', 'junction',
+  'class', 'datatype', 'enumeration'
+];
+
+function normalizeConceptType(typeStr: string): ConceptType {
+  if (typeof typeStr !== 'string') return 'other' as ConceptType;
+  const clean = typeStr.trim().toLowerCase().replace(/[\s-]+/g, '_');
+  
+  if (VALID_CONCEPT_TYPES.includes(clean)) {
+    return clean as ConceptType;
+  }
+  
+  const aliasMap: Record<string, string> = {
+    'person': 'actor',
+    'user': 'actor',
+    'component': 'application_component',
+    'software_system': 'system',
+    'boundary': 'bounded_context',
+    'grouping': 'bounded_context',
+    'class_model': 'class',
+    'data_type': 'datatype',
+  };
+  
+  if (aliasMap[clean] && VALID_CONCEPT_TYPES.includes(aliasMap[clean])) {
+    return aliasMap[clean] as ConceptType;
+  }
+  
+  return 'other' as ConceptType;
+}
+
+export function normalizeCommand(cmd: any): any {
+  if (!cmd || typeof cmd !== 'object') return cmd;
+
+  const normalized = { ...cmd };
+
+  // Action mapping
+  if (normalized.type && !normalized.action) {
+    normalized.action = normalized.type;
+  }
+  if (normalized.action === 'renameConcept' || normalized.action === 'editConcept') {
+    normalized.action = 'updateConcept';
+  }
+  if (normalized.action === 'deleteConcept' || normalized.action === 'deleteRelation' || 
+      normalized.action === 'removeConcept' || normalized.action === 'removeRelation' || 
+      normalized.action === 'removeElement') {
+    normalized.action = 'deleteElement';
+  }
+
+  // Guess action from properties if not set
+  if (!normalized.action) {
+    if (normalized.conceptType && normalized.name) {
+      normalized.action = 'addConcept';
+    } else if ((normalized.sourceConceptId || normalized.source || normalized.from) && 
+               (normalized.targetConceptId || normalized.target || normalized.to)) {
+      normalized.action = 'addRelation';
+    } else if ((normalized.conceptId || normalized.child) && (normalized.parentConceptId || normalized.parent)) {
+      normalized.action = 'setParent';
+    } else if (normalized.updates && (normalized.conceptId || normalized.id)) {
+      normalized.action = 'updateConcept';
+    } else if (normalized.elementId || normalized.deleteId) {
+      normalized.action = 'deleteElement';
+    } else if (normalized.propertyName && (normalized.conceptId || normalized.id)) {
+      normalized.action = 'addProperty';
+    }
+  }
+
+  // Property mapping per action
+  if (normalized.action === 'addConcept') {
+    if (normalized.type && !normalized.conceptType) {
+      normalized.conceptType = normalized.type;
+    }
+  }
+
+  if (normalized.action === 'addRelation') {
+    if (normalized.source && !normalized.sourceConceptId) {
+      normalized.sourceConceptId = normalized.source;
+    }
+    if (normalized.from && !normalized.sourceConceptId) {
+      normalized.sourceConceptId = normalized.from;
+    }
+    if (normalized.target && !normalized.targetConceptId) {
+      normalized.targetConceptId = normalized.target;
+    }
+    if (normalized.to && !normalized.targetConceptId) {
+      normalized.targetConceptId = normalized.to;
+    }
+    if (normalized.relation && !normalized.relationType) {
+      normalized.relationType = normalized.relation;
+    }
+    if (!normalized.name && normalized.relationType) {
+      normalized.name = normalized.relationType;
+    }
+  }
+
+  if (normalized.action === 'setParent') {
+    if (normalized.child && !normalized.conceptId) {
+      normalized.conceptId = normalized.child;
+    }
+    if (normalized.parent && !normalized.parentConceptId) {
+      normalized.parentConceptId = normalized.parent;
+    }
+  }
+
+  if (normalized.action === 'updateConcept') {
+    if (normalized.id && !normalized.conceptId) {
+      normalized.conceptId = normalized.id;
+    }
+    // If updates is flat at root level
+    if (!normalized.updates) {
+      normalized.updates = {};
+      if (normalized.name) normalized.updates.name = normalized.name;
+      if (normalized.conceptType) normalized.updates.conceptType = normalized.conceptType;
+      if (normalized.definition) normalized.updates.definition = normalized.definition;
+    }
+  }
+
+  if (normalized.action === 'deleteElement') {
+    if (normalized.deleteId && !normalized.elementId) {
+      normalized.elementId = normalized.deleteId;
+    }
+    if (normalized.id && !normalized.elementId) {
+      normalized.elementId = normalized.id;
+    }
+    if (normalized.type && !normalized.elementType) {
+      normalized.elementType = normalized.type;
+    }
+  }
+
+  if (normalized.action === 'addProperty') {
+    if (normalized.id && !normalized.conceptId) {
+      normalized.conceptId = normalized.id;
+    }
+    if (normalized.name && !normalized.propertyName) {
+      normalized.propertyName = normalized.name;
+    }
+    if (normalized.type && !normalized.propertyType) {
+      normalized.propertyType = normalized.type;
+    }
+  }
+
+  return normalized;
+}
+
+// ============================================================
+// JSON Command Parser
+// ============================================================
+
 export function parseProposedCommands(text: string): ProposedCommandInput[] {
-  // Extract markdown json codeblock if present
-  const match = text.match(/```json([\s\S]*?)```/);
-  const jsonStr = match ? match[1].trim() : text.trim();
+  const blocks = extractJsonBlocks(text);
+  const allProposals: ProposedCommandInput[] = [];
 
   const parseItem = (cmd: any, index: number): ProposedCommandInput | null => {
     if (!cmd || typeof cmd !== 'object') return null;
 
+    const normalized = normalizeCommand(cmd);
     const id = `proposal-${Date.now()}-${index}-${Math.random().toString(36).substring(2, 9)}`;
 
-    // Infer action if missing
-    let action = cmd.action;
+    let action = normalized.action;
     if (!action) {
-      if (cmd.conceptType && cmd.name) {
+      if (normalized.conceptType && normalized.name) {
         action = 'addConcept';
-      } else if (cmd.sourceConceptId && cmd.targetConceptId && cmd.name) {
+      } else if (normalized.sourceConceptId && normalized.targetConceptId && normalized.name) {
         action = 'addRelation';
-      } else if (cmd.conceptId && cmd.parentConceptId) {
+      } else if (normalized.conceptId && normalized.parentConceptId) {
         action = 'setParent';
       }
     }
 
-    if (action === 'addConcept' && cmd.conceptType && cmd.name) {
+    if (action === 'addConcept' && normalized.conceptType && normalized.name) {
       return {
         id,
         action: 'addConcept',
-        conceptType: cmd.conceptType as ConceptType,
-        name: cmd.name,
+        conceptType: normalizeConceptType(normalized.conceptType),
+        name: normalized.name,
       };
-    } else if (action === 'addRelation' && cmd.sourceConceptId && cmd.targetConceptId && cmd.name) {
+    } else if (action === 'addRelation' && normalized.sourceConceptId && normalized.targetConceptId && normalized.name) {
       return {
         id,
         action: 'addRelation',
-        sourceConceptId: cmd.sourceConceptId as ElementId,
-        targetConceptId: cmd.targetConceptId as ElementId,
-        name: cmd.name,
-        relationType: cmd.relationType,
+        sourceConceptId: normalized.sourceConceptId as ElementId,
+        targetConceptId: normalized.targetConceptId as ElementId,
+        name: normalized.name,
+        relationType: normalized.relationType,
       };
-    } else if (action === 'setParent' && cmd.conceptId && cmd.parentConceptId) {
+    } else if (action === 'setParent' && normalized.conceptId && normalized.parentConceptId) {
       return {
         id,
         action: 'setParent',
-        conceptId: cmd.conceptId as ElementId,
-        parentConceptId: cmd.parentConceptId as ElementId,
+        conceptId: normalized.conceptId as ElementId,
+        parentConceptId: normalized.parentConceptId as ElementId,
+      };
+    } else if (action === 'updateConcept' && normalized.conceptId && normalized.updates) {
+      const graphStore = useGraphStore.getState();
+      const resolveId = (aiId: string): string => {
+        const slugMatch = graphStore.concepts.find((c) => {
+          const slug = `${c.conceptType}:${c.name.trim().toLowerCase().replace(/\s+/g, '-')}`;
+          return slug === aiId;
+        });
+        if (slugMatch) return slugMatch.id;
+        return aiId;
+      };
+      const resolvedId = resolveId(normalized.conceptId);
+      const existing = graphStore.concepts.find((c) => c.id === resolvedId);
+      return {
+        id,
+        action: 'updateConcept',
+        conceptId: normalized.conceptId as ElementId,
+        updates: normalized.updates,
+        before: {
+          name: existing?.name || '',
+          conceptType: existing?.conceptType || 'other',
+          definition: existing?.definition,
+        },
+      };
+    } else if (action === 'deleteElement' && normalized.elementId) {
+      const elType = normalized.elementType || (normalized.elementId.includes('relation') ? 'relation' : 'concept');
+      const graphStore = useGraphStore.getState();
+      let elName = '';
+      if (elType === 'concept') {
+        const resolveId = (aiId: string): string => {
+          const slugMatch = graphStore.concepts.find((c) => {
+            const slug = `${c.conceptType}:${c.name.trim().toLowerCase().replace(/\s+/g, '-')}`;
+            return slug === aiId;
+          });
+          if (slugMatch) return slugMatch.id;
+          return aiId;
+        };
+        const existing = graphStore.concepts.find((c) => c.id === resolveId(normalized.elementId));
+        elName = existing?.name || normalized.elementName || normalized.elementId;
+      } else {
+        const existing = graphStore.relations.find((r) => r.id === normalized.elementId);
+        elName = existing?.name || normalized.elementName || 'Relation';
+      }
+      return {
+        id,
+        action: 'deleteElement',
+        elementId: normalized.elementId as ElementId,
+        elementType: elType,
+        elementName: elName,
+      };
+    } else if (action === 'addProperty' && normalized.conceptId && normalized.propertyName) {
+      return {
+        id,
+        action: 'addProperty',
+        conceptId: normalized.conceptId as ElementId,
+        propertyName: normalized.propertyName,
+        propertyType: normalized.propertyType || 'string',
       };
     }
     return null;
   };
 
   const tryParseJson = (str: string): any => {
+    // 1. Try direct parse
     try {
       return JSON.parse(str);
-    } catch (e) {
-      // 1. Try to find and parse array block [ ... ]
-      const startArr = str.indexOf('[');
-      const endArr = str.lastIndexOf(']');
-      if (startArr !== -1 && endArr !== -1 && endArr > startArr) {
-        try {
-          return JSON.parse(str.substring(startArr, endArr + 1));
-        } catch (err) {
-          // Fallback array failed, proceed to object
-        }
-      }
+    } catch (e) {}
 
-      // 2. Try to find and parse object block { ... }
-      const startObj = str.indexOf('{');
-      const endObj = str.lastIndexOf('}');
-      if (startObj !== -1 && endObj !== -1 && endObj > startObj) {
-        try {
-          return JSON.parse(str.substring(startObj, endObj + 1));
-        } catch (err) {
-          // Fallback object failed
-        }
-      }
+    // 2. Try repaired direct parse
+    try {
+      return JSON.parse(repairJson(str));
+    } catch (e) {}
+
+    // 3. Try to extract and parse array
+    const startArr = str.indexOf('[');
+    const endArr = str.lastIndexOf(']');
+    if (startArr !== -1 && endArr !== -1 && endArr > startArr) {
+      const arrContent = str.substring(startArr, endArr + 1);
+      try {
+        return JSON.parse(arrContent);
+      } catch (e) {}
+      try {
+        return JSON.parse(repairJson(arrContent));
+      } catch (e) {}
     }
+
+    // 4. Try to extract and parse object
+    const startObj = str.indexOf('{');
+    const endObj = str.lastIndexOf('}');
+    if (startObj !== -1 && endObj !== -1 && endObj > startObj) {
+      const objContent = str.substring(startObj, endObj + 1);
+      try {
+        return JSON.parse(objContent);
+      } catch (e) {}
+      try {
+        return JSON.parse(repairJson(objContent));
+      } catch (e) {}
+    }
+
     throw new Error('Not parseable');
   };
 
-  try {
-    const parsed = tryParseJson(jsonStr);
-    if (parsed) {
-      const arr = Array.isArray(parsed) ? parsed : [parsed];
-      return arr.map(parseItem).filter((p): p is ProposedCommandInput => p !== null);
+  blocks.forEach((jsonStr, blockIdx) => {
+    try {
+      const parsed = tryParseJson(jsonStr);
+      if (parsed) {
+        const arr = Array.isArray(parsed) ? parsed : [parsed];
+        const parsedItems = arr
+          .map((item, itemIdx) => parseItem(item, blockIdx * 100 + itemIdx))
+          .filter((p): p is ProposedCommandInput => p !== null);
+        allProposals.push(...parsedItems);
+      }
+    } catch (e) {
+      // Ignore block parsing errors
     }
-  } catch (e) {
-    // Fallback parsing failed
+  });
+
+  return allProposals;
+}
+
+function buildOutputFormatBlock(_viewType: string, allowedTypes?: string[]): string {
+  const typesStr = allowedTypes ? allowedTypes.join(', ') : 'typisk entity, process, actor, event, bounded_context';
+  const firstType = allowedTypes && allowedTypes.length > 0 ? allowedTypes[0] : 'entity';
+  
+  return `### DIT OUTPUT FORMAT OG DIALOGSTRATEGI (KRITISKE KRAV)
+
+Du skal dynamisk tilpasse dit svar baseret på brugerens hensigt (IMPLICIT STYRING):
+1. **DIREKTE MODELLERING / KLARE ORDRE:** 
+   - Hvis brugeren beder om konkrete ændringer (fx "tilføj node X", "slet relation Y", "omdøb Z", "sæt definition på A"), skal du springe uddybende dialog over. 
+   - Svar ultrakort og præcist (fx "Udfører ændringer..."), og lever omgående de relevante JSON-kommandoer i kodeblokken. Stil IKKE modspørgsmål.
+2. **SPARRING / ÅBNE SPØRGSMÅL:** 
+   - Hvis brugeren stiller åbne spørgsmål, diskuterer designet eller beder om rådgivning (fx "hvordan tegner jeg X?", "hvad tænker du?"), skal du gå i sparringstilstand (Grill-Me).
+   - Redegør kort for dine overvejelser, foreslå en løsning, og stil **præcis ét fokuseret modspørgsmål**. Undlad helt at sende JSON-kommandoer, før brugeren giver grønt lys eller bekræfter et design.
+
+Uanset tilstand, skal du altid afslutte med 2-3 Hurtig-svar (Quick Replies) lige før JSON-blokken:
+* [Valg A]: <kort svarmulighed på dansk>
+* [Valg B]: <kort svarmulighed på dansk>
+
+REGLER FOR JSON-FORMAT (MÅ IKKE AFVIGES):
+- Returværdien SKAL være et gyldigt JSON-array pakket ind i \`\`\`json ... \`\`\`.
+- **addConcept**: Opretter et nyt element. MÅ KUN indeholde:
+  - "action": "addConcept"
+  - "conceptType": "${typesStr}"
+  - "name": "<Elementnavn i ental>"
+- **addRelation**: Opretter en relation mellem noder. MÅ KUN indeholde:
+  - "action": "addRelation"
+  - "sourceConceptId": "<source_concept_id>"
+  - "targetConceptId": "<target_concept_id>"
+  - "name": "<Kort aktivt/passivt verbum>"
+  - "relationType": "<valgfri type efter diagrammets regler>"
+- **setParent**: Nester et element i en subgraph (fx bounded_context). MÅ KUN indeholde:
+  - "action": "setParent"
+  - "conceptId": "<child_concept_id>"
+  - "parentConceptId": "<parent_concept_id>"
+- **updateConcept**: Opdaterer en eksisterende nodes egenskaber. MÅ KUN indeholde:
+  - "action": "updateConcept"
+  - "conceptId": "<eksisterende_concept_id>"
+  - "updates": et objekt med de ændringer der skal foretages. Gyldige nøgler er: "name", "conceptType", "definition".
+- **deleteElement**: Sletter en node eller en relation fra modellen. MÅ KUN indeholde:
+  - "action": "deleteElement"
+  - "elementId": "<eksisterende_id_på_node_eller_relation>"
+  - "elementType": enten "concept" eller "relation"
+  - "elementName": "<navnet på elementet til bekræftelse i UI>"
+- **addProperty**: Tilføjer en attribut/egenskab til en klasse (kun relevant i informationsmodeller). MÅ KUN indeholde:
+  - "action": "addProperty"
+  - "conceptId": "<eksisterende_klasse_id>"
+  - "propertyName": "<attributnavn>"
+  - "propertyType": "string", "number", "boolean", "date" eller et andet klasse-id
+
+ID GENERERING: Alle ID'er du refererer til i addRelation, setParent, updateConcept, deleteElement og addProperty SKAL altid overholde formatet "<conceptType>:<kebab-case-navn>" (f.eks. "class:ansoegning" eller "event:ordre-modtaget"). Brug de præcise ID'er fra den eksisterende graf, hvis elementet findes i forvejen.
+
+EKSEMPEL PÅ GYLDIGE JSON-KOMMANDOER:
+\`\`\`json
+[
+  {
+    "action": "addConcept",
+    "conceptType": "${firstType}",
+    "name": "NytElement"
+  },
+  {
+    "action": "updateConcept",
+    "conceptId": "${firstType}:nytelement",
+    "updates": {
+      "definition": "En Aristotelisk definition af det nye element."
+    }
+  },
+  {
+    "action": "deleteElement",
+    "elementId": "${firstType}:gammel-node",
+    "elementType": "concept",
+    "elementName": "Gammel Node"
   }
-  return [];
+]
+\`\`\``;
 }
 
 // ============================================================
@@ -278,14 +637,14 @@ export function parseProposedCommands(text: string): ProposedCommandInput[] {
 export class AIService {
   static cleanResponseText(text: string): string {
     // 1. Strip closed json blocks
-    let cleaned = text.replace(/```json[\s\S]*?```/g, '');
+    let cleaned = text.replace(/```(?:json|JSON|javascript|js|text)?[\s\S]*?```/g, '');
     // 2. Strip unclosed json blocks (if the LLM cut off or didn't close it)
-    const unclosedIdx = cleaned.indexOf('```json');
+    const unclosedIdx = cleaned.search(/```(?:json|JSON|javascript|js|text)?/i);
     if (unclosedIdx !== -1) {
       cleaned = cleaned.substring(0, unclosedIdx);
     }
     // 3. Strip JSON command headers that LLM generates right before the JSON block
-    cleaned = cleaned.replace(/(?:\r?\n)*\d*\.?\s*(?:\*\*|###|##)?\s*JSON[- ]Kommando(?:er)?(?:\s*\(.*?\))?:?\s*(?:\*\*|###|##)?\s*(?:\r?\n)*/gi, '\n');
+    cleaned = cleaned.replace(/(?:\r?\n)*\d*\.?\s*(?:\*\*|###|##)?\s*(?:JSON|JS)[- ]Kommando(?:er)?(?:\s*\(.*?\))?:?\s*(?:\*\*|###|##)?\s*(?:\r?\n)*/gi, '\n');
     return cleaned.trim();
   }
 
@@ -363,9 +722,6 @@ export class AIService {
     }
   }
 
-  /**
-   * Generates the System Prompt for the AI based on the active view and notation
-   */
   static generateSystemPrompt(
     view: View,
     concepts: ConceptNode[],
@@ -394,8 +750,11 @@ export class AIService {
     // Optional: If your View model has a 'description', inject it to maintain purpose across messages.
     const viewContext = (view as any).description ? `\n### OVERORDNET FORMÅL MED GRAFEN\n${(view as any).description}\n` : '';
 
-    if (view.type === 'c4') {
-      return `Du er en ekspert i softwarearkitektur, der fungerer som en insisterende, men konstruktiv AI-arkitekt/sparringspartner. Du hjælper brugeren med at designe systemer ud fra C4-modellens principper, som i dette værktøj (KnowledgeGraphStudio) er mappet til en meget specifik ontologi.
+    const formatBlock = buildOutputFormatBlock(view.type, allowedTypes);
+
+    const getPromptBody = () => {
+      if (view.type === 'c4') {
+        return `Du er en ekspert i softwarearkitektur, der fungerer som en insisterende, men konstruktiv AI-arkitekt/sparringspartner. Du hjælper brugeren med at designe systemer ud fra C4-modellens principper, som i dette værktøj (KnowledgeGraphStudio) er mappet til en meget specifik ontologi.
 
 Din opgave er at bygge en gyldig model gennem en dialog på dansk og omsætte arkitekturvalgene til JSON-kommandoer. Du skal overholde systemets syntaks og valideringsregler 100 % præcist. Lokale parsere vil fejle, hvis du afviger fra nedenstående strenge regler.
 
@@ -406,7 +765,7 @@ Din opgave er at bygge en gyldig model gennem en dialog på dansk og omsætte ar
 Når du interagerer med brugeren, skal du guide dem gennem denne strukturerede proces. Vær altid konsultativ, analytisk og metodisk.
 
 Inspireret af "grill-me" og "grill-with-docs" metoderne skal du anvende følgende adfærd under dialogen:
-- **Fokuseret interview (ét spørgsmål af gangen):** Gå systematisk igennem forgreningspunkter og regler. Stil ét fokuseret spørgsmål, kom med din egen anbefaling til, hvordan det skal løses/mappes i C4, og vent på brugerens feedback.
+- **Fokuseret interview (ét spørgsmål af gangen):** Gå systematisk igennem forgreningspunkter og regler. Stil ét fokuseret spørgsmål, kom med din egen anbefaling to, hvordan det skal løses/mappes i C4, og vent på brugerens feedback.
 - **Skærp sproget og terminologien (Sharpen Terminology):** Udfordr brugeren ud fra ontologien. Hvis brugeren f.eks. kalder en intern klasse for en "container", skal du minde om, at en container skal være en uafhængigt deployerbar enhed. Hvis brugeren vagt nævner "databasen", så udfordr dem: "Hvilken type database er det, og hvilken container ejer den? Det skal vi vide for at mappe det korrekt."
 - **Stress-test arkitekturen:** Spørg ind til datastrømme, synkronitet, integrationsmønstre og fejlscenarier. (F.eks. "Hvad sker der, hvis API'et går ned? Skal vi bruge en 'delivers_to' (asynkron) relation via en message queue her i stedet for 'uses'?").
 
@@ -431,52 +790,11 @@ ${conceptsSummary || '(Ingen noder oprettet endnu)'}
 Eksisterende Relationer på canvasset:
 ${relationsSummary || '(Ingen relationer oprettet endnu)'}
 
----
+**Start samtalen nu ved at byde brugeren velkommen, slå fast at du vil sparre omkring vidensgrafen ud fra bedste ontologiske praksis, og stil det første spørgsmål. Husk dine Quick Replies!**`;
+      }
 
-### DIT OUTPUT FORMAT OG CHAIN OF THOUGHT
-
-Når I er nået til enighed om en ændring, eller når det er tydeligt, hvad der skal modelleres, SKAL du foreslå ændringerne via et JSON-kommandoblok.
-
-VIGTIGT: Før du udskriver JSON-blokken, skal du redegøre for din "Chain of Thought". Forklar i teksten *hvorfor* du vælger de specifikke noder og relationer (f.eks. "Da brugerdatabasen er en separat kørende proces, opretter vi den som en 'application_component'. Fordi den ejes af e-handelsplatformen, tildeler vi den via 'setParent' til dette 'system'.").
-
-Hurtig-svar (Quick Replies):
-For at hjælpe brugeren med at svare hurtigt på dit spørgsmål, skal du ALTID foreslå 2-3 konkrete svarmuligheder i bunden af dit svar (før JSON-blokken) i formatet:
-* [Valg A]: <kort svarmulighed på dansk>
-* [Valg B]: <kort svarmulighed på dansk>
-
-JSON-blokken SKAL pakkes ind i et markdown codeblock (\`\`\`json ... \`\`\`) og placeres helt til sidst i din besked.
-
-Kommando-schema (et array af objekter):
-\`\`\`json
-[
-  {
-    "action": "addConcept",
-    "conceptType": "application_component",
-    "name": "PostgreSQL Database"
-  },
-  {
-    "action": "setParent",
-    "conceptId": "application_component:postgresql_database",
-    "parentConceptId": "system:ehandelsplatform"
-  },
-  {
-    "action": "addRelation",
-    "sourceConceptId": "application_component:webapp",
-    "targetConceptId": "application_component:postgresql_database",
-    "name": "uses",
-    "relationType": "uses"
-  }
-]
-\`\`\`
-
-REGLER FOR JSON:
-1. Generering af ID: Brug "<type>:<kebab-navn>" (f.eks. "application_component:postgresql-database").
-2. Referencer: Brug de præcise ID'er fra "Eksisterende Noder" overfor, hvis du forbinder til noget, der allerede findes.
-3. Foreslå KUN ændringer, der overholder viewets vidensbase og relationstyper!`;
-    }
-
-    if (view.type === 'dcr') {
-      return `Du er en ekspert i forretningsprocesmodellering med speciale i Dynamic Condition Response (DCR) grafer. Din primære opgave er at hjælpe brugere med at kortlægge, forstå og formidle deres vidensintensive og fleksible arbejdsprocesser. Du SKAL svare på dansk.
+      if (view.type === 'dcr') {
+        return `Du er en ekspert i forretningsprocesmodellering med speciale i Dynamic Condition Response (DCR) grafer. Din primære opgave er at hjælpe brugere med at kortlægge, forstå og formidle deres vidensintensive og fleksible arbejdsprocesser. Du SKAL svare på dansk.
 
 DCR-grafer er en deklarativ modelleringsmetode, hvilket betyder, at processen er baseret på regler (constraints) i stedet for faste, sekventielle stier som i traditionelle imperative modeller (f.eks. BPMN). Du arbejder ud fra en "open-world" antagelse: I en DCR-model er alle handlinger tilladt til enhver tid, medmindre det eksplicit er forbudt af en regel.
 
@@ -503,17 +821,12 @@ Inspireret af "grill-me" og "grill-with-docs" metoderne skal du anvende følgend
    - Udfordr brugeren på undtagelser (negative paths) og alternative udfald. Spørg fx: "Hvad sker der, hvis kunden annullerer?", eller "Skal aktivitet Y springes over, hvis X bliver afvist?" Dette er kritisk for at fange Exclusion/Inclusion regler.
 
 3. **Fase 3: Omsætning til DCR Regler**
-   - Kortlæg de indsamlede scenarier til DCR-relationer:
-     - Handling kræver forudgående handling: Map til Condition.
-     - Handling udløser behov for opfølgende handling: Map til Response.
-     - Handling gør et andet trin irrelevant/ugyldigt: Map til Exclusion (brug "self-exclusion", hvis handlingen ikke må gentages).
-     - Handling åbner en lukket dør igen: Map til Inclusion.
-     - En forpligtelse skal være afviklet før videre fremdrift: Map til Milestone.
+   - Kortlæg de indsamlede scenarier til DCR-relationer: Condition, Response, Exclusion, Inclusion, Milestone.
 
 4. **Fase 4: Formidling, Validering og Feedback**
-   - Forklar modellen i almindeligt sprog: Du må ikke blot aflevere en teknisk model. Du skal oversætte logikken i de valgte DCR-regler til hverdagssprog, som domæneeksperten forstår. F.eks.: "For at sikre, at en sag vurderes, når den modtages, har jeg sat en 'Response'-regel fra 'Modtag Sag' til 'Vurder Sag'. Det lægger en forpligtelse (Pending) på systemet om, at vurderingen skal ske."
-   - Klargøre start-tilstande: Gør det klart, hvilke aktiviteter der starter som "Excluded" (f.eks. fordi de kun aktiveres ved fejl) og "Pending".
-   - Teste grænsetilfælde: Spørg ind til logiske blindgyder (f.eks. deadlocks i grafen). F.eks: "Lige nu kan brugeren sende tilbuddet uendeligt mange gange. Er det meningen, eller skal 'Send Tilbud' ekskludere sig selv efter første gang?".
+   - Forklar modellen i almindeligt sprog: oversæt logikken i de valgte DCR-regler til hverdagssprog, som domæneeksperten forstår.
+   - Klargøre start-tilstande: Gør det klart, hvilke aktiviteter der starter som "Excluded" og "Pending".
+   - Teste grænsetilfælde: Spørg ind til logiske blindgyder (f.eks. deadlocks i grafen).
 
 ${viewContext}
 
@@ -531,68 +844,20 @@ ${conceptsSummary || '(Ingen noder oprettet endnu)'}
 Eksisterende Relationer på canvasset:
 ${relationsSummary || '(Ingen relationer oprettet endnu)'}
 
----
+**Start samtalen nu ved at byde brugeren velkommen, slå fast at du vil sparre omkring processen og reglerne, og stil det første spørgsmål. Husk dine Quick Replies!**`;
+      }
 
-### DIT OUTPUT FORMAT OG CHAIN OF THOUGHT
-
-Når I er nået til enighed om en ændring, eller når det er tydeligt, hvad der skal modelleres, SKAL du foreslå ændringerne via et JSON-kommandoblok.
-
-VIGTIGT: Før du udskriver JSON-blokken, skal du redegøre for din "Chain of Thought". Forklar i teksten *hvorfor* du vælger specifikke relationer ud fra brugerens domæne (f.eks. "Jeg tilføjer en 'has_response' relation, fordi modtagelsen af ansøgningen forpligter sagsbehandleren til at vurdere den.").
-
-Hurtig-svar (Quick Replies):
-For at hjælpe brugeren med at svare hurtigt på dit spørgsmål, skal du ALTID foreslå 2-3 konkrete svarmuligheder i bunden af dit svar (før JSON-blokken) i formatet:
-* [Valg A]: <kort svarmulighed på dansk>
-* [Valg B]: <kort svarmulighed på dansk>
-
-JSON-blokken SKAL pakkes ind i et markdown codeblock (\`\`\`json ... \`\`\`) og placeres helt til sidst i din besked.
-
-Kommando-schema (et array af objekter):
-\`\`\`json
-[
-  {
-    "action": "addConcept",
-    "conceptType": "event",
-    "name": "Ansøgning modtaget"
-  },
-  {
-    "action": "addRelation",
-    "sourceConceptId": "event:ansogning-modtaget",
-    "targetConceptId": "event:kvittering-afsendt",
-    "name": "Response",
-    "relationType": "has_response"
-  },
-  {
-    "action": "setParent",
-    "conceptId": "event:ansogning-modtaget",
-    "parentConceptId": "bounded_context:sagsbehandling"
-  }
-]
-\`\`\`
-
-REGLER FOR JSON:
-1. Generering af ID: Brug "<type>:<kebab-navn>" (f.eks. "event:ansogning-modtaget"). 
-2. Referencer: Brug de præcise ID'er fra "Eksisterende Noder" overfor, hvis du forbinder til noget, der allerede findes.
-3. Foreslå KUN ændringer, der overholder viewets vidensbase og relationstyper!`;
-    }
-
-    if (view.type === 'archimate') {
-      return `Du er en stærkt analytisk AI-arkitekt og ekspert i IT-arkitektur samt ArchiMate 3.2. Din opgave er at hjælpe brugeren med at kortlægge og modellere deres arkitektur gennem en interaktiv dialog på dansk, der munder ud i 100 % stringente JSON-kommandoer til vores vidensgraf.
-
-Kritiske Krav til JSON & Data:
-Du skal overholde systemets strenge JSON-nøgler og ID-formater uden undtagelse. Hvis du afviger fra formatet, crasher systemet.
-1. Nøgler til "addConcept": MÅ KUN være "action", "conceptType", og "name". Generer ALDRIG "id" eller "type".
-2. Nøgler til "addRelation": MÅ KUN være "action", "sourceConceptId", "targetConceptId", "name", og "relationType". Generer ALDRIG "source", "target" eller "type".
-3. Nøgler til "setParent": MÅ KUN være "action", "conceptId", og "parentConceptId". Generer ALDRIG "child" eller "parent".
-4. ID GENERERING: Alle ID'er, du refererer til i addRelation eller setParent, følger altid mønsteret <conceptType>:<navn-i-kebab-case>. (F.eks. hvis du netop har foreslået en application_component med name "Ordre Service", er ID'et "application_component:ordre-service").
+      if (view.type === 'archimate') {
+        return `Du er en stærkt analytisk AI-arkitekt og ekspert i IT-arkitektur samt ArchiMate 3.2. Din opgave er at hjælpe brugeren med at kortlægge og modellere deres arkitektur gennem en interaktiv dialog på dansk, der munder ud i JSON-kommandoer til vores vidensgraf.
 
 ---
 
-### 1. Adfærd og Dialogmetode ("Grill-Me")
-*   **Fokuseret interview:** Styr samtalen stramt. Stil kun ét spørgsmål ad gangen. Præsenter din faglige anbefaling til et specifikt element eller en relation, og afvent svar.
+### METODE OG DIALOG (Dine Instruktioner)
+*   **Fokuseret interview ("Grill-Me"):** Styr samtalen stramt. Stil kun ét spørgsmål ad gangen. Præsenter din faglige anbefaling til et specifikt element eller en relation, og afvent svar.
 *   **Skærp sproget:** Udfordr brugeren, hvis de bruger vage termer (fx "systemet bruger databasen"). Tving dem til at vælge præcise koder som serving, access eller realization. Sørg for at de ikke blander lag ulogisk.
 *   **Stress-test:** Spørg kritisk ind til asynkronitet (flow) vs. synkronitet (triggering), fejlscenarier, og hvem der har ansvaret (assignment).
 
-### 2. Faser i Dialogen
+### Faser i Dialogen
 Guid brugeren fasisk. Hop ikke videre, før fasen er afklaret:
 *   **Fase 1: Motivation & Strategi:** stakeholder, goal, capability.
 *   **Fase 2: Forretningslag:** business_role, process, business_service.
@@ -616,55 +881,11 @@ ${conceptsSummary || '(Ingen noder oprettet endnu)'}
 Eksisterende Relationer på canvasset:
 ${relationsSummary || '(Ingen relationer oprettet endnu)'}
 
----
-
-### 3. Svarstruktur
-Når du svarer, SKAL du følge denne skabelon i din tekst:
-
-1.  **Chain of Thought:** Redegør for hvorfor du anbefaler specifikke element-typer og relationer ud fra ArchiMate 3.2.
-2.  **AI'ens anbefaling & Spørgsmål:** Giv din anbefaling og stil ét stress-test-spørgsmål.
-
-JSON-kodeblokken (Kun ved accept) skal placeres i en standard json-kodeblok (\`\`\`json ... \`\`\`) til sidst. Følg de strikse regler.
-
-3.  **Hurtig-svar:** Afslut altid med 2-3 valgmuligheder:
-    * [Valg A]: <Kort svarmulighed>
-    * [Valg B]: <Kort svarmulighed>
-
-### 4. EKSAKT JSON EKSEMPEL (MÅ IKKE AFVIGES)
-Når du genererer JSON, skal det matche denne struktur 100 %:
-
-\`\`\`json
-[
-  {
-    "action": "addConcept",
-    "conceptType": "application_component",
-    "name": "Ordre Service"
-  },
-  {
-    "action": "addConcept",
-    "conceptType": "process",
-    "name": "Opret Ordre"
-  },
-  {
-    "action": "addRelation",
-    "sourceConceptId": "application_component:ordre-service",
-    "targetConceptId": "process:opret-ordre",
-    "name": "Assignment",
-    "relationType": "assignment"
-  },
-  {
-    "action": "setParent",
-    "conceptId": "application_component:ordre-service",
-    "parentConceptId": "bounded_context:ordre-domaene"
-  }
-]
-\`\`\`
-
 **Start samtalen nu ved at byde brugeren velkommen, slå fast at du vil "grille" deres arkitektur ud fra ArchiMate-standarden, og stil det første spørgsmål til Fase 1 (Motivation & Strategi). Husk dine Quick Replies!**`;
-    }
+      }
 
-    if (view.type === 'conceptual_model') {
-      return `Du fungerer som en erfaren domæneanalytiker og streng ekspert i den danske Fællesoffentlige Digitale Arkitektur (FDA), specifikt "De fællesoffentlige regler for begrebs- og datamodellering". Din opgave er at guide brugeren sikkert og præcist gennem opbygningen af en forretningsnær Begrebsmodel (conceptual_model) i KnowledgeGraphStudio.
+      if (view.type === 'conceptual_model') {
+        return `Du fungerer som en erfaren domæneanalytiker og streng ekspert i den danske Fællesoffentlige Digitale Arkitektur (FDA), specifikt "De fællesoffentlige regler for begrebs- og datamodellering". Din opgave er at guide brugeren sikkert og præcist gennem opbygningen af en forretningsnær Begrebsmodel (conceptual_model) i KnowledgeGraphStudio.
 
 DIN ROLLE OG DIALOGSTRATEGI:
 - Styr samtalen stramt: Stil altid KUN ét afklarende spørgsmål ad gangen for at sikre høj kvalitet og logisk sammenhæng.
@@ -675,15 +896,6 @@ DIN ROLLE OG DIALOGSTRATEGI:
 TEKNISKE BEGRÆNSNINGER FOR BEGREBSMODELLEN:
 - Element-type (conceptType): KUN \`class\` er tilladt.
 - Relationstyper (relationType): KUN \`generalizes\`, \`associates_with\`, \`aggregates\`, \`composed_of\` må anvendes. Relationer må KUN forbinde \`class\` til \`class\`.
-- ID Format: Skal altid overholde formatet \`class:<kebab-case-navn>\` (fx \`class:offentlig-myndighed\`).
-
-JSON PARSER-KRAV (SKAL OVERHOLDES 100%):
-Generér dine handlinger i et præcist JSON-array inden i en standard JSON-kodeblok i bunden af dit svar.
-Du må KUN anvende disse tre handlinger og deres eksakte nøgler:
-1. Opret Begreb: {"action": "addConcept", "conceptType": "class", "name": "<Begrebsnavn>"} 
-   (VIGTIGT: Ingen "id" eller "type" nøgler her! Systemet genererer automatisk ID'et baseret på navnet).
-2. Opret Relation: {"action": "addRelation", "sourceConceptId": "class:<kebab-case>", "targetConceptId": "class:<kebab-case>", "name": "<Relationsnavn>", "relationType": "<relationType>"}
-3. Sæt Taksonomi (Arv): {"action": "setParent", "conceptId": "class:<kebab-case>", "parentConceptId": "class:<kebab-case>"}
 
 ${viewContext}
 
@@ -701,49 +913,11 @@ ${conceptsSummary || '(Ingen noder oprettet endnu)'}
 Eksisterende Relationer på canvasset:
 ${relationsSummary || '(Ingen relationer oprettet endnu)'}
 
----
+**Start samtalen nu ved at byde brugeren velkommen, slå fast at du vil sparre omkring begrebsmodellen ud fra den fællesoffentlige standard (FDA) for at sikre præcise Aristoteliske definitioner, og stil det første spørgsmål. Husk dine Quick Replies!**`;
+      }
 
-FORMAT FOR DIT OUTPUT:
-Dit svar skal altid bestå af følgende sektioner i denne rækkefølge:
-
-1. **Arkitektonisk analyse**
-(En kort intern redegørelse for dine semantiske overvejelser. Skriv i et analytisk sprog. Undgå udtryk som "chain of thought", "insights" eller "reasoning").
-
-2. **Anbefalinger og Begrebsafklaring**
-(Din faglige dialog med brugeren. Fremlæg dine Aristoteliske definitioner for de aktuelle begreber, og afslut altid med ét specifikt spørgsmål for at drive modelleringen videre).
-
-JSON-kommandoer (hvis relevant) placeres direkte under dialogen i en standard json-kodeblok:
-\`\`\`json
-[
-  {
-    "action": "addConcept",
-    "conceptType": "class",
-    "name": "Ansøgning"
-  },
-  {
-    "action": "addConcept",
-    "conceptType": "class",
-    "name": "Sag"
-  },
-  {
-    "action": "addRelation",
-    "sourceConceptId": "class:ansogning",
-    "targetConceptId": "class:sag",
-    "name": "Indgår i",
-    "relationType": "associates_with"
-  }
-]
-\`\`\`
-
-4. **Quick Replies**
-* [Valg A]: <Kort svarmulighed>
-* [Valg B]: <Kort svarmulighed>
-
-**Start samtalen nu ved at byde brugeren velkommen, slå fast at du vil "grille" deres begrebsmodel ud fra den fællesoffentlige standard (FDA) for at sikre præcise Aristoteliske definitioner, og stil det første spørgsmål. Husk dine Quick Replies!**`;
-    }
-
-    if (view.type === 'information_model') {
-      return `Du fungerer som en erfaren datamodellør og ekspert i den danske Fællesoffentlige Digitale Arkitektur (FDA). Din opgave er at guide brugeren stringent og professionelt gennem opbygningen af en platformsneutral og logisk Informationsmodel (information_model) i KnowledgeGraphStudio.
+      if (view.type === 'information_model') {
+        return `Du fungerer som en erfaren datamodellør og ekspert i den danske Fællesoffentlige Digitale Arkitektur (FDA). Din opgave er at guide brugeren stringent og professionelt gennem opbygningen af en platformsneutral og logisk Informationsmodel (information_model) i KnowledgeGraphStudio.
 
 DIN ROLLE OG DIALOGSTRATEGI:
 - Styr dialogen stramt: Stil altid KUN ét afklarende spørgsmål ad gangen.
@@ -752,18 +926,10 @@ DIN ROLLE OG DIALOGSTRATEGI:
 
 TEKNISKE BEGRÆNSNINGER FOR INFORMATIONSMODELLEN:
 - Element-typer (conceptType): KUN \`class\` (Informationsklasse), \`datatype\` (Datatype) eller \`enumeration\` (Kodeliste) må anvendes.
-- ID Format: Skal altid overholde formatet \`<conceptType>:<kebab-case-navn>\` (fx \`class:person\`, \`datatype:heltal\`, \`enumeration:sagsstatus\`).
 - Tilladte Relationstyper (relationType):
   1. \`generalizes\`, \`associates_with\`, \`aggregates\`, \`composed_of\`: Må KUN bruges mellem \`class\` og \`class\`.
   2. \`has_type\`: Må KUN gå fra \`class\` til \`datatype\` eller \`enumeration\`. Navnet på relationen udgør attributnavnet (fx "sagsnummer").
   3. \`wasDerivedFrom\`: Må KUN gå fra en informationsklasse (\`class\`) til en begrebsklasse (\`class\`).
-
-JSON PARSER-KRAV (SKAL OVERHOLDES 100%):
-Generér dine handlinger i et præcist JSON-array i en kodeblok nederst. Du må KUN anvende disse tre handlinger:
-1. Opret Element: {"action": "addConcept", "conceptType": "class" | "datatype" | "enumeration", "name": "<Navn>"} 
-   (VIGTIGT: Ingen "id" eller "type" nøgler! ID genereres automatisk).
-2. Opret Relation: {"action": "addRelation", "sourceConceptId": "<conceptType>:<kebab-case>", "targetConceptId": "<conceptType>:<kebab-case>", "name": "<Relationsnavn>", "relationType": "<relationType>"}.
-3. Sæt Taksonomi: {"action": "setParent", "conceptId": "<conceptType>:<kebab-case>", "parentConceptId": "<conceptType>:<kebab-case>"}.
 
 ${viewContext}
 
@@ -781,66 +947,19 @@ ${conceptsSummary || '(Ingen noder oprettet endnu)'}
 Eksisterende Relationer på canvasset:
 ${relationsSummary || '(Ingen relationer oprettet endnu)'}
 
----
+**Start samtalen nu ved at byde brugeren velkommen, slå fast at du vil sparre omkring informationsmodellen ud fra de fællesoffentlige regler (FDA), og stil det første spørgsmål. Husk dine Quick Replies!**`;
+      }
 
-FORMAT FOR DIT OUTPUT:
-Dit svar skal altid bestå af følgende sektioner i denne rækkefølge:
-
-1. **Arkitektonisk analyse**
-(En kort intern redegørelse for dine logiske overvejelser. Begrund valg af datatyper, enumerations og hvordan du vil sikre sporbarhed via wasDerivedFrom. Undgå ord som "chain of thought", "insights" eller "reasoning").
-
-2. **Anbefalinger og Datastruktur**
-(Din faglige dialog med brugeren. Forklar strukturen, opsummér attributter og deres typer. Spørg specifikt efter informationsklassens kildebegreb i begrebsmodellen for at overholde sporbarhedskravet).
-
-JSON-kommandoer (hvis relevant) placeres direkte under dialogen i en standard json-kodeblok:
-\`\`\`json
-[
-  {
-    "action": "addConcept",
-    "conceptType": "class",
-    "name": "Ansøgning"
-  },
-  {
-    "action": "addConcept",
-    "conceptType": "datatype",
-    "name": "Tekst"
-  },
-  {
-    "action": "addRelation",
-    "sourceConceptId": "class:ansogning",
-    "targetConceptId": "datatype:tekst",
-    "name": "ansøgerNavn",
-    "relationType": "has_type"
-  }
-]
-\`\`\`
-
-4. **Quick Replies**
-* [Valg A]: <Kort svarmulighed>
-* [Valg B]: <Kort svarmulighed>
-
-**Start samtalen nu ved at byde brugeren velkommen, slå fast at du vil sparre omkring informationsmodellen ud fra de fællesoffentlige regler (FDA), og stil det første spørgsmål (Fase 1: Identificer informationsklasser og deres sporbarhed). Husk dine Quick Replies!**`;
-    }
-
-    // Default system prompt structure for other views
-    return `Du er en erfaren ontolog, videns-analytiker og AI-arkitekt for KnowledgeGraphStudio. Din opgave er at hjælpe brugeren med at bygge en logisk, semantisk konsistent og maskinlæsbar vidensgraf ud fra "best practices" (fx W3C RDF/OWL og Concept Mapping-teori).
+      // Default/Generic View
+      return `Du er en erfaren ontolog, videns-analytiker og AI-arkitekt for KnowledgeGraphStudio. Din opgave er at hjælpe brugeren med at bygge en logisk, semantisk konsistent og maskinlæsbar vidensgraf ud fra "best practices" (fx W3C RDF/OWL og Concept Mapping-teori).
 
 # DINE OPGAVER OG ADFÆRD:
 1. **Grill-Me adfærd:** Stil KUN ét klart, fokuseret spørgsmål ad gangen. Foreslå en konkret anbefaling til grafens struktur, og vent altid på brugerens svar, før du genererer JSON eller fortsætter.
-2. **Udfordr brugeren:** Spot aktivt ulogiske strukturer og bed brugeren om at rette dem. 
+2. **Udfordr brugeren:** Spot aktivt ulogiske strukturer og bed brugeren om at rette dem.
    - Hvis brugeren foreslår flertalsnavne (fx "Kunder"), så ret det til ental ("Kunde").
-   - Hvis brugeren foreslår svage relationer (fx "har forbindelse til", "relateret til"), så bed om et præcist, aktivt verbum (fx "køber_af", "udløser", "indeholder"). Forklar kort, at det svækker grafens kvalitet og læsbarhed, fordi forbindelsen ikke danner en logisk sætning.
-3. **Ontologiske principper:** Håndhæv at "is-a" og specialiseringer (arv/taksonomier) modelleres som en relation af typen \`specialization\` via \`addRelation\` (så der tegnes en synlig pil på canvasset). Brug ALDRIG \`setParent\` til at repræsentere "is-a" relationer mellem almindelige entiteter, da \`setParent\` udelukkende må bruges til strukturel indkapsling/gruppering (fx i en \`bounded_context\`). Hver virkelige ting har kun én node. Relationen skal have korrekt retning.
-4. **Sammenhængende graf (Ingen isolerede noder):** Du må generelt ikke foreslå at oprette nye noder uden også at oprette relationer (edges), der forbinder dem til de eksisterende noder på canvasset (medmindre canvasset er helt tomt). Hver ny node skal forankres i det eksisterende netværk med det samme.
-
-# PLATFORMENS KRAV (STRIKSE JSON-REGLER):
-Du kan kalde JSON-objekter for at ændre grafen. Brug altid det præcise format.
-${allowedTypes ? `- Node-typer (conceptType): Tilladte typer er: ${allowedTypes.join(', ')}` : '- Node-typer (conceptType): Tilladte typer er typisk entity, process, actor, event, bounded_context.'}
-- Relations-typer (relationType): Valgfri, men vi understøtter bl.a. composition, aggregation, association.
-- ID-format: SKAL være <conceptType>:<kebab-case-navn> (fx entity:kunde-database).
-- addConcept: KUN felterne "action", "conceptType", "name". (ALDRIG "id" eller "type").
-- addRelation: KUN felterne "action", "sourceConceptId", "targetConceptId", "name", "relationType".
-- setParent: KUN felterne "action", "conceptId", "parentConceptId".
+   - Hvis brugeren foreslår svage relationer (fx "har forbindelse til"), så bed om et præcist, aktivt verbum.
+3. **Ontologiske principper:** Håndhæv at "is-a" og specialiseringer modelleres som en relation af typen \`specialization\` via \`addRelation\`. Hver virkelige ting har kun én node. Relationen skal have korrekt retning.
+4. **Sammenhængende graf (Ingen isolerede noder):** Hver ny node skal forankres i det eksisterende netværk med det samme.
 
 ${viewContext}
 
@@ -859,34 +978,10 @@ ${conceptsSummary || '(Ingen noder oprettet endnu)'}
 Eksisterende Relationer på canvasset:
 ${relationsSummary || '(Ingen relationer oprettet endnu)'}
 
----
-
-# DIT OUTPUT FORMAT:
-Du skal ALTID bygge dit svar op i følgende fire trin (og præcis i denne rækkefølge):
-
-<chain_of_thought>
-(Tænk højt herinde: Analyser brugerens input semantisk. Er der flertalsord? Er relationsnavnene vage? Er der behov for hierarki (setParent) eller flad relation (addRelation)? Hvordan bør ID'erne struktureres?)
-</chain_of_thought>
-
-[AI'ens svar, anbefaling & ét spørgsmål. Vær kort, præcis og venlig, men fasthold ontologiske standarder.]
-
-\`\`\`json
-[
-  {
-    "action": "addConcept",
-    "conceptType": "entity",
-    "name": "Kunde"
-  }
-]
-\`\`\`
-(NB: Inkluder kun JSON, hvis der er opnået enighed om at tilføje/ændre noget, ellers udelad JSON-blokken).
-
-Hurtig-svar (Quick Replies):
-For at hjælpe brugeren med at svare hurtigt på dit spørgsmål, skal du ALTID foreslå 2-3 konkrete svarmuligheder i bunden af dit svar (før JSON-blokken) i formatet:
-* [Valg A]: <kort svarmulighed på dansk>
-* [Valg B]: <kort svarmulighed på dansk>
-
 **Start samtalen nu ved at byde brugeren velkommen, slå fast at du vil sparre omkring vidensgrafen ud fra bedste ontologiske praksis, og stil det første spørgsmål. Husk dine Quick Replies!**`;
+    };
+
+    return `${formatBlock}\n\n---\n\n${getPromptBody()}`;
   }
 
   /**
@@ -966,6 +1061,33 @@ For at hjælpe brugeren med at svare hurtigt på dit spørgsmål, skal du ALTID 
             }
             errors.push(`Relationen "${cmd.relationType || cmd.name}" er ikke tilladt fra en "${sourceType}" til en "${targetType}" under ${view.type}-spillereglerne.${hint}`);
           }
+        }
+      } else if (cmd.action === 'updateConcept') {
+        const type = conceptTypeMap.get(cmd.conceptId);
+        if (!type) {
+          errors.push(`Elementet "${cmd.conceptId}" findes ikke og kan ikke opdateres.`);
+        } else if (cmd.updates?.conceptType) {
+          const newType = cmd.updates.conceptType;
+          if (notation?.allowedConceptTypes && !notation.allowedConceptTypes.includes(newType)) {
+            errors.push(`Elementtypen "${newType}" er ikke tilladt i ${view.type}-diagrammer.`);
+          }
+        }
+      } else if (cmd.action === 'deleteElement') {
+        if (cmd.elementType === 'concept') {
+          if (!conceptTypeMap.has(cmd.elementId)) {
+            errors.push(`Elementet "${cmd.elementId}" findes ikke og kan ikke slettes.`);
+          }
+        } else {
+          const graphStore = useGraphStore.getState();
+          const relationExists = graphStore.relations.some(r => r.id === cmd.elementId);
+          if (!relationExists) {
+            errors.push(`Relationen "${cmd.elementId}" findes ikke og kan ikke slettes.`);
+          }
+        }
+      } else if (cmd.action === 'addProperty') {
+        const type = conceptTypeMap.get(cmd.conceptId);
+        if (!type) {
+          errors.push(`Elementet "${cmd.conceptId}" findes ikke, så der kan ikke tilføjes egenskaber til det.`);
         }
       }
     });
@@ -1055,8 +1177,9 @@ For at hjælpe brugeren med at svare hurtigt på dit spørgsmål, skal du ALTID 
   static async sendChatMessage(
     viewId: ElementId,
     userMessage: string,
-    onChunk?: (text: string) => void
-  ): Promise<{ responseText: string; proposals: ProposedCommandInput[] }> {
+    onChunk?: (text: string) => void,
+    onStatus?: (status: { attempt: number; total: number; errors?: string[] } | null) => void
+  ): Promise<{ responseText: string; proposals: ProposedCommandInput[]; validationErrors?: string[] }> {
     const aiStore = useAIStore.getState();
     const graphStore = useGraphStore.getState();
     
@@ -1112,7 +1235,7 @@ For at hjælpe brugeren med at svare hurtigt på dit spørgsmål, skal du ALTID 
               conceptId: p.conceptId,
               parentConceptId: p.parentConceptId,
             };
-          } else {
+          } else if (p.action === 'addRelation') {
             return {
               action: 'addRelation',
               sourceConceptId: p.sourceConceptId,
@@ -1120,6 +1243,8 @@ For at hjælpe brugeren med at svare hurtigt på dit spørgsmål, skal du ALTID 
               name: p.name,
               relationType: p.relationType,
             };
+          } else {
+            return p;
           }
         }))} \n\`\`\`` : ''),
       }));
@@ -1146,6 +1271,7 @@ For at hjælpe brugeren med at svare hurtigt på dit spørgsmål, skal du ALTID 
         let attempts = 0;
         let currentResponseText = '';
         let proposals: ProposedCommandInput[] = [];
+        let lastValidationErrors: string[] = [];
 
         while (attempts < 3) {
           attempts++;
@@ -1153,6 +1279,8 @@ For at hjælpe brugeren med at svare hurtigt på dit spørgsmål, skal du ALTID 
           if (onChunk) {
             onChunk(''); // clear previous attempt's text
           }
+          
+          onStatus?.({ attempt: attempts, total: 3, errors: attempts > 1 ? lastValidationErrors : undefined });
 
           const response = await engine.chat.completions.create({
             messages: webllmMessages,
@@ -1171,16 +1299,51 @@ For at hjælpe brugeren med at svare hurtigt på dit spørgsmål, skal du ALTID 
 
           proposals = parseProposedCommands(currentResponseText);
 
-          if (proposals.length === 0) {
-            const cleanResponseText = currentResponseText.replace(/```json[\s\S]*?```/g, '').trim();
-            this.resetInactivityTimer();
-            return { responseText: cleanResponseText, proposals: [] };
+          let jsonParseErrorMsg = '';
+          const codeBlockMatch = currentResponseText.match(/```(?:json|JSON|javascript|js|text)?([\s\S]*?)(?:```|$)/i);
+          const hasJsonBlock = !!codeBlockMatch;
+          
+          if (hasJsonBlock && codeBlockMatch) {
+            const jsonPart = codeBlockMatch[1].trim();
+            if (jsonPart && jsonPart !== '[]' && jsonPart !== '[\n]') {
+              try {
+                if (proposals.length === 0) {
+                  const startArr = jsonPart.indexOf('[');
+                  const endArr = jsonPart.lastIndexOf(']');
+                  const arrayContent = (startArr !== -1 && endArr !== -1 && endArr > startArr)
+                    ? jsonPart.substring(startArr, endArr + 1)
+                    : jsonPart;
+                  
+                  try {
+                    JSON.parse(arrayContent);
+                  } catch (errDirect) {
+                    JSON.parse(repairJson(arrayContent));
+                  }
+                }
+              } catch (e: any) {
+                jsonParseErrorMsg = e.message || 'Ugyldig JSON-syntaks';
+              }
+            }
           }
 
           const validationErrors = this.validateCommands(proposals, view, concepts);
-          if (validationErrors.length === 0) {
-            const cleanResponseText = currentResponseText.replace(/```json[\s\S]*?```/g, '').trim();
+          if (jsonParseErrorMsg) {
+            validationErrors.push(`Ugyldig JSON-syntaks: ${jsonParseErrorMsg}. Sørg for at returnere et fuldt gyldigt JSON-array pakket ind i \`\`\`json ... \`\`\`.`);
+          }
+          lastValidationErrors = validationErrors;
+
+          // If there are no commands proposed, and NO json parse error, then we just exit (the AI just chatted without making proposals)
+          if (proposals.length === 0 && !jsonParseErrorMsg) {
+            const cleanResponseText = AIService.cleanResponseText(currentResponseText);
             this.resetInactivityTimer();
+            onStatus?.(null);
+            return { responseText: cleanResponseText, proposals: [] };
+          }
+
+          if (validationErrors.length === 0) {
+            const cleanResponseText = AIService.cleanResponseText(currentResponseText);
+            this.resetInactivityTimer();
+            onStatus?.(null);
             return { responseText: cleanResponseText, proposals };
           }
 
@@ -1193,14 +1356,17 @@ For at hjælpe brugeren med at svare hurtigt på dit spørgsmål, skal du ALTID 
           });
         }
 
-        const cleanResponseText = currentResponseText.replace(/```json[\s\S]*?```/g, '').trim();
+        const cleanResponseText = AIService.cleanResponseText(currentResponseText);
         this.resetInactivityTimer();
+        onStatus?.(null);
         return {
           responseText: `${cleanResponseText}\n\n*(Bemærk: AI'en forsøgte at oprette diagram-elementer, men de brød med reglerne for diagrammet og blev afvist).*`,
           proposals: [],
+          validationErrors: lastValidationErrors,
         };
       } catch (err) {
         aiStore.setDownloadProgress(null);
+        onStatus?.(null);
         throw err;
       }
     }
@@ -1227,7 +1393,7 @@ For at hjælpe brugeren med at svare hurtigt på dit spørgsmål, skal du ALTID 
             conceptId: p.conceptId,
             parentConceptId: p.parentConceptId,
           };
-        } else {
+        } else if (p.action === 'addRelation') {
           return {
             action: 'addRelation',
             sourceConceptId: p.sourceConceptId,
@@ -1235,6 +1401,8 @@ For at hjælpe brugeren med at svare hurtigt på dit spørgsmål, skal du ALTID 
             name: p.name,
             relationType: p.relationType,
           };
+        } else {
+          return p;
         }
       }))} \n\`\`\`` : ''),
     }));
@@ -1248,7 +1416,7 @@ For at hjælpe brugeren med at svare hurtigt på dit spørgsmål, skal du ALTID 
     // Reflection validation loop (max 3 attempts)
     let attempts = 0;
     let currentResponseText = '';
-
+    let lastValidationErrors: string[] = [];
 
     while (attempts < 3) {
       attempts++;
@@ -1256,6 +1424,8 @@ For at hjælpe brugeren med at svare hurtigt på dit spørgsmål, skal du ALTID 
       if (onChunk) {
         onChunk(''); // clear previous attempt's text
       }
+      
+      onStatus?.({ attempt: attempts, total: 3, errors: attempts > 1 ? lastValidationErrors : undefined });
       
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
@@ -1277,6 +1447,7 @@ For at hjælpe brugeren med at svare hurtigt på dit spørgsmål, skal du ALTID 
 
       if (!response.ok) {
         const errorText = await response.text();
+        onStatus?.(null);
         throw new Error(`LLM API fejl (${response.status}): ${errorText}`);
       }
 
@@ -1336,17 +1507,11 @@ For at hjælpe brugeren med at svare hurtigt på dit spørgsmål, skal du ALTID 
       let proposals: ProposedCommandInput[] = [];
       let jsonParseErrorMsg = '';
 
-      const hasJsonBlock = currentResponseText.includes('```json');
-      if (hasJsonBlock) {
-        let jsonPart = '';
-        const startIdx = currentResponseText.indexOf('```json') + 7;
-        const endIdx = currentResponseText.indexOf('```', startIdx);
-        if (endIdx !== -1) {
-          jsonPart = currentResponseText.substring(startIdx, endIdx).trim();
-        } else {
-          jsonPart = currentResponseText.substring(startIdx).trim();
-        }
-
+      const codeBlockMatch = currentResponseText.match(/```(?:json|JSON|javascript|js|text)?([\s\S]*?)(?:```|$)/i);
+      const hasJsonBlock = !!codeBlockMatch;
+      
+      if (hasJsonBlock && codeBlockMatch) {
+        const jsonPart = codeBlockMatch[1].trim();
         if (jsonPart && jsonPart !== '[]' && jsonPart !== '[\n]') {
           try {
             proposals = parseProposedCommands(currentResponseText);
@@ -1356,7 +1521,12 @@ For at hjælpe brugeren med at svare hurtigt på dit spørgsmål, skal du ALTID 
               const arrayContent = (startArr !== -1 && endArr !== -1 && endArr > startArr)
                 ? jsonPart.substring(startArr, endArr + 1)
                 : jsonPart;
-              JSON.parse(arrayContent);
+              
+              try {
+                JSON.parse(arrayContent);
+              } catch (errDirect) {
+                JSON.parse(repairJson(arrayContent));
+              }
             }
           } catch (e: any) {
             jsonParseErrorMsg = e.message || 'Ugyldig JSON-syntaks';
@@ -1371,9 +1541,11 @@ For at hjælpe brugeren med at svare hurtigt på dit spørgsmål, skal du ALTID 
       if (jsonParseErrorMsg) {
         validationErrors.push(`Ugyldig JSON-syntaks: ${jsonParseErrorMsg}. Sørg for at returnere et fuldt gyldigt JSON-array pakket ind i \`\`\`json ... \`\`\`.`);
       }
+      lastValidationErrors = validationErrors;
 
       if (validationErrors.length === 0) {
         const cleanText = AIService.cleanResponseText(currentResponseText);
+        onStatus?.(null);
         return { responseText: cleanText, proposals };
       }
 
@@ -1389,9 +1561,67 @@ For at hjælpe brugeren med at svare hurtigt på dit spørgsmål, skal du ALTID 
 
     // If it still fails after 3 attempts, we reject the proposals and output explanation
     const cleanText = AIService.cleanResponseText(currentResponseText);
+    onStatus?.(null);
     return {
       responseText: `${cleanText}\n\n*(Bemærk: AI'en forsøgte at oprette diagram-elementer, men de brød med reglerne for diagrammet og blev afvist).*`,
       proposals: [],
+      validationErrors: lastValidationErrors,
     };
+  }
+
+  static async generateDefinition(conceptName: string, conceptType: string): Promise<string> {
+    const config = useAIStore.getState().config;
+    const systemPrompt = `Du er en præcis ordbogsredaktør og arkitekt. Skriv en kort, præcis Aristotelisk definition på dansk for det givne begreb. En Aristotelisk definition har formen: "En [klasse] er en [overklasse/genus], der [specifik forskel/differentia]". Svar udelukkende med definitionen, ingen indledende eller afsluttende kommentarer.`;
+    const userMessage = `Begreb: "${conceptName}" (Type: "${conceptType}")`;
+
+    if (config.provider === 'api') {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (config.apiKey) {
+        headers['Authorization'] = `Bearer ${config.apiKey}`;
+      }
+
+      const response = await fetch(`${config.baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          model: config.model,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userMessage }
+          ],
+          temperature: 0.1,
+          stream: false,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`LLM API fejl (${response.status}): ${errorText}`);
+      }
+
+      const data = await response.json();
+      const definition = data.choices?.[0]?.message?.content || '';
+      return definition.trim();
+    } else {
+      const engine = await this.getEngine(config.model, (report) => {
+        useAIStore.getState().setDownloadProgress(report.text);
+      });
+      useAIStore.getState().setDownloadProgress(null);
+      useAIStore.getState().setIsModelLoaded(true);
+
+      const response = await engine.chat.completions.create({
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userMessage }
+        ],
+        temperature: 0.1,
+        stream: false,
+      });
+
+      const definition = response.choices[0]?.message?.content || '';
+      return definition.trim();
+    }
   }
 }

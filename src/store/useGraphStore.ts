@@ -66,6 +66,7 @@ export interface GraphStoreState {
   relationBuilderSourceId: ElementId | null;
   centerSelectionCount: number;
   focusMode: boolean;
+  activeCodeTab: 'full' | 'view';
   /** Non-null while the styled "last view" delete modal is open. */
   deleteConceptConfirm: { conceptIds: ElementId[]; conceptNames: string[]; viewId: ElementId } | null;
   /** Non-null while the styled view delete confirmation modal is open. */
@@ -103,6 +104,7 @@ export interface GraphStoreState {
   selectRelation: (id: ElementId | null) => void;
   centerSelectedNode: () => void;
   setFocusMode: (focus: boolean) => void;
+  setActiveCodeTab: (tab: 'full' | 'view') => void;
   setRelationBuilderOpen: (open: boolean, sourceId?: ElementId | null) => void;
   setNodeCreatorOpen: (open: boolean) => void;
   setCreateViewModalOpen: (open: boolean) => void;
@@ -221,7 +223,7 @@ export interface GraphStoreState {
   loadWorkspace: () => Promise<void>;
   saveWorkspace: () => Promise<void>;
   flush: () => void;
-  stringifyState: () => string;
+  stringifyState: (viewId?: ElementId | null) => string;
   push: (force?: boolean) => Promise<PullResult | { success: true }>;
   pull: () => Promise<PullResult>;
   fetch: () => Promise<void>;
@@ -292,6 +294,7 @@ export const useGraphStore = create<GraphStoreState>()(
       layoutVersion: 0,
       centerSelectionCount: 0,
       focusMode: false,
+      activeCodeTab: 'full',
       deleteConceptConfirm: null,
       deleteViewConfirm: null,
       _viewMembershipUndo: {},
@@ -330,6 +333,7 @@ export const useGraphStore = create<GraphStoreState>()(
       }),
       centerSelectedNode: () => set((s) => ({ centerSelectionCount: s.centerSelectionCount + 1 })),
       setFocusMode: (focus) => set({ focusMode: focus }),
+      setActiveCodeTab: (tab) => set({ activeCodeTab: tab }),
       setRelationBuilderOpen: (open, sourceId = null) => set({ 
         isRelationBuilderOpen: open, 
         relationBuilderSourceId: sourceId 
@@ -1205,7 +1209,26 @@ export const useGraphStore = create<GraphStoreState>()(
       flush: () => {
         PersistenceService.flush();
       },
-      stringifyState: () => {
+      stringifyState: (viewId) => {
+        if (viewId) {
+          const view = get().views.find(v => v.id === viewId);
+          if (view) {
+            const viewConceptIds = new Set(view.nodes.map(vn => vn.conceptId));
+            const filteredConcepts = get().concepts.filter(c => viewConceptIds.has(c.id));
+            const filteredRelations = get().relations.filter(
+              r => viewConceptIds.has(r.sourceConceptId) && viewConceptIds.has(r.targetConceptId)
+            );
+            const referencedDomainIds = new Set(filteredConcepts.map(c => c.domainId).filter(Boolean));
+            const filteredDomains = get().domains.filter(d => referencedDomainIds.has(d.id));
+
+            return PersistenceService.stringifyCurrentState({
+              domains: filteredDomains,
+              concepts: filteredConcepts,
+              relations: filteredRelations,
+              views: [],
+            });
+          }
+        }
         return PersistenceService.stringifyCurrentState(get());
       },
       push: async (force = false) => {

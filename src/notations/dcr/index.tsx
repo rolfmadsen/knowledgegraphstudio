@@ -398,38 +398,176 @@ function DcrCanvas(props: NotationCanvasProps) {
       {/* Inject SVG marker definitions for DCR Graphs */}
       <svg style={{ position: 'absolute', width: 0, height: 0, pointerEvents: 'none' }}>
         <defs>
-          {/* Condition: Yellow Circle at Start (tail) and standard arrow at End (head) */}
-          <marker id="dcr-condition-start" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6">
-            <circle cx="5" cy="5" r="4" fill="#EAB308" stroke="#EAB308" strokeWidth="1" />
+          {/* Start Markers (Arrowheads at source pointing towards target) */}
+          <marker id="dcr-condition-start" viewBox="0 0 10 10" refX="3" refY="5" markerWidth="14" markerHeight="14" orient="auto">
+            <path d="M 3 2 L 10 5 L 3 8 Z" fill="#EAB308" />
           </marker>
-          <marker id="dcr-arrow-yellow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
-            <path d="M 0 1 L 10 5 L 0 9 Z" fill="#EAB308" stroke="#EAB308" />
+          <marker id="dcr-response-start" viewBox="0 0 10 10" refX="3" refY="5" markerWidth="14" markerHeight="14" orient="auto">
+            <path d="M 3 2 L 10 5 L 3 8 Z" fill="#3B82F6" />
           </marker>
-
-          {/* Response: Blue Circle at End (head) */}
-          <marker id="dcr-response-end" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6">
-            <circle cx="5" cy="5" r="4" fill="#3B82F6" stroke="#3B82F6" strokeWidth="1" />
+          <marker id="dcr-include-start" viewBox="0 0 10 10" refX="3" refY="5" markerWidth="14" markerHeight="14" orient="auto">
+            <path d="M 3 2 L 10 5 L 3 8 Z" fill="#10B981" />
           </marker>
-          <marker id="dcr-arrow-blue" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
-            <path d="M 0 1 L 10 5 L 0 9 Z" fill="#3B82F6" stroke="#3B82F6" />
+          <marker id="dcr-exclude-start" viewBox="0 0 10 10" refX="3" refY="5" markerWidth="14" markerHeight="14" orient="auto">
+            <path d="M 3 2 L 10 5 L 3 8 Z" fill="#EF4444" />
           </marker>
-
-          {/* Include: Green Arrow with '+' on End (head) */}
-          <marker id="dcr-include-end" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
-            <path d="M 0 1 L 10 5 L 0 9 Z" fill="#10B981" stroke="#10B981" />
+          <marker id="dcr-milestone-start" viewBox="0 0 20 20" refX="3" refY="10" markerWidth="14" markerHeight="14" orient="auto">
+            <path d="M 3 2 L 20 10 L 3 18 Z" fill="white" stroke="#D946EF" strokeWidth="1.5" />
+            <path d="M 7.5 6.5 L 7.5 10" stroke="#D946EF" strokeWidth="1.5" strokeLinecap="round" />
+            <circle cx="7.5" cy="12.5" r="0.7" fill="#D946EF" />
           </marker>
 
-          {/* Exclude: Red Arrow with '%' or '-' on End (head) */}
-          <marker id="dcr-exclude-end" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
-            <path d="M 0 1 L 10 5 L 0 9 Z" fill="#EF4444" stroke="#EF4444" />
+          {/* Directional Milestone Start Markers (Upright Exclamation Mark) */}
+          <marker id="dcr-milestone-start-right" viewBox="0 0 20 20" refX="3" refY="10" markerWidth="14" markerHeight="14" orient="0">
+            <path d="M 3 2 L 20 10 L 3 18 Z" fill="white" stroke="#D946EF" strokeWidth="1.5" />
+            <path d="M 7.5 6.5 L 7.5 10" stroke="#D946EF" strokeWidth="1.5" strokeLinecap="round" />
+            <circle cx="7.5" cy="12.5" r="0.7" fill="#D946EF" />
+          </marker>
+          <marker id="dcr-milestone-start-left" viewBox="0 0 20 20" refX="17" refY="10" markerWidth="14" markerHeight="14" orient="0">
+            <path d="M 17 2 L 0 10 L 17 18 Z" fill="white" stroke="#D946EF" strokeWidth="1.5" />
+            <path d="M 12.5 6.5 L 12.5 10" stroke="#D946EF" strokeWidth="1.5" strokeLinecap="round" />
+            <circle cx="12.5" cy="12.5" r="0.7" fill="#D946EF" />
+          </marker>
+          <marker id="dcr-milestone-start-top" viewBox="0 0 20 20" refX="10" refY="17" markerWidth="14" markerHeight="14" orient="0">
+            <path d="M 2 17 L 10 0 L 18 17 Z" fill="white" stroke="#D946EF" strokeWidth="1.5" />
+            <path d="M 10 7.5 L 10 11" stroke="#D946EF" strokeWidth="1.5" strokeLinecap="round" />
+            <circle cx="10" cy="13.5" r="0.7" fill="#D946EF" />
+          </marker>
+          <marker id="dcr-milestone-start-bottom" viewBox="0 0 20 20" refX="10" refY="3" markerWidth="14" markerHeight="14" orient="0">
+            <path d="M 2 3 L 10 20 L 18 3 Z" fill="white" stroke="#D946EF" strokeWidth="1.5" />
+            <path d="M 10 6.5 L 10 10" stroke="#D946EF" strokeWidth="1.5" strokeLinecap="round" />
+            <circle cx="10" cy="12.5" r="0.7" fill="#D946EF" />
           </marker>
 
-          {/* Milestone: Fuchsia Diamond at Start (tail) and fuchsia arrow at End (head) */}
-          <marker id="dcr-milestone-start" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6">
-            <path d="M 0 5 L 5 2 L 10 5 L 5 8 Z" fill="#D946EF" stroke="#D946EF" strokeWidth="1" />
+          {/* End Markers (White-filled circles with icons at target node) */}
+          <marker id="dcr-condition-end" viewBox="0 0 20 20" refX="19" refY="10" markerWidth="14" markerHeight="14" orient="auto">
+            <circle cx="10" cy="10" r="8" fill="white" stroke="#EAB308" strokeWidth="2" />
+            <circle cx="7.5" cy="10" r="2" fill="none" stroke="#EAB308" strokeWidth="1.5" />
+            <path d="M 9.5 10 L 15 10 M 12.5 10 L 12.5 13 M 14.5 10 L 14.5 13" stroke="#EAB308" strokeWidth="1.5" strokeLinecap="round" />
           </marker>
-          <marker id="dcr-arrow-fuchsia" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
-            <path d="M 0 1 L 10 5 L 0 9 Z" fill="#D946EF" stroke="#D946EF" />
+
+          {/* Directional Condition End Markers (Upright Keys) */}
+          <marker id="dcr-condition-end-right" viewBox="0 0 20 20" refX="19" refY="10" markerWidth="14" markerHeight="14" orient="0">
+            <circle cx="10" cy="10" r="8" fill="white" stroke="#EAB308" strokeWidth="2" />
+            <circle cx="7.5" cy="10" r="2" fill="none" stroke="#EAB308" strokeWidth="1.5" />
+            <path d="M 9.5 10 L 15 10 M 12.5 10 L 12.5 13 M 14.5 10 L 14.5 13" stroke="#EAB308" strokeWidth="1.5" strokeLinecap="round" />
+          </marker>
+          <marker id="dcr-condition-end-left" viewBox="0 0 20 20" refX="1" refY="10" markerWidth="14" markerHeight="14" orient="0">
+            <circle cx="10" cy="10" r="8" fill="white" stroke="#EAB308" strokeWidth="2" />
+            <circle cx="7.5" cy="10" r="2" fill="none" stroke="#EAB308" strokeWidth="1.5" />
+            <path d="M 9.5 10 L 15 10 M 12.5 10 L 12.5 13 M 14.5 10 L 14.5 13" stroke="#EAB308" strokeWidth="1.5" strokeLinecap="round" />
+          </marker>
+          <marker id="dcr-condition-end-top" viewBox="0 0 20 20" refX="10" refY="1" markerWidth="14" markerHeight="14" orient="0">
+            <circle cx="10" cy="10" r="8" fill="white" stroke="#EAB308" strokeWidth="2" />
+            <circle cx="7.5" cy="10" r="2" fill="none" stroke="#EAB308" strokeWidth="1.5" />
+            <path d="M 9.5 10 L 15 10 M 12.5 10 L 12.5 13 M 14.5 10 L 14.5 13" stroke="#EAB308" strokeWidth="1.5" strokeLinecap="round" />
+          </marker>
+          <marker id="dcr-condition-end-bottom" viewBox="0 0 20 20" refX="10" refY="19" markerWidth="14" markerHeight="14" orient="0">
+            <circle cx="10" cy="10" r="8" fill="white" stroke="#EAB308" strokeWidth="2" />
+            <circle cx="7.5" cy="10" r="2" fill="none" stroke="#EAB308" strokeWidth="1.5" />
+            <path d="M 9.5 10 L 15 10 M 12.5 10 L 12.5 13 M 14.5 10 L 14.5 13" stroke="#EAB308" strokeWidth="1.5" strokeLinecap="round" />
+          </marker>
+
+          <marker id="dcr-response-end" viewBox="0 0 20 20" refX="19" refY="10" markerWidth="14" markerHeight="14" orient="auto">
+            <circle cx="10" cy="10" r="8" fill="white" stroke="#3B82F6" strokeWidth="2" />
+            <path d="M 10 6.5 L 10 11.5" stroke="#3B82F6" strokeWidth="2" strokeLinecap="round" />
+            <circle cx="10" cy="14.5" r="1.2" fill="#3B82F6" />
+          </marker>
+
+          {/* Directional Response End Markers (Upright Exclamation Mark) */}
+          <marker id="dcr-response-end-right" viewBox="0 0 20 20" refX="19" refY="10" markerWidth="14" markerHeight="14" orient="0">
+            <circle cx="10" cy="10" r="8" fill="white" stroke="#3B82F6" strokeWidth="2" />
+            <path d="M 10 6.5 L 10 11.5" stroke="#3B82F6" strokeWidth="2" strokeLinecap="round" />
+            <circle cx="10" cy="14.5" r="1.2" fill="#3B82F6" />
+          </marker>
+          <marker id="dcr-response-end-left" viewBox="0 0 20 20" refX="1" refY="10" markerWidth="14" markerHeight="14" orient="0">
+            <circle cx="10" cy="10" r="8" fill="white" stroke="#3B82F6" strokeWidth="2" />
+            <path d="M 10 6.5 L 10 11.5" stroke="#3B82F6" strokeWidth="2" strokeLinecap="round" />
+            <circle cx="10" cy="14.5" r="1.2" fill="#3B82F6" />
+          </marker>
+          <marker id="dcr-response-end-top" viewBox="0 0 20 20" refX="10" refY="1" markerWidth="14" markerHeight="14" orient="0">
+            <circle cx="10" cy="10" r="8" fill="white" stroke="#3B82F6" strokeWidth="2" />
+            <path d="M 10 6.5 L 10 11.5" stroke="#3B82F6" strokeWidth="2" strokeLinecap="round" />
+            <circle cx="10" cy="14.5" r="1.2" fill="#3B82F6" />
+          </marker>
+          <marker id="dcr-response-end-bottom" viewBox="0 0 20 20" refX="10" refY="19" markerWidth="14" markerHeight="14" orient="0">
+            <circle cx="10" cy="10" r="8" fill="white" stroke="#3B82F6" strokeWidth="2" />
+            <path d="M 10 6.5 L 10 11.5" stroke="#3B82F6" strokeWidth="2" strokeLinecap="round" />
+            <circle cx="10" cy="14.5" r="1.2" fill="#3B82F6" />
+          </marker>
+
+          <marker id="dcr-include-end" viewBox="0 0 20 20" refX="19" refY="10" markerWidth="14" markerHeight="14" orient="auto">
+            <circle cx="10" cy="10" r="8" fill="white" stroke="#10B981" strokeWidth="2" />
+            <path d="M 6 10 L 14 10 M 10 6 L 10 14" stroke="#10B981" strokeWidth="2" strokeLinecap="round" />
+          </marker>
+
+          {/* Directional Include End Markers (Upright Plus) */}
+          <marker id="dcr-include-end-right" viewBox="0 0 20 20" refX="19" refY="10" markerWidth="14" markerHeight="14" orient="0">
+            <circle cx="10" cy="10" r="8" fill="white" stroke="#10B981" strokeWidth="2" />
+            <path d="M 6 10 L 14 10 M 10 6 L 10 14" stroke="#10B981" strokeWidth="2" strokeLinecap="round" />
+          </marker>
+          <marker id="dcr-include-end-left" viewBox="0 0 20 20" refX="1" refY="10" markerWidth="14" markerHeight="14" orient="0">
+            <circle cx="10" cy="10" r="8" fill="white" stroke="#10B981" strokeWidth="2" />
+            <path d="M 6 10 L 14 10 M 10 6 L 10 14" stroke="#10B981" strokeWidth="2" strokeLinecap="round" />
+          </marker>
+          <marker id="dcr-include-end-top" viewBox="0 0 20 20" refX="10" refY="1" markerWidth="14" markerHeight="14" orient="0">
+            <circle cx="10" cy="10" r="8" fill="white" stroke="#10B981" strokeWidth="2" />
+            <path d="M 6 10 L 14 10 M 10 6 L 10 14" stroke="#10B981" strokeWidth="2" strokeLinecap="round" />
+          </marker>
+          <marker id="dcr-include-end-bottom" viewBox="0 0 20 20" refX="10" refY="19" markerWidth="14" markerHeight="14" orient="0">
+            <circle cx="10" cy="10" r="8" fill="white" stroke="#10B981" strokeWidth="2" />
+            <path d="M 6 10 L 14 10 M 10 6 L 10 14" stroke="#10B981" strokeWidth="2" strokeLinecap="round" />
+          </marker>
+
+          <marker id="dcr-exclude-end" viewBox="0 0 20 20" refX="19" refY="10" markerWidth="14" markerHeight="14" orient="auto">
+            <circle cx="10" cy="10" r="8" fill="white" stroke="#EF4444" strokeWidth="2" />
+            <path d="M 6 10 L 14 10" stroke="#EF4444" strokeWidth="2" strokeLinecap="round" />
+          </marker>
+
+          {/* Directional Exclude End Markers (Upright Minus) */}
+          <marker id="dcr-exclude-end-right" viewBox="0 0 20 20" refX="19" refY="10" markerWidth="14" markerHeight="14" orient="0">
+            <circle cx="10" cy="10" r="8" fill="white" stroke="#EF4444" strokeWidth="2" />
+            <path d="M 6 10 L 14 10" stroke="#EF4444" strokeWidth="2" strokeLinecap="round" />
+          </marker>
+          <marker id="dcr-exclude-end-left" viewBox="0 0 20 20" refX="1" refY="10" markerWidth="14" markerHeight="14" orient="0">
+            <circle cx="10" cy="10" r="8" fill="white" stroke="#EF4444" strokeWidth="2" />
+            <path d="M 6 10 L 14 10" stroke="#EF4444" strokeWidth="2" strokeLinecap="round" />
+          </marker>
+          <marker id="dcr-exclude-end-top" viewBox="0 0 20 20" refX="10" refY="1" markerWidth="14" markerHeight="14" orient="0">
+            <circle cx="10" cy="10" r="8" fill="white" stroke="#EF4444" strokeWidth="2" />
+            <path d="M 6 10 L 14 10" stroke="#EF4444" strokeWidth="2" strokeLinecap="round" />
+          </marker>
+          <marker id="dcr-exclude-end-bottom" viewBox="0 0 20 20" refX="10" refY="19" markerWidth="14" markerHeight="14" orient="0">
+            <circle cx="10" cy="10" r="8" fill="white" stroke="#EF4444" strokeWidth="2" />
+            <path d="M 6 10 L 14 10" stroke="#EF4444" strokeWidth="2" strokeLinecap="round" />
+          </marker>
+
+          <marker id="dcr-milestone-end" viewBox="0 0 20 20" refX="19" refY="10" markerWidth="14" markerHeight="14" orient="auto">
+            <circle cx="10" cy="10" r="8" fill="white" stroke="#D946EF" strokeWidth="2" />
+            <circle cx="7.5" cy="10" r="2" fill="none" stroke="#D946EF" strokeWidth="1.5" />
+            <path d="M 9.5 10 L 15 10 M 12.5 10 L 12.5 13 M 14.5 10 L 14.5 13" stroke="#D946EF" strokeWidth="1.5" strokeLinecap="round" />
+          </marker>
+
+          {/* Directional Milestone End Markers (Upright Keys) */}
+          <marker id="dcr-milestone-end-right" viewBox="0 0 20 20" refX="19" refY="10" markerWidth="14" markerHeight="14" orient="0">
+            <circle cx="10" cy="10" r="8" fill="white" stroke="#D946EF" strokeWidth="2" />
+            <circle cx="7.5" cy="10" r="2" fill="none" stroke="#D946EF" strokeWidth="1.5" />
+            <path d="M 9.5 10 L 15 10 M 12.5 10 L 12.5 13 M 14.5 10 L 14.5 13" stroke="#D946EF" strokeWidth="1.5" strokeLinecap="round" />
+          </marker>
+          <marker id="dcr-milestone-end-left" viewBox="0 0 20 20" refX="1" refY="10" markerWidth="14" markerHeight="14" orient="0">
+            <circle cx="10" cy="10" r="8" fill="white" stroke="#D946EF" strokeWidth="2" />
+            <circle cx="7.5" cy="10" r="2" fill="none" stroke="#D946EF" strokeWidth="1.5" />
+            <path d="M 9.5 10 L 15 10 M 12.5 10 L 12.5 13 M 14.5 10 L 14.5 13" stroke="#D946EF" strokeWidth="1.5" strokeLinecap="round" />
+          </marker>
+          <marker id="dcr-milestone-end-top" viewBox="0 0 20 20" refX="10" refY="1" markerWidth="14" markerHeight="14" orient="0">
+            <circle cx="10" cy="10" r="8" fill="white" stroke="#D946EF" strokeWidth="2" />
+            <circle cx="7.5" cy="10" r="2" fill="none" stroke="#D946EF" strokeWidth="1.5" />
+            <path d="M 9.5 10 L 15 10 M 12.5 10 L 12.5 13 M 14.5 10 L 14.5 13" stroke="#D946EF" strokeWidth="1.5" strokeLinecap="round" />
+          </marker>
+          <marker id="dcr-milestone-end-bottom" viewBox="0 0 20 20" refX="10" refY="19" markerWidth="14" markerHeight="14" orient="0">
+            <circle cx="10" cy="10" r="8" fill="white" stroke="#D946EF" strokeWidth="2" />
+            <circle cx="7.5" cy="10" r="2" fill="none" stroke="#D946EF" strokeWidth="1.5" />
+            <path d="M 9.5 10 L 15 10 M 12.5 10 L 12.5 13 M 14.5 10 L 14.5 13" stroke="#D946EF" strokeWidth="1.5" strokeLinecap="round" />
           </marker>
         </defs>
       </svg>
@@ -530,6 +668,7 @@ export const dcrNotation: Notation = {
   displayName: 'DCR Graphs',
   icon: '⚡',
   supportedViewTypes: ['dcr'],
+  orthogonalEdges: true,
   CanvasComponent: DcrCanvas,
   InspectorComponent: DcrInspector,
   layoutEngine: dagreLayoutEngine,
@@ -554,32 +693,35 @@ export const dcrNotation: Notation = {
       return {
         stroke: '#EAB308', // yellow-500
         markerStart: 'url(#dcr-condition-start)',
-        markerEnd: isSelected ? 'url(#arrow-closed-selected)' : 'url(#dcr-arrow-yellow)',
+        markerEnd: 'url(#dcr-condition-end)',
       };
     }
     if (relType.includes('response')) {
       return {
         stroke: '#3B82F6', // blue-500
+        markerStart: 'url(#dcr-response-start)',
         markerEnd: 'url(#dcr-response-end)',
       };
     }
     if (relType.includes('include')) {
       return {
         stroke: '#10B981', // emerald-500
-        markerEnd: isSelected ? 'url(#arrow-closed-selected)' : 'url(#dcr-include-end)',
+        markerStart: 'url(#dcr-include-start)',
+        markerEnd: 'url(#dcr-include-end)',
       };
     }
     if (relType.includes('exclude')) {
       return {
         stroke: '#EF4444', // red-500
-        markerEnd: isSelected ? 'url(#arrow-closed-selected)' : 'url(#dcr-exclude-end)',
+        markerStart: 'url(#dcr-exclude-start)',
+        markerEnd: 'url(#dcr-exclude-end)',
       };
     }
     if (relType.includes('milestone')) {
       return {
         stroke: '#D946EF', // fuchsia-500
         markerStart: 'url(#dcr-milestone-start)',
-        markerEnd: isSelected ? 'url(#arrow-closed-selected)' : 'url(#dcr-arrow-fuchsia)',
+        markerEnd: 'url(#dcr-milestone-end)',
       };
     }
 

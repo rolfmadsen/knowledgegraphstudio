@@ -71,6 +71,7 @@ export const knowledgeGraphNotation: Notation = {
   displayName: 'Knowledge Graph',
   icon: '🌐',
   supportedViewTypes: ['knowledge_graph'],
+  orthogonalEdges: true,
   CanvasComponent: KnowledgeGraphCanvas,
   layoutEngine: dagreLayoutEngine,
 };

@@ -90,6 +90,8 @@ export interface Notation {
   readonly icon: string;
   /** Which ViewType(s) this notation supports */
   readonly supportedViewTypes: ViewType[];
+  /** Whether this notation uses orthogonal edge routing (90-degree lines) */
+  readonly orthogonalEdges?: boolean;
   /** The React component that renders the canvas for this notation */
   readonly CanvasComponent: ComponentType<NotationCanvasProps>;
   /**

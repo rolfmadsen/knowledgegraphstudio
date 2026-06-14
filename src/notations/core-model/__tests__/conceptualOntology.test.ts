@@ -68,5 +68,17 @@ describe('Conceptual Model (Begrebsmodel) Ontology Validator', () => {
       expect(isValidRelation('class', 'class', 'aggregation')).toBe(true);
       expect(isValidRelation('class', 'class', 'realization')).toBe(true);
     });
+
+    it('accepts Danish relation names and translates them properly', () => {
+      expect(isValidRelation('class', 'class', 'generaliseres til')).toBe(true);
+      expect(isValidRelation('class', 'class', 'er optaget på')).toBe(true);
+      expect(isValidRelation('class', 'class', 'kan være en')).toBe(true);
+      expect(isValidRelation('class', 'class', 'består af')).toBe(true);
+    });
+
+    it('accepts custom relation names between classes as associations', () => {
+      expect(isValidRelation('class', 'class', 'studerer')).toBe(true);
+      expect(isValidRelation('class', 'class', 'underviser')).toBe(true);
+    });
   });
 });

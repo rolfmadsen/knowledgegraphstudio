@@ -61,6 +61,91 @@ export function isConceptualSubclass(className: string, parentClassName: string)
 }
 
 /**
+ * Maps Danish relation names/synonyms to standard English relation IDs/aliases
+ */
+function mapDanishRelation(idOrLabel: string): string {
+  const clean = idOrLabel.toLowerCase().trim();
+  
+  // Type Reference
+  if (
+    clean === 'har type' ||
+    clean === 'har typen' ||
+    clean === 'er af typen' ||
+    clean === 'type reference' ||
+    clean === 'typereference' ||
+    clean === 'hastype'
+  ) {
+    return 'has_type';
+  }
+  if (
+    clean === 'er type for' ||
+    clean === 'er type af' ||
+    clean === 'type for' ||
+    clean === 'istypeof'
+  ) {
+    return 'is_type_of';
+  }
+
+  // Traceability / Derivation
+  if (
+    clean === 'udledt af' ||
+    clean === 'stammer fra' ||
+    clean === 'derived from' ||
+    clean === 'wasderivedfrom'
+  ) {
+    return 'wasDerivedFrom';
+  }
+  if (
+    clean === 'har derivat' ||
+    clean === 'har derivation' ||
+    clean === 'hasderivative'
+  ) {
+    return 'hasDerivative';
+  }
+
+  // Standard UML structural
+  if (
+    clean === 'generaliseres til' ||
+    clean === 'kan være en' ||
+    clean === 'er en' ||
+    clean === 'specialisering' ||
+    clean === 'specialiseres af' ||
+    clean === 'underklasse af'
+  ) {
+    return 'generalizes';
+  }
+  if (
+    clean === 'er optaget på' ||
+    clean === 'deltager i' ||
+    clean === 'relaterer til' ||
+    clean === 'forbindelse' ||
+    clean === 'tilknyttet' ||
+    clean === 'har' ||
+    clean === 'arbejder på' ||
+    clean === 'studerer' ||
+    clean === 'assisterer'
+  ) {
+    return 'associates_with';
+  }
+  if (
+    clean === 'aggregerer' ||
+    clean === 'aggregering'
+  ) {
+    return 'aggregates';
+  }
+  if (
+    clean === 'består af' ||
+    clean === 'komposition' ||
+    clean === 'del af' ||
+    clean === 'indgår i'
+  ) {
+    return 'composed_of';
+  }
+  
+  return idOrLabel;
+}
+
+/**
  * Checks if a specific relationship is allowed between two concept types according to Information Model rules
  */
 export function isRelationAllowed(
@@ -71,7 +156,16 @@ export function isRelationAllowed(
   const sourceClass = INFORMATION_TYPE_MAP[sourceType];
   const targetClass = INFORMATION_TYPE_MAP[targetType];
 
-  const relClean = relationId.toLowerCase().replace('relationship', '').trim();
+  const mappedRelationId = mapDanishRelation(relationId);
+  const relClean = mappedRelationId.toLowerCase().replace('relationship', '').trim();
+
+  // Explicitly deny relations that belong to other models (e.g. ArchiMate, DCR)
+  const forbiddenRels = [
+    'uses', 'delivers_to', 'has_condition', 'is_nested_in', 'has_role', 'has_principal', 'contained_in'
+  ];
+  if (forbiddenRels.includes(relClean)) {
+    return false;
+  }
 
   // 1. UML structural relations inside Information Model
   const allowedUMLRels = [
@@ -116,6 +210,11 @@ export function isRelationAllowed(
       isInfoSubclass(targetClass, 'Information_Class');
   }
 
+  // Fallback: accept custom semantic relation names between Information Classes as custom associations
+  if (sourceClass && targetClass) {
+    return isInfoSubclass(sourceClass, 'Information_Class') && isInfoSubclass(targetClass, 'Information_Class');
+  }
+
   return false;
 }
 
@@ -140,8 +239,9 @@ export function isValidRelation(
   targetType: ConceptType,
   label: string
 ): boolean {
+  const mappedLabel = mapDanishRelation(label);
   const available = getAvailableRelations(sourceType, targetType);
-  const cleanSearch = label.toLowerCase().replace('relationship', '').trim();
+  const cleanSearch = mappedLabel.toLowerCase().replace('relationship', '').trim();
 
   const matchByLabel = available.some((rel) => {
     const cleanRelLabel = rel.label.toLowerCase().replace('relationship', '').trim();

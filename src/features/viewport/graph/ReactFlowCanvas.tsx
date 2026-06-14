@@ -17,13 +17,15 @@ import {
   type EdgeProps,
   type NodeTypes,
   useReactFlow,
+  getSmoothStepPath,
+  Position,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import type { NotationCanvasProps } from '../../../notations/types';
 import { NotationRegistry } from '../../../notations/NotationRegistry';
 import { useGraphStore } from '../../../store/useGraphStore';
 import { useShallow } from 'zustand/react/shallow';
-import { type ConceptNode, type ElementId, toElementId } from '../../../schema/graphSchema';
+import { type ConceptNode, type ElementId, toElementId, type ViewType } from '../../../schema/graphSchema';
 
 // --- Padding for Grouping Containers ---
 export const PADDING_TOP = 72;
@@ -116,6 +118,83 @@ function getEdgeParams(source: InternalNode, target: InternalNode) {
   };
 }
 
+function getOrthogonalParams(source: InternalNode, target: InternalNode) {
+  const sourceWidth = source.measured?.width ?? 0;
+  const sourceHeight = source.measured?.height ?? 0;
+  const targetWidth = target.measured?.width ?? 0;
+  const targetHeight = target.measured?.height ?? 0;
+
+  const sx_center = source.internals.positionAbsolute.x + sourceWidth / 2;
+  const sy_center = source.internals.positionAbsolute.y + sourceHeight / 2;
+  const tx_center = target.internals.positionAbsolute.x + targetWidth / 2;
+  const ty_center = target.internals.positionAbsolute.y + targetHeight / 2;
+
+  const dx = tx_center - sx_center;
+  const dy = ty_center - sy_center;
+
+  let sourcePosition = Position.Bottom;
+  let targetPosition = Position.Top;
+
+  if (Math.abs(dx) > Math.abs(dy)) {
+    if (dx > 0) {
+      sourcePosition = Position.Right;
+      targetPosition = Position.Left;
+    } else {
+      sourcePosition = Position.Left;
+      targetPosition = Position.Right;
+    }
+  } else {
+    if (dy > 0) {
+      sourcePosition = Position.Bottom;
+      targetPosition = Position.Top;
+    } else {
+      sourcePosition = Position.Top;
+      targetPosition = Position.Bottom;
+    }
+  }
+
+  let sx = sx_center;
+  let sy = sy_center;
+  if (sourcePosition === Position.Left) {
+    sx = source.internals.positionAbsolute.x;
+    sy = sy_center;
+  } else if (sourcePosition === Position.Right) {
+    sx = source.internals.positionAbsolute.x + sourceWidth;
+    sy = sy_center;
+  } else if (sourcePosition === Position.Top) {
+    sx = sx_center;
+    sy = source.internals.positionAbsolute.y;
+  } else if (sourcePosition === Position.Bottom) {
+    sx = sx_center;
+    sy = source.internals.positionAbsolute.y + sourceHeight;
+  }
+
+  let tx = tx_center;
+  let ty = ty_center;
+  if (targetPosition === Position.Left) {
+    tx = target.internals.positionAbsolute.x;
+    ty = ty_center;
+  } else if (targetPosition === Position.Right) {
+    tx = target.internals.positionAbsolute.x + targetWidth;
+    ty = ty_center;
+  } else if (targetPosition === Position.Top) {
+    tx = tx_center;
+    ty = target.internals.positionAbsolute.y;
+  } else if (targetPosition === Position.Bottom) {
+    tx = tx_center;
+    ty = target.internals.positionAbsolute.y + targetHeight;
+  }
+
+  return {
+    sx,
+    sy,
+    tx,
+    ty,
+    sourcePosition,
+    targetPosition,
+  };
+}
+
 // Helper to parse relation label and extract clean name and multiplicity
 function parseRelationLabel(rawLabel: string, multiplicityFromData?: string) {
   if (!rawLabel) return { name: '', multiplicity: multiplicityFromData || '' };
@@ -159,6 +238,34 @@ interface FloatingEdgeProps extends EdgeProps {
   className?: string;
 }
 
+function getNodePadding(node: InternalNode, position?: Position) {
+  const isSelected = !!node.selected;
+
+  if (!isSelected) {
+    // Both start and target markers get a tiny 2px padding to clear node borders cleanly.
+    return 2;
+  }
+
+  // If selected, the node has scale-[1.03] and ring-4 (which adds a 4px outline).
+  // scale-[1.03] expands the node by 1.5% of its width/height on each side.
+  const width = node.measured?.width ?? 200;
+  const height = node.measured?.height ?? 80;
+
+  let scaleOffset = 0;
+  if (position === Position.Left || position === Position.Right) {
+    scaleOffset = width * 0.015;
+  } else if (position === Position.Top || position === Position.Bottom) {
+    scaleOffset = height * 0.015;
+  } else {
+    scaleOffset = (width * 0.015 + height * 0.015) / 2;
+  }
+
+  const ringOffset = 4; // ring-4
+  const extra = 2; // 2px base padding for visual balance on both sides
+
+  return scaleOffset + ringOffset + extra;
+}
+
 // Custom FloatingEdge
 function FloatingEdge({ id, source, target, style, label, labelStyle, selected, data, className }: FloatingEdgeProps) {
   const sourceNode = useInternalNode(source);
@@ -166,63 +273,180 @@ function FloatingEdge({ id, source, target, style, label, labelStyle, selected, 
 
   if (!sourceNode || !targetNode) return null;
 
-  const { sx, sy, tx, ty } = getEdgeParams(sourceNode as InternalNode, targetNode as InternalNode);
+  const activeNotation = NotationRegistry.forViewType(data?.viewType as ViewType);
+  const isOrthogonal = activeNotation?.orthogonalEdges;
+
+  let path = '';
+  let midX = 0;
+  let midY = 0;
+  let distance = 100;
 
   const edgeIndex = data?.edgeIndex as number | undefined;
   const totalEdges = data?.totalEdges as number | undefined;
 
-  const dx = tx - sx;
-  const dy = ty - sy;
-  const distance = Math.sqrt(dx * dx + dy * dy) || 1;
+  let markerEnd = data?.markerEnd as string | undefined;
+  let markerStart = data?.markerStart as string | undefined;
 
-  let path = `M ${sx} ${sy} L ${tx} ${ty}`;
-  let midX = (sx + tx) / 2;
-  let midY = (sy + ty) / 2;
+  let sx = 0;
+  let sy = 0;
+  let tx = 0;
+  let ty = 0;
+  let sourcePosition = Position.Bottom;
+  let targetPosition = Position.Top;
 
-  const tangentAngle = Math.atan2(ty - sy, tx - sx);
-  const arrowOffset = 10;
+  if (isOrthogonal) {
+    const { sx: baseSx, sy: baseSy, tx: baseTx, ty: baseTy, sourcePosition: sPos, targetPosition: tPos } = getOrthogonalParams(
+      sourceNode as InternalNode,
+      targetNode as InternalNode
+    );
+    sourcePosition = sPos;
+    targetPosition = tPos;
 
-  if (totalEdges && totalEdges > 1 && edgeIndex !== undefined) {
-    // Determine a consistent normal vector direction by sorting node IDs lexicographically.
-    // This prevents edges running in opposite directions from curving on top of each other.
-    let nx = -dy / distance;
-    let ny = dx / distance;
-    if (source > target) {
-      nx = -nx;
-      ny = -ny;
+    const sourcePadding = getNodePadding(sourceNode as InternalNode, sourcePosition);
+    const targetPadding = getNodePadding(targetNode as InternalNode, targetPosition);
+
+    sx = baseSx;
+    sy = baseSy;
+    tx = baseTx;
+    ty = baseTy;
+
+    // Apply padding to shift endpoints away from node border dynamically
+    if (sourcePosition === Position.Left) {
+      sx -= sourcePadding;
+    } else if (sourcePosition === Position.Right) {
+      sx += sourcePadding;
+    } else if (sourcePosition === Position.Top) {
+      sy -= sourcePadding;
+    } else if (sourcePosition === Position.Bottom) {
+      sy += sourcePadding;
     }
 
-    const step = 40; // px offset spacing per parallel edge
-    const offsetIndex = edgeIndex - (totalEdges - 1) / 2;
-    const offsetVal = offsetIndex * step;
+    if (targetPosition === Position.Left) {
+      tx -= targetPadding;
+    } else if (targetPosition === Position.Right) {
+      tx += targetPadding;
+    } else if (targetPosition === Position.Top) {
+      ty -= targetPadding;
+    } else if (targetPosition === Position.Bottom) {
+      ty += targetPadding;
+    }
 
-    if (Math.abs(offsetVal) > 0.01) {
-      // Midpoint coordinate of the line segment
-      const mx = (sx + tx) / 2;
-      const my = (sy + ty) / 2;
+    if (totalEdges && totalEdges > 1 && edgeIndex !== undefined) {
+      const step = 20;
+      const offsetVal = (edgeIndex - (totalEdges - 1) / 2) * step;
 
-      // Quadratic Bezier control point (cx, cy)
-      const cx = mx + nx * offsetVal;
-      const cy = my + ny * offsetVal;
+      if (sourcePosition === Position.Top || sourcePosition === Position.Bottom) {
+        sx += offsetVal;
+      } else {
+        sy += offsetVal;
+      }
 
-      path = `M ${sx} ${sy} Q ${cx} ${cy} ${tx} ${ty}`;
+      if (targetPosition === Position.Top || targetPosition === Position.Bottom) {
+        tx += offsetVal;
+      } else {
+        ty += offsetVal;
+      }
+    }
 
-      // Calculate midpoint on the quadratic Bezier curve (t = 0.5)
-      const curveMidX = 0.25 * sx + 0.5 * cx + 0.25 * tx;
-      const curveMidY = 0.25 * sy + 0.5 * cy + 0.25 * ty;
+    const [smoothPath, labelX, labelY] = getSmoothStepPath({
+      sourceX: sx,
+      sourceY: sy,
+      sourcePosition,
+      targetX: tx,
+      targetY: ty,
+      targetPosition,
+      borderRadius: 8,
+    });
 
-      // Center the label along the tangent of the midpoint
-      midX = curveMidX - Math.cos(tangentAngle) * arrowOffset;
-      midY = curveMidY - Math.sin(tangentAngle) * arrowOffset;
+    path = smoothPath;
+    midX = labelX;
+    midY = labelY;
+    distance = Math.abs(tx - sx) + Math.abs(ty - sy);
+
+    if (totalEdges && totalEdges > 1 && edgeIndex !== undefined) {
+      const offsetIndex = edgeIndex - (totalEdges - 1) / 2;
+      if (sourcePosition === Position.Left || sourcePosition === Position.Right) {
+        const staggerStep = Math.min(24, distance * 0.15);
+        midX += offsetIndex * staggerStep;
+      } else {
+        const staggerStep = Math.min(20, distance * 0.15);
+        midY += offsetIndex * staggerStep;
+      }
+    }
+
+    const dirStart = sourcePosition === Position.Right ? 'right' :
+      sourcePosition === Position.Left ? 'left' :
+        sourcePosition === Position.Top ? 'top' : 'bottom';
+    const dirEnd = targetPosition === Position.Left ? 'right' :
+      targetPosition === Position.Right ? 'left' :
+        targetPosition === Position.Top ? 'bottom' : 'top';
+
+    if (markerStart && markerStart.includes('dcr-milestone-start')) {
+      markerStart = markerStart.replace(')', `-${dirStart})`);
+    }
+    if (markerEnd && markerEnd.includes('dcr-')) {
+      markerEnd = markerEnd.replace(')', `-${dirEnd})`);
+    }
+  } else {
+    const { sx: baseSx, sy: baseSy, tx: baseTx, ty: baseTy } = getEdgeParams(sourceNode as InternalNode, targetNode as InternalNode);
+
+    const sourcePadding = getNodePadding(sourceNode as InternalNode);
+    const targetPadding = getNodePadding(targetNode as InternalNode);
+
+    const dx = baseTx - baseSx;
+    const dy = baseTy - baseSy;
+    const baseDistance = Math.sqrt(dx * dx + dy * dy) || 1;
+    const ux = dx / baseDistance;
+    const uy = dy / baseDistance;
+
+    sx = baseSx + ux * sourcePadding;
+    sy = baseSy + uy * sourcePadding;
+    tx = baseTx - ux * targetPadding;
+    ty = baseTy - uy * targetPadding;
+
+    distance = Math.sqrt((tx - sx) * (tx - sx) + (ty - sy) * (ty - sy)) || 1;
+
+    path = `M ${sx} ${sy} L ${tx} ${ty}`;
+    midX = (sx + tx) / 2;
+    midY = (sy + ty) / 2;
+
+    const tangentAngle = Math.atan2(ty - sy, tx - sx);
+    const arrowOffset = 10;
+
+    if (totalEdges && totalEdges > 1 && edgeIndex !== undefined) {
+      let nx = -dy / baseDistance;
+      let ny = dx / baseDistance;
+      if (source > target) {
+        nx = -nx;
+        ny = -ny;
+      }
+
+      const step = 40; // px offset spacing per parallel edge
+      const offsetIndex = edgeIndex - (totalEdges - 1) / 2;
+      const offsetVal = offsetIndex * step;
+
+      if (Math.abs(offsetVal) > 0.01) {
+        const mx = (sx + tx) / 2;
+        const my = (sy + ty) / 2;
+
+        const cx = mx + nx * offsetVal;
+        const cy = my + ny * offsetVal;
+
+        path = `M ${sx} ${sy} Q ${cx} ${cy} ${tx} ${ty}`;
+
+        const curveMidX = 0.25 * sx + 0.5 * cx + 0.25 * tx;
+        const curveMidY = 0.25 * sy + 0.5 * cy + 0.25 * ty;
+
+        midX = curveMidX - Math.cos(tangentAngle) * arrowOffset;
+        midY = curveMidY - Math.sin(tangentAngle) * arrowOffset;
+      } else {
+        midX = midX - Math.cos(tangentAngle) * arrowOffset;
+        midY = midY - Math.sin(tangentAngle) * arrowOffset;
+      }
     } else {
-      // Middle edge of odd counts is straight
       midX = midX - Math.cos(tangentAngle) * arrowOffset;
       midY = midY - Math.sin(tangentAngle) * arrowOffset;
     }
-  } else {
-    // Single edge is straight
-    midX = midX - Math.cos(tangentAngle) * arrowOffset;
-    midY = midY - Math.sin(tangentAngle) * arrowOffset;
   }
 
   const { name: cleanName, multiplicity } = parseRelationLabel(String(label || ''), data?.multiplicity as string);
@@ -244,10 +468,41 @@ function FloatingEdge({ id, source, target, style, label, labelStyle, selected, 
   const rectY = -rectHeight / 2;
   const textY = hasMultiplicity ? -4 : 3;
 
+  // Clamp label position to prevent it from overlapping nodes/markers in orthogonal layouts
+  if (isOrthogonal) {
+    if (sourcePosition === Position.Left || sourcePosition === Position.Right) {
+      let minMidX, maxMidX;
+      if (sx < tx) {
+        minMidX = sx + 22 + rectWidth / 2;
+        maxMidX = tx - 24 - rectWidth / 2;
+      } else {
+        minMidX = tx + 24 + rectWidth / 2;
+        maxMidX = sx - 22 - rectWidth / 2;
+      }
+      if (minMidX < maxMidX) {
+        midX = Math.max(minMidX, Math.min(maxMidX, midX));
+      } else {
+        midX = (sx + tx) / 2;
+      }
+    } else {
+      let minMidY, maxMidY;
+      if (sy < ty) {
+        minMidY = sy + 22 + rectHeight / 2;
+        maxMidY = ty - 24 - rectHeight / 2;
+      } else {
+        minMidY = ty + 24 + rectHeight / 2;
+        maxMidY = sy - 22 - rectHeight / 2;
+      }
+      if (minMidY < maxMidY) {
+        midY = Math.max(minMidY, Math.min(maxMidY, midY));
+      } else {
+        midY = (sy + ty) / 2;
+      }
+    }
+  }
+
   const selectRelation = data?.selectRelation as (id: string) => void;
   const strokeDasharray = (data?.strokeDasharray as string) || 'none';
-  const markerEnd = data?.markerEnd as string | undefined;
-  const markerStart = data?.markerStart as string | undefined;
 
   return (
     <>
@@ -262,7 +517,7 @@ function FloatingEdge({ id, source, target, style, label, labelStyle, selected, 
           transition: 'stroke 0.2s ease, stroke-width 0.2s ease',
           strokeDasharray: strokeDasharray,
           ...style,
-          stroke: selected ? '#10b981' : (style?.stroke || '#64748b'),
+          stroke: selected ? (style?.stroke || '#10b981') : (style?.stroke || '#64748b'),
         }}
       />
       {displayName && (
@@ -589,6 +844,7 @@ export function ReactFlowCanvas({
           multiplicity: r.multiplicity,
           edgeIndex,
           totalEdges,
+          viewType: view.type,
         },
       };
     });

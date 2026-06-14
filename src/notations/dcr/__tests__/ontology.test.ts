@@ -1,4 +1,16 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+
+vi.hoisted(() => {
+  const store: Record<string, string> = {};
+  const localStorageMock = {
+    getItem: vi.fn((key: string) => store[key] || null),
+    setItem: vi.fn((key: string, value: string) => { store[key] = value; }),
+    clear: vi.fn(() => { for (const key in store) delete store[key]; })
+  };
+  vi.stubGlobal('localStorage', localStorageMock);
+});
+
+import { dcrNotation } from '../index';
 import { isRelationAllowed, getAvailableRelations, isValidRelation } from '../validator';
 
 describe('DCR Graphs Ontology Validator', () => {
@@ -76,6 +88,43 @@ describe('DCR Graphs Ontology Validator', () => {
       expect(isValidRelation('event', 'event', 'has_condition')).toBe(true);
       expect(isValidRelation('event', 'business_role', 'Has Role')).toBe(true);
       expect(isValidRelation('event', 'business_role', 'Condition')).toBe(false);
+    });
+  });
+
+  describe('dcrNotation.getEdgeStyle', () => {
+    it('maps condition relationship to correct style and markers', () => {
+      const style = dcrNotation.getEdgeStyle!({ name: 'condition' } as any, false);
+      expect(style.stroke).toBe('#EAB308');
+      expect(style.markerStart).toBe('url(#dcr-condition-start)');
+      expect(style.markerEnd).toBe('url(#dcr-condition-end)');
+    });
+
+    it('maps response relationship to correct style and markers', () => {
+      const style = dcrNotation.getEdgeStyle!({ name: 'response' } as any, false);
+      expect(style.stroke).toBe('#3B82F6');
+      expect(style.markerStart).toBe('url(#dcr-response-start)');
+      expect(style.markerEnd).toBe('url(#dcr-response-end)');
+    });
+
+    it('maps include relationship to correct style and markers', () => {
+      const style = dcrNotation.getEdgeStyle!({ name: 'includes' } as any, false);
+      expect(style.stroke).toBe('#10B981');
+      expect(style.markerStart).toBe('url(#dcr-include-start)');
+      expect(style.markerEnd).toBe('url(#dcr-include-end)');
+    });
+
+    it('maps exclude relationship to correct style and markers', () => {
+      const style = dcrNotation.getEdgeStyle!({ name: 'excludes' } as any, false);
+      expect(style.stroke).toBe('#EF4444');
+      expect(style.markerStart).toBe('url(#dcr-exclude-start)');
+      expect(style.markerEnd).toBe('url(#dcr-exclude-end)');
+    });
+
+    it('maps milestone relationship to correct style and markers', () => {
+      const style = dcrNotation.getEdgeStyle!({ name: 'milestone' } as any, false);
+      expect(style.stroke).toBe('#D946EF');
+      expect(style.markerStart).toBe('url(#dcr-milestone-start)');
+      expect(style.markerEnd).toBe('url(#dcr-milestone-end)');
     });
   });
 });

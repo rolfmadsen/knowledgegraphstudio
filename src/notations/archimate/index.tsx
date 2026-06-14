@@ -206,6 +206,7 @@ export const archimateNotation: Notation = {
   displayName: 'ArchiMate View',
   icon: '🏛️',
   supportedViewTypes: ['archimate'],
+  orthogonalEdges: true,
   CanvasComponent: ArchimateCanvas,
   layoutEngine: dagreLayoutEngine,
   allowedConceptTypes: [

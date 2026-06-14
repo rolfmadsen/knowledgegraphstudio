@@ -30,12 +30,10 @@ function InformationInspector({
   concepts: any[];
 }) {
   const deleteConcept = useGraphStore((s) => s.deleteConcept);
-  const { activeViewId, views, ungroupConcept, updateViewNodeParentId } = useGraphStore((s) => ({
-    activeViewId: s.activeViewId,
-    views: s.views,
-    ungroupConcept: s.ungroupConcept,
-    updateViewNodeParentId: s.updateViewNodeParentId
-  }));
+  const activeViewId = useGraphStore((s) => s.activeViewId);
+  const views = useGraphStore((s) => s.views);
+  const ungroupConcept = useGraphStore((s) => s.ungroupConcept);
+  const updateViewNodeParentId = useGraphStore((s) => s.updateViewNodeParentId);
 
   const activeView = views.find((v) => v.id === activeViewId);
   const viewNode = activeView?.nodes.find((n) => n.conceptId === concept?.id);
@@ -353,6 +351,7 @@ export const informationNotation: Notation = {
   displayName: 'Informationsmodel',
   icon: '📊',
   supportedViewTypes: ['information_model'],
+  orthogonalEdges: true,
   CanvasComponent: InformationCanvas,
   layoutEngine: dagreLayoutEngine,
   allowedConceptTypes: ['class', 'datatype', 'enumeration'],

@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
-import { Settings, Send, Trash2, Sparkles, AlertCircle, Plus, ArrowRight, Check, X, CheckSquare, Brain, ChevronDown, ChevronRight, Copy } from 'lucide-react';
+import { Settings, Send, Trash2, Sparkles, AlertCircle, Plus, ArrowRight, Check, X, CheckSquare, Brain, ChevronDown, ChevronRight, Copy, AlertTriangle } from 'lucide-react';
 import { useAIStore } from '../store/useAIStore';
 import { useGraphStore } from '../../../store/useGraphStore';
 import { AIService } from '../services/AIService';
 import { useShallow } from 'zustand/react/shallow';
 import { AIConfigModal } from './AIConfigModal';
+import { runDiagnostics, type DiagnosticIssue } from '../services/GraphDiagnostics';
 
 interface ParsedMessageContent {
   chainOfThought: string | null;
@@ -101,19 +102,30 @@ export function parseQuickReplies(text: string): { cleanText: string; replies: s
   const cleanLines = lines.filter((line) => {
     const trimmed = line.trim();
     
-    // Pattern 1: * [Valg A]: Studerende
-    const matchValg = trimmed.match(/^[*+-]\s*\[Valg\s+[A-Z0-9]\]:\s*(.*)$/i);
+    // Pattern 1: * [Valg A]: Studerende OR 1. [Valg A]: Studerende
+    const matchValg = trimmed.match(/^(?:[*+-]|\d+\.)\s*\[Valg\s+[A-Z0-9]\]:\s*(.*)$/i);
     if (matchValg) {
       replies.push(matchValg[1].trim());
       return false;
     }
     
-    // Pattern 2: * [Studerende]
-    const matchDirect = trimmed.match(/^[*+-]\s*\[([^\]]+)\]$/);
+    // Pattern 2: * [Studerende] OR 1. [Studerende]
+    const matchDirect = trimmed.match(/^(?:[*+-]|\d+\.)\s*\[([^\]]+)\]$/);
     if (matchDirect) {
       const content = matchDirect[1].trim();
       if (content !== '' && content !== 'x' && content !== ' ') {
         replies.push(content);
+        return false;
+      }
+    }
+
+    // Pattern 3: * [Ja, definitionen er acceptabel]: Forklarende tekst OR 1. [Ja, definitionen er acceptabel]: Forklarende tekst
+    // Matches any bullet/number with [label]: optional description — label becomes the chip
+    const matchLabelWithDesc = trimmed.match(/^(?:[*+-]|\d+\.)\s*\[([^\]]+)\]:\s*(.*)$/);
+    if (matchLabelWithDesc) {
+      const label = matchLabelWithDesc[1].trim();
+      if (label !== '' && label !== 'x' && label !== ' ') {
+        replies.push(label);
         return false;
       }
     }
@@ -123,9 +135,10 @@ export function parseQuickReplies(text: string): { cleanText: string; replies: s
 
   let cleanText = cleanLines.join('\n').trim();
   if (replies.length > 0) {
-    // Strip trailing headers/labels for Quick Replies (e.g. "**Quick Replies**" or "Hurtig-svar (Quick Replies):")
+    // Strip trailing headers/labels for Quick Replies
+    // Handles: "**Quick Replies**", "4. **Quick Replies**", "Hurtig-svar (Quick Replies):", etc.
     cleanText = cleanText
-      .replace(/(?:\*\*|###|##)?\s*(?:Quick Replies|Hurtig-svar|Hurtige svar|Svarmuligheder)(?:\s*\(.*?\))?:?\s*(?:\*\*|###|##)?\s*$/i, '')
+      .replace(/(?:\d+\.\s*)?(?:\*\*|###|##)?\s*(?:Quick Replies|Hurtig-svar|Hurtige svar|Svarmuligheder)(?:\s*\(.*?\))?:?\s*(?:\*\*|###|##)?\s*$/i, '')
       .trim();
   }
 
@@ -139,6 +152,8 @@ export function AIChatPanel() {
   const activeViewId = useGraphStore((s) => s.activeViewId);
   const activeView = useGraphStore((s) => s.views.find((v) => v.id === activeViewId));
   const viewType = activeView?.type || 'knowledge_graph';
+  const concepts = useGraphStore((s) => s.concepts);
+  const relations = useGraphStore((s) => s.relations);
 
   const {
     sessions,
@@ -159,6 +174,8 @@ export function AIChatPanel() {
     isModelLoaded,
     setDownloadProgress,
     setIsModelLoaded,
+    runQuickFixDefinition,
+    ignoreDiagnostic,
   } = useAIStore(
     useShallow((s) => ({
       sessions: s.sessions,
@@ -179,13 +196,32 @@ export function AIChatPanel() {
       isModelLoaded: s.isModelLoaded,
       setDownloadProgress: s.setDownloadProgress,
       setIsModelLoaded: s.setIsModelLoaded,
+      runQuickFixDefinition: s.runQuickFixDefinition,
+      ignoreDiagnostic: s.ignoreDiagnostic,
     }))
   );
 
   const [input, setInput] = useState('');
   const [configOpen, setConfigOpen] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [generationStatus, setGenerationStatus] = useState<{ attempt: number; total: number; errors?: string[] } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const [diagnostics, setDiagnostics] = useState<DiagnosticIssue[]>([]);
+  const [isReviewExpanded, setIsReviewExpanded] = useState(true);
+  const [loadingFixId, setLoadingFixId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!activeView) {
+      setDiagnostics([]);
+      return;
+    }
+    const timer = setTimeout(() => {
+      const issues = runDiagnostics(activeView, concepts, relations);
+      setDiagnostics(issues);
+    }, 800); // 800ms debounce
+    return () => clearTimeout(timer);
+  }, [activeView, concepts, relations]);
 
   const handleCopyText = async (text: string, messageId: string) => {
     try {
@@ -201,6 +237,8 @@ export function AIChatPanel() {
   const messages = session?.messages || [];
   const proposals = session?.proposals || [];
   const pendingCount = proposals.filter((p) => p.status === 'pending').length;
+  const ignoredDiagnosticIds = session?.ignoredDiagnosticIds || [];
+  const visibleDiagnostics = diagnostics.filter((issue) => !ignoredDiagnosticIds.includes(issue.id));
 
   // Lifecycle memory management for GPU RAM
   useEffect(() => {
@@ -277,12 +315,25 @@ export function AIChatPanel() {
 
     try {
       // 3. Fetch AI Response (streaming)
-      const result = await AIService.sendChatMessage(activeViewId, trimmed, (text) => {
-        updateMessage(activeViewId, assistantMessageId, text);
-      });
+      const result = await AIService.sendChatMessage(
+        activeViewId,
+        trimmed,
+        (text) => {
+          updateMessage(activeViewId, assistantMessageId, text);
+        },
+        (status) => {
+          setGenerationStatus(status);
+        }
+      );
 
       // 4. Update the assistant message with final clean text and proposals
-      updateMessage(activeViewId, assistantMessageId, result.responseText, result.proposals);
+      updateMessage(
+        activeViewId,
+        assistantMessageId,
+        result.responseText,
+        result.proposals,
+        result.validationErrors
+      );
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : 'Forbindelse til lokalt endpoint fejlede.';
       setGeneratingError(errMsg);
@@ -290,6 +341,7 @@ export function AIChatPanel() {
       deleteMessage(activeViewId, assistantMessageId);
     } finally {
       setIsGenerating(false);
+      setGenerationStatus(null);
     }
   };
 
@@ -330,7 +382,7 @@ export function AIChatPanel() {
   }
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden bg-slate-50 relative">
+    <div className="flex-1 flex flex-col min-h-0 overflow-hidden bg-slate-50 relative">
       {/* Header */}
       <div className="px-6 py-4 border-b border-slate-200 shrink-0 flex items-center justify-between bg-white shadow-sm z-10">
         <div className="flex items-center gap-2">
@@ -361,10 +413,12 @@ export function AIChatPanel() {
         </div>
       </div>
 
+
+
       {/* Message Feed */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-6 flex flex-col gap-6 scroll-smooth">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-5 flex flex-col gap-6 scroll-smooth">
         {messages.length === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center my-auto p-4 text-center">
+          <div className={`flex-1 flex flex-col items-center p-4 text-center ${visibleDiagnostics.length > 0 ? 'pt-2' : 'justify-center my-auto'}`}>
             <div className="w-12 h-12 rounded-3xl bg-emerald-50 flex items-center justify-center text-emerald-600 mb-4 animate-bounce">
               <Sparkles size={20} />
             </div>
@@ -373,18 +427,101 @@ export function AIChatPanel() {
               Her kan du chatte, diskutere design og få hjælp til at bygge din vidensgraf i det aktive view ({activeView?.name}).
             </p>
 
-            <div className="w-full flex flex-col gap-2 align-start text-left max-w-[280px]">
-              <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 mb-1">Forslag til prompts:</span>
-              {getSuggestions().map((s, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => handleSend(s)}
-                  className="px-4 py-2.5 text-xs text-slate-600 bg-white border border-slate-200 rounded-2xl hover:border-emerald-400 hover:bg-emerald-50/20 hover:text-emerald-700 transition-all text-left font-medium shadow-sm hover:scale-[1.01] active:scale-[0.99]"
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
+            {visibleDiagnostics.length > 0 ? (
+              <div className="w-full flex flex-col gap-3 text-left max-w-[320px] mx-auto mt-2">
+                <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 mb-1">
+                  Foreslåede forbedringer til dit view:
+                </span>
+                <div className="flex flex-col gap-2.5 w-full">
+                  {visibleDiagnostics.map((issue) => (
+                    <div
+                      key={issue.id}
+                      className="p-3 bg-white border border-slate-150 rounded-2xl shadow-xs flex flex-col gap-2 transition-all hover:border-emerald-350 hover:shadow-sm"
+                    >
+                      <div className="flex justify-between items-start gap-2 w-full">
+                        <div className="flex gap-2 min-w-0 items-start">
+                          {issue.severity === 'warning' ? (
+                            <AlertTriangle size={14} className="text-amber-500 shrink-0 mt-0.5 animate-bounce" style={{ animationIterationCount: 2 }} />
+                          ) : (
+                            <AlertCircle size={14} className="text-blue-500 shrink-0 mt-0.5" />
+                          )}
+                          <div className="flex flex-col gap-0.5 min-w-0">
+                            <span className="text-[10px] font-black text-slate-800 leading-tight">
+                              {issue.title}
+                            </span>
+                            <span className="text-[10px] text-slate-500 leading-normal font-medium">
+                              {issue.description}
+                            </span>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => ignoreDiagnostic(activeViewId, issue.id)}
+                          className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors shrink-0"
+                          title="Ignorer dette forslag"
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5 w-full border-t border-slate-100 pt-2 mt-1 shrink-0">
+                        {issue.quickFixLabel && (
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (issue.conceptId && activeView) {
+                                setLoadingFixId(issue.id);
+                                try {
+                                  const concept = concepts.find(c => c.id === issue.conceptId);
+                                  if (concept) {
+                                    await runQuickFixDefinition(activeView.id, issue.conceptId, concept.name, concept.conceptType);
+                                  }
+                                } finally {
+                                  setLoadingFixId(null);
+                                }
+                              }
+                            }}
+                            disabled={loadingFixId !== null || isGenerating}
+                            className="flex-1 min-w-[100px] justify-center px-2 py-1.5 text-[9px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100/80 border border-emerald-250 rounded-lg hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-40 disabled:scale-100 cursor-pointer flex items-center gap-1.5"
+                          >
+                            {loadingFixId === issue.id ? (
+                              <div className="w-2.5 h-2.5 border border-emerald-700 border-t-transparent rounded-full animate-spin shrink-0" />
+                            ) : null}
+                            <span className="truncate">{issue.quickFixLabel}</span>
+                          </button>
+                        )}
+                        {issue.askAiPrompt && (
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (issue.askAiPrompt) {
+                                handleSend(issue.askAiPrompt);
+                              }
+                            }}
+                            disabled={isGenerating}
+                            className="flex-1 min-w-[100px] justify-center text-center px-2 py-1.5 text-[9px] font-bold text-slate-600 bg-slate-50 hover:bg-slate-100 border border-slate-200/80 rounded-lg hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-40 disabled:scale-100 cursor-pointer"
+                          >
+                            Spørg AI
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="w-full flex flex-col gap-2 align-start text-left max-w-[280px]">
+                <span className="text-[9px] font-black uppercase tracking-wider text-slate-450 mb-1">Forslag til prompts:</span>
+                {getSuggestions().map((s, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => handleSend(s)}
+                    className="px-4 py-2.5 text-xs text-slate-600 bg-white border border-slate-200 rounded-2xl hover:border-emerald-400 hover:bg-emerald-50/20 hover:text-emerald-700 transition-all text-left font-medium shadow-sm hover:scale-[1.01] active:scale-[0.99]"
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         ) : (
           messages.map((m, idx) => {
@@ -453,13 +590,52 @@ export function AIChatPanel() {
                 )}
 
                 {m.role === 'assistant' && !chainOfThought && !displayText && isGenerating && isLastMessage && (
-                  <div className="px-4 py-3 rounded-3xl bg-white text-slate-500 border border-slate-200/80 rounded-tl-none shadow-sm flex items-center gap-2">
-                    <div className="flex gap-1">
-                      <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                      <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                      <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                  <div className="px-4 py-3 rounded-3xl bg-white text-slate-500 border border-slate-200/80 rounded-tl-none shadow-sm flex flex-col gap-2">
+                    <div className="flex items-center gap-2">
+                      <div className="flex gap-1">
+                        <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                        <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                        <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                      </div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
+                        {generationStatus && generationStatus.attempt > 1
+                          ? `Retter fejl (Forsøg ${generationStatus.attempt}/${generationStatus.total})...`
+                          : 'AI tænker...'}
+                      </span>
                     </div>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">AI tænker...</span>
+                    {generationStatus && generationStatus.attempt > 1 && generationStatus.errors && (
+                      <div className="text-[10px] text-rose-600 bg-rose-50 border border-rose-100 rounded-xl px-2 py-1.5 mt-0.5 leading-relaxed font-medium">
+                        <p className="font-bold text-rose-800">Valideringsfejl i forrige forsøg:</p>
+                        <ul className="list-disc pl-3 mt-0.5 space-y-0.5 text-rose-700">
+                          {generationStatus.errors.slice(0, 2).map((err, idx) => (
+                            <li key={idx}>{err}</li>
+                          ))}
+                          {generationStatus.errors.length > 2 && (
+                            <li>... og {generationStatus.errors.length - 2} mere</li>
+                          )}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Validation Errors Render (Error Card) */}
+                {m.role === 'assistant' && m.validationErrors && m.validationErrors.length > 0 && (
+                  <div className="w-full bg-rose-50/60 border border-rose-200/50 rounded-3xl p-4 shadow-sm flex flex-col gap-2.5 max-w-[340px] mt-1 animate-in fade-in slide-in-from-bottom-2 text-rose-900">
+                    <div className="flex items-center gap-1.5 border-b border-rose-100/60 pb-2">
+                      <AlertTriangle size={12} className="text-rose-500 shrink-0" />
+                      <span className="text-[9px] font-black uppercase tracking-widest text-rose-500">
+                        Afviste Diagram-elementer
+                      </span>
+                    </div>
+                    <div className="text-[11px] leading-relaxed flex flex-col gap-1.5">
+                      <p className="font-semibold text-rose-950">AI'ens forslag kunne ikke oprettes pga. følgende regler:</p>
+                      <ul className="list-disc pl-4 space-y-1 text-rose-800/90 font-medium">
+                        {m.validationErrors.map((err, errIdx) => (
+                          <li key={errIdx}>{err}</li>
+                        ))}
+                      </ul>
+                    </div>
                   </div>
                 )}
 
@@ -523,6 +699,12 @@ export function AIChatPanel() {
                                 <Plus size={14} strokeWidth={2.5} />
                               ) : p.action === 'setParent' ? (
                                 <span className="text-[11px] font-black">⊂</span>
+                              ) : p.action === 'updateConcept' ? (
+                                <Sparkles size={12} className="text-amber-550" />
+                              ) : p.action === 'deleteElement' ? (
+                                <Trash2 size={13} className="text-red-500" />
+                              ) : p.action === 'addProperty' ? (
+                                <Plus size={14} strokeWidth={2.5} className="text-blue-500" />
                               ) : (
                                 <ArrowRight size={14} strokeWidth={2.5} />
                               )}
@@ -533,14 +715,34 @@ export function AIChatPanel() {
                                   ? p.name
                                   : p.action === 'setParent'
                                   ? `Nest i subgraph`
+                                  : p.action === 'updateConcept'
+                                  ? (p.updates.name
+                                    ? `Omdøb "${p.before.name}" ➔ "${p.updates.name}"`
+                                    : p.updates.definition
+                                    ? `Opdater definition på "${p.before.name}"`
+                                    : `Opdater element "${p.before.name}"`)
+                                  : p.action === 'deleteElement'
+                                  ? `Slet "${p.elementName}"`
+                                  : p.action === 'addProperty'
+                                  ? `Tilføj attribut "${p.propertyName}"`
                                   : p.name || 'Relation'}
                               </span>
                               <span className="text-[9px] text-slate-400 uppercase font-bold tracking-wider">
                                 {p.action === 'addConcept'
                                   ? p.conceptType.replace('_', ' ')
                                   : p.action === 'setParent'
-                                  ? `${p.conceptId.split(':')[1]} ⊂ ${p.parentConceptId.split(':')[1]}`
-                                  : `${p.sourceConceptId.split(':')[1]} ➔ ${p.targetConceptId.split(':')[1]}`}
+                                  ? `${p.conceptId.split(':')[1] || p.conceptId} ⊂ ${p.parentConceptId.split(':')[1] || p.parentConceptId}`
+                                  : p.action === 'updateConcept'
+                                  ? (p.updates.conceptType
+                                    ? `${p.before.conceptType} ➔ ${p.updates.conceptType}`
+                                    : p.updates.definition
+                                    ? `FDA Definition`
+                                    : `Navneændring`)
+                                  : p.action === 'deleteElement'
+                                  ? `Slet ${p.elementType === 'concept' ? 'element' : 'relation'}`
+                                  : p.action === 'addProperty'
+                                  ? `Type: ${p.propertyType} på ${p.conceptId.split(':')[1] || p.conceptId}`
+                                  : `${p.sourceConceptId.split(':')[1] || p.sourceConceptId} ➔ ${p.targetConceptId.split(':')[1] || p.targetConceptId}`}
                               </span>
                             </div>
 
@@ -634,6 +836,105 @@ export function AIChatPanel() {
           </div>
         )}
       </div>
+
+      {/* Proactive Review Accordion */}
+      {activeView && visibleDiagnostics.length > 0 && messages.length > 0 && (
+        <div className="border-t border-slate-200 bg-white shrink-0 shadow-[0_-8px_30px_rgb(0,0,0,0.06)] relative z-20">
+          <button
+            type="button"
+            onClick={() => setIsReviewExpanded(!isReviewExpanded)}
+            className="w-full flex items-center justify-between text-left text-slate-700 hover:bg-slate-50 px-4 py-3.5 transition-all font-bold select-none text-[10px] uppercase tracking-wider cursor-pointer bg-slate-50/50"
+          >
+            <div className="flex items-center gap-2">
+              <div className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </div>
+              <Brain size={14} className="text-emerald-600 shrink-0" />
+              <span className="text-slate-800 font-extrabold tracking-widest">AI Sparring ({visibleDiagnostics.length} {visibleDiagnostics.length === 1 ? 'forslag' : 'forslag'})</span>
+            </div>
+            <div className="text-slate-400">
+              {isReviewExpanded ? (
+                <ChevronDown size={14} className="transform rotate-180 transition-transform duration-200" />
+              ) : (
+                <ChevronRight size={14} />
+              )}
+            </div>
+          </button>
+
+          {isReviewExpanded && (
+            <div className="px-4 pb-4 pt-3 flex flex-col gap-2.5 max-h-[180px] overflow-y-auto custom-scrollbar bg-slate-50/20 border-t border-slate-100">
+              {visibleDiagnostics.map((issue) => (
+                <div key={issue.id} className="flex flex-col gap-2 p-3 bg-white border border-slate-150 rounded-xl shadow-xs hover:border-slate-250 transition-all text-left">
+                  <div className="flex justify-between items-start gap-2 w-full">
+                    <div className="flex gap-2 min-w-0 items-start">
+                      {issue.severity === 'warning' ? (
+                        <AlertTriangle size={14} className="text-amber-500 shrink-0 mt-0.5 animate-bounce" style={{ animationIterationCount: 2 }} />
+                      ) : (
+                        <AlertCircle size={14} className="text-blue-500 shrink-0 mt-0.5" />
+                      )}
+                      <div className="flex flex-col gap-0.5 min-w-0">
+                        <span className="text-[10px] font-bold text-slate-800 leading-tight">{issue.title}</span>
+                        <span className="text-[10px] text-slate-500 leading-normal">{issue.description}</span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => ignoreDiagnostic(activeViewId, issue.id)}
+                      className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors shrink-0"
+                      title="Ignorer dette forslag"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+
+                  <div className="flex flex-wrap gap-1.5 w-full border-t border-slate-100 pt-2 mt-1 shrink-0">
+                    {issue.quickFixLabel && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (issue.conceptId && activeView) {
+                            setLoadingFixId(issue.id);
+                            try {
+                              const concept = concepts.find(c => c.id === issue.conceptId);
+                              if (concept) {
+                                await runQuickFixDefinition(activeView.id, issue.conceptId, concept.name, concept.conceptType);
+                              }
+                            } finally {
+                              setLoadingFixId(null);
+                            }
+                          }
+                        }}
+                        disabled={loadingFixId !== null || isGenerating}
+                        className="flex-1 min-w-[100px] justify-center px-2 py-1.5 text-[9px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100/80 border border-emerald-250 rounded-lg hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-40 disabled:scale-100 cursor-pointer flex items-center gap-1.5"
+                      >
+                        {loadingFixId === issue.id ? (
+                          <div className="w-2.5 h-2.5 border border-emerald-700 border-t-transparent rounded-full animate-spin shrink-0" />
+                        ) : null}
+                        <span className="truncate">{issue.quickFixLabel}</span>
+                      </button>
+                    )}
+                    {issue.askAiPrompt && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (issue.askAiPrompt) {
+                            handleSend(issue.askAiPrompt);
+                          }
+                        }}
+                        disabled={isGenerating}
+                        className="flex-1 min-w-[100px] justify-center text-center px-2 py-1.5 text-[9px] font-bold text-slate-600 bg-slate-50 hover:bg-slate-105 border border-slate-205 rounded-lg hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-40 disabled:scale-100 cursor-pointer"
+                      >
+                        Spørg AI
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Input panel */}
       <div className="p-4 border-t border-slate-200 shrink-0 bg-white">

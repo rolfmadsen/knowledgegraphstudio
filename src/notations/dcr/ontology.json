@@ -1,5 +1,14 @@
 {
   "classes": {
+    "EventStatus": {
+      "superClasses": [
+        "DCR_Metamodel"
+      ],
+      "labels": {
+        "en": "Event Status",
+        "da": "Event-status"
+      }
+    },
     "DCR_Metamodel": {
       "superClasses": [],
       "labels": {
@@ -178,6 +187,12 @@
         "da": "indeholder underhændelse"
       },
       "inverseOf": "is_nested_in"
+    },
+    "for_event": {
+      "labels": {}
+    },
+    "in_marking": {
+      "labels": {}
     },
     "is_executed": {
       "labels": {

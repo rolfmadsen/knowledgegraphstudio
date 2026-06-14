@@ -113,7 +113,7 @@ export function C4NodeComponent({ data, selected }: NodeProps) {
 
   return (
     <div className={`
-      relative min-w-[240px] min-h-[96px] px-5 py-4 border-2 transition-all duration-300 rounded-xl flex flex-col justify-between shadow-sm hover:shadow-md font-sans text-left
+      relative min-w-[240px] max-w-[360px] min-h-[96px] px-5 py-4 border-2 transition-all duration-300 rounded-xl flex flex-col justify-between shadow-sm hover:shadow-md font-sans text-left
       ${selected
         ? `bg-white border-indigo-600 scale-[1.03] ring-4 ring-indigo-100 shadow-lg shadow-indigo-100/50`
         : `${bgColor} ${borderColor}`}
@@ -157,6 +157,7 @@ export const c4Notation: Notation = {
   displayName: 'C4 Modeling',
   icon: '🎛️',
   supportedViewTypes: ['c4'],
+  orthogonalEdges: true,
   CanvasComponent: C4Canvas,
   layoutEngine: dagreLayoutEngine,
   allowedConceptTypes: [

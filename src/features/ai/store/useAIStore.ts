@@ -13,6 +13,7 @@ export interface Message {
   content: string;
   timestamp: number;
   proposals?: ProposedCommand[];
+  validationErrors?: string[];
 }
 
 export type ProposedCommand =
@@ -40,6 +41,38 @@ export type ProposedCommand =
       /** The bounded_context concept that acts as the parent subgraph */
       parentConceptId: ElementId;
       status: 'pending' | 'approved' | 'rejected';
+    }
+  | {
+      id: string;
+      action: 'updateConcept';
+      conceptId: ElementId;
+      updates: {
+        name?: string;
+        conceptType?: ConceptType;
+        definition?: string;
+      };
+      before: {
+        name: string;
+        conceptType: ConceptType;
+        definition?: string;
+      };
+      status: 'pending' | 'approved' | 'rejected';
+    }
+  | {
+      id: string;
+      action: 'deleteElement';
+      elementId: ElementId;
+      elementType: 'concept' | 'relation';
+      elementName: string;
+      status: 'pending' | 'approved' | 'rejected';
+    }
+  | {
+      id: string;
+      action: 'addProperty';
+      conceptId: ElementId;
+      propertyName: string;
+      propertyType: string;
+      status: 'pending' | 'approved' | 'rejected';
     };
 
 export type ProposedCommandInput =
@@ -62,6 +95,35 @@ export type ProposedCommandInput =
       action: 'setParent';
       conceptId: ElementId;
       parentConceptId: ElementId;
+    }
+  | {
+      id: string;
+      action: 'updateConcept';
+      conceptId: ElementId;
+      updates: {
+        name?: string;
+        conceptType?: ConceptType;
+        definition?: string;
+      };
+      before: {
+        name: string;
+        conceptType: ConceptType;
+        definition?: string;
+      };
+    }
+  | {
+      id: string;
+      action: 'deleteElement';
+      elementId: ElementId;
+      elementType: 'concept' | 'relation';
+      elementName: string;
+    }
+  | {
+      id: string;
+      action: 'addProperty';
+      conceptId: ElementId;
+      propertyName: string;
+      propertyType: string;
     };
 
 export interface ViewSession {
@@ -69,6 +131,7 @@ export interface ViewSession {
   proposals: ProposedCommand[];
   /** Maps AI-expected slug IDs (e.g. "event:opret-ku-bruger") to real store UUIDs */
   idMap: Record<string, string>;
+  ignoredDiagnosticIds?: string[];
 }
 
 export interface AIStoreState {
@@ -87,14 +150,14 @@ export interface AIStoreState {
 
   // Chat Actions
   addMessage: (viewId: string, role: 'user' | 'assistant', content: string, proposals?: ProposedCommandInput[]) => string;
-  updateMessage: (viewId: string, messageId: string, content: string, proposals?: ProposedCommandInput[]) => void;
+  updateMessage: (viewId: string, messageId: string, content: string, proposals?: ProposedCommandInput[], validationErrors?: string[]) => void;
   deleteMessage: (viewId: string, messageId: string) => void;
   clearChat: (viewId: string) => void;
 
   // Proposal Triage Actions
-  approveProposal: (viewId: string, proposalId: string) => void;
+  approveProposal: (viewId: string, proposalId: string) => Promise<void>;
   rejectProposal: (viewId: string, proposalId: string) => void;
-  approveAllProposals: (viewId: string) => void;
+  approveAllProposals: (viewId: string) => Promise<void>;
   rejectAllProposals: (viewId: string) => void;
 
   // WebLLM progress states
@@ -108,14 +171,74 @@ export interface AIStoreState {
   setIsGenerating: (isGenerating: boolean) => void;
   generatingError: string | null;
   setGeneratingError: (err: string | null) => void;
+
+  runQuickFixDefinition: (viewId: ElementId, conceptId: ElementId, conceptName: string, conceptType: string) => Promise<void>;
+  ignoreDiagnostic: (viewId: string, diagnosticId: string) => void;
 }
 
 // ============================================================
 // Helper: Get or Init Session
 // ============================================================
 
+const mapInputToCommand = (p: ProposedCommandInput): ProposedCommand => {
+  if (p.action === 'addConcept') {
+    return {
+      id: p.id,
+      action: 'addConcept',
+      conceptType: p.conceptType,
+      name: p.name,
+      status: 'pending',
+    };
+  } else if (p.action === 'setParent') {
+    return {
+      id: p.id,
+      action: 'setParent',
+      conceptId: p.conceptId,
+      parentConceptId: p.parentConceptId,
+      status: 'pending',
+    };
+  } else if (p.action === 'addRelation') {
+    return {
+      id: p.id,
+      action: 'addRelation',
+      sourceConceptId: p.sourceConceptId,
+      targetConceptId: p.targetConceptId,
+      name: p.name,
+      relationType: p.relationType,
+      status: 'pending',
+    };
+  } else if (p.action === 'updateConcept') {
+    return {
+      id: p.id,
+      action: 'updateConcept',
+      conceptId: p.conceptId,
+      updates: p.updates,
+      before: p.before,
+      status: 'pending',
+    };
+  } else if (p.action === 'deleteElement') {
+    return {
+      id: p.id,
+      action: 'deleteElement',
+      elementId: p.elementId,
+      elementType: p.elementType,
+      elementName: p.elementName,
+      status: 'pending',
+    };
+  } else {
+    return {
+      id: p.id,
+      action: 'addProperty',
+      conceptId: p.conceptId,
+      propertyName: p.propertyName,
+      propertyType: p.propertyType,
+      status: 'pending',
+    };
+  }
+};
+
 const getOrCreateSession = (sessions: Record<string, ViewSession>, viewId: string): ViewSession => {
-  return sessions[viewId] || { messages: [], proposals: [], idMap: {} };
+  return sessions[viewId] || { messages: [], proposals: [], idMap: {}, ignoredDiagnosticIds: [] };
 };
 
 // ============================================================
@@ -157,35 +280,7 @@ export const useAIStore = create<AIStoreState>((set, get) => ({
     const now = Date.now();
 
     const formattedProposals: ProposedCommand[] = rawProposals
-      ? rawProposals.map((p) => {
-          if (p.action === 'addConcept') {
-            return {
-              id: p.id,
-              action: 'addConcept' as const,
-              conceptType: p.conceptType,
-              name: p.name,
-              status: 'pending' as const,
-            };
-          } else if (p.action === 'setParent') {
-            return {
-              id: p.id,
-              action: 'setParent' as const,
-              conceptId: p.conceptId,
-              parentConceptId: p.parentConceptId,
-              status: 'pending' as const,
-            };
-          } else {
-            return {
-              id: p.id,
-              action: 'addRelation' as const,
-              sourceConceptId: p.sourceConceptId,
-              targetConceptId: p.targetConceptId,
-              name: p.name,
-              relationType: p.relationType,
-              status: 'pending' as const,
-            };
-          }
-        })
+      ? rawProposals.map(mapInputToCommand)
       : [];
 
     const newMessage: Message = {
@@ -205,9 +300,9 @@ export const useAIStore = create<AIStoreState>((set, get) => ({
         sessions: {
           ...state.sessions,
           [viewId]: {
+            ...session,
             messages: nextMessages,
             proposals: nextProposals,
-            idMap: session.idMap || {},
           },
         },
       };
@@ -216,37 +311,9 @@ export const useAIStore = create<AIStoreState>((set, get) => ({
     return msgId;
   },
 
-  updateMessage: (viewId, messageId, content, rawProposals) => {
+  updateMessage: (viewId, messageId, content, rawProposals, validationErrors) => {
     const formattedProposals: ProposedCommand[] = rawProposals
-      ? rawProposals.map((p) => {
-          if (p.action === 'addConcept') {
-            return {
-              id: p.id,
-              action: 'addConcept' as const,
-              conceptType: p.conceptType,
-              name: p.name,
-              status: 'pending' as const,
-            };
-          } else if (p.action === 'setParent') {
-            return {
-              id: p.id,
-              action: 'setParent' as const,
-              conceptId: p.conceptId,
-              parentConceptId: p.parentConceptId,
-              status: 'pending' as const,
-            };
-          } else {
-            return {
-              id: p.id,
-              action: 'addRelation' as const,
-              sourceConceptId: p.sourceConceptId,
-              targetConceptId: p.targetConceptId,
-              name: p.name,
-              relationType: p.relationType,
-              status: 'pending' as const,
-            };
-          }
-        })
+      ? rawProposals.map(mapInputToCommand)
       : [];
 
     set((state) => {
@@ -257,6 +324,7 @@ export const useAIStore = create<AIStoreState>((set, get) => ({
               ...m,
               content,
               proposals: formattedProposals.length > 0 ? formattedProposals : undefined,
+              validationErrors: validationErrors && validationErrors.length > 0 ? validationErrors : undefined,
             }
           : m
       );
@@ -303,110 +371,136 @@ export const useAIStore = create<AIStoreState>((set, get) => ({
           messages: [],
           proposals: [],
           idMap: {},
+          ignoredDiagnosticIds: [],
         },
       },
     }));
   },
 
-  // Proposal Triage Actions
-  approveProposal: (viewId, proposalId) => {
+  ignoreDiagnostic: (viewId, diagnosticId) => {
     set((state) => {
       const session = getOrCreateSession(state.sessions, viewId);
-      const proposalIndex = session.proposals.findIndex((p) => p.id === proposalId);
-      if (proposalIndex === -1) return {};
-
-      const proposal = session.proposals[proposalIndex];
-      if (proposal.status !== 'pending') return {};
-
-      // Mark as approved in local session state
-      const nextProposals = session.proposals.map((p) =>
-        p.id === proposalId ? { ...p, status: 'approved' as const } : p
-      );
-
-      // Trigger mutation in the core GraphStore
-      const graphStore = useGraphStore.getState();
-
-      // Per-session map from AI slug ID → real store UUID
-      const currentIdMap = { ...(session.idMap || {}) };
-
-      try {
-        if (proposal.action === 'addConcept') {
-          // Calculate center of view for default coordinates
-          const activeView = graphStore.views.find((v) => v.id === viewId);
-          const defaultW = activeView?.type === 'c4' ? 240 : (activeView?.type === 'archimate' || activeView?.type === 'dcr') ? 210 : 200;
-          const defaultH = activeView?.type === 'c4' ? 96 : (activeView?.type === 'archimate' || activeView?.type === 'dcr') ? 76 : 80;
-
-          // Put node in center of canvas
-          const canvasWidth = graphStore.canvasWidth || 800;
-          const x = canvasWidth / 2 - defaultW / 2;
-          const y = 300 - defaultH / 2;
-
-          const createdConcept = graphStore.addConcept(proposal.conceptType, proposal.name, {
-            createdBy: 'ai',
-            x,
-            y,
-          });
-
-          // Record the mapping: AI expected slug → real UUID assigned by generateId()
-          const aiExpectedSlug = `${proposal.conceptType}:${proposal.name.trim().toLowerCase().replace(/\s+/g, '-')}`;
-          if (createdConcept && createdConcept.id !== aiExpectedSlug) {
-            currentIdMap[aiExpectedSlug] = createdConcept.id;
-          }
-        } else if (proposal.action === 'addRelation' || proposal.action === 'setParent') {
-          // Shared helper: resolve an AI slug ID to the real store UUID.
-          // Priority: 1) session idMap (newly created this session)
-          //           2) slug-match against existing store concepts (type:kebab-name)
-          //           3) fall through as-is (may be a pre-existing concept already stored by UUID)
-          const resolveId = (aiId: string): string => {
-            if (currentIdMap[aiId]) return currentIdMap[aiId];
-            const slugMatch = graphStore.concepts.find((c) => {
-              const slug = `${c.conceptType}:${c.name.trim().toLowerCase().replace(/\s+/g, '-')}`;
-              return slug === aiId;
-            });
-            if (slugMatch) return slugMatch.id;
-            return aiId;
-          };
-
-          if (proposal.action === 'addRelation') {
-            const resolvedSourceId = resolveId(proposal.sourceConceptId) as import('../../../schema/graphSchema').ElementId;
-            const resolvedTargetId = resolveId(proposal.targetConceptId) as import('../../../schema/graphSchema').ElementId;
-            graphStore.addRelation(resolvedSourceId, resolvedTargetId, proposal.name, {
-              relationType: proposal.relationType,
-              createdBy: 'ai',
-            });
-          } else {
-            // setParent: visually nest the child concept inside the subgraph on the canvas
-            const resolvedConceptId = resolveId(proposal.conceptId) as import('../../../schema/graphSchema').ElementId;
-            const resolvedParentId = resolveId(proposal.parentConceptId) as import('../../../schema/graphSchema').ElementId;
-            graphStore.updateViewNodeParentId(viewId as import('../../../schema/graphSchema').ElementId, resolvedConceptId, resolvedParentId);
-          }
-        }
-      } catch (err) {
-        console.error('[useAIStore] Failed to execute proposed action:', err);
-      }
-
-      // Update message-level proposals to stay in sync
-      const nextMessages = session.messages.map((m) => {
-        if (!m.proposals) return m;
-        return {
-          ...m,
-          proposals: m.proposals.map((p) =>
-            p.id === proposalId ? { ...p, status: 'approved' as const } : p
-          ),
-        };
-      });
+      const ignoredDiagnosticIds = session.ignoredDiagnosticIds || [];
+      if (ignoredDiagnosticIds.includes(diagnosticId)) return {};
 
       return {
         sessions: {
           ...state.sessions,
           [viewId]: {
-            messages: nextMessages,
-            proposals: nextProposals,
-            idMap: currentIdMap,
+            ...session,
+            ignoredDiagnosticIds: [...ignoredDiagnosticIds, diagnosticId],
           },
         },
       };
     });
+  },
+
+  // Proposal Triage Actions
+  approveProposal: async (viewId, proposalId) => {
+    const session = getOrCreateSession(get().sessions, viewId);
+    const proposal = session.proposals.find((p) => p.id === proposalId);
+    if (!proposal || proposal.status !== 'pending') return;
+
+    // Per-session map from AI slug ID → real store UUID
+    const currentIdMap = { ...(session.idMap || {}) };
+    const graphStore = useGraphStore.getState();
+
+    try {
+      const resolveId = (aiId: string): string => {
+        if (currentIdMap[aiId]) return currentIdMap[aiId];
+        const slugMatch = graphStore.concepts.find((c) => {
+          const slug = `${c.conceptType}:${c.name.trim().toLowerCase().replace(/\s+/g, '-')}`;
+          return slug === aiId;
+        });
+        if (slugMatch) return slugMatch.id;
+        return aiId;
+      };
+
+      if (proposal.action === 'addConcept') {
+        // Calculate center of view for default coordinates
+        const activeView = graphStore.views.find((v) => v.id === viewId);
+        const defaultW = activeView?.type === 'c4' ? 240 : (activeView?.type === 'archimate' || activeView?.type === 'dcr') ? 210 : 200;
+        const defaultH = activeView?.type === 'c4' ? 96 : (activeView?.type === 'archimate' || activeView?.type === 'dcr') ? 76 : 80;
+
+        // Put node in center of canvas
+        const canvasWidth = graphStore.canvasWidth || 800;
+        const x = canvasWidth / 2 - defaultW / 2;
+        const y = 300 - defaultH / 2;
+
+        const createdConcept = graphStore.addConcept(proposal.conceptType, proposal.name, {
+          createdBy: 'ai',
+          x,
+          y,
+        });
+
+        // Record the mapping: AI expected slug → real UUID assigned by generateId()
+        const aiExpectedSlug = `${proposal.conceptType}:${proposal.name.trim().toLowerCase().replace(/\s+/g, '-')}`;
+        if (createdConcept && createdConcept.id !== aiExpectedSlug) {
+          currentIdMap[aiExpectedSlug] = createdConcept.id;
+        }
+      } else if (proposal.action === 'addRelation') {
+        const resolvedSourceId = resolveId(proposal.sourceConceptId) as import('../../../schema/graphSchema').ElementId;
+        const resolvedTargetId = resolveId(proposal.targetConceptId) as import('../../../schema/graphSchema').ElementId;
+        graphStore.addRelation(resolvedSourceId, resolvedTargetId, proposal.name, {
+          relationType: proposal.relationType,
+          createdBy: 'ai',
+        });
+      } else if (proposal.action === 'setParent') {
+        // setParent: visually nest the child concept inside the subgraph on the canvas
+        const resolvedConceptId = resolveId(proposal.conceptId) as import('../../../schema/graphSchema').ElementId;
+        const resolvedParentId = resolveId(proposal.parentConceptId) as import('../../../schema/graphSchema').ElementId;
+        graphStore.updateViewNodeParentId(viewId as import('../../../schema/graphSchema').ElementId, resolvedConceptId, resolvedParentId);
+      } else if (proposal.action === 'updateConcept') {
+        const resolvedConceptId = resolveId(proposal.conceptId) as import('../../../schema/graphSchema').ElementId;
+        graphStore.updateConcept(resolvedConceptId, proposal.updates);
+      } else if (proposal.action === 'deleteElement') {
+        if (proposal.elementType === 'concept') {
+          const resolvedConceptId = resolveId(proposal.elementId) as import('../../../schema/graphSchema').ElementId;
+          graphStore.deleteConcept(resolvedConceptId);
+        } else {
+          const resolvedRelationId = proposal.elementId as import('../../../schema/graphSchema').ElementId;
+          graphStore.deleteRelation(resolvedRelationId);
+        }
+      } else if (proposal.action === 'addProperty') {
+        const resolvedConceptId = resolveId(proposal.conceptId) as import('../../../schema/graphSchema').ElementId;
+        const propType = (proposal.propertyType || 'string') as any;
+        graphStore.addProperty(resolvedConceptId, proposal.propertyName, propType);
+      }
+
+      // 2. Wait for Graph Store to successfully save workspace YAML files to lightning-fs
+      await graphStore.saveWorkspace();
+
+      // 3. Update the proposal status in AI Store sessions state (persisting to localStorage)
+      set((state) => {
+        const s = getOrCreateSession(state.sessions, viewId);
+        const nextProposals = s.proposals.map((p) =>
+          p.id === proposalId ? { ...p, status: 'approved' as const } : p
+        );
+        const nextMessages = s.messages.map((m) => {
+          if (!m.proposals) return m;
+          return {
+            ...m,
+            proposals: m.proposals.map((mp) =>
+              mp.id === proposalId ? { ...mp, status: 'approved' as const } : mp
+            ),
+          };
+        });
+
+        return {
+          sessions: {
+            ...state.sessions,
+            [viewId]: {
+              ...s,
+              messages: nextMessages,
+              proposals: nextProposals,
+              idMap: currentIdMap,
+            },
+          },
+        };
+      });
+    } catch (err) {
+      console.error('[useAIStore] Failed to execute or save proposed action:', err);
+    }
   },
 
   rejectProposal: (viewId, proposalId) => {
@@ -431,30 +525,128 @@ export const useAIStore = create<AIStoreState>((set, get) => ({
         sessions: {
           ...state.sessions,
           [viewId]: {
+            ...session,
             messages: nextMessages,
             proposals: nextProposals,
-            idMap: session.idMap || {},
           },
         },
       };
     });
   },
 
-  approveAllProposals: (viewId) => {
+  approveAllProposals: async (viewId) => {
     const session = getOrCreateSession(get().sessions, viewId);
     const pending = session.proposals.filter((p) => p.status === 'pending');
-    
-    // Batch updates to avoid multiple separate saves
+    if (pending.length === 0) return;
+
+    const graphStore = useGraphStore.getState();
+    const currentIdMap = { ...(session.idMap || {}) };
+
+    const resolveId = (aiId: string): string => {
+      if (currentIdMap[aiId]) return currentIdMap[aiId];
+      const slugMatch = graphStore.concepts.find((c) => {
+        const slug = `${c.conceptType}:${c.name.trim().toLowerCase().replace(/\s+/g, '-')}`;
+        return slug === aiId;
+      });
+      if (slugMatch) return slugMatch.id;
+      return aiId;
+    };
+
+    // Pause undo/redo history during the batch
     const temporal = useGraphStore.temporal.getState();
     temporal.pause();
 
-    pending.forEach((p) => {
-      get().approveProposal(viewId, p.id);
-    });
+    try {
+      // 1. Perform all graph mutations
+      for (const proposal of pending) {
+        if (proposal.action === 'addConcept') {
+          const activeView = graphStore.views.find((v) => v.id === viewId);
+          const defaultW = activeView?.type === 'c4' ? 240 : (activeView?.type === 'archimate' || activeView?.type === 'dcr') ? 210 : 200;
+          const defaultH = activeView?.type === 'c4' ? 96 : (activeView?.type === 'archimate' || activeView?.type === 'dcr') ? 76 : 80;
 
-    temporal.resume();
-    // Schedule one single autosave
-    useGraphStore.getState().saveWorkspace();
+          const canvasWidth = graphStore.canvasWidth || 800;
+          const x = canvasWidth / 2 - defaultW / 2;
+          const y = 300 - defaultH / 2;
+
+          const createdConcept = graphStore.addConcept(proposal.conceptType, proposal.name, {
+            createdBy: 'ai',
+            x,
+            y,
+          });
+
+          const aiExpectedSlug = `${proposal.conceptType}:${proposal.name.trim().toLowerCase().replace(/\s+/g, '-')}`;
+          if (createdConcept && createdConcept.id !== aiExpectedSlug) {
+            currentIdMap[aiExpectedSlug] = createdConcept.id;
+          }
+        } else if (proposal.action === 'addRelation') {
+          const resolvedSourceId = resolveId(proposal.sourceConceptId) as any;
+          const resolvedTargetId = resolveId(proposal.targetConceptId) as any;
+          graphStore.addRelation(resolvedSourceId, resolvedTargetId, proposal.name, {
+            relationType: proposal.relationType,
+            createdBy: 'ai',
+          });
+        } else if (proposal.action === 'setParent') {
+          const resolvedConceptId = resolveId(proposal.conceptId) as any;
+          const resolvedParentId = resolveId(proposal.parentConceptId) as any;
+          graphStore.updateViewNodeParentId(viewId as any, resolvedConceptId, resolvedParentId);
+        } else if (proposal.action === 'updateConcept') {
+          const resolvedConceptId = resolveId(proposal.conceptId) as any;
+          graphStore.updateConcept(resolvedConceptId, proposal.updates);
+        } else if (proposal.action === 'deleteElement') {
+          if (proposal.elementType === 'concept') {
+            const resolvedConceptId = resolveId(proposal.elementId) as any;
+            graphStore.deleteConcept(resolvedConceptId);
+          } else {
+            const resolvedRelationId = proposal.elementId as any;
+            graphStore.deleteRelation(resolvedRelationId);
+          }
+        } else if (proposal.action === 'addProperty') {
+          const resolvedConceptId = resolveId(proposal.conceptId) as any;
+          const propType = (proposal.propertyType || 'string') as any;
+          graphStore.addProperty(resolvedConceptId, proposal.propertyName, propType);
+        }
+      }
+
+      // Resume temporal store
+      temporal.resume();
+
+      // 2. Save workspace once
+      await graphStore.saveWorkspace();
+
+      // 3. Mark all pending proposals as approved in AI store
+      set((state) => {
+        const s = getOrCreateSession(state.sessions, viewId);
+        const pendingIds = new Set(pending.map((p) => p.id));
+
+        const nextProposals = s.proposals.map((p) =>
+          pendingIds.has(p.id) ? { ...p, status: 'approved' as const } : p
+        );
+        const nextMessages = s.messages.map((m) => {
+          if (!m.proposals) return m;
+          return {
+            ...m,
+            proposals: m.proposals.map((mp) =>
+              pendingIds.has(mp.id) ? { ...mp, status: 'approved' as const } : mp
+            ),
+          };
+        });
+
+        return {
+          sessions: {
+            ...state.sessions,
+            [viewId]: {
+              ...s,
+              messages: nextMessages,
+              proposals: nextProposals,
+              idMap: currentIdMap,
+            },
+          },
+        };
+      });
+    } catch (err) {
+      temporal.resume();
+      console.error('[useAIStore] Failed to execute or save batch proposals:', err);
+    }
   },
 
   rejectAllProposals: (viewId) => {
@@ -471,6 +663,22 @@ export const useAIStore = create<AIStoreState>((set, get) => ({
   setIsGenerating: (isGenerating) => set({ isGenerating }),
   generatingError: null,
   setGeneratingError: (generatingError) => set({ generatingError }),
+
+  runQuickFixDefinition: async (_viewId, conceptId, conceptName, conceptType) => {
+    set({ isGenerating: true, generatingError: null });
+    try {
+      const { AIService } = await import('../services/AIService');
+      const definition = await AIService.generateDefinition(conceptName, conceptType);
+      
+      // Update the concept in GraphStore
+      useGraphStore.getState().updateConcept(conceptId, { definition });
+    } catch (err) {
+      console.error('[useAIStore] Quick Fix Definition failed:', err);
+      set({ generatingError: err instanceof Error ? err.message : 'Kunne ikke generere definition.' });
+    } finally {
+      set({ isGenerating: false });
+    }
+  },
 }));
 
 // Load and subscribe for persistence

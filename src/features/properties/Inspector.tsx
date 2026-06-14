@@ -12,7 +12,8 @@ import {
   Info,
   ArrowUpDown,
   Eye,
-  Layers
+  Layers,
+  Sliders
 } from 'lucide-react';
 
 export function Inspector() {
@@ -143,52 +144,63 @@ export function Inspector() {
     return () => window.removeEventListener('keydown', handleTabTrap);
   }, []);
 
+  // Determine header actions/status
+  let headerAction = null;
   if (selectedConceptIds.length > 1) {
-    const selectedConcepts = selectedConceptIds
-      .map(id => concepts.find(c => c.id === id))
-      .filter(Boolean) as ConceptNode[];
-
-    return (
-      <div 
-        id="inspector-root"
-        className="flex-1 flex flex-col min-h-0 overflow-y-auto custom-scrollbar bg-slate-50/30 backdrop-blur-sm outline-none animate-in fade-in duration-300 select-none"
-        tabIndex={-1}
-        style={{ padding: '32px' }}
+    headerAction = (
+      <span className="text-[9px] font-bold px-2 py-0.5 bg-slate-100 text-slate-500 rounded-full">
+        {selectedConceptIds.length} valgt
+      </span>
+    );
+  } else if (concept || relation) {
+    headerAction = (
+      <button 
+        onClick={() => {
+            const idToCopy = concept?.id || relation?.id;
+            if (idToCopy) navigator.clipboard.writeText(idToCopy);
+        }}
+        className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-emerald-600 hover:bg-slate-100 transition-all rounded-xl active:scale-95 shrink-0 cursor-pointer"
+        title="Kopier UUID"
       >
-        {/* Header Section */}
-        <div className="mb-10 flex items-center justify-between border-b border-slate-200 pb-4">
-          <span className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-800">Properties</span>
-          <span className="text-[10px] font-bold px-2 py-0.5 bg-slate-100 text-slate-500 rounded-full">
-            {selectedConceptIds.length} Selected
-          </span>
-        </div>
+        <Copy size={14} />
+      </button>
+    );
+  }
 
+  // Helper to render the body content based on selection state
+  const renderContent = () => {
+    if (selectedConceptIds.length > 1) {
+      const selectedConcepts = selectedConceptIds
+        .map(id => concepts.find(c => c.id === id))
+        .filter(Boolean) as ConceptNode[];
+
+      return (
         <div className="flex flex-col gap-8">
           <div className="flex flex-col items-center gap-5 p-6 bg-white border border-slate-200/60 rounded-[24px] shadow-sm text-center">
             <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 shadow-sm animate-in fade-in zoom-in duration-300">
               <Plus size={20} strokeWidth={2.5} />
             </div>
             <div className="space-y-1">
-              <h3 className="text-[13px] font-black text-slate-900 tracking-tight">Group Selection</h3>
+              <h3 className="text-[13px] font-black text-slate-900 tracking-tight">Gruppér markering</h3>
               <p className="text-[11px] text-slate-400 leading-relaxed max-w-[200px]">
-                Create a boundary container around the {selectedConceptIds.length} selected elements.
+                Opret en ramme/område omkring de {selectedConceptIds.length} valgte elementer.
               </p>
             </div>
             {activeViewId && (
               <button
                 id="btn-group-selection"
                 onClick={() => {
-                  groupConcepts(activeViewId, selectedConceptIds, 'New Group');
+                  groupConcepts(activeViewId, selectedConceptIds, 'Ny gruppe');
                   document.dispatchEvent(new CustomEvent('focus-inspector'));
                 }}
                 className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-black tracking-wider uppercase rounded-xl transition-all shadow-sm hover:shadow-md hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
               >
-                Group {selectedConceptIds.length} Nodes
+                Gruppér {selectedConceptIds.length} noder
               </button>
             )}
           </div>
 
-          <InspectorSection title={`Selected Elements (${selectedConcepts.length})`}>
+          <InspectorSection title={`Valgte elementer (${selectedConcepts.length})`}>
             <div className="flex flex-col gap-2 max-h-[250px] overflow-y-auto custom-scrollbar pr-1">
               {selectedConcepts.map((c) => {
                 const customLabel = activeNotation?.conceptTypeLabels?.[c.conceptType];
@@ -209,7 +221,7 @@ export function Inspector() {
                         setSelectedConceptIds(nextIds);
                       }}
                       className="p-1 text-slate-300 hover:text-red-500 rounded hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
-                      title="Deselect"
+                      title="Fjern markering"
                     >
                       <Trash2 size={12} />
                     </button>
@@ -219,32 +231,20 @@ export function Inspector() {
             </div>
           </InspectorSection>
         </div>
-      </div>
-    );
-  }
+      );
+    }
 
-  if (!concept && !relation) {
-    return (
-      <div 
-        id="inspector-root"
-        className="flex-1 flex flex-col min-h-0 overflow-y-auto custom-scrollbar bg-slate-50/30 backdrop-blur-sm outline-none select-none"
-        tabIndex={-1}
-        style={{ padding: '32px' }}
-      >
-        {/* Header Section */}
-        <div className="mb-10 flex items-center justify-between border-b border-slate-200 pb-4">
-          <span className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-800">Properties</span>
-        </div>
-
+    if (!concept && !relation) {
+      return (
         <div className="flex flex-col gap-8">
           <div className="flex flex-col items-center gap-5 p-6 bg-white border border-slate-200/60 rounded-[24px] shadow-sm text-center">
             <div className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 shadow-sm animate-in fade-in zoom-in duration-300">
                <Info size={18} strokeWidth={2} />
             </div>
             <div className="space-y-1">
-              <h3 className="text-[13px] font-black text-slate-900 tracking-tight">Nothing Selected</h3>
+              <h3 className="text-[13px] font-black text-slate-900 tracking-tight">Intet valgt</h3>
               <p className="text-[11px] text-slate-400 leading-relaxed max-w-[200px] mx-auto">
-                Select an element on the graph to see details.
+                Vælg et element på canvasset for at se og redigere dets egenskaber.
               </p>
             </div>
           </div>
@@ -283,37 +283,13 @@ export function Inspector() {
             )}
           </InspectorSection>
         </div>
-      </div>
-    );
-  }
+      );
+    }
 
-  const conceptWarnings = concept ? warnings.filter(w => w.nodeId === concept.id) : [];
-  const relationWarnings = relation ? warnings.filter(w => w.relationId === relation.id) : [];
+    const conceptWarnings = concept ? warnings.filter(w => w.nodeId === concept.id) : [];
+    const relationWarnings = relation ? warnings.filter(w => w.relationId === relation.id) : [];
 
-  return (
-    <div 
-        id="inspector-root"
-        className="flex-1 flex flex-col min-h-0 overflow-y-auto custom-scrollbar bg-slate-50/30 backdrop-blur-sm outline-none select-none"
-        tabIndex={-1}
-        style={{ padding: '32px' }}
-    >
-      {/* Header Section */}
-      <div className="mb-10 flex items-center justify-between border-b border-slate-200 pb-4">
-        <span className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-800">Properties</span>
-        {(concept || relation) && (
-            <button 
-              onClick={() => {
-                  const idToCopy = concept?.id || relation?.id;
-                  if (idToCopy) navigator.clipboard.writeText(idToCopy);
-              }}
-              className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-emerald-600 transition-all bg-white rounded-xl border border-slate-200 shadow-sm hover:border-emerald-200 hover:bg-emerald-50 active:scale-90"
-              title="Copy UUID"
-            >
-              <Copy size={14} strokeWidth={2.5} />
-            </button>
-        )}
-      </div>
-
+    return (
       <div className="flex flex-col gap-8">
         {(conceptWarnings.length > 0 || relationWarnings.length > 0) && (
           <div className="flex flex-col gap-2">
@@ -336,22 +312,22 @@ export function Inspector() {
             <>
                 {/* Always render the General / ParentGroup / Attributes / Lifecycle sections */}
                 <InspectorSection 
-                  title="General"
+                  title="Generelt"
                   rightAction={
                     <div className="flex gap-2 items-center">
                         {concept.conceptType === 'bounded_context' && activeViewId && (
                             <button 
                                 onClick={(e) => { e.stopPropagation(); dissolveGroup(activeViewId, concept.id); }}
                                 className="px-2.5 py-1 text-[9px] font-black text-amber-600 bg-amber-50 hover:bg-amber-100 hover:text-amber-700 rounded-lg border border-amber-200/50 transition-all uppercase tracking-wider shadow-sm"
-                                title="Dissolve Group"
+                                title="Opløs gruppe"
                             >
-                                Dissolve
+                                Opløs
                             </button>
                         )}
                         <button 
                             onClick={(e) => { e.stopPropagation(); deleteConcept(concept.id); }}
                             className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                            title="Delete Concept"
+                            title="Slet begreb"
                         >
                             <Trash2 size={14} strokeWidth={2.5} />
                         </button>
@@ -361,7 +337,7 @@ export function Inspector() {
                     <div className="flex flex-col gap-5">
                         <PropertyField 
                           inputRef={nameInputRef}
-                          label="Name" 
+                          label="Navn" 
                           value={concept.name} 
                           onChange={(v) => updateConcept(concept.id, { name: v })} 
                         />
@@ -391,11 +367,11 @@ export function Inspector() {
                 </InspectorSection>
 
                 {activeViewId && concept.conceptType !== 'bounded_context' && (
-                  <InspectorSection title="Parent Group">
+                  <InspectorSection title="Forældregruppe">
                     {parentGroupNode ? (
                       <div className="flex flex-col gap-3">
                         <PropertyField
-                          label="Parent Group"
+                          label="Gruppe"
                           value={parentGroupNode.name}
                           readOnly={true}
                         />
@@ -403,13 +379,13 @@ export function Inspector() {
                           onClick={() => ungroupConcept(activeViewId, concept.id)}
                           className="w-full py-2.5 text-[10px] font-black text-amber-600 hover:bg-amber-50 rounded-xl border border-dashed border-amber-200 hover:border-amber-300 transition-all tracking-widest uppercase cursor-pointer"
                         >
-                          Remove from Group
+                          Fjern fra gruppe
                         </button>
                       </div>
                     ) : (
                       <div className="flex flex-col gap-2">
                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">
-                          Add to Group
+                          Tilføj til gruppe
                         </label>
                         <div className="relative">
                           <select
@@ -422,7 +398,7 @@ export function Inspector() {
                             }}
                             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[12px] font-semibold text-slate-700 hover:border-slate-300 focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/5 outline-none appearance-none cursor-pointer transition-all"
                           >
-                            <option value="">-- Select Group --</option>
+                            <option value="">-- Vælg gruppe --</option>
                             {activeView?.nodes
                               .filter((vn) => {
                                 const c = concepts.find((comp) => comp.id === vn.conceptId);
@@ -432,7 +408,7 @@ export function Inspector() {
                                 const c = concepts.find((comp) => comp.id === vn.conceptId);
                                 return (
                                   <option key={vn.conceptId} value={vn.conceptId}>
-                                    {c?.name || 'Unnamed Group'}
+                                    {c?.name || 'Navnløs gruppe'}
                                   </option>
                                 );
                               })}
@@ -445,7 +421,7 @@ export function Inspector() {
                 )}
 
                 {concept.conceptType !== 'bounded_context' && 'properties' in concept && !activeNotation?.InspectorComponent && (
-                  <InspectorSection title="Attributes">
+                  <InspectorSection title="Attributter">
                       <div className="flex flex-col gap-3">
                           {concept.properties?.map((p: ConceptProperty) => (
                               <div key={p.id} className="flex gap-2 group">
@@ -465,17 +441,17 @@ export function Inspector() {
                               </div>
                           ))}
                           <button 
-                              onClick={() => addProperty(concept.id, 'New Property', 'string')}
+                              onClick={() => addProperty(concept.id, 'Ny egenskab', 'string')}
                               className="flex items-center justify-center gap-2 p-3 text-[10px] font-black text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all border border-dashed border-emerald-200 mt-2 tracking-widest uppercase"
                           >
                               <Plus size={14} strokeWidth={3} />
-                              <span>ADD PROPERTY</span>
+                              <span>TILFØJ ATTRIBUT</span>
                           </button>
                       </div>
                   </InspectorSection>
                 )}
 
-                <InspectorSection title="Lifecycle">
+                <InspectorSection title="Livscyklus">
                     <div className="flex flex-col gap-3">
                         <div className="relative">
                             <select 
@@ -483,10 +459,10 @@ export function Inspector() {
                                 onChange={(e) => updateConcept(concept.id, { lifecycleState: e.target.value as LifecycleState })}
                                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[12px] font-semibold text-slate-700 hover:border-slate-300 focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/5 outline-none appearance-none cursor-pointer transition-all"
                             >
-                                <option value="proposed">PROPOSED</option>
-                                <option value="active">ACTIVE</option>
-                                <option value="deprecated">DEPRECATED</option>
-                                <option value="retired">RETIRED</option>
+                                <option value="proposed">PROPOSED (Foreslået)</option>
+                                <option value="active">ACTIVE (Aktiv)</option>
+                                <option value="deprecated">DEPRECATED (Forældet)</option>
+                                <option value="retired">RETIRED (Udgået)</option>
                             </select>
                             <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400" />
                         </div>
@@ -505,7 +481,6 @@ export function Inspector() {
                   />
                 )}
 
-
                 {/* Views membership section (Shared across non-conceptual views) */}
                 {!activeNotation?.hideViewsSection && (() => {
                   const memberViews = views.filter((v) =>
@@ -513,7 +488,7 @@ export function Inspector() {
                   );
                   return (
                     <InspectorSection
-                      title="Views"
+                      title="Visninger"
                       rightAction={
                         <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-400">
                           {memberViews.length}
@@ -524,7 +499,7 @@ export function Inspector() {
                         <div className="flex flex-col items-center gap-2 py-4 text-center">
                           <Layers size={18} className="text-slate-200" />
                           <p className="text-[10px] text-slate-400 leading-relaxed">
-                            Not added to any view yet.
+                            Ikke tilføjet til nogen visning endnu.
                           </p>
                         </div>
                       ) : (
@@ -548,15 +523,15 @@ export function Inspector() {
                                 <span className="text-[13px] shrink-0">{viewTypeIcon}</span>
                                 <span className="text-[11px] font-semibold flex-1 truncate">{v.name}</span>
                                 {isActive ? (
-                                  <span className="text-[9px] font-black text-emerald-500 uppercase tracking-wider shrink-0">Active</span>
+                                  <span className="text-[9px] font-black text-emerald-500 uppercase tracking-wider shrink-0">Aktiv</span>
                                 ) : (
                                   <button
                                     onClick={() => setActiveViewId(v.id)}
                                     className="opacity-0 group-hover:opacity-100 flex items-center gap-1 px-2 py-0.5 text-[9px] font-black text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg border border-transparent hover:border-emerald-100 transition-all uppercase tracking-wider shrink-0"
-                                    title={`Switch to ${v.name}`}
+                                    title={`Skift til ${v.name}`}
                                   >
                                     <Eye size={10} strokeWidth={2.5} />
-                                    Go
+                                    Gå til
                                   </button>
                                 )}
                               </div>
@@ -573,12 +548,12 @@ export function Inspector() {
         {relation && (
             <>
                 <InspectorSection 
-                  title="General"
+                  title="Generelt"
                   rightAction={
                     <button 
                         onClick={() => deleteRelation(relation.id)}
                         className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                        title="Delete Relation"
+                        title="Slet relation"
                     >
                         <Trash2 size={14} strokeWidth={2.5} />
                     </button>
@@ -609,7 +584,7 @@ export function Inspector() {
                                     }}
                                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[12px] font-semibold text-slate-700 hover:border-slate-300 focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/5 outline-none transition-all appearance-none cursor-pointer"
                                   >
-                                    <option value="">-- Select Type --</option>
+                                    <option value="">-- Vælg type --</option>
                                     {allowedRelations.map((opt) => (
                                       <option key={opt.id} value={opt.description}>
                                         {opt.label}
@@ -632,13 +607,13 @@ export function Inspector() {
                         })()}
                         <PropertyField 
                           inputRef={nameInputRef}
-                          label="Label" 
+                          label="Navn" 
                           value={relation.name || ''} 
                           onChange={(v) => updateRelation(relation.id, { name: v })} 
                         />
                         {!activeNotation?.RelationInspectorComponent && (
                           <PropertyField 
-                            label="Multiplicity" 
+                            label="Kardinalitet" 
                             value={relation.multiplicity || ''} 
                             onChange={(v) => updateRelation(relation.id, { multiplicity: v })} 
                           />
@@ -654,11 +629,11 @@ export function Inspector() {
                   />
                 )}
 
-                <InspectorSection title="Lineage">
+                <InspectorSection title="Forbindelse">
                     <div className="flex flex-col gap-6 p-6 bg-slate-50/50 rounded-3xl border border-slate-100 relative">
                         <div className="flex flex-col gap-1.5">
-                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest font-mono">Source</span>
-                            <span className="text-[13px] font-black text-slate-700">{concepts.find(c => c.id === relation.sourceConceptId)?.name || 'None'}</span>
+                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest font-mono">Kilde</span>
+                            <span className="text-[13px] font-black text-slate-700">{concepts.find(c => c.id === relation.sourceConceptId)?.name || 'Ingen'}</span>
                         </div>
                         
                         <div className="flex justify-center -my-2 relative z-10">
@@ -668,20 +643,46 @@ export function Inspector() {
                                     targetConceptId: relation.sourceConceptId 
                                 })}
                                 className="w-10 h-10 flex items-center justify-center bg-white rounded-full shadow-md border border-slate-200 hover:border-emerald-500 hover:text-emerald-600 transition-all active:scale-90"
-                                title="Flip Direction"
+                                title="Vend retning"
                             >
                                 <ArrowUpDown size={14} strokeWidth={2.5} />
                             </button>
                         </div>
 
                         <div className="flex flex-col gap-1.5">
-                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest font-mono">Target</span>
-                            <span className="text-[13px] font-black text-slate-700">{concepts.find(c => c.id === relation.targetConceptId)?.name || 'None'}</span>
+                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest font-mono">Mål</span>
+                            <span className="text-[13px] font-black text-slate-700">{concepts.find(c => c.id === relation.targetConceptId)?.name || 'Ingen'}</span>
                         </div>
                     </div>
                 </InspectorSection>
             </>
         )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="flex-1 flex flex-col min-h-0 overflow-hidden bg-slate-50 relative select-none">
+      {/* Header */}
+      <div className="h-16 px-6 border-b border-slate-200 shrink-0 flex items-center justify-between bg-white shadow-sm z-10">
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 rounded-lg bg-emerald-600 flex items-center justify-center shadow-md shadow-emerald-600/10">
+            <Sliders size={12} className="text-white" />
+          </div>
+          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-800">
+            Egenskaber
+          </span>
+        </div>
+        {headerAction}
+      </div>
+
+      {/* Scrollable Content */}
+      <div 
+        id="inspector-root"
+        className="flex-1 overflow-y-auto px-6 py-6 outline-none animate-in fade-in duration-300"
+        tabIndex={-1}
+      >
+        {renderContent()}
       </div>
     </div>
   );

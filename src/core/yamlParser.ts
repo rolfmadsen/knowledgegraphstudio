@@ -203,6 +203,15 @@ export function yamlToState(yamlString: string): {
 
   // Extract concepts and flatten nested relations
   const rawConcepts = (graph.concepts as YamlConcept[]) ?? [];
+
+  // Pre-map concept types for relationType auto-derivation
+  const conceptTypeMap = new Map<string, string>();
+  for (const yc of rawConcepts) {
+    let type = yc.conceptType as string;
+    if (type === 'information') type = 'entity';
+    conceptTypeMap.set(yc.id, type);
+  }
+
   const concepts: ConceptNode[] = [];
   const relations: ConceptRelation[] = [];
 
@@ -259,6 +268,40 @@ export function yamlToState(yamlString: string): {
             type = undefined; // omit if not one of the allowed types
           }
         }
+
+        // Auto-derive missing/undefined relationType for class-to-class relations in core models
+        if (!type && rel.sourceConceptId && rel.targetConceptId) {
+          const srcType = conceptTypeMap.get(rel.sourceConceptId);
+          const tgtType = conceptTypeMap.get(rel.targetConceptId);
+          if (srcType === 'class' && tgtType === 'class') {
+            const cleanName = (rel.name || '').toLowerCase().trim();
+            if (
+              cleanName.includes('generaliser') ||
+              cleanName.includes('specialiser') ||
+              cleanName.includes('kan være en') ||
+              cleanName.includes('er en') ||
+              cleanName.includes('underklasse') ||
+              cleanName.includes('specialization') ||
+              cleanName.includes('generalization')
+            ) {
+              type = 'specialization';
+            } else if (
+              cleanName.includes('består af') ||
+              cleanName.includes('komposition') ||
+              cleanName.includes('composition')
+            ) {
+              type = 'composition';
+            } else if (
+              cleanName.includes('aggreger') ||
+              cleanName.includes('aggregation')
+            ) {
+              type = 'aggregation';
+            } else {
+              type = 'association';
+            }
+          }
+        }
+
         relations.push({
           ...rel,
           relationType: type as any,

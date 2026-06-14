@@ -10,7 +10,7 @@ vi.hoisted(() => {
   vi.stubGlobal('localStorage', localStorageMock);
 });
 
-import { AIService, parseProposedCommands } from '../services/AIService';
+import { AIService, parseProposedCommands, repairJson, normalizeCommand } from '../services/AIService';
 import { parseQuickReplies } from '../components/AIChatPanel';
 import { useAIStore } from '../store/useAIStore';
 import { useGraphStore } from '../../../store/useGraphStore';
@@ -127,6 +127,76 @@ Det var det hele.
       expect((result[0] as any).sourceConceptId).toBe('entity:kilde');
       expect((result[0] as any).targetConceptId).toBe('entity:maal');
     });
+
+    it('parses commands in js or text code blocks, or without language tag', () => {
+      const text = `
+\`\`\`js
+[
+  { "action": "addConcept", "conceptType": "class", "name": "Bil" }
+]
+\`\`\`
+      `;
+      const result = parseProposedCommands(text);
+      expect(result).toHaveLength(1);
+      expect(result[0].action).toBe('addConcept');
+      expect((result[0] as any).name).toBe('Bil');
+    });
+
+    it('parses unclosed code blocks', () => {
+      const text = `
+\`\`\`json
+[
+  { "action": "addConcept", "conceptType": "class", "name": "Kano" }
+]
+`;
+      const result = parseProposedCommands(text);
+      expect(result).toHaveLength(1);
+      expect(result[0].action).toBe('addConcept');
+      expect((result[0] as any).name).toBe('Kano');
+    });
+  });
+
+  describe('repairJson', () => {
+    it('repairs trailing commas', () => {
+      const repaired = repairJson('[{"action": "addConcept", "name": "Bil",},]');
+      expect(JSON.parse(repaired)).toEqual([{ action: "addConcept", name: "Bil" }]);
+    });
+
+    it('repairs single quotes', () => {
+      const repaired = repairJson("[{'action': 'addConcept', 'name': 'Bil'}]");
+      expect(JSON.parse(repaired)).toEqual([{ action: "addConcept", name: "Bil" }]);
+    });
+
+    it('repairs unquoted keys', () => {
+      const repaired = repairJson('[{action: "addConcept", name: "Bil"}]');
+      expect(JSON.parse(repaired)).toEqual([{ action: "addConcept", name: "Bil" }]);
+    });
+  });
+
+  describe('normalizeCommand', () => {
+    it('normalizes type to action or conceptType', () => {
+      const cmd = normalizeCommand({ type: 'addConcept', name: 'Bil' });
+      expect(cmd.action).toBe('addConcept');
+      
+      const cmd2 = normalizeCommand({ action: 'addConcept', type: 'class', name: 'Bil' });
+      expect(cmd2.conceptType).toBe('class');
+    });
+
+    it('normalizes source/from and target/to for relations', () => {
+      const cmd = normalizeCommand({ action: 'addRelation', from: 'A', to: 'B', name: 'rel' });
+      expect(cmd.sourceConceptId).toBe('A');
+      expect(cmd.targetConceptId).toBe('B');
+
+      const cmd2 = normalizeCommand({ action: 'addRelation', source: 'A', target: 'B', name: 'rel' });
+      expect(cmd2.sourceConceptId).toBe('A');
+      expect(cmd2.targetConceptId).toBe('B');
+    });
+
+    it('normalizes child and parent for setParent', () => {
+      const cmd = normalizeCommand({ action: 'setParent', child: 'A', parent: 'B' });
+      expect(cmd.conceptId).toBe('A');
+      expect(cmd.parentConceptId).toBe('B');
+    });
   });
 
   describe('parseQuickReplies', () => {
@@ -136,6 +206,17 @@ Dette er min besked.
 Hurtig-svar:
 * [Valg A]: Studerende
 * [Valg B]: Kursus
+`;
+      const { cleanText, replies } = parseQuickReplies(text);
+      expect(replies).toEqual(['Studerende', 'Kursus']);
+      expect(cleanText).toBe('Dette er min besked.');
+    });
+
+    it('parses numbered svarmuligheder [1. [Valg A]: tekst]', () => {
+      const text = `
+Dette er min besked.
+1. [Valg A]: Studerende
+2. [Valg B]: Kursus
 `;
       const { cleanText, replies } = parseQuickReplies(text);
       expect(replies).toEqual(['Studerende', 'Kursus']);
@@ -249,7 +330,7 @@ Hurtige valg...
       expect(prompt).toContain('Du er en ekspert i forretningsprocesmodellering med speciale i Dynamic Condition Response');
       expect(prompt).toContain('### METODE OG DIALOG (Dine Instruktioner)');
       expect(prompt).toContain('### VIDENSBASE: DCR (Dynamic Condition Response) GRAFER');
-      expect(prompt).toContain('DIT OUTPUT FORMAT OG CHAIN OF THOUGHT');
+      expect(prompt).toContain('DIT OUTPUT FORMAT OG DIALOGSTRATEGI');
     });
 
     it('creates ArchiMate specific system prompt when view type is archimate', () => {
@@ -564,6 +645,260 @@ Hurtige valg...
       expect(fetchMock).toHaveBeenCalledTimes(3); // Attempted 3 times and then rejected
       expect(result.proposals).toHaveLength(0);
       expect(result.responseText).toContain("afvist");
+    });
+  });
+
+  describe('new operations parsing, normalization and validation', () => {
+    describe('parsing', () => {
+      it('parses updateConcept command', () => {
+        const text = `
+\`\`\`json
+[
+  {
+    "action": "updateConcept",
+    "conceptId": "class:ansoegning",
+    "updates": {
+      "name": "NyAnsoegning",
+      "definition": "En opdateret definition."
+    }
+  }
+]
+\`\`\`
+        `;
+        const result = parseProposedCommands(text);
+        expect(result).toHaveLength(1);
+        const cmd = result[0];
+        expect(cmd.action).toBe('updateConcept');
+        if (cmd.action === 'updateConcept') {
+          expect(cmd.conceptId).toBe('class:ansoegning');
+          expect(cmd.updates.name).toBe('NyAnsoegning');
+          expect(cmd.updates.definition).toBe('En opdateret definition.');
+        }
+      });
+
+      it('parses deleteElement command', () => {
+        const text = `
+\`\`\`json
+[
+  {
+    "action": "deleteElement",
+    "elementId": "class:ansoegning",
+    "elementType": "concept",
+    "elementName": "Ansøgning"
+  }
+]
+\`\`\`
+        `;
+        const result = parseProposedCommands(text);
+        expect(result).toHaveLength(1);
+        const cmd = result[0];
+        expect(cmd.action).toBe('deleteElement');
+        if (cmd.action === 'deleteElement') {
+          expect(cmd.elementId).toBe('class:ansoegning');
+          expect(cmd.elementType).toBe('concept');
+          expect(cmd.elementName).toBe('Ansøgning');
+        }
+      });
+
+      it('parses addProperty command', () => {
+        const text = `
+\`\`\`json
+[
+  {
+    "action": "addProperty",
+    "conceptId": "class:ansoegning",
+    "propertyName": "sagsnummer",
+    "propertyType": "string"
+  }
+]
+\`\`\`
+        `;
+        const result = parseProposedCommands(text);
+        expect(result).toHaveLength(1);
+        const cmd = result[0];
+        expect(cmd.action).toBe('addProperty');
+        if (cmd.action === 'addProperty') {
+          expect(cmd.conceptId).toBe('class:ansoegning');
+          expect(cmd.propertyName).toBe('sagsnummer');
+          expect(cmd.propertyType).toBe('string');
+        }
+      });
+    });
+
+    describe('normalization', () => {
+      it('normalizes renameConcept and editConcept to updateConcept', () => {
+        const cmd1 = normalizeCommand({ action: 'renameConcept', id: 'class:a', name: 'NyA' });
+        expect(cmd1.action).toBe('updateConcept');
+        expect(cmd1.conceptId).toBe('class:a');
+        expect(cmd1.updates.name).toBe('NyA');
+
+        const cmd2 = normalizeCommand({ action: 'editConcept', conceptId: 'class:a', definition: 'Beskrivelse' });
+        expect(cmd2.action).toBe('updateConcept');
+        expect(cmd2.updates.definition).toBe('Beskrivelse');
+      });
+
+      it('normalizes deleteConcept and deleteRelation to deleteElement', () => {
+        const cmd1 = normalizeCommand({ action: 'deleteConcept', deleteId: 'class:a', type: 'concept' });
+        expect(cmd1.action).toBe('deleteElement');
+        expect(cmd1.elementId).toBe('class:a');
+        expect(cmd1.elementType).toBe('concept');
+
+        const cmd2 = normalizeCommand({ action: 'deleteRelation', id: 'relation:123', type: 'relation' });
+        expect(cmd2.action).toBe('deleteElement');
+        expect(cmd2.elementId).toBe('relation:123');
+        expect(cmd2.elementType).toBe('relation');
+      });
+
+      it('normalizes flat properties on addProperty', () => {
+        const cmd = normalizeCommand({ action: 'addProperty', id: 'class:a', name: 'cpr', type: 'string' });
+        expect(cmd.conceptId).toBe('class:a');
+        expect(cmd.propertyName).toBe('cpr');
+        expect(cmd.propertyType).toBe('string');
+      });
+    });
+
+    describe('validation', () => {
+      it('rejects updateConcept or addProperty if concept does not exist', () => {
+        const view: View = {
+          id: toElementId('view:1'),
+          name: 'Test View',
+          type: 'conceptual_model',
+          layoutAlgorithm: 'manual',
+          nodes: [],
+          edges: [],
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          lifecycleState: 'active',
+        };
+
+        const result = AIService.validateCommands(
+          [
+            { id: '1', action: 'updateConcept', conceptId: toElementId('class:nonexistent'), updates: { name: 'Hej' }, before: { name: '', conceptType: 'class' } },
+            { id: '2', action: 'addProperty', conceptId: toElementId('class:nonexistent'), propertyName: 'cpr', propertyType: 'string' }
+          ],
+          view,
+          []
+        );
+
+        expect(result).toHaveLength(2);
+        expect(result[0]).toContain('findes ikke og kan ikke opdateres');
+        expect(result[1]).toContain('findes ikke, så der kan ikke tilføjes egenskaber');
+      });
+
+      it('accepts updateConcept and addProperty if concept exists', () => {
+        const view: View = {
+          id: toElementId('view:1'),
+          name: 'Test View',
+          type: 'conceptual_model',
+          layoutAlgorithm: 'manual',
+          nodes: [],
+          edges: [],
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          lifecycleState: 'active',
+        };
+
+        const existingConcept: ConceptNode = {
+          id: toElementId('class:studerende'),
+          conceptType: 'class',
+          name: 'Studerende',
+          aliases: [],
+          policies: [],
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          lifecycleState: 'active',
+          properties: []
+        };
+
+        const result = AIService.validateCommands(
+          [
+            { id: '1', action: 'updateConcept', conceptId: toElementId('class:studerende'), updates: { name: 'Elev' }, before: { name: 'Studerende', conceptType: 'class' } },
+            { id: '2', action: 'addProperty', conceptId: toElementId('class:studerende'), propertyName: 'cpr', propertyType: 'string' }
+          ],
+          view,
+          [existingConcept]
+        );
+
+        expect(result).toHaveLength(0);
+      });
+    });
+  });
+
+  describe('generateDefinition', () => {
+    it('uses fetch to query external api when provider is "api"', async () => {
+      useAIStore.setState({
+        config: {
+          provider: 'api',
+          baseUrl: 'http://localhost:11434/v1',
+          model: 'qwen3.6:27b',
+          apiKey: 'test-key',
+        },
+      });
+
+      const mockResponse = {
+        choices: [
+          {
+            message: {
+              role: 'assistant',
+              content: '  En bil er et køretøj, der har fire hjul.  '
+            }
+          }
+        ]
+      };
+
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => mockResponse,
+      });
+      vi.stubGlobal('fetch', fetchMock);
+
+      const result = await AIService.generateDefinition('Bil', 'class');
+      expect(result).toBe('En bil er et køretøj, der har fire hjul.');
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      
+      const fetchCallArgs = fetchMock.mock.calls[0];
+      expect(fetchCallArgs[0]).toBe('http://localhost:11434/v1/chat/completions');
+      expect(fetchCallArgs[1].headers).toEqual({
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer test-key',
+      });
+      const body = JSON.parse(fetchCallArgs[1].body);
+      expect(body.model).toBe('qwen3.6:27b');
+      expect(body.stream).toBe(false);
+      expect(body.messages[1].content).toContain('Bil');
+    });
+
+    it('uses Web-LLM engine when provider is "local_browser"', async () => {
+      useAIStore.setState({
+        config: {
+          provider: 'local_browser',
+          baseUrl: 'http://localhost:11434/v1',
+          model: 'local-model',
+        },
+      });
+
+      const mockEngine = {
+        chat: {
+          completions: {
+            create: vi.fn().mockResolvedValue({
+              choices: [
+                {
+                  message: {
+                    content: '  En cykel er et køretøj med to hjul.  '
+                  }
+                }
+              ]
+            })
+          }
+        }
+      };
+
+      const getEngineSpy = vi.spyOn(AIService, 'getEngine').mockResolvedValue(mockEngine);
+
+      const result = await AIService.generateDefinition('Cykel', 'class');
+      expect(result).toBe('En cykel er et køretøj med to hjul.');
+      expect(getEngineSpy).toHaveBeenCalledWith('local-model', expect.any(Function));
+      expect(mockEngine.chat.completions.create).toHaveBeenCalledTimes(1);
     });
   });
 });

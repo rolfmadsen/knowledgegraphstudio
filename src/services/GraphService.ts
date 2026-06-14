@@ -350,6 +350,33 @@ export class GraphService {
       else if (sType === 'event' && tType === 'business_role') finalRelationType = 'has_role';
       else if (sType === 'business_role' && tType === 'actor') finalRelationType = 'has_principal';
       else if (sType === 'event' && tType === 'bounded_context') finalRelationType = 'is_nested_in';
+      else if (sType === 'class' && tType === 'class') {
+        const cleanName = finalName.toLowerCase().trim();
+        if (
+          cleanName.includes('generaliser') ||
+          cleanName.includes('specialiser') ||
+          cleanName.includes('kan være en') ||
+          cleanName.includes('er en') ||
+          cleanName.includes('underklasse') ||
+          cleanName.includes('specialization') ||
+          cleanName.includes('generalization')
+        ) {
+          finalRelationType = 'specialization';
+        } else if (
+          cleanName.includes('består af') ||
+          cleanName.includes('komposition') ||
+          cleanName.includes('composition')
+        ) {
+          finalRelationType = 'composition';
+        } else if (
+          cleanName.includes('aggreger') ||
+          cleanName.includes('aggregation')
+        ) {
+          finalRelationType = 'aggregation';
+        } else {
+          finalRelationType = 'association';
+        }
+      }
     }
 
     const id = generateId('other', finalName);

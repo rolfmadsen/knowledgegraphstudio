@@ -343,32 +343,35 @@ export function Navigator() {
   return (
     <div id="model-explorer-root" className="flex-1 flex flex-col min-h-0 bg-slate-50 border-r border-slate-200">
       {/* Panel Header */}
-      <div className="px-5 pt-5 pb-3 border-b border-slate-200 shrink-0">
-        <div className="flex items-center justify-between">
-          <span className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-500">
+      <div className="px-6 py-4 border-b border-slate-200 shrink-0 flex items-center justify-between bg-white shadow-sm z-10">
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 rounded-lg bg-emerald-600 flex items-center justify-center shadow-md shadow-emerald-600/10">
+            <Globe size={12} className="text-white" />
+          </div>
+          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-800">
             Model Explorer
           </span>
-          <div className="flex gap-1.5">
-            <button
-              onClick={() => {
-                if (selectedConceptId) {
-                  useGraphStore.getState().setRelationBuilderOpen(true, selectedConceptId);
-                }
-              }}
-              disabled={!selectedConceptId}
-              className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-emerald-600 transition-all bg-white rounded-lg border border-slate-200 shadow-sm hover:border-emerald-200 hover:bg-emerald-50 active:scale-90 disabled:opacity-30 disabled:cursor-not-allowed"
-              title="Add relation (Alt+E)"
-            >
-              <Link2 size={13} strokeWidth={2.5} />
-            </button>
-            <button
-              onClick={() => useGraphStore.getState().setNodeCreatorOpen(true)}
-              className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-emerald-600 transition-all bg-white rounded-lg border border-slate-200 shadow-sm hover:border-emerald-200 hover:bg-emerald-50 active:scale-90"
-              title="Add concept (Alt+N)"
-            >
-              <Plus size={13} strokeWidth={2.5} />
-            </button>
-          </div>
+        </div>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => {
+              if (selectedConceptId) {
+                useGraphStore.getState().setRelationBuilderOpen(true, selectedConceptId);
+              }
+            }}
+            disabled={!selectedConceptId}
+            className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-emerald-600 disabled:hover:text-slate-400 disabled:hover:bg-transparent transition-all rounded-xl active:scale-95 shrink-0 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+            title="Opret relation (Alt+E)"
+          >
+            <Link2 size={14} />
+          </button>
+          <button
+            onClick={() => useGraphStore.getState().setNodeCreatorOpen(true)}
+            className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-emerald-600 transition-all rounded-xl active:scale-95 shrink-0 cursor-pointer"
+            title="Opret begreb (Alt+N)"
+          >
+            <Plus size={14} />
+          </button>
         </div>
       </div>
 

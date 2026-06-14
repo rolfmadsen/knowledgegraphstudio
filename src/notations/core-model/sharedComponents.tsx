@@ -7,7 +7,7 @@ export function ConceptualNodeComponent({ data, selected }: NodeProps) {
 
   return (
     <div className={`
-      relative min-w-[220px] bg-white border-2 rounded-2xl shadow-sm overflow-hidden flex flex-col font-sans transition-all text-left
+      relative min-w-[220px] max-w-[350px] bg-white border-2 rounded-2xl shadow-sm overflow-hidden flex flex-col font-sans transition-all text-left
       ${selected
         ? 'border-emerald-500 scale-[1.02] ring-4 ring-emerald-100/50 shadow-md'
         : 'border-slate-200 hover:border-slate-300'}

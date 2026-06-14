@@ -1,7 +1,8 @@
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
 import { useGraphStore } from '../../../store/useGraphStore';
 import { debounce } from '../../../utils/debounce';
+import { Copy, Check, FileCode, Lock, AlertCircle, AlertTriangle } from 'lucide-react';
 
 interface CodeViewportProps {
   isConflict?: boolean;
@@ -12,17 +13,40 @@ export function CodeViewport({ isConflict = false }: CodeViewportProps) {
   const domains = useGraphStore((s) => s?.domains || []);
   const concepts = useGraphStore((s) => s?.concepts || []);
   const relations = useGraphStore((s) => s?.relations || []);
+  const views = useGraphStore((s) => s?.views || []);
+  const activeCodeTab = useGraphStore((s) => s?.activeCodeTab ?? 'full');
+  const setActiveCodeTab = useGraphStore((s) => s?.setActiveCodeTab);
+  const activeViewId = useGraphStore((s) => s?.activeViewId);
   const stringifyState = useGraphStore((s) => s?.stringifyState);
   const hydrateFromYaml = useGraphStore((s) => s?.hydrateFromYaml);
   const resolveConflictFromYaml = useGraphStore((s) => s?.resolveConflictFromYaml);
 
   const [localYaml, setLocalYaml] = useState<string | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const yamlContent = useMemo(() => {
     if (isConflict && rawYaml) return rawYaml;
+    if (activeCodeTab === 'view') {
+      if (activeViewId) {
+        return stringifyState ? stringifyState(activeViewId) : '';
+      }
+      return '# Ingen aktiv visning. Opret eller vælg en visning i Model Explorer.';
+    }
     return stringifyState ? stringifyState() : '';
-  }, [domains, concepts, relations, isConflict, rawYaml, stringifyState]);
+  }, [domains, concepts, relations, views, isConflict, rawYaml, stringifyState, activeCodeTab, activeViewId]);
+
+  // Clear any dirty local edits when switching tabs or active views
+  useEffect(() => {
+    setLocalYaml(undefined);
+  }, [activeCodeTab, activeViewId]);
+
+  // Auto-switch back to 'full' tab if the active view is lost/deleted
+  useEffect(() => {
+    if (!activeViewId && activeCodeTab === 'view') {
+      setActiveCodeTab?.('full');
+    }
+  }, [activeViewId, activeCodeTab, setActiveCodeTab]);
 
   // Debounced sync function to update the global store from YAML input
   const syncToStore = useCallback(
@@ -39,7 +63,7 @@ export function CodeViewport({ isConflict = false }: CodeViewportProps) {
 
   const handleEditorChange = (value: string | undefined) => {
     setLocalYaml(value);
-    if (value && !isConflict) {
+    if (value && !isConflict && activeCodeTab !== 'view') {
       syncToStore(value);
     }
   };
@@ -50,27 +74,110 @@ export function CodeViewport({ isConflict = false }: CodeViewportProps) {
       if (resolveConflictFromYaml) {
         await resolveConflictFromYaml(localYaml);
       }
-      window.location.reload(); 
+      window.location.reload();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Still invalid');
     }
   };
 
+  const handleCopy = useCallback(() => {
+    const toCopy = localYaml ?? yamlContent;
+    navigator.clipboard.writeText(toCopy);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }, [localYaml, yamlContent]);
+
   return (
     <div className="relative w-full h-full flex flex-col">
-      {/* Top Status Bar */}
-      <div className={`px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] border-b flex justify-between items-center transition-colors duration-300 ${
-        error ? 'bg-red-50 text-red-600 border-red-100' : 'bg-slate-50 text-slate-400 border-slate-100'
-      }`}>
-        <div className="flex items-center gap-3">
-          <span className="opacity-50">Source View</span>
-          <div className="w-1 h-1 rounded-full bg-slate-300" />
-          <span className={error ? 'text-red-500' : 'text-emerald-500'}>
-            {error ? 'Syntax Error' : 'Live Sync Active'}
-          </span>
+      {/* Viewport Tabs */}
+      <div className="flex border-b border-slate-200 bg-slate-50 shrink-0 select-none items-center justify-between h-10">
+        <div className="flex flex-1 h-full">
+          <button
+            onClick={() => setActiveCodeTab?.('full')}
+            className={`flex-1 h-full flex items-center justify-center text-[9px] font-black uppercase tracking-wider border-b-2 transition-all ${activeCodeTab === 'full'
+              ? 'border-emerald-600 text-slate-800 bg-white'
+              : 'border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-100/50'
+              }`}
+          >
+            Hele Repositoriet
+          </button>
+          <button
+            disabled={!activeViewId}
+            onClick={() => setActiveCodeTab?.('view')}
+            className={`flex-1 h-full flex items-center justify-center text-[9px] font-black uppercase tracking-wider border-b-2 transition-all ${!activeViewId
+              ? 'border-transparent text-slate-400/40 cursor-not-allowed'
+              : activeCodeTab === 'view'
+                ? 'border-emerald-600 text-slate-800 bg-white'
+                : 'border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-100/50'
+              }`}
+            title={!activeViewId ? "Opret eller vælg en visning i Model Explorer for at aktivere" : undefined}
+          >
+            Aktuelt View
+          </button>
         </div>
-        <div className="flex items-center gap-2">
-          <div className={`w-1.5 h-1.5 rounded-full ${error ? 'bg-red-500 animate-pulse' : 'bg-emerald-500'}`} />
+      </div>
+
+      {/* Top Status Bar */}
+      <div className="px-6 py-4 border-b border-slate-200 shrink-0 flex items-center justify-between bg-white shadow-sm z-10">
+        <div className="flex items-center gap-3">
+          <div className={`w-6 h-6 rounded-lg flex items-center justify-center shadow-md ${error
+            ? 'bg-rose-600 shadow-rose-600/10 text-white'
+            : activeCodeTab === 'view'
+              ? 'bg-blue-600 shadow-blue-600/10 text-white'
+              : isConflict
+                ? 'bg-amber-500 shadow-amber-500/10 text-white'
+                : 'bg-emerald-600 shadow-emerald-600/10 text-white'
+            }`}>
+            {error ? (
+              <AlertCircle size={12} />
+            ) : activeCodeTab === 'view' ? (
+              <Lock size={12} />
+            ) : isConflict ? (
+              <AlertTriangle size={12} />
+            ) : (
+              <FileCode size={12} />
+            )}
+          </div>
+          <div className="flex flex-col">
+            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-800 leading-tight">
+              YAML Exchange Format
+            </span>
+            <span className={`text-[9px] font-bold mt-0.5 leading-none ${error
+              ? 'text-rose-600'
+              : activeCodeTab === 'view'
+                ? 'text-blue-600'
+                : isConflict
+                  ? 'text-amber-600'
+                  : 'text-emerald-600'
+              }`}>
+              {error
+                ? 'Syntaksfejl i kildekoden'
+                : activeCodeTab === 'view'
+                  ? 'Inkluderede elementer og relationer (Skrivebeskyttet)'
+                  : isConflict
+                    ? 'Konflikt i kildekode (Kan redigeres)'
+                    : 'Alle elementer og relationer (Kan redigeres)'}
+            </span>
+          </div>
+        </div>
+        <div className="flex items-center gap-3.5">
+          <button
+            onClick={handleCopy}
+            className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-emerald-600 hover:bg-slate-100 transition-all rounded-xl active:scale-95 shrink-0 cursor-pointer"
+            title={copied ? "Kopieret!" : "Kopier YAML"}
+          >
+            {copied ? (
+              <Check size={14} className="text-emerald-600 animate-in zoom-in duration-200" />
+            ) : (
+              <Copy size={14} />
+            )}
+          </button>
+          <div className="w-2 h-2 rounded-full relative flex mr-1">
+            <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${error ? 'bg-rose-400' : activeCodeTab === 'view' ? 'bg-blue-400' : isConflict ? 'bg-amber-400' : 'bg-emerald-400'
+              }`}></span>
+            <span className={`relative inline-flex rounded-full h-2 w-2 ${error ? 'bg-rose-600' : activeCodeTab === 'view' ? 'bg-blue-600' : isConflict ? 'bg-amber-500' : 'bg-emerald-500'
+              }`}></span>
+          </div>
         </div>
       </div>
 
@@ -82,7 +189,7 @@ export function CodeViewport({ isConflict = false }: CodeViewportProps) {
           onChange={handleEditorChange}
           theme="vs-light"
           options={{
-            readOnly: false,
+            readOnly: activeCodeTab === 'view',
             minimap: { enabled: false },
             lineNumbers: 'on',
             scrollBeyondLastLine: false,
@@ -99,7 +206,7 @@ export function CodeViewport({ isConflict = false }: CodeViewportProps) {
             padding: { top: 12 },
           }}
         />
-        
+
         {/* Conflict Resolution Button */}
         {isConflict && localYaml && (
           <button

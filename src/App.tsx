@@ -22,7 +22,7 @@ import { Navigator } from './features/navigation/Navigator';
 import { ViewToolbar } from './features/viewport/ViewToolbar';
 import type { PullResult } from './services/GitService';
 import { RefinedToolbar } from './components/ui/RefinedToolbar';
-import { LayoutGrid, Code2, Columns2, HelpCircle, Copy } from 'lucide-react';
+import { LayoutGrid, Code2, Columns2, HelpCircle } from 'lucide-react';
 import { StatusBar } from './features/statusbar/StatusBar';
 import { useUISession, readUISession } from './hooks/useUISession';
 
@@ -166,13 +166,24 @@ function App() {
   }, []);
 
 
-  // --- Force Save on Refresh/Close ---
+  // --- Force Save on Refresh/Close/Tab-Hide ---
   useEffect(() => {
-    const handleBeforeUnload = () => {
+    const handleFlush = () => {
       useGraphStore.getState().flush();
     };
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        handleFlush();
+      }
+    };
+
+    window.addEventListener('beforeunload', handleFlush);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      window.removeEventListener('beforeunload', handleFlush);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
 
   // --- Observe Canvas Width for Dynamic Responsive Layout ---
@@ -518,21 +529,7 @@ function App() {
             className="flex-1 relative flex flex-col min-h-0"
             style={{ display: viewMode === 'code' && !diffMode ? 'flex' : 'none' }}
           >
-            <div className="zone-header px-6 pt-6 pb-4 border-b border-slate-200 shrink-0 flex items-center justify-between bg-white">
-              <span className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-800">
-                YAML {isConflict ? '(CONFLICT MODE - EDITABLE)' : '(Live Sync)'}
-              </span>
-              <button
-                onClick={() => {
-                  const yamlToCopy = isConflict && conflictData && conflictData.localYaml ? conflictData.localYaml : useGraphStore.getState().stringifyState();
-                  navigator.clipboard.writeText(yamlToCopy);
-                }}
-                className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-emerald-600 transition-all bg-white rounded-xl border border-slate-200 shadow-sm hover:border-emerald-200 hover:bg-emerald-50 active:scale-90"
-                title="Copy YAML"
-              >
-                <Copy size={14} strokeWidth={2.5} />
-              </button>
-            </div>
+
             <div className="flex-1 min-h-0 relative">
               <Suspense fallback={<div className="flex-1 flex items-center justify-center"><div className="animate-pulse text-xs text-slate-400">Loading Code Editor...</div></div>}>
                 <CodeViewport isConflict={isConflict} />
@@ -561,21 +558,7 @@ function App() {
               style={{ width: `${split.width}px` }}
               className="relative z-30 border-l border-slate-200 bg-white flex flex-col shrink-0 overflow-hidden"
             >
-              <div className="zone-header px-6 pt-6 pb-4 border-b border-slate-200 shrink-0 flex items-center justify-between bg-white">
-                <span className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-800">
-                  YAML {isConflict ? '(CONFLICT MODE - EDITABLE)' : '(Live Sync)'}
-                </span>
-                <button
-                  onClick={() => {
-                    const yamlToCopy = isConflict && conflictData && conflictData.localYaml ? conflictData.localYaml : useGraphStore.getState().stringifyState();
-                    navigator.clipboard.writeText(yamlToCopy);
-                  }}
-                  className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-emerald-600 transition-all bg-white rounded-xl border border-slate-200 shadow-sm hover:border-emerald-200 hover:bg-emerald-50 active:scale-90"
-                  title="Copy YAML"
-                >
-                  <Copy size={14} strokeWidth={2.5} />
-                </button>
-              </div>
+
               <div className="flex-1 min-h-0 relative">
                 <Suspense fallback={<div className="flex-1 flex items-center justify-center"><div className="animate-pulse text-xs text-slate-400">Loading Code Editor...</div></div>}>
                   <CodeViewport isConflict={isConflict} />
@@ -599,12 +582,12 @@ function App() {
             borderLeft: propertiesOpen && !focusMode ? '1px solid #e2e8f0' : 'none'
           }}
         >
-          <div ref={zone4Ref} tabIndex={0} className="h-full flex flex-col min-h-0 focus:outline-none">
+          <div ref={zone4Ref} tabIndex={0} className="flex-1 flex flex-col min-h-0 focus:outline-none">
             {/* Sidebar Tab Header */}
-            <div className="flex border-b border-slate-200 bg-slate-50 shrink-0 select-none">
+            <div className="flex border-b border-slate-200 bg-slate-50 shrink-0 select-none h-10">
               <button
                 onClick={() => setActiveTab('properties')}
-                className={`flex-1 py-3 text-[9px] font-black uppercase tracking-wider text-center border-b-2 transition-all ${
+                className={`flex-1 h-full flex items-center justify-center text-[9px] font-black uppercase tracking-wider border-b-2 transition-all ${
                   activeTab === 'properties'
                     ? 'border-emerald-600 text-slate-800 bg-white'
                     : 'border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-100/50'
@@ -614,7 +597,7 @@ function App() {
               </button>
               <button
                 onClick={() => setActiveTab('ai')}
-                className={`flex-1 py-3 text-[9px] font-black uppercase tracking-wider text-center border-b-2 transition-all ${
+                className={`flex-1 h-full flex items-center justify-center text-[9px] font-black uppercase tracking-wider border-b-2 transition-all ${
                   activeTab === 'ai'
                     ? 'border-emerald-600 text-slate-800 bg-white'
                     : 'border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-100/50'

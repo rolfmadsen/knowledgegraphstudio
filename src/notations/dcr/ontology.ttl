@@ -25,10 +25,10 @@
 :has_condition rdf:type owl:ObjectProperty ;
     rdfs:subPropertyOf :DCR_Relationship ;
     owl:inverseOf :is_condition_for ;
-    rdfs:domain :Event ;
-    rdfs:range :Event ;
+    rdfs:domain :Event ; # Den hændelse der ER spærret (B)
+    rdfs:range :Event ;  # Den hændelse der SKAL være sket (A)
     rdfs:label "has condition"@en , "har betingelse"@da ;
-    rdfs:comment "Condition relation (->*): The source event must either be currently excluded or have happened for the target event to happen."@en .
+    rdfs:comment "Condition relation (A ->* B): The target event (range) must be executed or excluded for the source event (domain) to be executable."@en .
 
 :is_condition_for rdf:type owl:ObjectProperty ;
     rdfs:label "is condition for"@en , "er betingelse for"@da .
@@ -111,20 +111,33 @@
 ### 2. Data Properties (Run-time Marking / State)
 ### =========================================================================
 
+:EventStatus rdf:type owl:Class ;
+    rdfs:subClassOf :DCR_Metamodel ;
+    rdfs:label "Event Status"@en , "Event-status"@da .
+
+# Hvilket event og hvilken sag (Marking) hører denne status til?
+:for_event rdf:type owl:ObjectProperty ;
+    rdfs:domain :EventStatus ;
+    rdfs:range :Event .
+
+:in_marking rdf:type owl:ObjectProperty ;
+    rdfs:domain :EventStatus ;
+    rdfs:range :Marking .
+
 :is_executed rdf:type owl:DatatypeProperty ;
-    rdfs:domain :Event ;
+    rdfs:domain :EventStatus ;
     rdfs:range xsd:boolean ;
     rdfs:label "is executed"@en , "er eksekveret"@da ;
     rdfs:comment "Indicates if the event is currently in the set of Executed events (Ex)."@en .
 
 :is_included rdf:type owl:DatatypeProperty ;
-    rdfs:domain :Event ;
+    rdfs:domain :EventStatus ;
     rdfs:range xsd:boolean ;
     rdfs:label "is included"@en , "er inkluderet"@da ;
     rdfs:comment "Indicates if the event is currently in the set of Included events (In)."@en .
 
 :is_pending_response rdf:type owl:DatatypeProperty ;
-    rdfs:domain :Event ;
+    rdfs:domain :EventStatus ;
     rdfs:range xsd:boolean ;
     rdfs:label "is pending response"@en , "afventer respons"@da ;
     rdfs:comment "Indicates if the event is currently in the set of Pending Responses (Re)."@en .
