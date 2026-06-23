@@ -242,7 +242,10 @@ export class GraphService {
             }
             if (n.parentId === id) {
               const targetType = updates.conceptType || targetConcept?.conceptType;
-              const isStillGroup = targetType === 'bounded_context';
+              const isStillGroup =
+                targetType === 'bounded_context' ||
+                targetType === 'em_chapter' ||
+                targetType === 'em_slice';
               nextNode = { ...nextNode, parentId: isStillGroup ? newId : undefined };
             }
             return nextNode;
@@ -741,23 +744,36 @@ export class GraphService {
     };
   }
 
-  /**
-   * Group selected concepts into a new Grouping (bounded_context) concept.
-   */
-  static groupConcepts(state: GraphStateWithSelection, viewId: ElementId, conceptIds: ElementId[], groupName: string): Partial<GraphStateWithSelection> {
+  static groupConcepts(
+    state: GraphStateWithSelection,
+    viewId: ElementId,
+    conceptIds: ElementId[],
+    groupName: string,
+    groupType: ConceptType = 'bounded_context'
+  ): Partial<GraphStateWithSelection> {
     const view = state.views?.find((v) => v.id === viewId);
     if (!view || conceptIds.length === 0) return {};
 
     // Generate unique name for the group to avoid clashes
     let uniqueGroupName = groupName;
     let counter = 1;
-    while (state.concepts.some(c => c.conceptType === 'bounded_context' && c.name.trim().toLowerCase() === uniqueGroupName.trim().toLowerCase())) {
+    while (
+      state.concepts.some(
+        (c) =>
+          c.conceptType === groupType &&
+          c.name.trim().toLowerCase() === uniqueGroupName.trim().toLowerCase()
+      )
+    ) {
       uniqueGroupName = `${groupName} ${counter}`;
       counter++;
     }
 
-    // 1. Create the new Grouping concept node (bounded_context)
-    const { concept: groupConcept, nextState: addConceptState } = this.addConcept(state, 'bounded_context', uniqueGroupName);
+    // 1. Create the new Grouping concept node using groupType
+    const { concept: groupConcept, nextState: addConceptState } = this.addConcept(
+      state,
+      groupType,
+      uniqueGroupName
+    );
 
     // Calculate the bounding box of selected nodes in the view to place the group container
     const viewNodes = view.nodes.filter((n) => conceptIds.includes(n.conceptId));
@@ -766,8 +782,18 @@ export class GraphService {
     let maxX = -Infinity;
     let maxY = -Infinity;
 
-    const defaultW = view.type === 'c4' ? 240 : (view.type === 'archimate' || view.type === 'dcr') ? 210 : 200;
-    const defaultH = view.type === 'c4' ? 96 : (view.type === 'archimate' || view.type === 'dcr') ? 76 : 80;
+    let defaultW = view.type === 'c4' ? 240 : (view.type === 'archimate' || view.type === 'dcr') ? 210 : 200;
+    let defaultH = view.type === 'c4' ? 96 : (view.type === 'archimate' || view.type === 'dcr') ? 76 : 80;
+
+    if (view.type === 'event_modeling') {
+      if (groupType === 'em_chapter') {
+        defaultW = 600;
+        defaultH = 600;
+      } else if (groupType === 'em_slice') {
+        defaultW = 320;
+        defaultH = 500;
+      }
+    }
 
     viewNodes.forEach((vn) => {
       minX = Math.min(minX, vn.x);
@@ -795,15 +821,24 @@ export class GraphService {
       manualY: groupY,
     };
 
-    // 3. Set parentId for selected child nodes to the new group node's id
+    // 3. Set parentId for selected child nodes to the new group node's id,
+    // but ONLY for nodes that don't have their parent also selected (preserving hierarchy).
+    const selectedSet = new Set(conceptIds);
     const nextViews = state.views?.map((v) => {
       if (v.id !== viewId) return v;
+      const nodesMap = new Map(v.nodes.map((nodeVal) => [nodeVal.conceptId, nodeVal]));
       return {
         ...v,
         nodes: [
-          ...v.nodes.map((n) =>
-            conceptIds.includes(n.conceptId) ? { ...n, parentId: groupConcept.id } : n
-          ),
+          ...v.nodes.map((n) => {
+            if (selectedSet.has(n.conceptId)) {
+              const hasSelectedParent = n.parentId && selectedSet.has(n.parentId) && nodesMap.has(n.parentId);
+              if (!hasSelectedParent) {
+                return { ...n, parentId: groupConcept.id };
+              }
+            }
+            return n;
+          }),
           groupViewNode,
         ],
       };

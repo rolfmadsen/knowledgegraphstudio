@@ -1,0 +1,214 @@
+{
+  "classes": {
+    "EventModeling_Metamodel": {
+      "superClasses": [],
+      "labels": {
+        "en": "Event Modeling",
+        "da": "Event Modeling"
+      }
+    },
+    "EM_Element": {
+      "superClasses": [
+        "EventModeling_Metamodel"
+      ],
+      "labels": {
+        "en": "Event Modeling Element",
+        "da": "Event Modeling Element"
+      }
+    },
+    "Screen": {
+      "superClasses": [
+        "EM_Element",
+        "EventModeling_Metamodel"
+      ],
+      "labels": {
+        "en": "Screen",
+        "da": "Skærmbillede"
+      }
+    },
+    "Command": {
+      "superClasses": [
+        "EM_Element",
+        "EventModeling_Metamodel"
+      ],
+      "labels": {
+        "en": "Command",
+        "da": "Kommando"
+      }
+    },
+    "DomainEvent": {
+      "superClasses": [
+        "EM_Element",
+        "EventModeling_Metamodel"
+      ],
+      "labels": {
+        "en": "Domain Event",
+        "da": "Domænehændelse"
+      }
+    },
+    "ReadModel": {
+      "superClasses": [
+        "EM_Element",
+        "EventModeling_Metamodel"
+      ],
+      "labels": {
+        "en": "Read Model",
+        "da": "Læsemodel"
+      }
+    },
+    "IntegrationEvent": {
+      "superClasses": [
+        "EM_Element",
+        "EventModeling_Metamodel"
+      ],
+      "labels": {
+        "en": "Integration Event",
+        "da": "Integrationshændelse"
+      }
+    },
+    "Automation": {
+      "superClasses": [
+        "EM_Element",
+        "EventModeling_Metamodel"
+      ],
+      "labels": {
+        "en": "Automation",
+        "da": "Automation"
+      }
+    },
+    "Chapter": {
+      "superClasses": [
+        "EventModeling_Metamodel"
+      ],
+      "labels": {
+        "en": "Chapter",
+        "da": "Kapitel"
+      }
+    },
+    "Slice": {
+      "superClasses": [
+        "EventModeling_Metamodel"
+      ],
+      "labels": {
+        "en": "Slice",
+        "da": "Skive"
+      }
+    }
+  },
+  "properties": {
+    "event-modeling": {
+      "labels": {
+        "en": "Event Modeling Metamodel OWL Ontology",
+        "da": "Event Modeling Metamodel OWL-ontologi"
+      }
+    },
+    "em": {
+      "labels": {
+        "en": "Event Modeling Ontology",
+        "da": "Event Modeling Ontologi"
+      }
+    },
+    "invokes": {
+      "labels": {
+        "en": "invokes",
+        "da": "initierer"
+      },
+      "inverseOf": "invoked_by"
+    },
+    "invoked_by": {
+      "labels": {
+        "en": "invoked by",
+        "da": "initieres af"
+      },
+      "inverseOf": "invokes"
+    },
+    "triggers": {
+      "labels": {
+        "en": "triggers",
+        "da": "udløser"
+      },
+      "inverseOf": "triggered_by"
+    },
+    "triggered_by": {
+      "labels": {
+        "en": "triggered by",
+        "da": "udløses af"
+      },
+      "inverseOf": "triggers"
+    },
+    "feeds": {
+      "labels": {
+        "en": "feeds",
+        "da": "fodrer"
+      },
+      "inverseOf": "fed_by"
+    },
+    "fed_by": {
+      "labels": {
+        "en": "fed by",
+        "da": "fodres af"
+      },
+      "inverseOf": "feeds"
+    },
+    "displays": {
+      "labels": {
+        "en": "displays",
+        "da": "viser"
+      },
+      "inverseOf": "displayed_by"
+    },
+    "displayed_by": {
+      "labels": {
+        "en": "displayed by",
+        "da": "vises af"
+      },
+      "inverseOf": "displays"
+    },
+    "emits": {
+      "labels": {
+        "en": "emits",
+        "da": "udsender"
+      },
+      "inverseOf": "emitted_by"
+    },
+    "emitted_by": {
+      "labels": {
+        "en": "emitted by",
+        "da": "udsendes af"
+      },
+      "inverseOf": "emits"
+    },
+    "automates": {
+      "labels": {
+        "en": "automates",
+        "da": "automatiserer"
+      },
+      "inverseOf": "automated_by"
+    },
+    "automated_by": {
+      "labels": {
+        "en": "automated by",
+        "da": "automatiseres af"
+      },
+      "inverseOf": "automates"
+    },
+    "notifies": {
+      "labels": {
+        "en": "notifies",
+        "da": "notificerer"
+      }
+    },
+    "contained_in_slice": {
+      "labels": {
+        "en": "contained in slice",
+        "da": "indeholdt i skive"
+      }
+    },
+    "contained_in_chapter": {
+      "labels": {
+        "en": "contained in chapter",
+        "da": "indeholdt i kapitel"
+      }
+    }
+  }
+}

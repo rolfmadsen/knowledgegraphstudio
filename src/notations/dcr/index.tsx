@@ -454,18 +454,18 @@ function DcrCanvas(props: NotationCanvasProps) {
           </marker>
           <marker id="dcr-condition-end-left" viewBox="0 0 20 20" refX="1" refY="10" markerWidth="14" markerHeight="14" orient="0">
             <circle cx="10" cy="10" r="8" fill="white" stroke="#EAB308" strokeWidth="2" />
-            <circle cx="7.5" cy="10" r="2" fill="none" stroke="#EAB308" strokeWidth="1.5" />
-            <path d="M 9.5 10 L 15 10 M 12.5 10 L 12.5 13 M 14.5 10 L 14.5 13" stroke="#EAB308" strokeWidth="1.5" strokeLinecap="round" />
+            <circle cx="12.5" cy="10" r="2" fill="none" stroke="#EAB308" strokeWidth="1.5" />
+            <path d="M 10.5 10 L 5 10 M 8 10 L 8 13 M 6 10 L 6 13" stroke="#EAB308" strokeWidth="1.5" strokeLinecap="round" />
           </marker>
           <marker id="dcr-condition-end-top" viewBox="0 0 20 20" refX="10" refY="1" markerWidth="14" markerHeight="14" orient="0">
             <circle cx="10" cy="10" r="8" fill="white" stroke="#EAB308" strokeWidth="2" />
-            <circle cx="7.5" cy="10" r="2" fill="none" stroke="#EAB308" strokeWidth="1.5" />
-            <path d="M 9.5 10 L 15 10 M 12.5 10 L 12.5 13 M 14.5 10 L 14.5 13" stroke="#EAB308" strokeWidth="1.5" strokeLinecap="round" />
+            <circle cx="10" cy="12.5" r="2" fill="none" stroke="#EAB308" strokeWidth="1.5" />
+            <path d="M 10 10.5 L 10 5 M 10 8 L 13 8 M 10 6 L 13 6" stroke="#EAB308" strokeWidth="1.5" strokeLinecap="round" />
           </marker>
           <marker id="dcr-condition-end-bottom" viewBox="0 0 20 20" refX="10" refY="19" markerWidth="14" markerHeight="14" orient="0">
             <circle cx="10" cy="10" r="8" fill="white" stroke="#EAB308" strokeWidth="2" />
-            <circle cx="7.5" cy="10" r="2" fill="none" stroke="#EAB308" strokeWidth="1.5" />
-            <path d="M 9.5 10 L 15 10 M 12.5 10 L 12.5 13 M 14.5 10 L 14.5 13" stroke="#EAB308" strokeWidth="1.5" strokeLinecap="round" />
+            <circle cx="10" cy="7.5" r="2" fill="none" stroke="#EAB308" strokeWidth="1.5" />
+            <path d="M 10 9.5 L 10 15 M 10 12 L 13 12 M 10 14 L 13 14" stroke="#EAB308" strokeWidth="1.5" strokeLinecap="round" />
           </marker>
 
           <marker id="dcr-response-end" viewBox="0 0 20 20" refX="19" refY="10" markerWidth="14" markerHeight="14" orient="auto">
@@ -548,7 +548,6 @@ function DcrCanvas(props: NotationCanvasProps) {
             <path d="M 9.5 10 L 15 10 M 12.5 10 L 12.5 13 M 14.5 10 L 14.5 13" stroke="#D946EF" strokeWidth="1.5" strokeLinecap="round" />
           </marker>
 
-          {/* Directional Milestone End Markers (Upright Keys) */}
           <marker id="dcr-milestone-end-right" viewBox="0 0 20 20" refX="19" refY="10" markerWidth="14" markerHeight="14" orient="0">
             <circle cx="10" cy="10" r="8" fill="white" stroke="#D946EF" strokeWidth="2" />
             <circle cx="7.5" cy="10" r="2" fill="none" stroke="#D946EF" strokeWidth="1.5" />
@@ -556,18 +555,18 @@ function DcrCanvas(props: NotationCanvasProps) {
           </marker>
           <marker id="dcr-milestone-end-left" viewBox="0 0 20 20" refX="1" refY="10" markerWidth="14" markerHeight="14" orient="0">
             <circle cx="10" cy="10" r="8" fill="white" stroke="#D946EF" strokeWidth="2" />
-            <circle cx="7.5" cy="10" r="2" fill="none" stroke="#D946EF" strokeWidth="1.5" />
-            <path d="M 9.5 10 L 15 10 M 12.5 10 L 12.5 13 M 14.5 10 L 14.5 13" stroke="#D946EF" strokeWidth="1.5" strokeLinecap="round" />
+            <circle cx="12.5" cy="10" r="2" fill="none" stroke="#D946EF" strokeWidth="1.5" />
+            <path d="M 10.5 10 L 5 10 M 8 10 L 8 13 M 6 10 L 6 13" stroke="#D946EF" strokeWidth="1.5" strokeLinecap="round" />
           </marker>
           <marker id="dcr-milestone-end-top" viewBox="0 0 20 20" refX="10" refY="1" markerWidth="14" markerHeight="14" orient="0">
             <circle cx="10" cy="10" r="8" fill="white" stroke="#D946EF" strokeWidth="2" />
-            <circle cx="7.5" cy="10" r="2" fill="none" stroke="#D946EF" strokeWidth="1.5" />
-            <path d="M 9.5 10 L 15 10 M 12.5 10 L 12.5 13 M 14.5 10 L 14.5 13" stroke="#D946EF" strokeWidth="1.5" strokeLinecap="round" />
+            <circle cx="10" cy="12.5" r="2" fill="none" stroke="#D946EF" strokeWidth="1.5" />
+            <path d="M 10 10.5 L 10 5 M 10 8 L 13 8 M 10 6 L 13 6" stroke="#D946EF" strokeWidth="1.5" strokeLinecap="round" />
           </marker>
           <marker id="dcr-milestone-end-bottom" viewBox="0 0 20 20" refX="10" refY="19" markerWidth="14" markerHeight="14" orient="0">
             <circle cx="10" cy="10" r="8" fill="white" stroke="#D946EF" strokeWidth="2" />
-            <circle cx="7.5" cy="10" r="2" fill="none" stroke="#D946EF" strokeWidth="1.5" />
-            <path d="M 9.5 10 L 15 10 M 12.5 10 L 12.5 13 M 14.5 10 L 14.5 13" stroke="#D946EF" strokeWidth="1.5" strokeLinecap="round" />
+            <circle cx="10" cy="7.5" r="2" fill="none" stroke="#D946EF" strokeWidth="1.5" />
+            <path d="M 10 9.5 L 10 15 M 10 12 L 13 12 M 10 14 L 13 14" stroke="#D946EF" strokeWidth="1.5" strokeLinecap="round" />
           </marker>
         </defs>
       </svg>

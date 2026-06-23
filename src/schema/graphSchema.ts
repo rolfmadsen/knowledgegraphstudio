@@ -100,6 +100,16 @@ export const ConceptType = z.enum([
   'class',
   'datatype',
   'enumeration',
+  // Event Modeling Alphabet
+  'screen',             // UI Wireframe
+  'command',            // User Intent (Gherkin specifications attached here)
+  // 'event' is reused as Domain Event in Event Modeling context
+  'read_model',         // View Projection
+  'integration_event',  // External I/O
+  'automation',         // Logic / Sagas
+  // Event Modeling Grouping
+  'em_chapter',         // Horizontal chapter (dependency-ordered via Dagre TB)
+  'em_slice',           // Vertical use-case slice (chronological LR order within chapter)
 ]);
 export type ConceptType = z.infer<typeof ConceptType>;
 
@@ -140,6 +150,7 @@ export const ViewType = z.enum([
   'conceptual_model',
   'information_model',
   'dcr',
+  'event_modeling',
 ]);
 export type ViewType = z.infer<typeof ViewType>;
 
@@ -377,18 +388,28 @@ export type ViewNode = z.infer<typeof ViewNode>;
 
 /**
  * View — a named, notation-specific rendering of a subset of the graph.
- * Extends BaseEntity so it has id, createdAt, updatedAt, lifecycleState.
- *
- * - 'nodes': the ViewNodes (positional data) included in this view.
- * - 'edges': the ConceptRelation IDs visible in this view.
- *   An empty array means "show all relations between included nodes".
  */
+export const ViewEdgeWaypoint = z.object({
+  x: z.number(),
+  y: z.number(),
+});
+export type ViewEdgeWaypoint = z.infer<typeof ViewEdgeWaypoint>;
+
+export const ViewEdge = z.object({
+  relationId: ElementId,
+  sourcePosition: z.enum(['top', 'bottom', 'left', 'right']).optional(),
+  targetPosition: z.enum(['top', 'bottom', 'left', 'right']).optional(),
+  waypoints: z.array(ViewEdgeWaypoint),
+});
+export type ViewEdge = z.infer<typeof ViewEdge>;
+
 export const View = BaseEntity.extend({
   name: z.string().min(1),
   type: ViewType,
   layoutAlgorithm: LayoutAlgorithm,
   nodes: z.array(ViewNode),
   edges: z.array(ElementId),
+  viewEdges: z.array(ViewEdge).optional(),
 });
 export type View = z.infer<typeof View>;
 

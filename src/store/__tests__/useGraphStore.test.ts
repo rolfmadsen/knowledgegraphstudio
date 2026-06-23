@@ -742,5 +742,56 @@ describe('useGraphStore', () => {
       expect(filteredYaml).not.toContain('cross relation');
     });
   });
+
+  describe('View Edge Layout Actions', () => {
+    it('updates and resets custom edge layout coordinates in a view', () => {
+      const mockViews: View[] = [
+        {
+          id: toElementId('v:1'),
+          name: 'My View',
+          type: 'archimate',
+          layoutAlgorithm: 'manual',
+          nodes: [],
+          edges: [toElementId('relation:1')],
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          lifecycleState: 'active',
+          viewEdges: [],
+        },
+      ];
+
+      useGraphStore.setState({
+        views: mockViews,
+        activeViewId: toElementId('v:1'),
+      });
+
+      // 1. Update edge layout
+      const waypoints = [{ x: 150, y: 200 }, { x: 250, y: 200 }];
+      useGraphStore.getState().updateViewEdgeLayout(
+        toElementId('v:1'),
+        toElementId('relation:1'),
+        'bottom',
+        'top',
+        waypoints
+      );
+
+      let state = useGraphStore.getState();
+      let view = state.views.find(v => v.id === 'v:1');
+      expect(view?.viewEdges).toBeDefined();
+      expect(view?.viewEdges?.length).toBe(1);
+      expect(view?.viewEdges?.[0]).toEqual({
+        relationId: toElementId('relation:1'),
+        sourcePosition: 'bottom',
+        targetPosition: 'top',
+        waypoints,
+      });
+
+      // 2. Reset edge layout
+      useGraphStore.getState().resetViewEdgeLayout(toElementId('v:1'), toElementId('relation:1'));
+      state = useGraphStore.getState();
+      view = state.views.find(v => v.id === 'v:1');
+      expect(view?.viewEdges?.length).toBe(0);
+    });
+  });
 });
 

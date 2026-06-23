@@ -81,3 +81,17 @@ Når brugeren benyttede "+" ikonet under en aktiv node i canvassets `NodeToolbar
 
 **Løsning**:
 Opdateret `handleCreateTargetNodeClick` i [ReactFlowCanvas.tsx](file:///home/rolfmadsen/Github/knowledgegraphstudio/src/features/viewport/graph/ReactFlowCanvas.tsx) til dynamisk at beregne et unikt standardnavn (fx `"Nyt Begreb"`, `"Nyt Begreb 2"`, `"Nyt Begreb 3"`, etc.) ved at tjekke mod eksisterende begreber af samme type, før `addConcept` kaldes. Dette sikrer unikke navne, unikke UUID-baserede node-ID'er og korrekt fungerende værktøjslinjer på alle noder.
+
+## Fastlåste og hoppende edge-segmenter under trækning (Sticky Segment Snapping)
+**Problem**:
+Under trækning af et edge-segment i manuel layout-mode kunne segmentet sætte sig fast (blive "sticky") ved nodens hjørner og nægte at snappe til den tilstødende flade (fx Top/Bottom), før musen blev trukket ekstremt langt væk. Dette skete særligt, når man trak i et vandret segment for at flytte det lodret forbi en bred nodes top/bund-grænse.
+
+**Årsag**:
+Vores `getClosestPosition` anvendte en diagonalbaseret (og aspektforholds-normaliseret) opdeling af rummet omkring noden. For brede noder strækker disse diagonaler sig langt ud til siderne. Når et waypoint er placeret langt til venstre/højre for noden, bevirker diagonal-opdelingen, at den vertikale snap-tærskel vokser proportionalt med den horisontale afstand. Dette skabte en enorm "død zone", hvor det vandrette segment forblev låst til Left/Right-fladen (klemt til hjørnet), indtil man trak det langt forbi den reelle top/bund-flade.
+
+**Løsning**:
+Opdateret `getClosestPosition` i [edgeRouting.ts](file:///home/rolfmadsen/Github/knowledgegraphstudio/src/utils/edgeRouting.ts) til at anvende en mere intelligent og responsiv stribe-baseret snap-grænse i stedet for ubegrænsede diagonaler:
+1. **Under aktiv trækning af et vandret segment (`dragDirection === 'horizontal'`)**: Segmentet tillades at bevæge sig frit og snappe til Top/Bottom-fladerne med det samme, det krydser henholdsvis nodens øvre (`yMin`) eller nedre (`yMax`) grænse, hvilket fuldstændigt eliminerer den sticky modstand.
+2. **Under aktiv trækning af et lodret segment (`dragDirection === 'vertical'`)**: Segmentet snapper til Left/Right-fladerne med det samme, det krydser nodens venstre (`xMin`) eller højre (`xMax`) grænse.
+3. **Når der ikke trækkes (standard/gemt tilstand)**: For at forhindre lodret overlap og tilbageløb ("Pinden") når et waypoint befinder sig over eller under noden, snapper systemet nu direkte til henholdsvis **Top** (når `y < yMin`) eller **Bottom** (når `y > yMax`) fladen. Hvis waypointet er inden for nodens lodrette grænser (`yMin <= y <= yMax`), snapper det til Left/Right-fladen.
+Dette fjerner helt "Pinden" (det uønskede lodrette overlap) og sikrer, at trækning og fastholdelse af segmenter føles ekstremt responsivt og mekanisk flydende, præcis som i `diagram-js`.

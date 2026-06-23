@@ -10,6 +10,7 @@ import { c4Notation } from './notations/c4'
 import { conceptualNotation } from './notations/core-model/conceptualNotation'
 import { informationNotation } from './notations/core-model/informationNotation'
 import { dcrNotation } from './notations/dcr'
+import { eventModelingNotation } from './notations/event-modeling'
 
 // Polyfill Buffer for isomorphic-git
 (window as any).Buffer = Buffer;
@@ -47,6 +48,7 @@ NotationRegistry.register(c4Notation);
 NotationRegistry.register(conceptualNotation);
 NotationRegistry.register(informationNotation);
 NotationRegistry.register(dcrNotation);
+NotationRegistry.register(eventModelingNotation);
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

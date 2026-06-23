@@ -77,7 +77,6 @@ export function Inspector() {
 
   const viewNode = activeView?.nodes.find((n) => n.conceptId === concept?.id);
   const parentId = viewNode?.parentId;
-  const parentGroupNode = parentId ? concepts.find((c) => c.id === parentId) : undefined;
 
   // Inspector Micro-Navigation: Cmd + ArrowUp/Down to jump sections
   useEffect(() => {
@@ -187,16 +186,41 @@ export function Inspector() {
               </p>
             </div>
             {activeViewId && (
-              <button
-                id="btn-group-selection"
-                onClick={() => {
-                  groupConcepts(activeViewId, selectedConceptIds, 'Ny gruppe');
-                  document.dispatchEvent(new CustomEvent('focus-inspector'));
-                }}
-                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-black tracking-wider uppercase rounded-xl transition-all shadow-sm hover:shadow-md hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
-              >
-                Gruppér {selectedConceptIds.length} noder
-              </button>
+              activeView?.type === 'event_modeling' ? (
+                <div className="flex flex-col gap-2 w-full">
+                  <button
+                    id="btn-group-selection-chapter"
+                    onClick={() => {
+                      groupConcepts(activeViewId, selectedConceptIds, 'New Chapter', 'em_chapter');
+                      document.dispatchEvent(new CustomEvent('focus-inspector'));
+                    }}
+                    className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-black tracking-wider uppercase rounded-xl transition-all shadow-sm hover:shadow-md hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+                  >
+                    Gruppér som Chapter
+                  </button>
+                  <button
+                    id="btn-group-selection-slice"
+                    onClick={() => {
+                      groupConcepts(activeViewId, selectedConceptIds, 'New Slice', 'em_slice');
+                      document.dispatchEvent(new CustomEvent('focus-inspector'));
+                    }}
+                    className="w-full py-2.5 bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-black tracking-wider uppercase rounded-xl transition-all shadow-sm hover:shadow-md hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+                  >
+                    Gruppér som Slice
+                  </button>
+                </div>
+              ) : (
+                <button
+                  id="btn-group-selection"
+                  onClick={() => {
+                    groupConcepts(activeViewId, selectedConceptIds, 'Ny gruppe');
+                    document.dispatchEvent(new CustomEvent('focus-inspector'));
+                  }}
+                  className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-black tracking-wider uppercase rounded-xl transition-all shadow-sm hover:shadow-md hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+                >
+                  Gruppér {selectedConceptIds.length} noder
+                </button>
+              )
             )}
           </div>
 
@@ -366,57 +390,52 @@ export function Inspector() {
                     </div>
                 </InspectorSection>
 
-                {activeViewId && concept.conceptType !== 'bounded_context' && (
+                {activeViewId && concept.conceptType !== 'bounded_context' && concept.conceptType !== 'em_chapter' && (
                   <InspectorSection title="Forældregruppe">
-                    {parentGroupNode ? (
-                      <div className="flex flex-col gap-3">
-                        <PropertyField
-                          label="Gruppe"
-                          value={parentGroupNode.name}
-                          readOnly={true}
-                        />
-                        <button
-                          onClick={() => ungroupConcept(activeViewId, concept.id)}
-                          className="w-full py-2.5 text-[10px] font-black text-amber-600 hover:bg-amber-50 rounded-xl border border-dashed border-amber-200 hover:border-amber-300 transition-all tracking-widest uppercase cursor-pointer"
+                    <div className="flex flex-col gap-2">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">
+                        Gruppe
+                      </label>
+                      <div className="relative">
+                        <select
+                          value={parentId ?? ""}
+                          onChange={(e) => {
+                            const groupId = e.target.value;
+                            if (groupId) {
+                              updateViewNodeParentId(activeViewId, concept.id, groupId as ElementId);
+                            } else {
+                              ungroupConcept(activeViewId, concept.id);
+                            }
+                          }}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[12px] font-semibold text-slate-700 hover:border-slate-300 focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/5 outline-none appearance-none cursor-pointer transition-all"
                         >
-                          Fjern fra gruppe
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col gap-2">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">
-                          Tilføj til gruppe
-                        </label>
-                        <div className="relative">
-                          <select
-                            value=""
-                            onChange={(e) => {
-                              const groupId = e.target.value;
-                              if (groupId) {
-                                updateViewNodeParentId(activeViewId, concept.id, groupId as ElementId);
+                          <option value="">-- Ingen gruppe --</option>
+                          {activeView?.nodes
+                            .filter((vn) => {
+                              const c = concepts.find((comp) => comp.id === vn.conceptId);
+                              if (!c || c.id === concept.id) return false;
+                              if (activeView?.type === 'event_modeling') {
+                                if (concept.conceptType === 'em_slice') {
+                                  return c.conceptType === 'em_chapter';
+                                } else {
+                                  return c.conceptType === 'em_slice';
+                                }
+                              } else {
+                                return c.conceptType === 'bounded_context';
                               }
-                            }}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[12px] font-semibold text-slate-700 hover:border-slate-300 focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/5 outline-none appearance-none cursor-pointer transition-all"
-                          >
-                            <option value="">-- Vælg gruppe --</option>
-                            {activeView?.nodes
-                              .filter((vn) => {
-                                const c = concepts.find((comp) => comp.id === vn.conceptId);
-                                return c?.conceptType === 'bounded_context' && c.id !== concept.id;
-                              })
-                              .map((vn) => {
-                                const c = concepts.find((comp) => comp.id === vn.conceptId);
-                                return (
-                                  <option key={vn.conceptId} value={vn.conceptId}>
-                                    {c?.name || 'Navnløs gruppe'}
-                                  </option>
-                                );
-                              })}
-                          </select>
-                          <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400" />
-                        </div>
+                            })
+                            .map((vn) => {
+                              const c = concepts.find((comp) => comp.id === vn.conceptId);
+                              return (
+                                <option key={vn.conceptId} value={vn.conceptId}>
+                                  {c?.name || 'Navnløs gruppe'}
+                                </option>
+                              );
+                            })}
+                        </select>
+                        <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400" />
                       </div>
-                    )}
+                    </div>
                   </InspectorSection>
                 )}
 

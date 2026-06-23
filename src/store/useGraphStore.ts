@@ -135,10 +135,18 @@ export interface GraphStoreState {
   createView: (name: string, type?: View['type'], layoutAlgorithm?: View['layoutAlgorithm']) => View;
   deleteView: (viewId: ElementId, deleteConceptIds?: ElementId[]) => void;
   addAllConceptsToActiveView: () => void;
-  groupConcepts: (viewId: ElementId, conceptIds: ElementId[], groupName: string) => void;
+  groupConcepts: (viewId: ElementId, conceptIds: ElementId[], groupName: string, groupType?: ConceptType) => void;
   ungroupConcept: (viewId: ElementId, conceptId: ElementId) => void;
   dissolveGroup: (viewId: ElementId, groupId: ElementId) => void;
   updateViewNodeParentId: (viewId: ElementId, conceptId: ElementId, parentId: ElementId | undefined) => void;
+  updateViewEdgeLayout: (
+    viewId: ElementId,
+    relationId: ElementId,
+    sourcePosition: 'top' | 'bottom' | 'left' | 'right' | undefined,
+    targetPosition: 'top' | 'bottom' | 'left' | 'right' | undefined,
+    waypoints: Array<{ x: number; y: number }>
+  ) => void;
+  resetViewEdgeLayout: (viewId: ElementId, relationId: ElementId) => void;
 
   // --- Domain Actions ---
   addDomain: (name: string, description?: string) => Promise<Domain>;
@@ -744,8 +752,8 @@ export const useGraphStore = create<GraphStoreState>()(
         PersistenceService.scheduleAutoSave(get());
       },
 
-      groupConcepts: (viewId, conceptIds, groupName) => {
-        const nextState = GraphService.groupConcepts(get(), viewId, conceptIds, groupName);
+      groupConcepts: (viewId, conceptIds, groupName, groupType) => {
+        const nextState = GraphService.groupConcepts(get(), viewId, conceptIds, groupName, groupType);
         set(nextState);
         PersistenceService.scheduleAutoSave(get());
       },
@@ -765,6 +773,50 @@ export const useGraphStore = create<GraphStoreState>()(
       updateViewNodeParentId: (viewId, conceptId, parentId) => {
         const nextState = GraphService.updateViewNodeParentId(get(), viewId, conceptId, parentId);
         set(nextState);
+        PersistenceService.scheduleAutoSave(get());
+      },
+
+      updateViewEdgeLayout: (viewId, relationId, sourcePosition, targetPosition, waypoints) => {
+        const view = get().views.find((v) => v.id === viewId);
+        if (!view) return;
+
+        const viewEdges = view.viewEdges || [];
+        const existing = viewEdges.find((ve) => ve.relationId === relationId);
+
+        let nextViewEdges;
+        if (existing) {
+          nextViewEdges = viewEdges.map((ve) =>
+            ve.relationId !== relationId
+              ? ve
+              : { ...ve, sourcePosition, targetPosition, waypoints }
+          );
+        } else {
+          nextViewEdges = [
+            ...viewEdges,
+            { relationId, sourcePosition, targetPosition, waypoints },
+          ];
+        }
+
+        set((s) => ({
+          views: s.views.map((v) =>
+            v.id !== viewId ? v : { ...v, viewEdges: nextViewEdges }
+          ),
+        }));
+        PersistenceService.scheduleAutoSave(get());
+      },
+
+      resetViewEdgeLayout: (viewId, relationId) => {
+        const view = get().views.find((v) => v.id === viewId);
+        if (!view) return;
+
+        const viewEdges = view.viewEdges || [];
+        const nextViewEdges = viewEdges.filter((ve) => ve.relationId !== relationId);
+
+        set((s) => ({
+          views: s.views.map((v) =>
+            v.id !== viewId ? v : { ...v, viewEdges: nextViewEdges }
+          ),
+        }));
         PersistenceService.scheduleAutoSave(get());
       },
 
@@ -792,22 +844,122 @@ export const useGraphStore = create<GraphStoreState>()(
 
       // --- Concept Actions ---
       addConcept: (conceptType, name, options) => {
-        const { concept, nextState } = GraphService.addConcept(get(), conceptType, name, options);
-        console.log(`%c[Store Action] 🟢 Added Concept [${concept.conceptType}]: "${concept.name}"`, 'color: #10b981; font-weight: bold;');
+        let parentId = options?.parentId;
+        let x = options?.x;
+        let y = options?.y;
 
-        // Inject a ViewNode into the active view if one exists
         const activeViewId = get().activeViewId;
         const activeView = get().views.find((v) => v.id === activeViewId);
+        
+        if (activeView && activeView.type === 'event_modeling' && !x && !y) {
+          const conceptMap = new Map(get().concepts.map((c) => [c.id, c]));
+          const viewNodes = activeView.nodes ?? [];
+
+          if (conceptType === 'em_chapter') {
+            const chapters = viewNodes.filter(
+              (vn) => conceptMap.get(vn.conceptId)?.conceptType === 'em_chapter'
+            );
+            if (chapters.length > 0) {
+              let maxX = -Infinity;
+              let refY = 80;
+              chapters.forEach((ch) => {
+                const width = ch.width ?? 600;
+                if (ch.x + width > maxX) maxX = ch.x + width;
+                refY = ch.y;
+              });
+              x = maxX + 80;
+              y = refY;
+            } else {
+              x = 100;
+              y = 80;
+            }
+          } else if (conceptType === 'em_slice') {
+            const selectedIds = get().selectedConceptIds;
+            const selectedChapter = viewNodes.find(
+              (vn) =>
+                selectedIds.includes(vn.conceptId) &&
+                conceptMap.get(vn.conceptId)?.conceptType === 'em_chapter'
+            );
+            let targetChapterId = selectedChapter?.conceptId;
+
+            if (!targetChapterId) {
+              const chapters = viewNodes.filter(
+                (vn) => conceptMap.get(vn.conceptId)?.conceptType === 'em_chapter'
+              );
+              if (chapters.length > 0) {
+                let rightmostChapter = chapters[0];
+                chapters.forEach((ch) => {
+                  if (ch.x > rightmostChapter.x) rightmostChapter = ch;
+                });
+                targetChapterId = rightmostChapter.conceptId;
+              }
+            }
+
+            if (targetChapterId) {
+              parentId = targetChapterId;
+              const chapterVn = viewNodes.find((vn) => vn.conceptId === targetChapterId)!;
+              const slicesInChapter = viewNodes.filter((vn) => vn.parentId === targetChapterId);
+              if (slicesInChapter.length > 0) {
+                let maxX = -Infinity;
+                slicesInChapter.forEach((sl) => {
+                  const width = sl.width ?? 320;
+                  if (sl.x + width > maxX) maxX = sl.x + width;
+                });
+                x = maxX + 24;
+                y = chapterVn.y + 48;
+              } else {
+                x = chapterVn.x + 48;
+                y = chapterVn.y + 48;
+              }
+            } else {
+              const slices = viewNodes.filter(
+                (vn) => conceptMap.get(vn.conceptId)?.conceptType === 'em_slice'
+              );
+              if (slices.length > 0) {
+                let maxX = -Infinity;
+                slices.forEach((sl) => {
+                  const width = sl.width ?? 320;
+                  if (sl.x + width > maxX) maxX = sl.x + width;
+                });
+                x = maxX + 40;
+                y = 80;
+              } else {
+                x = 100;
+                y = 80;
+              }
+            }
+          } else {
+            const selectedIds = get().selectedConceptIds;
+            const selectedSlice = viewNodes.find(
+              (vn) =>
+                selectedIds.includes(vn.conceptId) &&
+                conceptMap.get(vn.conceptId)?.conceptType === 'em_slice'
+            );
+            if (selectedSlice) {
+              parentId = selectedSlice.conceptId;
+              x = selectedSlice.x + 30;
+              y = selectedSlice.y + 48;
+            }
+          }
+        }
+
+        const { concept, nextState } = GraphService.addConcept(get(), conceptType, name, {
+          ...options,
+          parentId,
+        });
+        console.log(`%c[Store Action] 🟢 Added Concept [${concept.conceptType}]: "${concept.name}"`, 'color: #10b981; font-weight: bold;');
+
         let updatedViews = get().views;
         if (activeView) {
-          const x = options?.x ?? 150;
-          const y = options?.y ?? 150;
+          const finalX = x ?? options?.x ?? 150;
+          const finalY = y ?? options?.y ?? 150;
           const viewNode: ViewNode = {
             conceptId: concept.id,
-            x,
-            y,
-            manualX: x,
-            manualY: y,
+            x: finalX,
+            y: finalY,
+            manualX: finalX,
+            manualY: finalY,
+            parentId,
           };
           updatedViews = updatedViews.map((v) =>
             v.id !== activeViewId ? v : { ...v, nodes: [...v.nodes, viewNode] },

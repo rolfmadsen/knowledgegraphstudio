@@ -203,6 +203,8 @@ export function NotationCanvasWrapper({ focusMode, isAIPanelActive }: NotationCa
     const viewNodes = currentView.nodes ?? [];
     const visibleConceptIds = new Set(currentConcepts.map((c) => c.id));
 
+    const conceptMap = new Map(currentConcepts.map(c => [c.id, c]));
+
     // Only layout nodes that are in both the view and the filtered/allowed list
     const layoutNodes = viewNodes
       .filter((vn) => visibleConceptIds.has(vn.conceptId))
@@ -210,7 +212,17 @@ export function NotationCanvasWrapper({ focusMode, isAIPanelActive }: NotationCa
         const rfNode = rfNodes.find((n) => n.id === vn.conceptId);
         const w = rfNode?.measured?.width ?? 200;
         const h = rfNode?.measured?.height ?? 80;
-        return { id: vn.conceptId, x: vn.x, y: vn.y, width: w, height: h, parentId: vn.parentId };
+        const c = conceptMap.get(vn.conceptId);
+        return { 
+          id: vn.conceptId, 
+          x: vn.x, 
+          y: vn.y, 
+          width: w, 
+          height: h, 
+          parentId: vn.parentId,
+          conceptType: c?.conceptType,
+          createdAt: c?.createdAt
+        };
       });
 
     const layoutLinks = currentRelations
@@ -234,14 +246,35 @@ export function NotationCanvasWrapper({ focusMode, isAIPanelActive }: NotationCa
           x: p.x,
           y: p.y,
         }));
-        const conceptMap = new Map(currentConcepts.map(c => [c.id, c]));
-
+        // already defined conceptMap above
         const groupNodes = viewNodes.filter(vn => {
           const c = conceptMap.get(vn.conceptId);
-          return c && c.conceptType === 'bounded_context';
+          if (!c) return false;
+          if (currentView.type === 'event_modeling') {
+            // For Event Modeling, we want to preserve the exact coordinates from the layout engine,
+            // so we skip overwriting chapter/slice coordinates based on children bounds.
+            return false;
+          }
+          return c.conceptType === 'bounded_context' || c.conceptType === 'em_chapter' || c.conceptType === 'em_slice';
         });
 
-        groupNodes.forEach(groupNode => {
+        // Sort group nodes by nesting depth in descending order (deepest child groups first)
+        // so that child group positions are normalized before parent groups recalculate their bounds.
+        const depthMap = new Map<string, number>();
+        const getDepth = (id: string, visited = new Set<string>()): number => {
+          if (depthMap.has(id)) return depthMap.get(id)!;
+          if (visited.has(id)) return 0;
+          const vn = viewNodes.find((n) => n.conceptId === id);
+          if (!vn || !vn.parentId) return 0;
+          visited.add(id);
+          const d = 1 + getDepth(vn.parentId, visited);
+          visited.delete(id);
+          depthMap.set(id, d);
+          return d;
+        };
+        const sortedGroupNodes = [...groupNodes].sort((a, b) => getDepth(b.conceptId) - getDepth(a.conceptId));
+
+        sortedGroupNodes.forEach(groupNode => {
           const childrenIds = viewNodes
             .filter(vn => vn.parentId === groupNode.conceptId)
             .map(vn => vn.conceptId);
@@ -252,16 +285,39 @@ export function NotationCanvasWrapper({ focusMode, isAIPanelActive }: NotationCa
             let maxX = -Infinity;
             let maxY = -Infinity;
 
- 
-            const defaultW = currentView.type === 'c4' ? 240 : currentView.type === 'archimate' ? 210 : 200;
-            const defaultH = currentView.type === 'c4' ? 96 : currentView.type === 'archimate' ? 76 : 80;
+            let defaultW = currentView.type === 'c4' ? 240 : currentView.type === 'archimate' ? 210 : 200;
+            let defaultH = currentView.type === 'c4' ? 96 : currentView.type === 'archimate' ? 76 : 80;
+
+            if (currentView.type === 'event_modeling') {
+              const groupConcept = conceptMap.get(groupNode.conceptId);
+              if (groupConcept?.conceptType === 'em_chapter') {
+                defaultW = 600;
+                defaultH = 600;
+              } else if (groupConcept?.conceptType === 'em_slice') {
+                defaultW = 320;
+                defaultH = 500;
+              }
+            }
 
             childrenIds.forEach(cid => {
               const pos = normalizedPositions.find(p => p.conceptId === cid);
               if (pos) {
                 const rfNode = rfNodes.find(n => n.id === cid);
-                const w = rfNode?.measured?.width ?? defaultW;
-                const h = rfNode?.measured?.height ?? defaultH;
+                const childConcept = conceptMap.get(cid);
+                let w = rfNode?.measured?.width;
+                let h = rfNode?.measured?.height;
+                if (!w || !h) {
+                  if (childConcept?.conceptType === 'em_slice') {
+                    w = w ?? 320;
+                    h = h ?? 500;
+                  } else if (childConcept?.conceptType === 'em_chapter') {
+                    w = w ?? 600;
+                    h = h ?? 600;
+                  } else {
+                    w = w ?? defaultW;
+                    h = h ?? defaultH;
+                  }
+                }
 
                 minX = Math.min(minX, pos.x);
                 minY = Math.min(minY, pos.y);
@@ -301,7 +357,11 @@ export function NotationCanvasWrapper({ focusMode, isAIPanelActive }: NotationCa
     }
   }, [reactFlow, batchUpdateViewNodePositions]);
 
-  // Trigger layout when model size, active view, algorithm, or manual version changes
+  const parentIdsHash = activeView
+    ? activeView.nodes.map((n) => `${n.conceptId}:${n.parentId || ''}`).join(',')
+    : '';
+
+  // Trigger layout when model size, active view, algorithm, group memberships, or manual version changes
   useEffect(() => {
     if (filteredConcepts.length > 0 && activeView && activeView.layoutAlgorithm !== 'manual') {
       const timer = setTimeout(() => {
@@ -315,6 +375,7 @@ export function NotationCanvasWrapper({ focusMode, isAIPanelActive }: NotationCa
     filteredRelations.length,
     activeView?.id,
     activeView?.layoutAlgorithm,
+    parentIdsHash,
     layoutVersion,
     runLayout,
   ]);

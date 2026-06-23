@@ -1,0 +1,133 @@
+@prefix : <http://www.semanticweb.org/v0cn037/ontologies/2026/05/event-modeling#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xml: <http://www.w3.org/XML/1998/namespace> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix dct: <http://purl.org/dc/terms/> .
+
+<http://www.semanticweb.org/v0cn037/ontologies/2026/05/event-modeling> rdf:type owl:Ontology ;
+    owl:versionInfo "1.0" ;
+    rdfs:label "Event Modeling Metamodel OWL Ontology"@en , "Event Modeling Metamodel OWL-ontologi"@da ;
+    dct:title "Event Modeling Specification OWL Ontology" ;
+    dct:creator "TypeGraph Knowledge Graph Studio Agent" ;
+    dct:created "2026-06-21"^^xsd:date .
+
+### classes
+:EventModeling_Metamodel rdf:type owl:Class ;
+    rdfs:label "Event Modeling"@en , "Event Modeling"@da .
+
+:EM_Element rdf:type owl:Class ;
+    rdfs:subClassOf :EventModeling_Metamodel ;
+    rdfs:label "Event Modeling Element"@en , "Event Modeling Element"@da .
+
+:Screen rdf:type owl:Class ;
+    rdfs:subClassOf :EM_Element ;
+    rdfs:label "Screen"@en , "Skærmbillede"@da .
+
+:Command rdf:type owl:Class ;
+    rdfs:subClassOf :EM_Element ;
+    rdfs:label "Command"@en , "Kommando"@da .
+
+:DomainEvent rdf:type owl:Class ;
+    rdfs:subClassOf :EM_Element ;
+    rdfs:label "Domain Event"@en , "Domænehændelse"@da .
+
+:ReadModel rdf:type owl:Class ;
+    rdfs:subClassOf :EM_Element ;
+    rdfs:label "Read Model"@en , "Læsemodel"@da .
+
+:IntegrationEvent rdf:type owl:Class ;
+    rdfs:subClassOf :EM_Element ;
+    rdfs:label "Integration Event"@en , "Integrationshændelse"@da .
+
+:Automation rdf:type owl:Class ;
+    rdfs:subClassOf :EM_Element ;
+    rdfs:label "Automation"@en , "Automation"@da .
+
+:Chapter rdf:type owl:Class ;
+    rdfs:subClassOf :EventModeling_Metamodel ;
+    rdfs:label "Chapter"@en , "Kapitel"@da .
+
+:Slice rdf:type owl:Class ;
+    rdfs:subClassOf :EventModeling_Metamodel ;
+    rdfs:label "Slice"@en , "Skive"@da .
+
+### properties
+:em rdf:type owl:ObjectProperty ;
+    rdfs:label "Event Modeling Ontology"@en , "Event Modeling Ontologi"@da .
+
+:invokes rdf:type owl:ObjectProperty ;
+    rdfs:domain :Screen ;
+    rdfs:range :Command ;
+    owl:inverseOf :invoked_by ;
+    rdfs:label "invokes"@en , "initierer"@da .
+
+:invoked_by rdf:type owl:ObjectProperty ;
+    owl:inverseOf :invokes ;
+    rdfs:label "invoked by"@en , "initieres af"@da .
+
+:triggers rdf:type owl:ObjectProperty ;
+    rdfs:domain :Command ;
+    rdfs:range :DomainEvent ;
+    owl:inverseOf :triggered_by ;
+    rdfs:label "triggers"@en , "udløser"@da .
+
+:triggered_by rdf:type owl:ObjectProperty ;
+    owl:inverseOf :triggers ;
+    rdfs:label "triggered by"@en , "udløses af"@da .
+
+:feeds rdf:type owl:ObjectProperty ;
+    rdfs:domain :DomainEvent ;
+    rdfs:range :ReadModel ;
+    owl:inverseOf :fed_by ;
+    rdfs:label "feeds"@en , "fodrer"@da .
+
+:fed_by rdf:type owl:ObjectProperty ;
+    owl:inverseOf :feeds ;
+    rdfs:label "fed by"@en , "fodres af"@da .
+
+:displays rdf:type owl:ObjectProperty ;
+    rdfs:domain :ReadModel ;
+    rdfs:range :Screen ;
+    owl:inverseOf :displayed_by ;
+    rdfs:label "displays"@en , "viser"@da .
+
+:displayed_by rdf:type owl:ObjectProperty ;
+    owl:inverseOf :displays ;
+    rdfs:label "displayed by"@en , "vises af"@da .
+
+:emits rdf:type owl:ObjectProperty ;
+    rdfs:domain :Command ;
+    rdfs:range :IntegrationEvent ;
+    owl:inverseOf :emitted_by ;
+    rdfs:label "emits"@en , "udsender"@da .
+
+:emitted_by rdf:type owl:ObjectProperty ;
+    owl:inverseOf :emits ;
+    rdfs:label "emitted by"@en , "udsendes af"@da .
+
+:automates rdf:type owl:ObjectProperty ;
+    rdfs:domain :Automation ;
+    rdfs:range :Command ;
+    owl:inverseOf :automated_by ;
+    rdfs:label "automates"@en , "automatiserer"@da .
+
+:automated_by rdf:type owl:ObjectProperty ;
+    owl:inverseOf :automates ;
+    rdfs:label "automated by"@en , "automatiseres af"@da .
+
+:notifies rdf:type owl:ObjectProperty ;
+    rdfs:domain :ReadModel ;
+    rdfs:range :IntegrationEvent ;
+    rdfs:label "notifies"@en , "notificerer"@da .
+
+:contained_in_slice rdf:type owl:ObjectProperty ;
+    rdfs:domain :EM_Element ;
+    rdfs:range :Slice ;
+    rdfs:label "contained in slice"@en , "indeholdt i skive"@da .
+
+:contained_in_chapter rdf:type owl:ObjectProperty ;
+    rdfs:domain :Slice ;
+    rdfs:range :Chapter ;
+    rdfs:label "contained in chapter"@en , "indeholdt i kapitel"@da .

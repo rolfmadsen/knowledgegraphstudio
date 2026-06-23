@@ -22,8 +22,11 @@ export function ConceptNodeComponent({ data, selected }: NodeProps<ConceptNodeTy
           ? 'border-emerald-500 bg-emerald-50/5 ring-4 ring-emerald-100 shadow-sm'
           : 'border-slate-300 hover:border-slate-400 bg-transparent'}
       `}>
-        <Handle type="target" position={Position.Top} style={{ visibility: 'hidden', top: '50%', left: '50%' }} />
-        <Handle type="source" position={Position.Bottom} style={{ visibility: 'hidden', top: '50%', left: '50%' }} />
+        {/* pointerEvents: 'none' — connections use the connectingSourceId click pattern,
+            not Handle dragging. Without this, mousedown on the centered Handle was
+            intercepted by ReactFlow's connection system, silently swallowing node clicks. */}
+        <Handle type="target" position={Position.Top} style={{ visibility: 'hidden', top: '50%', left: '50%', pointerEvents: 'none' }} />
+        <Handle type="source" position={Position.Bottom} style={{ visibility: 'hidden', top: '50%', left: '50%', pointerEvents: 'none' }} />
         
         <div className="flex flex-col gap-0.5 pointer-events-none select-none">
           <span className={`text-[9px] font-black uppercase tracking-wider ${selected ? 'text-emerald-600' : 'text-slate-400'}`}>
@@ -44,8 +47,11 @@ export function ConceptNodeComponent({ data, selected }: NodeProps<ConceptNodeTy
         ? 'border-emerald-500 shadow-2xl shadow-emerald-200/50 -translate-y-1'
         : 'border-slate-100 shadow-xl shadow-slate-200/30'}
     `}>
-      <Handle type="target" position={Position.Top} style={{ visibility: 'hidden', top: '50%', left: '50%' }} />
-      <Handle type="source" position={Position.Bottom} style={{ visibility: 'hidden', top: '50%', left: '50%' }} />
+      {/* pointerEvents: 'none' — same reason as above. Both Handles sit at top:50%,
+          left:50% (center of the node), so mousedown there triggers ReactFlow's edge
+          connection system instead of onNodeClick. */}
+      <Handle type="target" position={Position.Top} style={{ visibility: 'hidden', top: '50%', left: '50%', pointerEvents: 'none' }} />
+      <Handle type="source" position={Position.Bottom} style={{ visibility: 'hidden', top: '50%', left: '50%', pointerEvents: 'none' }} />
 
       <div className="flex flex-col gap-2 w-full">
         <div className="flex items-center justify-between gap-4 w-full">

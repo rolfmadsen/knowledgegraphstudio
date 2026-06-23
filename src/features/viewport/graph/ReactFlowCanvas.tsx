@@ -17,7 +17,6 @@ import {
   type EdgeProps,
   type NodeTypes,
   useReactFlow,
-  getSmoothStepPath,
   Position,
   NodeToolbar,
 } from '@xyflow/react';
@@ -27,7 +26,8 @@ import type { NotationCanvasProps } from '../../../notations/types';
 import { NotationRegistry } from '../../../notations/NotationRegistry';
 import { useGraphStore } from '../../../store/useGraphStore';
 import { useShallow } from 'zustand/react/shallow';
-import { type ConceptNode, type ElementId, toElementId, type ViewType } from '../../../schema/graphSchema';
+import { type ConceptNode, type ElementId, toElementId, type ViewType, type ConceptType } from '../../../schema/graphSchema';
+import { getDynamicConnection, getClosestPosition } from '../../../utils/edgeRouting';
 
 // --- Padding for Grouping Containers ---
 export const PADDING_TOP = 72;
@@ -35,19 +35,79 @@ export const PADDING_BOTTOM = 24;
 export const PADDING_LEFT = 24;
 export const PADDING_RIGHT = 24;
 
-// --- Helper: Calculate dynamic bounds for grouping containers ---
 function getGroupBounds(
   groupId: string,
   viewNodes: Array<{ conceptId: string; x: number; y: number; width?: number; height?: number; parentId?: string }>,
-  viewType?: string
+  viewType?: string,
+  conceptMap?: Map<string, any>
 ) {
   const vn = viewNodes.find(n => n.conceptId === groupId);
   if (!vn) return null;
 
   const children = viewNodes.filter(n => n.parentId === groupId);
+  const concept = conceptMap?.get(groupId);
+  const conceptType = concept?.conceptType;
 
-  const defaultW = viewType === 'c4' ? 240 : viewType === 'archimate' ? 210 : 200;
-  const defaultH = viewType === 'c4' ? 96 : viewType === 'archimate' ? 76 : 80;
+  if (viewType === 'event_modeling') {
+    if (conceptType === 'em_slice') {
+      const parentId = vn.parentId;
+      const parentConcept = parentId ? conceptMap?.get(parentId) : null;
+      let maxElementBottom = -Infinity;
+
+      if (parentConcept && parentConcept.conceptType === 'em_chapter') {
+        const chapterSlices = viewNodes.filter(s => s.parentId === parentId);
+        chapterSlices.forEach(sliceVn => {
+          const sliceElements = viewNodes.filter(e => e.parentId === sliceVn.conceptId);
+          sliceElements.forEach(el => {
+            const h = el.height ?? 80;
+            maxElementBottom = Math.max(maxElementBottom, el.y + h);
+          });
+        });
+      } else {
+        children.forEach(child => {
+          let childH = child.height ?? 80;
+          maxElementBottom = Math.max(maxElementBottom, child.y + childH);
+        });
+      }
+
+      const sliceY = vn.y;
+      const h = maxElementBottom !== -Infinity ? Math.max(200, (maxElementBottom + (viewType === 'event_modeling' ? 48 : PADDING_BOTTOM)) - sliceY) : 500;
+      return {
+        x: vn.x,
+        y: sliceY,
+        w: 320,
+        h,
+      };
+    } else if (conceptType === 'em_chapter') {
+      let minX = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+      children.forEach(child => {
+        const childConcept = conceptMap?.get(child.conceptId);
+        if (childConcept?.conceptType === 'em_slice') {
+          const sb = getGroupBounds(child.conceptId, viewNodes, viewType, conceptMap);
+          if (sb) {
+            minX = Math.min(minX, sb.x);
+            maxX = Math.max(maxX, sb.x + sb.w);
+            maxY = Math.max(maxY, sb.y + sb.h);
+          }
+        }
+      });
+      const CHAPTER_PADDING = 48;
+      const chapterY = vn.y;
+      const w = minX !== Infinity ? (maxX - minX) + CHAPTER_PADDING * 2 : 600;
+      const h = maxY !== -Infinity ? Math.max(300, (maxY - chapterY) + CHAPTER_PADDING) : 600;
+      return {
+        x: vn.x,
+        y: chapterY,
+        w,
+        h,
+      };
+    }
+  }
+
+  let defaultW = viewType === 'c4' ? 240 : viewType === 'archimate' ? 210 : 200;
+  let defaultH = viewType === 'c4' ? 96 : viewType === 'archimate' ? 76 : 80;
 
   if (children.length === 0) {
     return {
@@ -64,8 +124,22 @@ function getGroupBounds(
   let maxY = -Infinity;
 
   children.forEach(child => {
-    const w = child.width ?? defaultW;
-    const h = child.height ?? defaultH;
+    // If the child is a group itself, we compute its bounds recursively
+    const childConcept = conceptMap?.get(child.conceptId);
+    const isChildGroup = childConcept && (childConcept.conceptType === 'bounded_context' || childConcept.conceptType === 'em_chapter' || childConcept.conceptType === 'em_slice');
+    if (isChildGroup) {
+      const cb = getGroupBounds(child.conceptId, viewNodes, viewType, conceptMap);
+      if (cb) {
+        minX = Math.min(minX, cb.x);
+        minY = Math.min(minY, cb.y);
+        maxX = Math.max(maxX, cb.x + cb.w);
+        maxY = Math.max(maxY, cb.y + cb.h);
+        return;
+      }
+    }
+
+    let w = child.width ?? defaultW;
+    let h = child.height ?? defaultH;
     minX = Math.min(minX, child.x);
     minY = Math.min(minY, child.y);
     maxX = Math.max(maxX, child.x + w);
@@ -120,11 +194,17 @@ function getEdgeParams(source: InternalNode, target: InternalNode) {
   };
 }
 
-function getOrthogonalParams(source: InternalNode, target: InternalNode) {
-  const sourceWidth = source.measured?.width ?? 0;
-  const sourceHeight = source.measured?.height ?? 0;
-  const targetWidth = target.measured?.width ?? 0;
-  const targetHeight = target.measured?.height ?? 0;
+function getOrthogonalParams(
+  source: InternalNode,
+  target: InternalNode,
+  layoutAlgorithm?: string,
+  viewType?: string,
+  nodesMap?: Map<string, any>
+) {
+  const sourceWidth = source.measured?.width ?? 200;
+  const sourceHeight = source.measured?.height ?? 80;
+  const targetWidth = target.measured?.width ?? 200;
+  const targetHeight = target.measured?.height ?? 80;
 
   const sx_center = source.internals.positionAbsolute.x + sourceWidth / 2;
   const sy_center = source.internals.positionAbsolute.y + sourceHeight / 2;
@@ -137,7 +217,94 @@ function getOrthogonalParams(source: InternalNode, target: InternalNode) {
   let sourcePosition = Position.Bottom;
   let targetPosition = Position.Top;
 
-  if (Math.abs(dx) > Math.abs(dy)) {
+  if (viewType === 'event_modeling') {
+    const sourceConcept = (source.data as any)?.concept;
+    const targetConcept = (target.data as any)?.concept;
+    const sourceParentId = source.parentId;
+    const targetParentId = target.parentId;
+    const sourceConceptType = sourceConcept?.conceptType;
+    const targetConceptType = targetConcept?.conceptType;
+
+    const EM_ROW_ORDER = ['screen', 'command', 'event', 'read_model', 'integration_event', 'automation'];
+    const getEmRowIndex = (type?: string): number => {
+      if (!type) return -1;
+      const idx = EM_ROW_ORDER.indexOf(type);
+      return idx >= 0 ? idx : EM_ROW_ORDER.length;
+    };
+
+    let crossChapter = false;
+    if (nodesMap) {
+      const getChapterId = (node: InternalNode): string | undefined => {
+        let curr: any = node;
+        while (curr) {
+          const concept = curr.data?.concept;
+          if (concept?.conceptType === 'em_chapter') {
+            return curr.id;
+          }
+          if (!curr.parentId) break;
+          curr = nodesMap.get(curr.parentId);
+        }
+        return undefined;
+      };
+      const sourceChapterId = getChapterId(source);
+      const targetChapterId = getChapterId(target);
+      if (sourceChapterId && targetChapterId && sourceChapterId !== targetChapterId) {
+        crossChapter = true;
+      }
+    }
+
+    if (crossChapter) {
+      if (dy > 0) {
+        sourcePosition = Position.Bottom;
+        targetPosition = Position.Top;
+      } else {
+        sourcePosition = Position.Top;
+        targetPosition = Position.Bottom;
+      }
+    } else {
+      const inSameSlice = sourceParentId && targetParentId && sourceParentId === targetParentId;
+
+      if (inSameSlice) {
+        const rowSource = getEmRowIndex(sourceConceptType);
+        const rowTarget = getEmRowIndex(targetConceptType);
+        const rowDiff = Math.abs(rowSource - rowTarget);
+
+        if (rowDiff === 1) {
+          if (dy > 0) {
+            sourcePosition = Position.Bottom;
+            targetPosition = Position.Top;
+          } else {
+            sourcePosition = Position.Top;
+            targetPosition = Position.Bottom;
+          }
+        } else {
+          // Non-adjacent rows inside same slice (e.g. Read Model to Screen, row difference is 3):
+          // Route around the left side using Left handles to avoid crossing other elements vertically
+          sourcePosition = Position.Left;
+          targetPosition = Position.Left;
+        }
+      } else {
+        // Different slices: always Left/Right horizontal flow
+        if (dx > 0) {
+          sourcePosition = Position.Right;
+          targetPosition = Position.Left;
+        } else {
+          sourcePosition = Position.Left;
+          targetPosition = Position.Right;
+        }
+      }
+    }
+  } else if (layoutAlgorithm === 'hierarchical') {
+    // Top-to-bottom layout: force vertical connection (Top/Bottom handles)
+    if (dy > 0) {
+      sourcePosition = Position.Bottom;
+      targetPosition = Position.Top;
+    } else {
+      sourcePosition = Position.Top;
+      targetPosition = Position.Bottom;
+    }
+  } else if (layoutAlgorithm === 'force_directed') {
+    // Left-to-right layout: force horizontal connection (Left/Right handles)
     if (dx > 0) {
       sourcePosition = Position.Right;
       targetPosition = Position.Left;
@@ -146,12 +313,26 @@ function getOrthogonalParams(source: InternalNode, target: InternalNode) {
       targetPosition = Position.Right;
     }
   } else {
-    if (dy > 0) {
-      sourcePosition = Position.Bottom;
-      targetPosition = Position.Top;
+    // Default dynamic/manual routing based on closest proximity
+    if (Math.abs(dx) > Math.abs(dy)) {
+      if (dx > 0) {
+        sourcePosition = Position.Right;
+        targetPosition = Position.Left;
+      } else {
+        sourcePosition = Position.Left;
+        targetPosition = Position.Right;
+      }
     } else {
-      sourcePosition = Position.Top;
-      targetPosition = Position.Bottom;
+      if (dy > 0) {
+        // Target is below source → standard downward flow: exit bottom, enter top
+        sourcePosition = Position.Bottom;
+        targetPosition = Position.Top;
+      } else {
+        // Target is above source → upward flow: exit top, enter top
+        // Both nodes connect via their top handles with a bridge between them.
+        sourcePosition = Position.Top;
+        targetPosition = Position.Top;
+      }
     }
   }
 
@@ -244,8 +425,8 @@ function getNodePadding(node: InternalNode, position?: Position) {
   const isSelected = !!node.selected;
 
   if (!isSelected) {
-    // Both start and target markers get a tiny 2px padding to clear node borders cleanly.
-    return 2;
+    // Both start and target markers get a 6px padding to clear node borders cleanly and keep markers visible.
+    return 6;
   }
 
   // If selected, the node has scale-[1.03] and ring-4 (which adds a 4px outline).
@@ -263,9 +444,375 @@ function getNodePadding(node: InternalNode, position?: Position) {
   }
 
   const ringOffset = 4; // ring-4
-  const extra = 2; // 2px base padding for visual balance on both sides
+  const extra = 6; // 6px base padding for visual balance on both sides
 
   return scaleOffset + ringOffset + extra;
+}
+
+// Helper to filter consecutive duplicate/near-duplicate points
+function filterDuplicatePoints(pts: Array<{ x: number; y: number }>) {
+  const result: Array<{ x: number; y: number }> = [];
+  for (const pt of pts) {
+    if (result.length === 0) {
+      result.push(pt);
+    } else {
+      const last = result[result.length - 1];
+      const dist = Math.abs(pt.x - last.x) + Math.abs(pt.y - last.y);
+      if (dist > 0.1) {
+        result.push(pt);
+      }
+    }
+  }
+  return result;
+}
+
+// Helper to filter out redundant collinear intermediate points
+function simplifyCollinearPoints(pts: Array<{ x: number; y: number }>) {
+  if (pts.length <= 2) return pts;
+  const result: Array<{ x: number; y: number }> = [pts[0]];
+  for (let i = 1; i < pts.length - 1; i++) {
+    const prev = result[result.length - 1];
+    const curr = pts[i];
+    const next = pts[i + 1];
+
+    const isCollinearX = Math.abs(prev.x - curr.x) < 0.1 && Math.abs(curr.x - next.x) < 0.1;
+    const isCollinearY = Math.abs(prev.y - curr.y) < 0.1 && Math.abs(curr.y - next.y) < 0.1;
+
+    if (!isCollinearX && !isCollinearY) {
+      result.push(curr);
+    }
+  }
+  result.push(pts[pts.length - 1]);
+  return result;
+}
+
+// --- Utility: Calculate edge points with custom waypoints support ---
+function getEdgePoints(
+  sourceNode: InternalNode,
+  targetNode: InternalNode,
+  customLayout: any,
+  layoutAlgorithm?: string,
+  dragDirection?: 'horizontal' | 'vertical',
+  isDragging?: boolean,
+  viewType?: string,
+  nodesMap?: Map<string, any>
+) {
+  const sourceWidth = sourceNode.measured?.width ?? 200;
+  const sourceHeight = sourceNode.measured?.height ?? 80;
+  const targetWidth = targetNode.measured?.width ?? 200;
+  const targetHeight = targetNode.measured?.height ?? 80;
+
+  const sx_center = sourceNode.internals.positionAbsolute.x + sourceWidth / 2;
+  const sy_center = sourceNode.internals.positionAbsolute.y + sourceHeight / 2;
+  const tx_center = targetNode.internals.positionAbsolute.x + targetWidth / 2;
+  const ty_center = targetNode.internals.positionAbsolute.y + targetHeight / 2;
+
+  let sourcePosition = customLayout?.sourcePosition || Position.Bottom;
+  let targetPosition = customLayout?.targetPosition || Position.Top;
+  const waypoints = customLayout?.waypoints as Array<{ x: number; y: number }> | undefined;
+  const hasWaypoints = waypoints && waypoints.length >= 1;
+
+  if (hasWaypoints && waypoints) {
+    sourcePosition = getClosestPosition(sourceNode, waypoints[0], dragDirection);
+    targetPosition = getClosestPosition(targetNode, waypoints[waypoints.length - 1], dragDirection);
+  } else {
+    if (!customLayout || viewType === 'event_modeling') {
+      const params = getOrthogonalParams(sourceNode, targetNode, layoutAlgorithm, viewType, nodesMap);
+      sourcePosition = params.sourcePosition;
+      targetPosition = params.targetPosition;
+    } else {
+      // Validate the stored layout: perpendicular combinations (e.g., Top+Left, Right+Bottom)
+      // without waypoints were created accidentally during edge dragging and produce ugly routing
+      // (the path hugs the side of a node). Fall back to auto-routing for these cases.
+      const isStoredSourceVertical = sourcePosition === Position.Top || sourcePosition === Position.Bottom;
+      const isStoredTargetVertical = targetPosition === Position.Top || targetPosition === Position.Bottom;
+      const isPerpendicular = isStoredSourceVertical !== isStoredTargetVertical;
+      if (isPerpendicular) {
+        const params = getOrthogonalParams(sourceNode, targetNode, layoutAlgorithm, viewType, nodesMap);
+        sourcePosition = params.sourcePosition;
+        targetPosition = params.targetPosition;
+      }
+    }
+  }
+
+  const firstWaypoint = hasWaypoints ? waypoints[0] : { x: tx_center, y: ty_center };
+  const lastWaypoint = hasWaypoints ? waypoints[waypoints.length - 1] : { x: sx_center, y: sy_center };
+
+  let sx = sx_center;
+  let sy = sy_center;
+  const shouldSlide = viewType !== 'event_modeling';
+  if (sourcePosition === Position.Left) {
+    sx = sourceNode.internals.positionAbsolute.x;
+    const nodeY = sourceNode.internals.positionAbsolute.y;
+    sy = shouldSlide ? Math.max(nodeY, Math.min(nodeY + sourceHeight, firstWaypoint.y)) : sy_center;
+  } else if (sourcePosition === Position.Right) {
+    sx = sourceNode.internals.positionAbsolute.x + sourceWidth;
+    const nodeY = sourceNode.internals.positionAbsolute.y;
+    sy = shouldSlide ? Math.max(nodeY, Math.min(nodeY + sourceHeight, firstWaypoint.y)) : sy_center;
+  } else if (sourcePosition === Position.Top) {
+    sy = sourceNode.internals.positionAbsolute.y;
+    const nodeX = sourceNode.internals.positionAbsolute.x;
+    sx = shouldSlide ? Math.max(nodeX, Math.min(nodeX + sourceWidth, firstWaypoint.x)) : sx_center;
+  } else if (sourcePosition === Position.Bottom) {
+    sy = sourceNode.internals.positionAbsolute.y + sourceHeight;
+    const nodeX = sourceNode.internals.positionAbsolute.x;
+    sx = shouldSlide ? Math.max(nodeX, Math.min(nodeX + sourceWidth, firstWaypoint.x)) : sx_center;
+  }
+
+  let tx = tx_center;
+  let ty = ty_center;
+  if (targetPosition === Position.Left) {
+    tx = targetNode.internals.positionAbsolute.x;
+    const nodeY = targetNode.internals.positionAbsolute.y;
+    ty = shouldSlide ? Math.max(nodeY, Math.min(nodeY + targetHeight, lastWaypoint.y)) : ty_center;
+  } else if (targetPosition === Position.Right) {
+    tx = targetNode.internals.positionAbsolute.x + targetWidth;
+    const nodeY = targetNode.internals.positionAbsolute.y;
+    ty = shouldSlide ? Math.max(nodeY, Math.min(nodeY + targetHeight, lastWaypoint.y)) : ty_center;
+  } else if (targetPosition === Position.Top) {
+    ty = targetNode.internals.positionAbsolute.y;
+    const nodeX = targetNode.internals.positionAbsolute.x;
+    tx = shouldSlide ? Math.max(nodeX, Math.min(nodeX + targetWidth, lastWaypoint.x)) : tx_center;
+  } else if (targetPosition === Position.Bottom) {
+    ty = targetNode.internals.positionAbsolute.y + targetHeight;
+    const nodeX = targetNode.internals.positionAbsolute.x;
+    tx = shouldSlide ? Math.max(nodeX, Math.min(nodeX + targetWidth, lastWaypoint.x)) : tx_center;
+  }
+
+
+  const isSourceVertical = sourcePosition === Position.Top || sourcePosition === Position.Bottom;
+  const isTargetVertical = targetPosition === Position.Top || targetPosition === Position.Bottom;
+  const isPerpendicular = isSourceVertical !== isTargetVertical;
+
+  let rawPoints: Array<{ x: number; y: number }> = [];
+
+  if (hasWaypoints && waypoints) {
+    const sourceExitDirection = (sourcePosition === Position.Left || sourcePosition === Position.Right) ? 'horizontal' : 'vertical';
+    const startElbow = getDynamicConnection({ x: sx, y: sy }, waypoints[0], sourceExitDirection);
+
+    const targetExitDirection = (targetPosition === Position.Left || targetPosition === Position.Right) ? 'horizontal' : 'vertical';
+    const endElbow = getDynamicConnection({ x: tx, y: ty }, waypoints[waypoints.length - 1], targetExitDirection);
+
+    rawPoints = [
+      { x: sx, y: sy },
+      startElbow,
+      ...waypoints,
+      endElbow,
+      { x: tx, y: ty }
+    ];
+  } else {
+    if (isPerpendicular) {
+      let use5Point = false;
+      let newY = 0;
+      let newX = 0;
+      let isYDragged = false;
+
+      if (waypoints && waypoints.length >= 1) {
+        const wpt = waypoints[0];
+        if (isSourceVertical) {
+          if (sourcePosition === Position.Bottom && wpt.y > Math.max(sy, ty) + 10) {
+            use5Point = true;
+            isYDragged = true;
+            newY = wpt.y;
+          } else if (sourcePosition === Position.Top && wpt.y < Math.min(sy, ty) - 10) {
+            use5Point = true;
+            isYDragged = true;
+            newY = wpt.y;
+          } else if (targetPosition === Position.Right && wpt.x > Math.max(sx, tx) + 10) {
+            use5Point = true;
+            isYDragged = false;
+            newX = wpt.x;
+          } else if (targetPosition === Position.Left && wpt.x < Math.min(sx, tx) - 10) {
+            use5Point = true;
+            isYDragged = false;
+            newX = wpt.x;
+          }
+        } else {
+          if (targetPosition === Position.Bottom && wpt.y > Math.max(sy, ty) + 10) {
+            use5Point = true;
+            isYDragged = true;
+            newY = wpt.y;
+          } else if (targetPosition === Position.Top && wpt.y < Math.min(sy, ty) - 10) {
+            use5Point = true;
+            isYDragged = true;
+            newY = wpt.y;
+          } else if (sourcePosition === Position.Right && wpt.x > Math.max(sx, tx) + 10) {
+            use5Point = true;
+            isYDragged = false;
+            newX = wpt.x;
+          } else if (sourcePosition === Position.Left && wpt.x < Math.min(sx, tx) - 10) {
+            use5Point = true;
+            isYDragged = false;
+            newX = wpt.x;
+          }
+        }
+      }
+
+      if (use5Point) {
+        const mx = (sx + tx) / 2;
+        const my = (sy + ty) / 2;
+        if (isSourceVertical) {
+          if (isYDragged) {
+            rawPoints = [
+              { x: sx, y: sy },
+              { x: sx, y: newY },
+              { x: mx, y: newY },
+              { x: mx, y: ty },
+              { x: tx, y: ty }
+            ];
+          } else {
+            rawPoints = [
+              { x: sx, y: sy },
+              { x: sx, y: my },
+              { x: newX, y: my },
+              { x: newX, y: ty },
+              { x: tx, y: ty }
+            ];
+          }
+        } else {
+          if (isYDragged) {
+            rawPoints = [
+              { x: sx, y: sy },
+              { x: mx, y: sy },
+              { x: mx, y: newY },
+              { x: tx, y: newY },
+              { x: tx, y: ty }
+            ];
+          } else {
+            rawPoints = [
+              { x: sx, y: sy },
+              { x: newX, y: sy },
+              { x: newX, y: my },
+              { x: tx, y: my },
+              { x: tx, y: ty }
+            ];
+          }
+        }
+      } else {
+        const w1 = isSourceVertical
+          ? { x: sx, y: ty }
+          : { x: tx, y: sy };
+        rawPoints = [{ x: sx, y: sy }, w1, { x: tx, y: ty }];
+      }
+    } else {
+      // Parallel or opposite
+      if (isSourceVertical) {
+        let draggedY = (sy + ty) / 2;
+        if (waypoints && waypoints.length >= 1) {
+          draggedY = waypoints[0].y;
+        } else if (sourcePosition === targetPosition) {
+          if (sourcePosition === Position.Top) {
+            draggedY = Math.min(sy, ty) - 40;
+          } else {
+            draggedY = Math.max(sy, ty) + 40;
+          }
+        }
+        rawPoints = [
+          { x: sx, y: sy },
+          { x: sx, y: draggedY },
+          { x: tx, y: draggedY },
+          { x: tx, y: ty }
+        ];
+      } else {
+        let draggedX = (sx + tx) / 2;
+        if (waypoints && waypoints.length >= 1) {
+          draggedX = waypoints[0].x;
+        } else if (sourcePosition === targetPosition) {
+          if (sourcePosition === Position.Left) {
+            draggedX = Math.min(sx, tx) - 40;
+          } else {
+            draggedX = Math.max(sx, tx) + 40;
+          }
+        } else if (viewType === 'event_modeling') {
+          if (targetPosition === Position.Left) {
+            draggedX = tx - 42;
+          } else if (targetPosition === Position.Right) {
+            draggedX = tx + 42;
+          }
+        }
+        rawPoints = [
+          { x: sx, y: sy },
+          { x: draggedX, y: sy },
+          { x: draggedX, y: ty },
+          { x: tx, y: ty }
+        ];
+      }
+    }
+  }
+
+  const points = (layoutAlgorithm === 'manual' && hasWaypoints && isDragging)
+    ? rawPoints
+    : simplifyCollinearPoints(filterDuplicatePoints(rawPoints));
+
+  return {
+    sourcePosition,
+    targetPosition,
+    points,
+  };
+}
+
+// Helper to get new waypoints array and drag indices for segment dragging
+function getWaypointsForDrag(
+  points: Array<{ x: number; y: number }>,
+  waypoints: Array<{ x: number; y: number }>,
+  segmentIndex: number
+) {
+  const L = points.length;
+
+  if (L <= 2) {
+    // For a straight line, dragging it inserts 2 waypoints at the anchors' positions
+    const newWaypoints = points.map(pt => ({ x: pt.x, y: pt.y }));
+    return {
+      newWaypoints,
+      dragLeftIndex: 0,
+      dragRightIndex: 1,
+    };
+  }
+
+  const pointOrigins: Array<{ isWaypoint: boolean; x: number; y: number }> = [];
+
+  for (let i = 0; i < L; i++) {
+    const pt = points[i];
+    const isExistingWaypoint = waypoints.some(
+      wp => Math.abs(wp.x - pt.x) < 1 && Math.abs(wp.y - pt.y) < 1
+    );
+    pointOrigins.push({ isWaypoint: isExistingWaypoint, x: pt.x, y: pt.y });
+  }
+
+  // Promote segment endpoints to waypoints ONLY if they are not the main start/end anchors
+  if (segmentIndex >= 0 && segmentIndex < L) {
+    if (segmentIndex !== 0 && segmentIndex !== L - 1) {
+      pointOrigins[segmentIndex].isWaypoint = true;
+    }
+  }
+  if (segmentIndex + 1 >= 0 && segmentIndex + 1 < L) {
+    if (segmentIndex + 1 !== 0 && segmentIndex + 1 !== L - 1) {
+      pointOrigins[segmentIndex + 1].isWaypoint = true;
+    }
+  }
+
+  const newWaypoints: Array<{ x: number; y: number }> = [];
+  let dragLeftIndex = -1;
+  let dragRightIndex = -1;
+
+  pointOrigins.forEach((po, idx) => {
+    if (po.isWaypoint) {
+      newWaypoints.push({ x: po.x, y: po.y });
+      const newIdx = newWaypoints.length - 1;
+      if (idx === segmentIndex) {
+        dragLeftIndex = newIdx;
+      }
+      if (idx === segmentIndex + 1) {
+        dragRightIndex = newIdx;
+      }
+    }
+  });
+
+  return {
+    newWaypoints,
+    dragLeftIndex,
+    dragRightIndex,
+  };
 }
 
 // Custom FloatingEdge
@@ -273,7 +820,15 @@ function FloatingEdge({ id, source, target, style, label, labelStyle, selected, 
   const sourceNode = useInternalNode(source);
   const targetNode = useInternalNode(target);
 
+  const { updateViewEdgeLayout, activeViewId } = useGraphStore();
+  const [draggedSegment, setDraggedSegment] = useState<number | null>(null);
+  const [dragDirection, setDragDirection] = useState<'horizontal' | 'vertical' | null>(null);
+  const reactFlow = useReactFlow();
+
   if (!sourceNode || !targetNode) return null;
+
+  const nodes = reactFlow.getNodes();
+  const nodesMap = useMemo(() => new Map(nodes.map(n => [n.id, n])), [nodes]);
 
   const activeNotation = NotationRegistry.forViewType(data?.viewType as ViewType);
   const isOrthogonal = activeNotation?.orthogonalEdges;
@@ -282,6 +837,8 @@ function FloatingEdge({ id, source, target, style, label, labelStyle, selected, 
   let midX = 0;
   let midY = 0;
   let distance = 100;
+  let points: Array<{ x: number; y: number }> = [];
+  let renderedPoints: Array<{ x: number; y: number }> = [];
 
   const edgeIndex = data?.edgeIndex as number | undefined;
   const totalEdges = data?.totalEdges as number | undefined;
@@ -289,48 +846,45 @@ function FloatingEdge({ id, source, target, style, label, labelStyle, selected, 
   let markerEnd = data?.markerEnd as string | undefined;
   let markerStart = data?.markerStart as string | undefined;
 
-  let sx = 0;
-  let sy = 0;
-  let tx = 0;
-  let ty = 0;
   let sourcePosition = Position.Bottom;
   let targetPosition = Position.Top;
 
+  const layoutAlgorithm = data?.layoutAlgorithm as string | undefined;
+  const viewEdges = data?.viewEdges as any[] | undefined;
+  const customLayout = layoutAlgorithm === 'manual' ? viewEdges?.find((ve) => ve.relationId === id) : undefined;
+
   if (isOrthogonal) {
-    const { sx: baseSx, sy: baseSy, tx: baseTx, ty: baseTy, sourcePosition: sPos, targetPosition: tPos } = getOrthogonalParams(
+    const edgePoints = getEdgePoints(
       sourceNode as InternalNode,
-      targetNode as InternalNode
+      targetNode as InternalNode,
+      customLayout,
+      layoutAlgorithm,
+      dragDirection || undefined,
+      draggedSegment !== null,
+      data?.viewType as string,
+      nodesMap
     );
-    sourcePosition = sPos;
-    targetPosition = tPos;
+    sourcePosition = edgePoints.sourcePosition;
+    targetPosition = edgePoints.targetPosition;
+    points = edgePoints.points;
+
+    renderedPoints = points.map(pt => ({ ...pt }));
 
     const sourcePadding = getNodePadding(sourceNode as InternalNode, sourcePosition);
     const targetPadding = getNodePadding(targetNode as InternalNode, targetPosition);
 
-    sx = baseSx;
-    sy = baseSy;
-    tx = baseTx;
-    ty = baseTy;
+    if (renderedPoints.length > 0) {
+      const pStart = renderedPoints[0];
+      if (sourcePosition === Position.Left) pStart.x -= sourcePadding;
+      else if (sourcePosition === Position.Right) pStart.x += sourcePadding;
+      else if (sourcePosition === Position.Top) pStart.y -= sourcePadding;
+      else if (sourcePosition === Position.Bottom) pStart.y += sourcePadding;
 
-    // Apply padding to shift endpoints away from node border dynamically
-    if (sourcePosition === Position.Left) {
-      sx -= sourcePadding;
-    } else if (sourcePosition === Position.Right) {
-      sx += sourcePadding;
-    } else if (sourcePosition === Position.Top) {
-      sy -= sourcePadding;
-    } else if (sourcePosition === Position.Bottom) {
-      sy += sourcePadding;
-    }
-
-    if (targetPosition === Position.Left) {
-      tx -= targetPadding;
-    } else if (targetPosition === Position.Right) {
-      tx += targetPadding;
-    } else if (targetPosition === Position.Top) {
-      ty -= targetPadding;
-    } else if (targetPosition === Position.Bottom) {
-      ty += targetPadding;
+      const pEnd = renderedPoints[renderedPoints.length - 1];
+      if (targetPosition === Position.Left) pEnd.x -= targetPadding;
+      else if (targetPosition === Position.Right) pEnd.x += targetPadding;
+      else if (targetPosition === Position.Top) pEnd.y -= targetPadding;
+      else if (targetPosition === Position.Bottom) pEnd.y += targetPadding;
     }
 
     if (totalEdges && totalEdges > 1 && edgeIndex !== undefined) {
@@ -338,42 +892,53 @@ function FloatingEdge({ id, source, target, style, label, labelStyle, selected, 
       const offsetVal = (edgeIndex - (totalEdges - 1) / 2) * step;
 
       if (sourcePosition === Position.Top || sourcePosition === Position.Bottom) {
-        sx += offsetVal;
+        renderedPoints[0].x += offsetVal;
+        if (renderedPoints.length > 2) renderedPoints[1].x += offsetVal;
       } else {
-        sy += offsetVal;
+        renderedPoints[0].y += offsetVal;
+        if (renderedPoints.length > 2) renderedPoints[1].y += offsetVal;
       }
 
       if (targetPosition === Position.Top || targetPosition === Position.Bottom) {
-        tx += offsetVal;
+        renderedPoints[renderedPoints.length - 1].x += offsetVal;
+        if (renderedPoints.length > 2) renderedPoints[renderedPoints.length - 2].x += offsetVal;
       } else {
-        ty += offsetVal;
+        renderedPoints[renderedPoints.length - 1].y += offsetVal;
+        if (renderedPoints.length > 2) renderedPoints[renderedPoints.length - 2].y += offsetVal;
       }
     }
 
-    const [smoothPath, labelX, labelY] = getSmoothStepPath({
-      sourceX: sx,
-      sourceY: sy,
-      sourcePosition,
-      targetX: tx,
-      targetY: ty,
-      targetPosition,
-      borderRadius: 8,
-    });
-
-    path = smoothPath;
-    midX = labelX;
-    midY = labelY;
-    distance = Math.abs(tx - sx) + Math.abs(ty - sy);
-
-    if (totalEdges && totalEdges > 1 && edgeIndex !== undefined) {
-      const offsetIndex = edgeIndex - (totalEdges - 1) / 2;
-      if (sourcePosition === Position.Left || sourcePosition === Position.Right) {
-        const staggerStep = Math.min(24, distance * 0.15);
-        midX += offsetIndex * staggerStep;
-      } else {
-        const staggerStep = Math.min(20, distance * 0.15);
-        midY += offsetIndex * staggerStep;
+    if (renderedPoints.length > 0) {
+      path = `M ${renderedPoints[0].x} ${renderedPoints[0].y}`;
+      for (let i = 1; i < renderedPoints.length; i++) {
+        path += ` L ${renderedPoints[i].x} ${renderedPoints[i].y}`;
       }
+    }
+
+    // Compute arc-length midpoint so the label always appears at the visual centre
+    // of the path — regardless of handle orientation or number of segments.
+    if (renderedPoints.length > 1) {
+      const segLengths: number[] = [];
+      let totalLength = 0;
+      for (let i = 0; i < renderedPoints.length - 1; i++) {
+        const len = Math.abs(renderedPoints[i + 1].x - renderedPoints[i].x) + Math.abs(renderedPoints[i + 1].y - renderedPoints[i].y);
+        segLengths.push(len);
+        totalLength += len;
+      }
+      let remaining = totalLength / 2;
+      for (let i = 0; i < segLengths.length; i++) {
+        if (remaining <= segLengths[i] || i === segLengths.length - 1) {
+          const t = segLengths[i] > 0 ? remaining / segLengths[i] : 0;
+          midX = renderedPoints[i].x + (renderedPoints[i + 1].x - renderedPoints[i].x) * t;
+          midY = renderedPoints[i].y + (renderedPoints[i + 1].y - renderedPoints[i].y) * t;
+          break;
+        }
+        remaining -= segLengths[i];
+      }
+    }
+
+    if (renderedPoints.length > 0) {
+      distance = Math.abs(renderedPoints[renderedPoints.length - 1].x - renderedPoints[0].x) + Math.abs(renderedPoints[renderedPoints.length - 1].y - renderedPoints[0].y);
     }
 
     const dirStart = sourcePosition === Position.Right ? 'right' :
@@ -401,16 +966,19 @@ function FloatingEdge({ id, source, target, style, label, labelStyle, selected, 
     const ux = dx / baseDistance;
     const uy = dy / baseDistance;
 
-    sx = baseSx + ux * sourcePadding;
-    sy = baseSy + uy * sourcePadding;
-    tx = baseTx - ux * targetPadding;
-    ty = baseTy - uy * targetPadding;
+    const sx = baseSx + ux * sourcePadding;
+    const sy = baseSy + uy * sourcePadding;
+    const tx = baseTx - ux * targetPadding;
+    const ty = baseTy - uy * targetPadding;
 
     distance = Math.sqrt((tx - sx) * (tx - sx) + (ty - sy) * (ty - sy)) || 1;
 
     path = `M ${sx} ${sy} L ${tx} ${ty}`;
     midX = (sx + tx) / 2;
     midY = (sy + ty) / 2;
+
+    points = [{ x: sx, y: sy }, { x: tx, y: ty }];
+    renderedPoints = points;
 
     const tangentAngle = Math.atan2(ty - sy, tx - sx);
     const arrowOffset = 10;
@@ -423,7 +991,7 @@ function FloatingEdge({ id, source, target, style, label, labelStyle, selected, 
         ny = -ny;
       }
 
-      const step = 40; // px offset spacing per parallel edge
+      const step = 40; 
       const offsetIndex = edgeIndex - (totalEdges - 1) / 2;
       const offsetVal = offsetIndex * step;
 
@@ -451,60 +1019,186 @@ function FloatingEdge({ id, source, target, style, label, labelStyle, selected, 
     }
   }
 
+  const startDrag = (e: React.MouseEvent, segmentIndex: number) => {
+    e.stopPropagation();
+    e.preventDefault();
+
+    if (!activeViewId) return;
+
+    // Get current rendered points of the edge and current waypoints
+    const currentPoints = points.map(pt => ({ ...pt }));
+    const currentWaypoints = customLayout?.waypoints as Array<{ x: number; y: number }> | undefined || [];
+
+    // Calculate / insert waypoints for the drag
+    const { newWaypoints, dragLeftIndex, dragRightIndex } = getWaypointsForDrag(
+      currentPoints,
+      currentWaypoints,
+      segmentIndex
+    );
+
+    // Save the established waypoints to the store immediately
+    // So the next render will have these waypoints in customLayout and we can drag them
+    updateViewEdgeLayout(
+      activeViewId,
+      toElementId(id),
+      sourcePosition,
+      targetPosition,
+      newWaypoints
+    );
+
+    const startMouseX = e.clientX;
+    const startMouseY = e.clientY;
+    const initialWaypoints = newWaypoints.map(pt => ({ ...pt }));
+
+    const isHorizontal = Math.abs(currentPoints[segmentIndex].y - currentPoints[segmentIndex + 1].y) < Math.abs(currentPoints[segmentIndex].x - currentPoints[segmentIndex + 1].x);
+    const activeDragDir = isHorizontal ? 'horizontal' : 'vertical';
+    setDragDirection(activeDragDir);
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const zoom = reactFlow.getZoom();
+      const dx = (moveEvent.clientX - startMouseX) / zoom;
+      const dy = (moveEvent.clientY - startMouseY) / zoom;
+
+      // Deep copy to mutate
+      const nextWaypoints = initialWaypoints.map(pt => ({ ...pt }));
+
+      if (isHorizontal) {
+        const targetIndices = new Set<number>();
+
+        if (dragLeftIndex !== -1 && initialWaypoints[dragLeftIndex]) {
+          const targetY = initialWaypoints[dragLeftIndex].y;
+          targetIndices.add(dragLeftIndex);
+          for (let i = dragLeftIndex - 1; i >= 0; i--) {
+            if (Math.abs(initialWaypoints[i].y - targetY) < 1) {
+              targetIndices.add(i);
+            } else {
+              break;
+            }
+          }
+        }
+        if (dragRightIndex !== -1 && initialWaypoints[dragRightIndex]) {
+          const targetY = initialWaypoints[dragRightIndex].y;
+          targetIndices.add(dragRightIndex);
+          for (let i = dragRightIndex + 1; i < initialWaypoints.length; i++) {
+            if (Math.abs(initialWaypoints[i].y - targetY) < 1) {
+              targetIndices.add(i);
+            } else {
+              break;
+            }
+          }
+        }
+
+        initialWaypoints.forEach((pt, i) => {
+          if (targetIndices.has(i)) {
+            nextWaypoints[i].y = pt.y + dy;
+          }
+        });
+      } else {
+        const targetIndices = new Set<number>();
+
+        if (dragLeftIndex !== -1 && initialWaypoints[dragLeftIndex]) {
+          const targetX = initialWaypoints[dragLeftIndex].x;
+          targetIndices.add(dragLeftIndex);
+          for (let i = dragLeftIndex - 1; i >= 0; i--) {
+            if (Math.abs(initialWaypoints[i].x - targetX) < 1) {
+              targetIndices.add(i);
+            } else {
+              break;
+            }
+          }
+        }
+        if (dragRightIndex !== -1 && initialWaypoints[dragRightIndex]) {
+          const targetX = initialWaypoints[dragRightIndex].x;
+          targetIndices.add(dragRightIndex);
+          for (let i = dragRightIndex + 1; i < initialWaypoints.length; i++) {
+            if (Math.abs(initialWaypoints[i].x - targetX) < 1) {
+              targetIndices.add(i);
+            } else {
+              break;
+            }
+          }
+        }
+
+        initialWaypoints.forEach((pt, i) => {
+          if (targetIndices.has(i)) {
+            nextWaypoints[i].x = pt.x + dx;
+          }
+        });
+      }
+
+      // We recalculate sourcePosition and targetPosition dynamically on each drag step
+      // using our layout calculation so the handles snap automatically during drag
+      const sourceExitPos = getClosestPosition(sourceNode as InternalNode, nextWaypoints[0], activeDragDir);
+      const targetExitPos = getClosestPosition(targetNode as InternalNode, nextWaypoints[nextWaypoints.length - 1], activeDragDir);
+
+      updateViewEdgeLayout(
+        activeViewId,
+        toElementId(id),
+        sourceExitPos,
+        targetExitPos,
+        nextWaypoints
+      );
+    };
+
+    const onMouseUp = () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+      setDraggedSegment(null);
+      setDragDirection(null);
+
+      if (!activeViewId) return;
+
+      const currentView = useGraphStore.getState().views.find((v) => v.id === activeViewId);
+      const edgeLayout = currentView?.viewEdges?.find((ve) => ve.relationId === id);
+      if (!edgeLayout || !edgeLayout.waypoints || edgeLayout.waypoints.length === 0) return;
+
+      const edgePoints = getEdgePoints(
+        sourceNode as InternalNode,
+        targetNode as InternalNode,
+        edgeLayout,
+        layoutAlgorithm,
+        undefined,
+        false,
+        data?.viewType as string,
+        nodesMap
+      );
+
+      const simplifiedPath = simplifyCollinearPoints(filterDuplicatePoints(edgePoints.points));
+      const cleanWaypoints = simplifiedPath.slice(1, -1);
+
+      updateViewEdgeLayout(
+        activeViewId,
+        toElementId(id),
+        edgePoints.sourcePosition,
+        edgePoints.targetPosition,
+        cleanWaypoints
+      );
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+    setDraggedSegment(segmentIndex);
+  };
+
   const { name: cleanName, multiplicity } = parseRelationLabel(String(label || ''), data?.multiplicity as string);
 
-  // Calculate allowed character limit based on edge distance to prevent excessive truncation
-  // while ensuring labels fit well on the canvas. We guarantee at least 10 characters (e.g. "Composi...")
   const maxChars = Math.max(10, Math.floor((distance - 12) / 6));
-
   const displayName = truncate(cleanName, maxChars);
   const displayMultiplicity = multiplicity ? truncate(multiplicity, maxChars) : '';
-
   const hasMultiplicity = !!displayMultiplicity;
 
-  // Calculate size of rect
   const longestLine = Math.max(displayName.length, displayMultiplicity.length);
-  const rectWidth = longestLine * 6 + 16; // 8px padding on each side
+  const rectWidth = longestLine * 6 + 16; 
   const rectHeight = hasMultiplicity ? 28 : 18;
   const rectX = -rectWidth / 2;
   const rectY = -rectHeight / 2;
   const textY = hasMultiplicity ? -4 : 3;
 
-  // Clamp label position to prevent it from overlapping nodes/markers in orthogonal layouts
-  if (isOrthogonal) {
-    if (sourcePosition === Position.Left || sourcePosition === Position.Right) {
-      let minMidX, maxMidX;
-      if (sx < tx) {
-        minMidX = sx + 22 + rectWidth / 2;
-        maxMidX = tx - 24 - rectWidth / 2;
-      } else {
-        minMidX = tx + 24 + rectWidth / 2;
-        maxMidX = sx - 22 - rectWidth / 2;
-      }
-      if (minMidX < maxMidX) {
-        midX = Math.max(minMidX, Math.min(maxMidX, midX));
-      } else {
-        midX = (sx + tx) / 2;
-      }
-    } else {
-      let minMidY, maxMidY;
-      if (sy < ty) {
-        minMidY = sy + 22 + rectHeight / 2;
-        maxMidY = ty - 24 - rectHeight / 2;
-      } else {
-        minMidY = ty + 24 + rectHeight / 2;
-        maxMidY = sy - 22 - rectHeight / 2;
-      }
-      if (minMidY < maxMidY) {
-        midY = Math.max(minMidY, Math.min(maxMidY, midY));
-      } else {
-        midY = (sy + ty) / 2;
-      }
-    }
-  }
+
 
   const selectRelation = data?.selectRelation as (id: string) => void;
   const strokeDasharray = (data?.strokeDasharray as string) || 'none';
+  const showSegmentDraggers = layoutAlgorithm === 'manual' && isOrthogonal;
 
   return (
     <>
@@ -516,12 +1210,61 @@ function FloatingEdge({ id, source, target, style, label, labelStyle, selected, 
         markerStart={markerStart}
         style={{
           strokeWidth: selected ? 2.5 : 1.5,
-          transition: 'stroke 0.2s ease, stroke-width 0.2s ease',
+          transition: draggedSegment !== null ? 'none' : 'stroke 0.2s ease, stroke-width 0.2s ease',
           strokeDasharray: strokeDasharray,
           ...style,
           stroke: selected ? (style?.stroke || '#10b981') : (style?.stroke || '#64748b'),
         }}
       />
+      {showSegmentDraggers && renderedPoints.map((pt, idx) => {
+        if (idx === renderedPoints.length - 1) return null;
+
+        const ptNext = renderedPoints[idx + 1];
+        const isHorizontal = Math.abs(pt.y - ptNext.y) < Math.abs(pt.x - ptNext.x);
+
+        // Inset the first and last segments so the 15px hit-area doesn't
+        // overlap node boundaries and swallow node-click events.
+        const NODE_INSET = 20;
+        const isFirstSegment = idx === 0;
+        const isLastSegment = idx === renderedPoints.length - 2;
+
+        let startX = pt.x;
+        let startY = pt.y;
+        let endX = ptNext.x;
+        let endY = ptNext.y;
+
+        const segDx = ptNext.x - pt.x;
+        const segDy = ptNext.y - pt.y;
+        const segLen = Math.sqrt(segDx * segDx + segDy * segDy) || 1;
+        const ux = segDx / segLen;
+        const uy = segDy / segLen;
+
+        if (isFirstSegment && segLen > NODE_INSET * 2) {
+          startX += ux * NODE_INSET;
+          startY += uy * NODE_INSET;
+        }
+        if (isLastSegment && segLen > NODE_INSET * 2) {
+          endX -= ux * NODE_INSET;
+          endY -= uy * NODE_INSET;
+        }
+
+        const segmentPath = `M ${startX} ${startY} L ${endX} ${endY}`;
+        return (
+          <path
+            key={idx}
+            d={segmentPath}
+            stroke="transparent"
+            strokeWidth={15}
+            fill="none"
+            style={{
+              cursor: isHorizontal ? 'ns-resize' : 'ew-resize',
+              pointerEvents: 'all',
+            }}
+            onMouseDown={(e) => startDrag(e, idx)}
+            className="nodrag nopan"
+          />
+        );
+      })}
       {displayName && (
         <g
           transform={`translate(${midX}, ${midY})`}
@@ -688,22 +1431,103 @@ export function ReactFlowCanvas({
       }
     });
 
+    // Pre-calculate chapter heights and slice heights for Event Modeling to ensure
+    // consistent column heights and uniform margins.
+    const emChapterHeights = new Map<string, number>();
+    const emSliceHeights = new Map<string, number>();
+    if (view.type === 'event_modeling') {
+      const chapters = viewNodes.filter(vn => conceptMap.get(vn.conceptId)?.conceptType === 'em_chapter');
+      const slices = viewNodes.filter(vn => conceptMap.get(vn.conceptId)?.conceptType === 'em_slice');
+      const elements = viewNodes.filter(vn => {
+        const type = conceptMap.get(vn.conceptId)?.conceptType;
+        return type && type !== 'em_chapter' && type !== 'em_slice' && type !== 'bounded_context';
+      });
+
+      chapters.forEach(chapterVn => {
+        const chapterSlices = slices.filter(s => s.parentId === chapterVn.conceptId);
+        let maxElementBottom = -Infinity;
+        chapterSlices.forEach(sliceVn => {
+          const sliceElements = elements.filter(e => e.parentId === sliceVn.conceptId);
+          sliceElements.forEach(el => {
+            const h = el.height ?? 80;
+            maxElementBottom = Math.max(maxElementBottom, el.y + h);
+          });
+        });
+
+        const sliceY = chapterVn.y + 48; // CHAPTER_PADDING
+        const hSlice = maxElementBottom !== -Infinity 
+          ? Math.max(200, (maxElementBottom + (view.type === 'event_modeling' ? 48 : PADDING_BOTTOM)) - sliceY) 
+          : 500;
+        const hChapter = hSlice + 96; // 48 padding top + 48 padding bottom
+
+        emChapterHeights.set(chapterVn.conceptId, hChapter);
+        chapterSlices.forEach(sliceVn => {
+          emSliceHeights.set(sliceVn.conceptId, hSlice);
+        });
+      });
+    }
+
     const groupBounds = new Map<ElementId, { x: number; y: number; w: number; h: number }>();
-    viewNodes.forEach((vn) => {
+    
+    // Sort group nodes by nesting depth in descending order (deepest child groups first)
+    // so that child group bounds are calculated before parent groups recalculate their bounds.
+    const groupNodes = viewNodes.filter((vn) => {
       const c = conceptMap.get(vn.conceptId);
-      if (!c || c.conceptType !== 'bounded_context') return;
+      return c && (c.conceptType === 'bounded_context' || c.conceptType === 'em_chapter' || c.conceptType === 'em_slice');
+    });
+
+    const groupDepthMap = new Map<string, number>();
+    const getGroupDepth = (id: string, visited = new Set<string>()): number => {
+      if (groupDepthMap.has(id)) return groupDepthMap.get(id)!;
+      if (visited.has(id)) return 0;
+      const vn = viewNodes.find((n) => n.conceptId === id);
+      if (!vn || !vn.parentId) return 0;
+      visited.add(id);
+      const d = 1 + getGroupDepth(vn.parentId, visited);
+      visited.delete(id);
+      groupDepthMap.set(id, d);
+      return d;
+    };
+    const sortedGroupNodes = [...groupNodes].sort((a, b) => getGroupDepth(b.conceptId) - getGroupDepth(a.conceptId));
+
+    sortedGroupNodes.forEach((vn) => {
+      const c = conceptMap.get(vn.conceptId);
+      if (!c) return;
 
       const childIds = groupChildrenMap.get(vn.conceptId) || [];
 
-      const defaultW = view.type === 'c4' ? 240 : view.type === 'archimate' ? 210 : 200;
-      const defaultH = view.type === 'c4' ? 96 : view.type === 'archimate' ? 76 : 80;
+      let defaultW = view.type === 'c4' ? 240 : view.type === 'archimate' ? 210 : 200;
+      let defaultH = view.type === 'c4' ? 96 : view.type === 'archimate' ? 76 : 80;
+
+      if (view.type === 'event_modeling') {
+        if (c.conceptType === 'em_chapter') {
+          defaultW = 600;
+          defaultH = 600;
+        } else if (c.conceptType === 'em_slice') {
+          defaultW = 320;
+          defaultH = 500;
+        }
+      }
 
       if (childIds.length === 0) {
+        let w = vn.width ?? (view.type === 'event_modeling' ? (c.conceptType === 'em_chapter' ? 600 : 320) : (view.type === 'c4' ? 280 : 240));
+        let h = vn.height ?? (view.type === 'event_modeling' ? (c.conceptType === 'em_chapter' ? 600 : 500) : (view.type === 'c4' ? 160 : 140));
+
+        if (view.type === 'event_modeling') {
+          if (c.conceptType === 'em_slice') {
+            h = emSliceHeights.get(vn.conceptId) ?? 500;
+            w = 320;
+          } else if (c.conceptType === 'em_chapter') {
+            h = emChapterHeights.get(vn.conceptId) ?? 600;
+            w = 600;
+          }
+        }
+
         groupBounds.set(vn.conceptId, {
           x: vn.x,
           y: vn.y,
-          w: vn.width ?? (view.type === 'c4' ? 280 : 240),
-          h: vn.height ?? (view.type === 'c4' ? 160 : 140),
+          w,
+          h,
         });
       } else {
         let minX = Infinity;
@@ -712,27 +1536,66 @@ export function ReactFlowCanvas({
         let maxY = -Infinity;
 
         childIds.forEach((cid) => {
+          // If the child is a group and already has computed bounds, use those!
+          const computedChildBounds = groupBounds.get(cid);
+          if (computedChildBounds) {
+            minX = Math.min(minX, computedChildBounds.x);
+            minY = Math.min(minY, computedChildBounds.y);
+            maxX = Math.max(maxX, computedChildBounds.x + computedChildBounds.w);
+            maxY = Math.max(maxY, computedChildBounds.y + computedChildBounds.h);
+            return;
+          }
+
           const childVn = nodesMap.get(cid);
           if (!childVn) return;
-          const w = childVn.width ?? defaultW;
-          const h = childVn.height ?? defaultH;
+          const childConcept = conceptMap.get(cid);
+          let w = childVn.width ?? defaultW;
+          let h = childVn.height ?? defaultH;
+          if (view.type === 'event_modeling') {
+            if (childConcept?.conceptType === 'em_slice') {
+              w = childVn.width ?? 320;
+              h = childVn.height ?? 500;
+            }
+          }
           minX = Math.min(minX, childVn.x);
           minY = Math.min(minY, childVn.y);
           maxX = Math.max(maxX, childVn.x + w);
           maxY = Math.max(maxY, childVn.y + h);
         });
 
-        const gx = minX - PADDING_LEFT;
-        const gy = minY - PADDING_TOP;
-        const gw = maxX - minX + PADDING_LEFT + PADDING_RIGHT;
-        const gh = maxY - minY + PADDING_TOP + PADDING_BOTTOM;
+        if (view.type === 'event_modeling') {
+          if (c.conceptType === 'em_slice') {
+            const h = emSliceHeights.get(vn.conceptId) ?? 500;
+            groupBounds.set(vn.conceptId, {
+              x: vn.x,
+              y: vn.y,
+              w: 320,
+              h,
+            });
+          } else if (c.conceptType === 'em_chapter') {
+            const CHAPTER_PADDING = 48;
+            const h = emChapterHeights.get(vn.conceptId) ?? 600;
+            const w = minX !== Infinity ? (maxX - minX) + CHAPTER_PADDING * 2 : 600;
+            groupBounds.set(vn.conceptId, {
+              x: vn.x,
+              y: vn.y,
+              w,
+              h,
+            });
+          }
+        } else {
+          const gx = minX - PADDING_LEFT;
+          const gy = minY - PADDING_TOP;
+          const gw = maxX - minX + PADDING_LEFT + PADDING_RIGHT;
+          const gh = maxY - minY + PADDING_TOP + PADDING_BOTTOM;
 
-        groupBounds.set(vn.conceptId, {
-          x: gx,
-          y: gy,
-          w: gw,
-          h: gh,
-        });
+          groupBounds.set(vn.conceptId, {
+            x: gx,
+            y: gy,
+            w: gw,
+            h: gh,
+          });
+        }
       }
     });
 
@@ -740,9 +1603,9 @@ export function ReactFlowCanvas({
       const c = conceptMap.get(vn.conceptId);
       if (!c) return [];
 
-      const isGroup = c.conceptType === 'bounded_context';
+      const isGroup = c.conceptType === 'bounded_context' || c.conceptType === 'em_chapter' || c.conceptType === 'em_slice';
       const parentConcept = vn.parentId ? conceptMap.get(vn.parentId) : undefined;
-      const parentId = vn.parentId && nodesMap.has(vn.parentId) && parentConcept && parentConcept.conceptType === 'bounded_context' ? vn.parentId : undefined;
+      const parentId = vn.parentId && nodesMap.has(vn.parentId) && parentConcept && (parentConcept.conceptType === 'bounded_context' || parentConcept.conceptType === 'em_chapter' || parentConcept.conceptType === 'em_slice') ? vn.parentId : undefined;
 
       // Calculate position
       let position = { x: vn.x, y: vn.y };
@@ -751,7 +1614,16 @@ export function ReactFlowCanvas({
       if (isGroup) {
         const bounds = groupBounds.get(c.id);
         if (bounds) {
-          position = { x: bounds.x, y: bounds.y };
+          if (parentId) {
+            const pBounds = groupBounds.get(parentId);
+            if (pBounds) {
+              position = { x: bounds.x - pBounds.x, y: bounds.y - pBounds.y };
+            } else {
+              position = { x: bounds.x, y: bounds.y };
+            }
+          } else {
+            position = { x: bounds.x, y: bounds.y };
+          }
           style = { width: bounds.w, height: bounds.h };
         }
       } else if (parentId) {
@@ -862,10 +1734,12 @@ export function ReactFlowCanvas({
           edgeIndex,
           totalEdges,
           viewType: view.type,
+          layoutAlgorithm: view.layoutAlgorithm,
+          viewEdges: view.viewEdges,
         },
       };
     });
-  }, [relations, selectedRelationId, onRelationSelect, view.type]);
+  }, [relations, selectedRelationId, onRelationSelect, view.type, view.layoutAlgorithm, view.viewEdges]);
 
   const [nodes, setNodes] = useNodesState(computedNodes);
   const [edges, setEdges] = useEdgesState(initialEdges);
@@ -895,14 +1769,101 @@ export function ReactFlowCanvas({
           return d;
         };
 
-        return [...next].sort((a, b) => getDepth(a.id) - getDepth(b.id));
+        const sorted = [...next].sort((a, b) => getDepth(a.id) - getDepth(b.id));
+
+        // --- Prune waypoints of connected edges if a node swallows them during drag ---
+        if (currentAlgo === 'manual') {
+          const positionChanges = safe.filter(c => c.type === 'position') as Extract<NodeChange, { type: 'position' }>[];
+          if (positionChanges.length > 0) {
+            const currentView = useGraphStore.getState().views.find((v) => v.id === view.id);
+            const viewEdges = currentView?.viewEdges ?? [];
+
+            positionChanges.forEach((change) => {
+              const node = sorted.find((n) => n.id === change.id);
+              if (!node) return;
+
+              // Compute absolute position on canvas
+              let absX = node.position.x;
+              let absY = node.position.y;
+              if (node.parentId) {
+                let parentId = node.parentId;
+                while (parentId) {
+                  const parentNode = sorted.find((n) => n.id === parentId);
+                  if (parentNode) {
+                    absX += parentNode.position.x;
+                    absY += parentNode.position.y;
+                    parentId = parentNode.parentId ?? '';
+                    if (!parentId) break;
+                  } else {
+                    break;
+                  }
+                }
+              }
+
+              const width = node.measured?.width ?? 200;
+              const height = node.measured?.height ?? 80;
+
+              const xMin = absX;
+              const xMax = absX + width;
+              const yMin = absY;
+              const yMax = absY + height;
+
+              relations.forEach((rel) => {
+                const isSource = rel.sourceConceptId === toElementId(node.id);
+                const isTarget = rel.targetConceptId === toElementId(node.id);
+                if (!isSource && !isTarget) return;
+
+                const customLayout = viewEdges.find((ve) => ve.relationId === rel.id);
+                if (!customLayout || !customLayout.waypoints || customLayout.waypoints.length === 0) return;
+
+                const waypoints = [...customLayout.waypoints];
+                let pruned = false;
+
+                if (isSource) {
+                  const wp = waypoints[0];
+                  if (wp.x >= xMin && wp.x <= xMax && wp.y >= yMin && wp.y <= yMax) {
+                    waypoints.shift();
+                    pruned = true;
+                  }
+                } else if (isTarget) {
+                  const wp = waypoints[waypoints.length - 1];
+                  if (wp.x >= xMin && wp.x <= xMax && wp.y >= yMin && wp.y <= yMax) {
+                    waypoints.pop();
+                    pruned = true;
+                  }
+                }
+
+                if (pruned) {
+                  console.log(`[Waypoint Pruning] Pruned waypoint for relation ${rel.id} because it was swallowed by node ${node.id}`);
+                  // Update store with pruned waypoints array
+                  useGraphStore.getState().updateViewEdgeLayout(
+                    view.id,
+                    rel.id,
+                    customLayout.sourcePosition,
+                    customLayout.targetPosition,
+                    waypoints
+                  );
+                }
+              });
+            });
+          }
+        }
+
+        return sorted;
       });
     }
-  }, [setNodes]);
+  }, [setNodes, currentAlgo, view, relations]);
 
   useEffect(() => {
     setNodes((currentNodes) => {
       let hasChanges = false;
+      // Read selectedConceptIds synchronously from the Zustand store at callback
+      // execution time. This avoids a race where computedNodes (captured in the
+      // effect closure) was computed with a stale selectedConceptIds BEFORE the
+      // store was updated by onSelectionChange/selectConcept. Zustand updates are
+      // synchronous, so this always reflects the true current selection.
+      const freshSelectedIds = useGraphStore.getState().selectedConceptIds;
+
       const nextNodes = computedNodes.map((n) => {
         const existingNode = currentNodes.find((cn) => cn.id === n.id);
         if (n.id === activeDraggingNode.current && existingNode) {
@@ -937,13 +1898,17 @@ export function ReactFlowCanvas({
             (conceptA.aliases ?? []).join(',') !== (conceptB.aliases ?? []).join(',') ||
             propsFingerprint(conceptA) !== propsFingerprint(conceptB);
 
+          // Use the live store value for selection — not n.selected from the
+          // potentially stale computedNodes closure.
+          const freshSelected = freshSelectedIds.includes(n.id as ElementId);
+
           const changed =
             Math.abs(existingNode.position.x - n.position.x) > 0.1 ||
             Math.abs(existingNode.position.y - n.position.y) > 0.1 ||
             existingNode.parentId !== n.parentId ||
             existingNode.style?.width !== n.style?.width ||
             existingNode.style?.height !== n.style?.height ||
-            existingNode.selected !== n.selected ||
+            existingNode.selected !== freshSelected ||
             existingNode.draggable !== n.draggable ||
             existingNode.data.name !== n.data.name ||
             existingNode.data.type !== n.data.type ||
@@ -955,7 +1920,7 @@ export function ReactFlowCanvas({
             ...existingNode,
             position: n.position,
             parentId: n.parentId,
-            selected: n.selected,
+            selected: freshSelected,
             draggable: n.draggable,
             style: n.style,
             data: n.data,
@@ -989,7 +1954,9 @@ export function ReactFlowCanvas({
             existingEdge.data?.markerStart !== e.data?.markerStart ||
             existingEdge.data?.multiplicity !== e.data?.multiplicity ||
             existingEdge.data?.edgeIndex !== e.data?.edgeIndex ||
-            existingEdge.data?.totalEdges !== e.data?.totalEdges;
+            existingEdge.data?.totalEdges !== e.data?.totalEdges ||
+            existingEdge.data?.layoutAlgorithm !== e.data?.layoutAlgorithm ||
+            JSON.stringify(existingEdge.data?.viewEdges) !== JSON.stringify(e.data?.viewEdges);
           if (!changed) return existingEdge;
           hasChanges = true;
           return {
@@ -1078,24 +2045,92 @@ export function ReactFlowCanvas({
     const draggedConcept = conceptMap.get(toElementId(node.id));
     if (!draggedVn || !draggedConcept) return;
 
-    const isGroup = draggedConcept.conceptType === 'bounded_context';
+    const isGroup = draggedConcept.conceptType === 'bounded_context' || draggedConcept.conceptType === 'em_chapter' || draggedConcept.conceptType === 'em_slice';
 
     if (isGroup) {
-      const bounds = getGroupBounds(toElementId(node.id), viewNodes, view.type);
+      const bounds = getGroupBounds(toElementId(node.id), viewNodes, view.type, conceptMap);
       const oldGroupX = bounds ? bounds.x : draggedVn.x;
       const oldGroupY = bounds ? bounds.y : draggedVn.y;
-      const newGroupX = node.position.x;
-      const newGroupY = node.position.y;
 
-      const deltaX = newGroupX - oldGroupX;
-      const deltaY = newGroupY - oldGroupY;
+      const parentId = draggedVn.parentId;
+      const parentBounds = parentId ? getGroupBounds(parentId, viewNodes, view.type, conceptMap) : null;
+
+      let newGroupAbsX = node.position.x;
+      let newGroupAbsY = node.position.y;
+      if (parentBounds) {
+        newGroupAbsX = parentBounds.x + node.position.x;
+        newGroupAbsY = parentBounds.y + node.position.y;
+      }
+
+      const deltaX = newGroupAbsX - oldGroupX;
+      const deltaY = newGroupAbsY - oldGroupY;
+
+      if (draggedConcept.conceptType === 'em_slice') {
+        const sliceW = node.measured?.width ?? 320;
+        const sliceH = node.measured?.height ?? 500;
+        const centerX = (parentBounds ? node.position.x : newGroupAbsX) + sliceW / 2;
+        const centerY = (parentBounds ? node.position.y : newGroupAbsY) + sliceH / 2;
+
+        if (parentId && parentBounds) {
+          const isOutside = centerX < 0 || centerX > parentBounds.w || centerY < 0 || centerY > parentBounds.h;
+          if (isOutside) {
+            ungroupConcept(view.id, draggedConcept.id);
+            onNodePositionChange(draggedConcept.id, newGroupAbsX, newGroupAbsY);
+
+            // Check if dropped inside ANOTHER chapter
+            for (const otherVn of viewNodes) {
+              const otherC = conceptMap.get(otherVn.conceptId);
+              if (!otherC || otherC.conceptType !== 'em_chapter' || otherVn.conceptId === parentId) continue;
+
+              const otherBounds = getGroupBounds(otherVn.conceptId, viewNodes, view.type, conceptMap);
+              if (otherBounds) {
+                const inside =
+                  newGroupAbsX + sliceW / 2 >= otherBounds.x &&
+                  newGroupAbsX + sliceW / 2 <= otherBounds.x + otherBounds.w &&
+                  newGroupAbsY + sliceH / 2 >= otherBounds.y &&
+                  newGroupAbsY + sliceH / 2 <= otherBounds.y + otherBounds.h;
+
+                if (inside) {
+                  updateViewNodeParentId(view.id, draggedConcept.id, otherVn.conceptId);
+                  onNodePositionChange(draggedConcept.id, newGroupAbsX, newGroupAbsY);
+                  break;
+                }
+              }
+            }
+          } else {
+            onNodePositionChange(draggedConcept.id, newGroupAbsX, newGroupAbsY);
+          }
+        } else {
+          let foundChapter = false;
+          for (const otherVn of viewNodes) {
+            const otherC = conceptMap.get(otherVn.conceptId);
+            if (!otherC || otherC.conceptType !== 'em_chapter') continue;
+
+            const otherBounds = getGroupBounds(otherVn.conceptId, viewNodes, view.type, conceptMap);
+            if (otherBounds) {
+              const inside =
+                newGroupAbsX + sliceW / 2 >= otherBounds.x &&
+                newGroupAbsX + sliceW / 2 <= otherBounds.x + otherBounds.w &&
+                newGroupAbsY + sliceH / 2 >= otherBounds.y &&
+                newGroupAbsY + sliceH / 2 <= otherBounds.y + otherBounds.h;
+
+              if (inside) {
+                updateViewNodeParentId(view.id, draggedConcept.id, otherVn.conceptId);
+                onNodePositionChange(draggedConcept.id, newGroupAbsX, newGroupAbsY);
+                foundChapter = true;
+                break;
+              }
+            }
+          }
+          if (!foundChapter) {
+            onNodePositionChange(draggedConcept.id, newGroupAbsX, newGroupAbsY);
+          }
+        }
+      } else {
+        onNodePositionChange(draggedConcept.id, newGroupAbsX, newGroupAbsY);
+      }
 
       const positionsToUpdate: Array<{ conceptId: ElementId; x: number; y: number }> = [];
-      positionsToUpdate.push({
-        conceptId: toElementId(node.id),
-        x: newGroupX,
-        y: newGroupY,
-      });
 
       viewNodes.forEach((vn) => {
         if (vn.parentId === node.id) {
@@ -1104,10 +2139,22 @@ export function ReactFlowCanvas({
             x: vn.x + deltaX,
             y: vn.y + deltaY,
           });
+
+          viewNodes.forEach((subVn) => {
+            if (subVn.parentId === vn.conceptId) {
+              positionsToUpdate.push({
+                conceptId: subVn.conceptId,
+                x: subVn.x + deltaX,
+                y: subVn.y + deltaY,
+              });
+            }
+          });
         }
       });
 
-      batchUpdateViewNodePositions(view.id, positionsToUpdate);
+      if (positionsToUpdate.length > 0) {
+        batchUpdateViewNodePositions(view.id, positionsToUpdate);
+      }
     } else {
       const dragDefaultW = view.type === 'c4' ? 240 : view.type === 'archimate' ? 210 : 200;
       const dragDefaultH = view.type === 'c4' ? 96 : view.type === 'archimate' ? 76 : 80;
@@ -1119,7 +2166,7 @@ export function ReactFlowCanvas({
         const parentVn = nodesMap.get(parentId);
 
         if (parentVn) {
-          const bounds = getGroupBounds(parentId, viewNodes, view.type);
+          const bounds = getGroupBounds(parentId, viewNodes, view.type, conceptMap);
           if (bounds) {
             const childAbsX = bounds.x + node.position.x;
             const childAbsY = bounds.y + node.position.y;
@@ -1136,9 +2183,12 @@ export function ReactFlowCanvas({
               // Check if dropped inside ANOTHER group node
               for (const otherVn of viewNodes) {
                 const otherC = conceptMap.get(otherVn.conceptId);
-                if (!otherC || otherC.conceptType !== 'bounded_context' || otherVn.conceptId === parentId) continue;
+                const isAllowedGroup = view.type === 'event_modeling'
+                  ? otherC?.conceptType === 'em_slice'
+                  : (otherC?.conceptType === 'bounded_context' || otherC?.conceptType === 'em_chapter' || otherC?.conceptType === 'em_slice');
+                if (!otherC || !isAllowedGroup || otherVn.conceptId === parentId) continue;
 
-                const otherBounds = getGroupBounds(otherVn.conceptId, viewNodes, view.type);
+                const otherBounds = getGroupBounds(otherVn.conceptId, viewNodes, view.type, conceptMap);
                 if (otherBounds) {
                   const inNewGroup =
                     childAbsX + childW / 2 >= otherBounds.x &&
@@ -1165,9 +2215,12 @@ export function ReactFlowCanvas({
         let foundGroup = false;
         for (const otherVn of viewNodes) {
           const otherC = conceptMap.get(otherVn.conceptId);
-          if (!otherC || otherC.conceptType !== 'bounded_context') continue;
+          const isAllowedGroup = view.type === 'event_modeling'
+            ? otherC?.conceptType === 'em_slice'
+            : (otherC?.conceptType === 'bounded_context' || otherC?.conceptType === 'em_chapter' || otherC?.conceptType === 'em_slice');
+          if (!otherC || !isAllowedGroup) continue;
 
-          const otherBounds = getGroupBounds(otherVn.conceptId, viewNodes, view.type);
+          const otherBounds = getGroupBounds(otherVn.conceptId, viewNodes, view.type, conceptMap);
           if (otherBounds) {
             const inside =
               childAbsX + childW / 2 >= otherBounds.x &&
@@ -1189,7 +2242,7 @@ export function ReactFlowCanvas({
         }
       }
     }
-  }, [view, concepts, currentAlgo, onNodePositionChange, batchUpdateViewNodePositions, ungroupConcept, updateViewNodeParentId]);
+  }, [view, concepts, relations, currentAlgo, onNodePositionChange, batchUpdateViewNodePositions, ungroupConcept, updateViewNodeParentId]);
 
   // --- Selected Node Toolbar Event Handlers ---
   const handleDeleteClick = useCallback((e: React.MouseEvent) => {
@@ -1225,17 +2278,110 @@ export function ReactFlowCanvas({
     if (!sourceConcept) return;
 
     const currentViewNode = view.nodes.find((vn) => vn.conceptId === selectedConceptId);
-    const newX = (currentViewNode?.x ?? 150) + 250;
-    const newY = currentViewNode?.y ?? 150;
+    if (!currentViewNode) return;
+
+    let targetType: ConceptType = sourceConcept.conceptType;
+    let defaultName = 'Nyt Begreb';
+    let parentId: ElementId | undefined = undefined;
+    let newX = currentViewNode.x + 250;
+    let newY = currentViewNode.y;
+    let shouldAddRelation = true;
+    let relationSourceId = selectedConceptId;
+
+    if (view.type === 'event_modeling') {
+      const emTypeMap: Record<string, ConceptType> = {
+        screen: 'command',
+        command: 'event',
+        event: 'read_model',
+        read_model: 'screen',
+        automation: 'command',
+        integration_event: 'read_model',
+      };
+
+      const emNameMap: Record<string, string> = {
+        screen: 'Nyt Skærmbillede',
+        command: 'Ny Kommando',
+        event: 'Ny Domænehændelse',
+        read_model: 'Ny Læsemodel',
+        automation: 'Ny Automation',
+        integration_event: 'Ny Integrationshændelse',
+        em_slice: 'New Slice',
+      };
+
+      if (sourceConcept.conceptType === 'em_chapter') {
+        targetType = 'em_slice';
+        defaultName = 'New Slice';
+        parentId = selectedConceptId;
+        shouldAddRelation = false;
+
+        const slicesInChapter = view.nodes.filter(
+          (vn) => vn.parentId === selectedConceptId
+        );
+        if (slicesInChapter.length > 0) {
+          let maxX = -Infinity;
+          slicesInChapter.forEach((sl) => {
+            const width = sl.width ?? 320;
+            if (sl.x + width > maxX) maxX = sl.x + width;
+          });
+          newX = maxX + 24;
+          newY = currentViewNode.y + 48;
+        } else {
+          newX = currentViewNode.x + 48;
+          newY = currentViewNode.y + 48;
+        }
+      } else if (sourceConcept.conceptType === 'em_slice') {
+        parentId = selectedConceptId;
+        const sliceElements = view.nodes.filter(
+          (vn) => vn.parentId === selectedConceptId
+        );
+
+        if (sliceElements.length === 0) {
+          targetType = 'screen';
+          defaultName = 'Nyt Skærmbillede';
+          shouldAddRelation = false;
+          newX = currentViewNode.x + 30;
+          newY = currentViewNode.y + 48;
+        } else {
+          const childConcepts = sliceElements
+            .map((vn) => concepts.find((c) => c.id === vn.conceptId))
+            .filter((c): c is ConceptNode => !!c);
+          
+          childConcepts.sort((a, b) => b.createdAt - a.createdAt);
+          const newestConcept = childConcepts[0];
+          const nextType = emTypeMap[newestConcept.conceptType];
+          
+          if (nextType) {
+            targetType = nextType;
+            defaultName = emNameMap[targetType] || defaultName;
+          } else {
+            targetType = 'screen';
+            defaultName = 'Nyt Skærmbillede';
+          }
+          
+          const newestVn = sliceElements.find((vn) => vn.conceptId === newestConcept.id);
+          newX = currentViewNode.x + 30;
+          newY = (newestVn?.y ?? currentViewNode.y) + 140;
+          
+          shouldAddRelation = true;
+          relationSourceId = newestConcept.id;
+        }
+      } else {
+        const nextType = emTypeMap[sourceConcept.conceptType];
+        if (nextType) {
+          targetType = nextType;
+          defaultName = emNameMap[targetType] || defaultName;
+        }
+        parentId = currentViewNode.parentId;
+      }
+    }
 
     // Find a unique name like "Nyt Begreb", "Nyt Begreb 2", "Nyt Begreb 3", etc.
-    const defaultName = 'Nyt Begreb';
     let targetName = defaultName;
     let counter = 2;
     while (
       concepts.some(
         (c) =>
-          c.conceptType === sourceConcept.conceptType &&
+          c.conceptType === targetType &&
           c.name.trim().toLowerCase() === targetName.trim().toLowerCase()
       )
     ) {
@@ -1243,19 +2389,38 @@ export function ReactFlowCanvas({
       counter++;
     }
 
-    const newConcept = addConcept(sourceConcept.conceptType, targetName, {
+    const newConcept = addConcept(targetType, targetName, {
       x: newX,
       y: newY,
+      parentId,
       createdBy: 'user'
     });
 
-    addRelation(selectedConceptId, newConcept.id, undefined, { createdBy: 'user' });
+    if (shouldAddRelation) {
+      addRelation(relationSourceId, newConcept.id, undefined, { createdBy: 'user' });
+    }
     selectConcept(newConcept.id);
 
     if (view.layoutAlgorithm !== 'manual') {
       triggerLayout();
     }
   }, [selectedConceptId, concepts, view, addConcept, addRelation, selectConcept, triggerLayout]);
+
+  const getPlusButtonTitle = useCallback(() => {
+    if (!selectedConceptId) return "Opret og forbind nyt begreb";
+    const concept = concepts.find((c) => c.id === selectedConceptId);
+    if (!concept) return "Opret og forbind nyt begreb";
+    
+    if (view.type === 'event_modeling') {
+      if (concept.conceptType === 'em_chapter') {
+        return "Tilføj ny Slice til Chapter";
+      }
+      if (concept.conceptType === 'em_slice') {
+        return "Tilføj nyt element til Slice";
+      }
+    }
+    return "Opret og forbind nyt begreb";
+  }, [selectedConceptId, concepts, view.type]);
 
   // Global escape key handler to exit click-to-connect mode
   useEffect(() => {
@@ -1426,7 +2591,7 @@ export function ReactFlowCanvas({
                 {/* Create Linked Target Concept Button (Alt+N counterpart with auto-connect) */}
                 <button
                   onClick={handleCreateTargetNodeClick}
-                  title="Opret og forbind nyt begreb"
+                  title={getPlusButtonTitle()}
                   className="p-2.5 text-slate-400 hover:text-emerald-500 hover:bg-emerald-50/50 rounded-xl transition-all duration-200 cursor-pointer active:scale-90"
                 >
                   <Plus size={15} strokeWidth={2.5} />

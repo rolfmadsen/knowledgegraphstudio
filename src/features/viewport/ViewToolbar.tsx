@@ -12,15 +12,15 @@ const LAYOUT_OPTIONS: Array<{
 }> = [
   {
     algo: 'force_directed',
-    label: 'Force',
+    label: 'Tree (L-R)',
     icon: <Shuffle size={10} strokeWidth={3} />,
-    description: 'Left-right spread (Dagre LR)',
+    description: 'Left-to-right hierarchical flow',
   },
   {
     algo: 'hierarchical',
-    label: 'Tree',
+    label: 'Tree (T-D)',
     icon: <AlignVerticalDistributeCenter size={10} strokeWidth={3} />,
-    description: 'Top-down hierarchy (Dagre TB)',
+    description: 'Top-down hierarchical flow',
   },
   {
     algo: 'manual',

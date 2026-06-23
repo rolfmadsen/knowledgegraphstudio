@@ -32,6 +32,11 @@ const ontologies = [
     ttlPath: path.resolve('src/notations/knowledge-graph/global-ontology.ttl'),
     outputPath: path.resolve('src/notations/knowledge-graph/global-ontology.json'),
     ns: 'http://www.semanticweb.org/v0cn037/ontologies/2026/05/global#'
+  },
+  {
+    ttlPath: path.resolve('src/notations/event-modeling/ontology.ttl'),
+    outputPath: path.resolve('src/notations/event-modeling/ontology.json'),
+    ns: 'http://www.semanticweb.org/v0cn037/ontologies/2026/05/event-modeling#'
   }
 ];
 
