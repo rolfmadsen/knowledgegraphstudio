@@ -105,6 +105,13 @@ export interface Notation {
    */
   readonly allowedConceptTypes?: ConceptType[];
   /**
+   * Optional default element to automatically create when a new view is created for this notation
+   */
+  readonly defaultElement?: {
+    conceptType: ConceptType;
+    name: string;
+  };
+  /**
    * Optional validator to check if a specific relationship type is allowed
    * between two concept types.
    */

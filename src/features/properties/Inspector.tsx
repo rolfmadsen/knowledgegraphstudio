@@ -592,7 +592,7 @@ export function Inspector() {
                                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">Type</label>
                                 <div className="relative">
                                   <select
-                                    value={relation.relationType || ''}
+                                    value={allowedRelations.find(r => r.description.toLowerCase() === (relation.relationType || '').toLowerCase())?.description || ''}
                                     onChange={(e) => {
                                       const val = e.target.value;
                                       const matched = allowedRelations.find(r => r.description === val);

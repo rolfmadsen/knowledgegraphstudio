@@ -135,6 +135,7 @@ export interface GraphStoreState {
   createView: (name: string, type?: View['type'], layoutAlgorithm?: View['layoutAlgorithm']) => View;
   deleteView: (viewId: ElementId, deleteConceptIds?: ElementId[]) => void;
   addAllConceptsToActiveView: () => void;
+  addConceptsToActiveView: (conceptIds: ElementId[]) => void;
   groupConcepts: (viewId: ElementId, conceptIds: ElementId[], groupName: string, groupType?: ConceptType) => void;
   ungroupConcept: (viewId: ElementId, conceptId: ElementId) => void;
   dissolveGroup: (viewId: ElementId, groupId: ElementId) => void;
@@ -526,23 +527,33 @@ export const useGraphStore = create<GraphStoreState>()(
         if (!changed) return;
 
         set((s) => ({
-          views: s.views.map((v) =>
-            v.id !== viewId ? v : {
+          views: s.views.map((v) => {
+            if (v.id !== viewId) return v;
+            const isManual = v.layoutAlgorithm === 'manual';
+            return {
               ...v,
               nodes: (() => {
-                // Upsert: update existing ViewNodes OR add new ones for concepts not yet in view
+                // Upsert: update existing ViewNodes OR add new ones for concepts not yet in view.
+                // When in manual mode, also sync manualX/Y so that a late-arriving Dagre worker
+                // result (completing asynchronously after the user switched to MANUAL) doesn't
+                // leave manualX/Y stale relative to the freshly computed x/y.
                 const updated = v.nodes.map((n) => {
                   const pos = positions.find((p) => p.conceptId === n.conceptId);
-                  return pos ? { ...n, x: pos.x, y: pos.y } : n;
+                  if (!pos) return n;
+                  return isManual
+                    ? { ...n, x: pos.x, y: pos.y, manualX: pos.x, manualY: pos.y }
+                    : { ...n, x: pos.x, y: pos.y };
                 });
                 const existingIds = new Set(v.nodes.map((n) => n.conceptId));
                 const newNodes = positions
                   .filter((p) => !existingIds.has(p.conceptId))
-                  .map((p) => ({ conceptId: p.conceptId, x: p.x, y: p.y }));
+                  .map((p) => isManual
+                    ? { conceptId: p.conceptId, x: p.x, y: p.y, manualX: p.x, manualY: p.y }
+                    : { conceptId: p.conceptId, x: p.x, y: p.y });
                 return [...updated, ...newNodes];
               })(),
-            },
-          ),
+            };
+          }),
         }));
         PersistenceService.scheduleAutoSave(get());
       },
@@ -575,7 +586,15 @@ export const useGraphStore = create<GraphStoreState>()(
           views: s.views.map((v) =>
             v.id !== viewId ? v : {
               ...v,
-              nodes: [...v.nodes, { conceptId, x, y, manualX: x, manualY: y }],
+              nodes: [
+                ...v.nodes,
+                {
+                  conceptId,
+                  x,
+                  y,
+                  ...(v.layoutAlgorithm === 'manual' ? { manualX: x, manualY: y } : {}),
+                },
+              ],
             },
           ),
         }));
@@ -659,20 +678,55 @@ export const useGraphStore = create<GraphStoreState>()(
       },
 
       createView: (name, type = 'knowledge_graph', layoutAlgorithm = 'force_directed') => {
+        const viewId = toElementId(`view:${crypto.randomUUID()}`);
+        
+        // Resolve default element from the notation definition
+        const notation = NotationRegistry.forViewType(type as any);
+        const defaultElem = notation?.defaultElement;
+        
+        let nodes: ViewNode[] = [];
+        let nextConcepts = get().concepts;
+
+        if (defaultElem) {
+          const { concept, nextState } = GraphService.addConcept(
+            { ...get(), activeViewId: viewId },
+            defaultElem.conceptType,
+            defaultElem.name
+          );
+
+          if (nextState.concepts) {
+            nextConcepts = nextState.concepts as ConceptNode[];
+          }
+
+          const x = 150;
+          const y = 150;
+
+          nodes.push({
+            conceptId: concept.id,
+            x,
+            y,
+            ...(layoutAlgorithm === 'manual' ? { manualX: x, manualY: y } : {}),
+          });
+        }
+
         const newView: View = {
-          id: toElementId(`view:${crypto.randomUUID()}`),
+          id: viewId,
           name,
           type,
           layoutAlgorithm,
-          nodes: [],
+          nodes,
           edges: [],
           createdAt: Date.now(),
           updatedAt: Date.now(),
           lifecycleState: 'active',
         };
-        set((s) => ({ views: [...s.views, newView] }));
-        // Activate the new view
-        set({ activeViewId: newView.id });
+
+        set((s) => ({
+          views: [...s.views, newView],
+          activeViewId: newView.id,
+          concepts: nextConcepts,
+        }));
+
         PersistenceService.scheduleAutoSave(get());
         return newView;
       },
@@ -740,7 +794,12 @@ export const useGraphStore = create<GraphStoreState>()(
         const newNodes = missing.map((c, i) => {
           const x = ((startOffset + i) % COLS) * COL_W + 80;
           const y = Math.floor((startOffset + i) / COLS) * ROW_H + 80;
-          return { conceptId: c.id, x, y, manualX: x, manualY: y };
+          return {
+            conceptId: c.id,
+            x,
+            y,
+            ...(view.layoutAlgorithm === 'manual' ? { manualX: x, manualY: y } : {}),
+          };
         });
         set((s) => ({
           views: s.views.map((v) =>
@@ -748,6 +807,57 @@ export const useGraphStore = create<GraphStoreState>()(
           ),
         }));
         // Trigger layout so newly added nodes get arranged automatically
+        set((s) => ({ layoutVersion: s.layoutVersion + 1 }));
+        PersistenceService.scheduleAutoSave(get());
+      },
+
+      addConceptsToActiveView: (conceptIds) => {
+        const { activeViewId, views, concepts } = get();
+        if (!activeViewId || conceptIds.length === 0) return;
+        const view = views.find((v) => v.id === activeViewId);
+        if (!view) return;
+
+        const conceptIdSet = new Set(conceptIds);
+        const existingIds = new Set(view.nodes.map((n) => n.conceptId));
+        const existingNames = new Set(
+          view.nodes.map((vn) => concepts.find((c) => c.id === vn.conceptId)?.name.trim().toLowerCase()).filter(Boolean)
+        );
+
+        const notation = NotationRegistry.forViewType(view.type);
+        const allowedTypes = notation?.allowedConceptTypes;
+
+        const missing = concepts.filter((c) => {
+          if (!conceptIdSet.has(c.id)) return false;
+          if (existingIds.has(c.id)) return false;
+          if (existingNames.has(c.name.trim().toLowerCase())) return false;
+          if (allowedTypes && !allowedTypes.includes(c.conceptType)) return false;
+
+          return true;
+        });
+
+        if (missing.length === 0) return;
+
+        const COLS = 4;
+        const COL_W = 260;
+        const ROW_H = 140;
+        const startOffset = view.nodes.length;
+        const newNodes = missing.map((c, i) => {
+          const x = ((startOffset + i) % COLS) * COL_W + 80;
+          const y = Math.floor((startOffset + i) / COLS) * ROW_H + 80;
+          return {
+            conceptId: c.id,
+            x,
+            y,
+            ...(view.layoutAlgorithm === 'manual' ? { manualX: x, manualY: y } : {}),
+          };
+        });
+
+        set((s) => ({
+          views: s.views.map((v) =>
+            v.id !== activeViewId ? v : { ...v, nodes: [...v.nodes, ...newNodes] },
+          ),
+        }));
+
         set((s) => ({ layoutVersion: s.layoutVersion + 1 }));
         PersistenceService.scheduleAutoSave(get());
       },
@@ -957,8 +1067,7 @@ export const useGraphStore = create<GraphStoreState>()(
             conceptId: concept.id,
             x: finalX,
             y: finalY,
-            manualX: finalX,
-            manualY: finalY,
+            ...(activeView.layoutAlgorithm === 'manual' ? { manualX: finalX, manualY: finalY } : {}),
             parentId,
           };
           updatedViews = updatedViews.map((v) =>
@@ -1177,8 +1286,7 @@ export const useGraphStore = create<GraphStoreState>()(
                 conceptId: params.sourceId,
                 x: 150,
                 y: 150,
-                manualX: 150,
-                manualY: 150,
+                ...(activeView.layoutAlgorithm === 'manual' ? { manualX: 150, manualY: 150 } : {}),
               });
             }
             
@@ -1190,8 +1298,7 @@ export const useGraphStore = create<GraphStoreState>()(
                 conceptId: targetId,
                 x: targetX,
                 y: targetY,
-                manualX: targetX,
-                manualY: targetY,
+                ...(activeView.layoutAlgorithm === 'manual' ? { manualX: targetX, manualY: targetY } : {}),
               });
             }
             
@@ -1295,7 +1402,7 @@ export const useGraphStore = create<GraphStoreState>()(
             const defaultViewNodes = concepts.map((c, i) => {
               const x = (i % COLS) * COL_W + 80;
               const y = Math.floor(i / COLS) * ROW_H + 80;
-              return { conceptId: c.id, x, y, manualX: x, manualY: y };
+              return { conceptId: c.id, x, y };
             });
 
             const defaultView: View = {

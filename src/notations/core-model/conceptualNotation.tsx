@@ -109,6 +109,7 @@ export const conceptualNotation: Notation = {
   orthogonalEdges: true,
   CanvasComponent: ConceptualCanvas,
   layoutEngine: dagreLayoutEngine,
+  defaultElement: { conceptType: 'class', name: 'Nyt Begreb' },
   allowedConceptTypes: ['class'],
   conceptTypeLabels: {
     class: 'Begreb / Klasse',

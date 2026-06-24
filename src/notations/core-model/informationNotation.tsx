@@ -354,6 +354,7 @@ export const informationNotation: Notation = {
   orthogonalEdges: true,
   CanvasComponent: InformationCanvas,
   layoutEngine: dagreLayoutEngine,
+  defaultElement: { conceptType: 'class', name: 'Ny Klasse' },
   allowedConceptTypes: ['class', 'datatype', 'enumeration'],
   conceptTypeLabels: {
     class: 'Klasse',

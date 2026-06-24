@@ -793,5 +793,214 @@ describe('useGraphStore', () => {
       expect(view?.viewEdges?.length).toBe(0);
     });
   });
+
+  describe('Default Root Element Auto-Creation', () => {
+    it('automatically creates a business_service named Hovedservice for archimate view', () => {
+      const view = useGraphStore.getState().createView('Test ArchiMate', 'archimate');
+      
+      const state = useGraphStore.getState();
+      expect(view.nodes).toHaveLength(1);
+      
+      const nodeId = view.nodes[0].conceptId;
+      const concept = state.concepts.find(c => c.id === nodeId);
+      expect(concept).toBeDefined();
+      expect(concept?.conceptType).toBe('business_service');
+      expect(concept?.name).toBe('Hovedservice');
+      
+      expect(view.nodes[0].x).toBe(150);
+      expect(view.nodes[0].y).toBe(150);
+    });
+
+    it('automatically creates a class named Nyt Begreb for conceptual_model view', () => {
+      const view = useGraphStore.getState().createView('Test Begreber', 'conceptual_model');
+      
+      const state = useGraphStore.getState();
+      expect(view.nodes).toHaveLength(1);
+      
+      const nodeId = view.nodes[0].conceptId;
+      const concept = state.concepts.find(c => c.id === nodeId);
+      expect(concept).toBeDefined();
+      expect(concept?.conceptType).toBe('class');
+      expect(concept?.name).toBe('Nyt Begreb');
+    });
+  });
+
+  describe('Batch Addition of Concept Groups to Active View', () => {
+    it('successfully batch adds selected concept IDs to the active view', () => {
+      // 1. Initial State: two concepts and an active empty view
+      const store = useGraphStore.getState();
+      store.addConcept('entity', 'Test Batch 1');
+      store.addConcept('entity', 'Test Batch 2');
+      const c1 = useGraphStore.getState().concepts.find(c => c.name === 'Test Batch 1')!;
+      const c2 = useGraphStore.getState().concepts.find(c => c.name === 'Test Batch 2')!;
+      
+      const view = useGraphStore.getState().createView('Empty View', 'knowledge_graph');
+      // Empty the view's nodes to start clean (since knowledge_graph auto-creates a default entity)
+      useGraphStore.setState((s) => ({
+        views: s.views.map(v => v.id === view.id ? { ...v, nodes: [] } : v)
+      }));
+
+      // 2. Batch add concepts
+      useGraphStore.getState().addConceptsToActiveView([c1.id, c2.id]);
+
+      const state = useGraphStore.getState();
+      const updatedView = state.views.find(v => v.id === view.id)!;
+      expect(updatedView.nodes).toHaveLength(2);
+      expect(updatedView.nodes[0].conceptId).toBe(c1.id);
+      expect(updatedView.nodes[1].conceptId).toBe(c2.id);
+    });
+
+    it('allows batch additions of both conceptual and information classes to both views', () => {
+      // 1. Create a conceptual class (no properties) and an information class (has properties)
+      const store = useGraphStore.getState();
+      
+      // Clear concepts and views for deterministic test
+      useGraphStore.setState({ concepts: [], views: [] });
+
+      store.addConcept('class', 'Conceptual Class');
+      store.addConcept('class', 'Information Class');
+      
+      const conceptual = useGraphStore.getState().concepts.find(c => c.name === 'Conceptual Class')!;
+      // Make it an information class by giving it a property
+      const infoId = useGraphStore.getState().concepts.find(c => c.name === 'Information Class')!.id;
+      useGraphStore.getState().addProperty(infoId, 'prop1', 'string', false);
+
+      const concepts = useGraphStore.getState().concepts;
+      const cClass = concepts.find(c => c.name === 'Conceptual Class')!;
+      const iClass = concepts.find(c => c.name === 'Information Class')!;
+
+      // 2. Create conceptual_model view
+      const conceptualView = useGraphStore.getState().createView('Conceptual View', 'conceptual_model');
+      useGraphStore.setState((s) => ({
+        views: s.views.map(v => v.id === conceptualView.id ? { ...v, nodes: [] } : v),
+        activeViewId: conceptualView.id
+      }));
+
+      // Try batch adding both
+      useGraphStore.getState().addConceptsToActiveView([cClass.id, iClass.id]);
+      
+      const view1 = useGraphStore.getState().views.find(v => v.id === conceptualView.id)!;
+      // Should contain BOTH
+      expect(view1.nodes).toHaveLength(2);
+      expect(view1.nodes[0].conceptId).toBe(cClass.id);
+      expect(view1.nodes[1].conceptId).toBe(iClass.id);
+
+      // 3. Create information_model view
+      const infoView = useGraphStore.getState().createView('Info View', 'information_model');
+      useGraphStore.setState((s) => ({
+        views: s.views.map(v => v.id === infoView.id ? { ...v, nodes: [] } : v),
+        activeViewId: infoView.id
+      }));
+
+      // Try batch adding both
+      useGraphStore.getState().addConceptsToActiveView([cClass.id, iClass.id]);
+      
+      const view2 = useGraphStore.getState().views.find(v => v.id === infoView.id)!;
+      // Should contain BOTH
+      expect(view2.nodes).toHaveLength(2);
+      expect(view2.nodes[0].conceptId).toBe(cClass.id);
+      expect(view2.nodes[1].conceptId).toBe(iClass.id);
+    });
+  });
+
+  describe('Layout Algorithm Transitions & Coordinates Preservation', () => {
+    it('preserves manual node coordinates when switching back to manual layout from tree/auto-layout', () => {
+      // 1. Initial State: active view in tree/hierarchical mode with a node
+      const store = useGraphStore.getState();
+      useGraphStore.setState({ concepts: [], views: [] });
+
+      store.addConcept('class', 'Concept A');
+      const concept = useGraphStore.getState().concepts[0];
+
+      // Create a view starting in hierarchical mode (auto layout)
+      const view = store.createView('Tree View', 'conceptual_model', 'hierarchical');
+      useGraphStore.setState((s) => ({
+        activeViewId: view.id,
+        views: s.views.map(v => v.id === view.id ? {
+          ...v,
+          // Node is created in auto layout, so manualX/manualY are undefined
+          nodes: [{ conceptId: concept.id, x: 100, y: 100 }]
+        } : v)
+      }));
+
+      // Verify node has no manual positions initially
+      let currentView = useGraphStore.getState().views.find(v => v.id === view.id)!;
+      expect(currentView.nodes[0].manualX).toBeUndefined();
+
+      // 2. Switch to manual layout (should freeze current x, y as manual coordinates)
+      useGraphStore.setState((s) => ({
+        views: s.views.map((v) => {
+          if (v.id !== view.id) return v;
+          return {
+            ...v,
+            layoutAlgorithm: 'manual',
+            nodes: v.nodes.map(n => {
+              const hasManual = n.manualX !== undefined && n.manualY !== undefined;
+              return {
+                ...n,
+                x: hasManual ? n.manualX : n.x,
+                y: hasManual ? n.manualY : n.y,
+                manualX: hasManual ? n.manualX : n.x,
+                manualY: hasManual ? n.manualY : n.y,
+              };
+            })
+          };
+        })
+      }));
+
+      currentView = useGraphStore.getState().views.find(v => v.id === view.id)!;
+      expect(currentView.nodes[0].manualX).toBe(100);
+      expect(currentView.nodes[0].manualY).toBe(100);
+
+      // 3. User drags the node to a new manual coordinate (e.g. 500, 500)
+      store.updateViewNodePosition(view.id, concept.id, 500, 500);
+
+      currentView = useGraphStore.getState().views.find(v => v.id === view.id)!;
+      expect(currentView.nodes[0].x).toBe(500);
+      expect(currentView.nodes[0].manualX).toBe(500);
+
+      // 4. Switch to auto-layout (e.g., hierarchical) and simulate layout worker updates
+      useGraphStore.setState((s) => ({
+        views: s.views.map((v) => {
+          if (v.id !== view.id) return v;
+          return { ...v, layoutAlgorithm: 'hierarchical' };
+        })
+      }));
+
+      // Simulate worker layout update setting x, y to auto-computed coordinates (e.g., 200, 200)
+      store.batchUpdateViewNodePositions(view.id, [{ conceptId: concept.id, x: 200, y: 200 }]);
+
+      currentView = useGraphStore.getState().views.find(v => v.id === view.id)!;
+      expect(currentView.nodes[0].x).toBe(200); // auto-layout coordinate
+      expect(currentView.nodes[0].manualX).toBe(500); // preserved manual coordinate
+
+      // 5. Switch back to manual layout
+      useGraphStore.setState((s) => ({
+        views: s.views.map((v) => {
+          if (v.id !== view.id) return v;
+          return {
+            ...v,
+            layoutAlgorithm: 'manual',
+            nodes: v.nodes.map(n => {
+              const hasManual = n.manualX !== undefined && n.manualY !== undefined;
+              return {
+                ...n,
+                x: hasManual ? n.manualX : n.x,
+                y: hasManual ? n.manualY : n.y,
+                manualX: hasManual ? n.manualX : n.x,
+                manualY: hasManual ? n.manualY : n.y,
+              };
+            })
+          };
+        })
+      }));
+
+      currentView = useGraphStore.getState().views.find(v => v.id === view.id)!;
+      // Coordinates should restore back to the manual position (500, 500), NOT stay at (200, 200)
+      expect(currentView.nodes[0].x).toBe(500);
+      expect(currentView.nodes[0].y).toBe(500);
+      expect(currentView.nodes[0].manualX).toBe(500);
+    });
+  });
 });
 

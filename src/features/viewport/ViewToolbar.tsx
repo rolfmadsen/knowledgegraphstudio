@@ -76,11 +76,16 @@ export function ViewToolbar() {
 
         let nodes = v.nodes;
         if (algo === 'manual') {
-          // Restore manual coordinates if they exist
+          // Always freeze the current x/y (latest auto-layout positions) as the new manual
+          // positions. We deliberately do NOT prefer old manualX/Y here because batchUpdateViewNodePositions
+          // (used by the layout engine) only updates x/y — leaving manualX/Y stale. Using stale
+          // manualX/Y would cause nodes to "bunch" at their old positions from a prior MANUAL session.
           nodes = v.nodes.map((n) => ({
             ...n,
-            x: n.manualX ?? n.x,
-            y: n.manualY ?? n.y,
+            x: n.x,
+            y: n.y,
+            manualX: n.x,
+            manualY: n.y,
           }));
         }
 

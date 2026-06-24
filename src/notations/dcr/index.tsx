@@ -671,6 +671,7 @@ export const dcrNotation: Notation = {
   CanvasComponent: DcrCanvas,
   InspectorComponent: DcrInspector,
   layoutEngine: dagreLayoutEngine,
+  defaultElement: { conceptType: 'event', name: 'Startaktivitet' },
   allowedConceptTypes: [
     'event',           // Event
     'bounded_context', // Nested Sub-Graph

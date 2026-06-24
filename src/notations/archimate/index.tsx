@@ -209,6 +209,7 @@ export const archimateNotation: Notation = {
   orthogonalEdges: true,
   CanvasComponent: ArchimateCanvas,
   layoutEngine: dagreLayoutEngine,
+  defaultElement: { conceptType: 'business_service', name: 'Hovedservice' },
   allowedConceptTypes: [
     'actor', 'process', 'event', 'bounded_context', 'entity',
     'business_role', 'business_function', 'business_service',

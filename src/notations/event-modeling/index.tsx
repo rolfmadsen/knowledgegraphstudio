@@ -498,6 +498,7 @@ export const eventModelingNotation: Notation = {
   orthogonalEdges: true,
   CanvasComponent: EventModelingCanvas,
   layoutEngine: eventModelingLayoutEngine,
+  defaultElement: { conceptType: 'em_chapter', name: 'Start Kapitel' },
   allowedConceptTypes: [
     'screen',
     'command',

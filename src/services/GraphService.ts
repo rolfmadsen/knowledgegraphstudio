@@ -18,6 +18,7 @@ import {
   type ConceptProperty,
   type BaseConceptNode,
 } from '../schema/graphSchema';
+import { NotationRegistry } from '../notations/NotationRegistry';
 
 export interface GraphStateWithSelection {
   domains: Domain[];
@@ -322,39 +323,21 @@ export class GraphService {
     const source = state.concepts.find(c => c.id === sourceId);
     const target = state.concepts.find(c => c.id === targetId);
 
-    // Generate a smart default name if none provided
-    let finalName = name;
-    if (!finalName) {
-      const sType = source?.conceptType;
-      const tType = target?.conceptType;
+    const activeView = state.views?.find(v => v.id === state.activeViewId);
+    const notation = activeView ? NotationRegistry.forViewType(activeView.type) : undefined;
 
-      if (sType === 'actor' && tType === 'process') finalName = 'performs';
-      else if (sType === 'process' && tType === 'event') finalName = 'emits';
-      else if (sType === 'event' && tType === 'process') finalName = 'triggers';
-      else if (sType === 'process' && tType === 'entity') finalName = 'updates';
-      else if (sType === 'actor' && tType === 'system') finalName = 'uses';
-      else if (sType === 'system' && tType === 'system') finalName = 'integrates';
-      else if (sType === 'capability' && tType === 'bounded_context') finalName = 'supported by';
-      else if (sType === 'bounded_context' && tType === 'bounded_context') finalName = 'depends on';
-      else if (sType === 'entity' && tType === 'capability') finalName = 'enables';
-      // DCR Graphs Defaults
-      else if (sType === 'event' && tType === 'event') finalName = 'Condition (->*)';
-      else if (sType === 'event' && tType === 'business_role') finalName = 'Has Role';
-      else if (sType === 'business_role' && tType === 'actor') finalName = 'Has Principal';
-      else if (sType === 'event' && tType === 'bounded_context') finalName = 'Is Nested In';
-      else finalName = 'relates to';
-    }
+    const sType = source?.conceptType;
+    const tType = target?.conceptType;
 
+    // 1. Resolve relation type first if not specified, since default name can be derived from it
     let finalRelationType = options.relationType;
-    if (!finalRelationType) {
-      const sType = source?.conceptType;
-      const tType = target?.conceptType;
+    if (!finalRelationType && sType && tType) {
       if (sType === 'event' && tType === 'event') finalRelationType = 'has_condition';
       else if (sType === 'event' && tType === 'business_role') finalRelationType = 'has_role';
       else if (sType === 'business_role' && tType === 'actor') finalRelationType = 'has_principal';
       else if (sType === 'event' && tType === 'bounded_context') finalRelationType = 'is_nested_in';
       else if (sType === 'class' && tType === 'class') {
-        const cleanName = finalName.toLowerCase().trim();
+        const cleanName = (name || '').toLowerCase().trim();
         if (
           cleanName.includes('generaliser') ||
           cleanName.includes('specialiser') ||
@@ -379,6 +362,48 @@ export class GraphService {
         } else {
           finalRelationType = 'association';
         }
+      } else if (notation?.getAvailableRelations) {
+        const allowed = notation.getAvailableRelations(sType, tType);
+        if (allowed.length > 0) {
+          const preferred = allowed.find(a => 
+            a.id.toLowerCase().includes('association') || 
+            a.label.toLowerCase().includes('association')
+          );
+          const matched = preferred ?? allowed[0];
+          // Use description (e.g. CamelCase) if it matches the standard expected by inspector dropdowns
+          finalRelationType = matched.description || matched.id;
+        }
+      }
+    }
+
+    // 2. Generate a smart default name if none provided
+    let finalName = name;
+    if (!finalName) {
+      if (sType === 'actor' && tType === 'process') finalName = 'performs';
+      else if (sType === 'process' && tType === 'event') finalName = 'emits';
+      else if (sType === 'event' && tType === 'process') finalName = 'triggers';
+      else if (sType === 'process' && tType === 'entity') finalName = 'updates';
+      else if (sType === 'actor' && tType === 'system') finalName = 'uses';
+      else if (sType === 'system' && tType === 'system') finalName = 'integrates';
+      else if (sType === 'capability' && tType === 'bounded_context') finalName = 'supported by';
+      else if (sType === 'bounded_context' && tType === 'bounded_context') finalName = 'depends on';
+      else if (sType === 'entity' && tType === 'capability') finalName = 'enables';
+      // DCR Graphs Defaults
+      else if (sType === 'event' && tType === 'event') finalName = 'Condition (->*)';
+      else if (sType === 'event' && tType === 'business_role') finalName = 'Has Role';
+      else if (sType === 'business_role' && tType === 'actor') finalName = 'Has Principal';
+      else if (sType === 'event' && tType === 'bounded_context') finalName = 'Is Nested In';
+      else if (sType && tType && notation?.getAvailableRelations && finalRelationType) {
+        const allowed = notation.getAvailableRelations(sType, tType);
+        const matched = allowed.find(a => a.id === finalRelationType || a.description === finalRelationType);
+        if (matched) {
+          // Extract the short label before parenthesis, e.g. "Association" from "Association (associated with)"
+          finalName = matched.label.split('(')[0].trim();
+        } else {
+          finalName = 'relates to';
+        }
+      } else {
+        finalName = 'relates to';
       }
     }
 

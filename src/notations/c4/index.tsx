@@ -160,6 +160,7 @@ export const c4Notation: Notation = {
   orthogonalEdges: true,
   CanvasComponent: C4Canvas,
   layoutEngine: dagreLayoutEngine,
+  defaultElement: { conceptType: 'system', name: 'Hovedsystem' },
   allowedConceptTypes: [
     'actor',                 // Person
     'system',                // Software System

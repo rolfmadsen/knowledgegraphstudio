@@ -257,6 +257,7 @@ export function Navigator() {
     setActiveViewId,
     setCreateViewModalOpen,
     addAllConceptsToActiveView,
+    addConceptsToActiveView,
     centerSelectedNode,
     requestDeleteViewConfirm,
   } = useGraphStore(
@@ -270,6 +271,7 @@ export function Navigator() {
       setActiveViewId: s.setActiveViewId,
       setCreateViewModalOpen: s.setCreateViewModalOpen,
       addAllConceptsToActiveView: s.addAllConceptsToActiveView,
+      addConceptsToActiveView: s.addConceptsToActiveView,
       centerSelectedNode: s.centerSelectedNode,
       requestDeleteViewConfirm: s.requestDeleteViewConfirm,
     })),
@@ -502,10 +504,21 @@ export function Navigator() {
               {activeTypes.map((type) => {
                 const isOpen = expanded[type];
                 const folderItems = groups[type];
+
+                const viewNodes = activeView?.nodes ?? [];
+                const existingIds = new Set(viewNodes.map((vn) => vn.conceptId));
+                const existingNames = new Set(
+                  viewNodes.map((vn) => concepts.find((c) => c.id === vn.conceptId)?.name.trim().toLowerCase()).filter(Boolean)
+                );
+                const nodesToAdd = folderItems.filter(
+                  (c) => !existingIds.has(c.id) && !existingNames.has(c.name.trim().toLowerCase())
+                );
+                const hasNodesToAdd = folderItems.length > 0;
+
                 return (
                   <div key={type}>
                     <div
-                      className="flex min-w-full w-max items-center justify-between py-1.5 px-2 hover:bg-slate-200/40 rounded-xl cursor-pointer group transition-all duration-150"
+                      className="flex min-w-full w-max items-center justify-between py-1.5 px-2 hover:bg-slate-200/40 rounded-xl cursor-pointer group/folder transition-all duration-150"
                       onClick={() => toggleExpand(type)}
                     >
                       <div className="flex items-center gap-1.5 min-w-0">
@@ -526,6 +539,31 @@ export function Navigator() {
                           {folderItems.length}
                         </span>
                       </div>
+                      
+                      {activeViewId && hasNodesToAdd && (
+                        <button
+                          type="button"
+                          disabled={nodesToAdd.length === 0}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (nodesToAdd.length > 0) {
+                              addConceptsToActiveView(nodesToAdd.map(c => c.id));
+                            }
+                          }}
+                          className={`
+                            opacity-0 group-hover/folder:opacity-100 p-1 rounded-lg transition-all shrink-0 ml-4
+                            ${nodesToAdd.length === 0
+                              ? 'text-slate-300 cursor-not-allowed'
+                              : 'hover:bg-emerald-50 hover:text-emerald-600 text-slate-400'}
+                          `}
+                          title={nodesToAdd.length === 0
+                            ? `All ${getFolderLabel(type, activeNotation?.conceptTypeLabels as Record<string, string> | undefined)} in this folder are already in the active view`
+                            : `Add all missing ${getFolderLabel(type, activeNotation?.conceptTypeLabels as Record<string, string> | undefined)} to active view`
+                          }
+                        >
+                          <Download size={12} strokeWidth={2.5} />
+                        </button>
+                      )}
                     </div>
 
                     {/* Concept List under Folder */}

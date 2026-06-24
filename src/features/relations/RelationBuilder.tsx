@@ -212,12 +212,22 @@ export function RelationBuilder() {
   // Options for target selection
   const options = useMemo(() => {
     const q = query.trim();
+    const sourceNode = concepts.find(c => c.id === sourceId);
     const filtered = concepts.filter(c => c.id !== sourceId);
 
-    // Filter targets by notation allowed types
-    const notationFiltered = activeNotation?.allowedConceptTypes
-      ? filtered.filter(c => activeNotation.allowedConceptTypes!.includes(c.conceptType))
-      : filtered;
+    // Filter targets by notation allowed types and presence of valid relations
+    const notationFiltered = filtered.filter(c => {
+      if (activeNotation?.allowedConceptTypes && !activeNotation.allowedConceptTypes.includes(c.conceptType)) {
+        return false;
+      }
+      if (sourceNode && activeNotation?.getAvailableRelations) {
+        const allowedRels = activeNotation.getAvailableRelations(sourceNode.conceptType, c.conceptType);
+        if (allowedRels.length === 0) {
+          return false;
+        }
+      }
+      return true;
+    });
 
     const fuse = new Fuse(notationFiltered, {
       keys: ['name', 'conceptType'],

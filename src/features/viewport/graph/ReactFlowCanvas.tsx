@@ -1418,6 +1418,7 @@ export function ReactFlowCanvas({
   }, [centerSelectionCount, reactFlow]);
 
   const computedNodes: Node[] = useMemo(() => {
+    const activeNotation = NotationRegistry.forViewType(view.type);
     const viewNodes = view.nodes ?? [];
     const nodesMap = new Map(viewNodes.map((vn) => [vn.conceptId, vn]));
     const conceptMap = new Map(concepts.map((c) => [c.id, c]));
@@ -1629,11 +1630,54 @@ export function ReactFlowCanvas({
       } else if (parentId) {
         const pBounds = groupBounds.get(parentId);
         if (pBounds) {
-          position = { x: vn.x - pBounds.x, y: vn.y - pBounds.y };
+          const parentConcept = conceptMap.get(parentId);
+          if (view.type === 'event_modeling' && parentConcept?.conceptType === 'em_slice') {
+            const childW = vn.width ?? 260;
+            position = { x: (320 - childW) / 2, y: vn.y - pBounds.y };
+          } else {
+            position = { x: vn.x - pBounds.x, y: vn.y - pBounds.y };
+          }
         }
       }
 
       const isProposed = (c as any).isProposed;
+
+      const isConnectingActive = connectingSourceId !== null;
+      let isValidConnectionTarget = false;
+      if (isConnectingActive && connectingSourceId !== c.id) {
+        const sourceNode = conceptMap.get(connectingSourceId);
+        if (sourceNode) {
+          if (activeNotation) {
+            const allowedTypes = activeNotation.allowedConceptTypes;
+            const isSourceAllowed = !allowedTypes || allowedTypes.includes(sourceNode.conceptType);
+            const isTargetAllowed = !allowedTypes || allowedTypes.includes(c.conceptType);
+            if (isSourceAllowed && isTargetAllowed) {
+              if (activeNotation.getAvailableRelations) {
+                const allowedRels = activeNotation.getAvailableRelations(sourceNode.conceptType, c.conceptType);
+                isValidConnectionTarget = allowedRels.length > 0;
+              } else {
+                isValidConnectionTarget = true;
+              }
+            }
+          } else {
+            isValidConnectionTarget = true;
+          }
+        }
+      }
+
+      let classNames: string[] = [];
+      if (isProposed) classNames.push('ai-proposed');
+
+      if (isConnectingActive) {
+        if (c.id === connectingSourceId) {
+          classNames.push('connecting-source ring-4 ring-emerald-500 ring-offset-2');
+        } else if (isValidConnectionTarget) {
+          classNames.push('connecting-target cursor-pointer ring-2 ring-emerald-400/50 hover:ring-emerald-500 hover:scale-[1.02] transition-all duration-200');
+        } else {
+          classNames.push('connecting-invalid opacity-30 pointer-events-none transition-all duration-200');
+        }
+      }
+
       return [{
         id: c.id,
         type: 'conceptNode',
@@ -1641,13 +1685,16 @@ export function ReactFlowCanvas({
         parentId,
         selected: selectedConceptIds.includes(c.id),
         draggable: currentAlgo === 'manual' && !isProposed,
-        className: isProposed ? 'ai-proposed' : undefined,
+        className: classNames.length > 0 ? classNames.join(' ') : undefined,
         style,
         data: {
           name: c.name,
           type: c.conceptType.replace('_', ' '),
           lifecycle: c.lifecycleState,
           concept: c,
+          isConnectingActive,
+          isValidConnectionTarget,
+          isConnectingSource: c.id === connectingSourceId,
         },
       }];
     });
@@ -1673,7 +1720,7 @@ export function ReactFlowCanvas({
     };
 
     return mappedNodes.sort((a, b) => getDepth(a.id) - getDepth(b.id));
-  }, [concepts, selectedConceptIds, view, currentAlgo]);
+  }, [concepts, selectedConceptIds, view, currentAlgo, connectingSourceId]);
 
   const initialEdges: Edge[] = useMemo(() => {
     const activeNotation = NotationRegistry.forViewType(view.type);
@@ -1910,9 +1957,13 @@ export function ReactFlowCanvas({
             existingNode.style?.height !== n.style?.height ||
             existingNode.selected !== freshSelected ||
             existingNode.draggable !== n.draggable ||
+            existingNode.className !== n.className ||
             existingNode.data.name !== n.data.name ||
             existingNode.data.type !== n.data.type ||
             existingNode.data.lifecycle !== n.data.lifecycle ||
+            existingNode.data.isConnectingActive !== n.data.isConnectingActive ||
+            existingNode.data.isValidConnectionTarget !== n.data.isValidConnectionTarget ||
+            existingNode.data.isConnectingSource !== n.data.isConnectingSource ||
             conceptChanged;
           if (!changed) return existingNode;
           hasChanges = true;
@@ -1922,6 +1973,7 @@ export function ReactFlowCanvas({
             parentId: n.parentId,
             selected: freshSelected,
             draggable: n.draggable,
+            className: n.className,
             style: n.style,
             data: n.data,
           };
@@ -2033,6 +2085,228 @@ export function ReactFlowCanvas({
     activeDraggingNode.current = toElementId(node.id);
   }, []);
 
+  const onNodeDrag = useCallback((_: React.MouseEvent, node: Node) => {
+    if (currentAlgo !== 'manual') return;
+    if (!node.parentId) return; // Only child nodes need parent resizing
+
+    setNodes((prevNodes) => {
+      // 1. Group nodes by parentId once for O(1) lookups
+      const childrenByParent = new Map<string, Node[]>();
+      prevNodes.forEach((n) => {
+        if (n.parentId) {
+          const list = childrenByParent.get(n.parentId) || [];
+          list.push(n);
+          childrenByParent.set(n.parentId, list);
+        }
+      });
+
+      // Find the parent chain
+      const parentChain: string[] = [];
+      let pid: string | undefined = node.parentId;
+      while (pid) {
+        parentChain.push(pid);
+        const pNode = prevNodes.find((n) => n.id === pid);
+        pid = pNode?.parentId;
+      }
+
+      // We will perform the calculations and only clone/modify nodes that actually change
+      const modifiedNodes = new Map<string, Node>();
+      const getNode = (id: string): Node => {
+        return modifiedNodes.get(id) || prevNodes.find((n) => n.id === id)!;
+      };
+
+      let anyChanged = false;
+      const DETACHMENT_THRESHOLD = 100;
+      
+      // Trace up the chain
+      for (let i = 0; i < parentChain.length; i++) {
+        const parentId = parentChain[i];
+        const parentNode = getNode(parentId);
+        if (!parentNode) continue;
+
+        // Get all children of this parent (using latest computed states)
+        const allChildren = (childrenByParent.get(parentId) || []).map((c) => getNode(c.id));
+        if (allChildren.length === 0) continue;
+
+        const isDirectParent = node.parentId === parentId;
+        const siblingNodes = allChildren.filter((n) => n.id !== node.id);
+
+        let defaultW = view.type === 'c4' ? 240 : view.type === 'archimate' ? 210 : 200;
+        let defaultH = view.type === 'c4' ? 96 : view.type === 'archimate' ? 76 : 80;
+
+        const concept = concepts.find((c) => c.id === parentNode.id);
+        const conceptType = concept?.conceptType;
+
+        if (view.type === 'event_modeling') {
+          if (conceptType === 'em_chapter') {
+            defaultW = 600;
+            defaultH = 600;
+          } else if (conceptType === 'em_slice') {
+            defaultW = 320;
+            defaultH = 500;
+          }
+        }
+
+        // Calculate sibling bounds
+        let minX_sib = Infinity;
+        let minY_sib = Infinity;
+        let maxX_sib = -Infinity;
+        let maxY_sib = -Infinity;
+
+        if (siblingNodes.length > 0) {
+          siblingNodes.forEach((sib) => {
+            const sibW = sib.style?.width ?? sib.measured?.width ?? defaultW;
+            const sibH = sib.style?.height ?? sib.measured?.height ?? defaultH;
+            minX_sib = Math.min(minX_sib, sib.position.x);
+            minY_sib = Math.min(minY_sib, sib.position.y);
+            maxX_sib = Math.max(maxX_sib, sib.position.x + (sibW as number));
+            maxY_sib = Math.max(maxY_sib, sib.position.y + (sibH as number));
+          });
+        } else {
+          minX_sib = PADDING_LEFT;
+          minY_sib = PADDING_TOP;
+          const parentW = (parentNode.style?.width ?? parentNode.measured?.width ?? (defaultW + PADDING_LEFT + PADDING_RIGHT)) as number;
+          const parentH = (parentNode.style?.height ?? parentNode.measured?.height ?? (defaultH + PADDING_TOP + PADDING_BOTTOM)) as number;
+          maxX_sib = parentW - PADDING_RIGHT;
+          maxY_sib = parentH - PADDING_BOTTOM;
+        }
+
+        // Check attachment
+        let isAttached = true;
+        const targetNode = getNode(node.id);
+
+        if (isDirectParent && targetNode) {
+          const childW = targetNode.style?.width ?? targetNode.measured?.width ?? defaultW;
+          const childH = targetNode.style?.height ?? targetNode.measured?.height ?? defaultH;
+          const centerX = targetNode.position.x + (childW as number) / 2;
+          const centerY = targetNode.position.y + (childH as number) / 2;
+
+          if (view.type === 'event_modeling' && conceptType === 'em_slice') {
+            const insideX = centerX >= -DETACHMENT_THRESHOLD && centerX <= 320 + DETACHMENT_THRESHOLD;
+            const insideY = centerY >= -DETACHMENT_THRESHOLD;
+            isAttached = insideX && insideY;
+          } else {
+            const insideX = centerX >= minX_sib - DETACHMENT_THRESHOLD && centerX <= maxX_sib + DETACHMENT_THRESHOLD;
+            const insideY = centerY >= minY_sib - DETACHMENT_THRESHOLD && centerY <= maxY_sib + DETACHMENT_THRESHOLD;
+            isAttached = insideX && insideY;
+          }
+        }
+
+        let minX = minX_sib;
+        let minY = minY_sib;
+        let maxX = maxX_sib;
+        let maxY = maxY_sib;
+
+        if (isAttached) {
+          if (isDirectParent && targetNode) {
+            minX = Math.min(minX_sib, targetNode.position.x);
+            minY = Math.min(minY_sib, targetNode.position.y);
+            maxX = Math.max(maxX_sib, targetNode.position.x + ((targetNode.style?.width ?? targetNode.measured?.width ?? defaultW) as number));
+            maxY = Math.max(maxY_sib, targetNode.position.y + ((targetNode.style?.height ?? targetNode.measured?.height ?? defaultH) as number));
+          } else {
+            minX = Math.min(...allChildren.map((c) => c.position.x));
+            minY = Math.min(...allChildren.map((c) => c.position.y));
+            maxX = Math.max(...allChildren.map((c) => c.position.x + ((c.style?.width ?? c.measured?.width ?? defaultW) as number)));
+            maxY = Math.max(...allChildren.map((c) => c.position.y + ((c.style?.height ?? c.measured?.height ?? defaultH) as number)));
+          }
+        }
+
+        // Compute proposed dimensions/positions
+        let proposedW = parentNode.style?.width;
+        let proposedH = parentNode.style?.height;
+        let proposedX = parentNode.position.x;
+        let proposedY = parentNode.position.y;
+        let shiftX = 0;
+        let shiftY = 0;
+
+        if (view.type === 'event_modeling') {
+          if (conceptType === 'em_slice') {
+            proposedW = 320;
+            proposedH = maxY !== -Infinity ? Math.max(200, maxY + 48) : 500;
+          } else if (conceptType === 'em_chapter') {
+            const CHAPTER_PADDING = 48;
+            proposedW = minX !== Infinity ? (maxX - minX) + CHAPTER_PADDING * 2 : 600;
+            proposedH = maxY !== -Infinity ? Math.max(300, maxY + CHAPTER_PADDING) : 600;
+          } else {
+            shiftX = minX - PADDING_LEFT;
+            shiftY = minY - PADDING_TOP;
+            proposedX = parentNode.position.x + shiftX;
+            proposedY = parentNode.position.y + shiftY;
+            proposedW = (maxX - minX) + PADDING_LEFT + PADDING_RIGHT;
+            proposedH = (maxY - minY) + PADDING_TOP + PADDING_BOTTOM;
+          }
+        } else {
+          shiftX = minX - PADDING_LEFT;
+          shiftY = minY - PADDING_TOP;
+          proposedX = parentNode.position.x + shiftX;
+          proposedY = parentNode.position.y + shiftY;
+          proposedW = (maxX - minX) + PADDING_LEFT + PADDING_RIGHT;
+          proposedH = (maxY - minY) + PADDING_TOP + PADDING_BOTTOM;
+        }
+
+        // Snap target node if attached to em_slice
+        let snapXChanged = false;
+        let snappedX = targetNode ? targetNode.position.x : 0;
+        if (view.type === 'event_modeling' && conceptType === 'em_slice' && isAttached && targetNode && isDirectParent) {
+          const childW = (targetNode.style?.width ?? targetNode.measured?.width ?? (view.type === 'event_modeling' ? 260 : defaultW)) as number;
+          snappedX = (320 - childW) / 2;
+          if (targetNode.position.x !== snappedX) {
+            snapXChanged = true;
+          }
+        }
+
+        // Check if anything actually changed for this parent
+        const parentBoundsChanged = 
+          proposedX !== parentNode.position.x ||
+          proposedY !== parentNode.position.y ||
+          proposedW !== parentNode.style?.width ||
+          proposedH !== parentNode.style?.height;
+
+        if (parentBoundsChanged || snapXChanged || shiftX !== 0 || shiftY !== 0) {
+          anyChanged = true;
+
+          // Clone parent
+          const updatedParent = {
+            ...parentNode,
+            position: { x: proposedX, y: proposedY },
+            style: { ...parentNode.style, width: proposedW, height: proposedH },
+          };
+          modifiedNodes.set(parentId, updatedParent);
+
+          // Update child snaps/shifts
+          if (view.type === 'event_modeling' && conceptType === 'em_slice' && isAttached && targetNode && isDirectParent) {
+            const updatedTarget = modifiedNodes.get(node.id) || { ...targetNode };
+            updatedTarget.position = { x: snappedX, y: updatedTarget.position.y };
+            modifiedNodes.set(node.id, updatedTarget);
+            node.position = updatedTarget.position;
+          }
+
+          if (shiftX !== 0 || shiftY !== 0) {
+            allChildren.forEach((child) => {
+              const updatedChild = modifiedNodes.get(child.id) || { ...child };
+              updatedChild.position = {
+                x: updatedChild.position.x - shiftX,
+                y: updatedChild.position.y - shiftY,
+              };
+              modifiedNodes.set(child.id, updatedChild);
+              if (child.id === node.id) {
+                node.position = updatedChild.position;
+              }
+            });
+          }
+        }
+      }
+
+      if (!anyChanged) {
+        // Return original reference to completely skip React Flow rendering update!
+        return prevNodes;
+      }
+
+      // Map back
+      return prevNodes.map((n) => modifiedNodes.get(n.id) || n);
+    });
+  }, [currentAlgo, view.type, concepts, setNodes]);
+
   const onNodeDragStop = useCallback((_: React.MouseEvent, node: Node) => {
     activeDraggingNode.current = null;
     if (currentAlgo !== 'manual') return;
@@ -2048,31 +2322,43 @@ export function ReactFlowCanvas({
     const isGroup = draggedConcept.conceptType === 'bounded_context' || draggedConcept.conceptType === 'em_chapter' || draggedConcept.conceptType === 'em_slice';
 
     if (isGroup) {
+      // For a group, when dragging stops, determine its final position
+      let newGroupAbsX = node.position.x;
+      let newGroupAbsY = node.position.y;
+      if (draggedVn.parentId) {
+        let currParentId: string = draggedVn.parentId;
+        while (currParentId) {
+          const pNode = nodes.find((n) => n.id === currParentId);
+          if (pNode) {
+            newGroupAbsX += pNode.position.x;
+            newGroupAbsY += pNode.position.y;
+            currParentId = pNode.parentId ?? '';
+          } else {
+            break;
+          }
+        }
+      }
+
       const bounds = getGroupBounds(toElementId(node.id), viewNodes, view.type, conceptMap);
       const oldGroupX = bounds ? bounds.x : draggedVn.x;
       const oldGroupY = bounds ? bounds.y : draggedVn.y;
-
-      const parentId = draggedVn.parentId;
-      const parentBounds = parentId ? getGroupBounds(parentId, viewNodes, view.type, conceptMap) : null;
-
-      let newGroupAbsX = node.position.x;
-      let newGroupAbsY = node.position.y;
-      if (parentBounds) {
-        newGroupAbsX = parentBounds.x + node.position.x;
-        newGroupAbsY = parentBounds.y + node.position.y;
-      }
-
       const deltaX = newGroupAbsX - oldGroupX;
       const deltaY = newGroupAbsY - oldGroupY;
 
       if (draggedConcept.conceptType === 'em_slice') {
         const sliceW = node.measured?.width ?? 320;
         const sliceH = node.measured?.height ?? 500;
-        const centerX = (parentBounds ? node.position.x : newGroupAbsX) + sliceW / 2;
-        const centerY = (parentBounds ? node.position.y : newGroupAbsY) + sliceH / 2;
+        
+        const parentId = draggedVn.parentId;
+        const parentNode = parentId ? nodes.find((n) => n.id === parentId) : null;
+        const parentW = parentNode ? (parentNode.style?.width ?? parentNode.measured?.width ?? 600) as number : 600;
+        const parentH = parentNode ? (parentNode.style?.height ?? parentNode.measured?.height ?? 600) as number : 600;
 
-        if (parentId && parentBounds) {
-          const isOutside = centerX < 0 || centerX > parentBounds.w || centerY < 0 || centerY > parentBounds.h;
+        const centerX = (parentId ? node.position.x : newGroupAbsX) + sliceW / 2;
+        const centerY = (parentId ? node.position.y : newGroupAbsY) + sliceH / 2;
+
+        if (parentId && parentNode) {
+          const isOutside = centerX < 0 || centerX > parentW || centerY < 0 || centerY > parentH;
           if (isOutside) {
             ungroupConcept(view.id, draggedConcept.id);
             onNodePositionChange(draggedConcept.id, newGroupAbsX, newGroupAbsY);
@@ -2156,56 +2442,101 @@ export function ReactFlowCanvas({
         batchUpdateViewNodePositions(view.id, positionsToUpdate);
       }
     } else {
-      const dragDefaultW = view.type === 'c4' ? 240 : view.type === 'archimate' ? 210 : 200;
-      const dragDefaultH = view.type === 'c4' ? 96 : view.type === 'archimate' ? 76 : 80;
+      const dragDefaultW = view.type === 'event_modeling' ? 260 : (view.type === 'c4' ? 240 : view.type === 'archimate' ? 210 : 200);
+      const dragDefaultH = view.type === 'event_modeling' ? 90 : (view.type === 'c4' ? 96 : view.type === 'archimate' ? 76 : 80);
       const childW = node.measured?.width ?? dragDefaultW;
       const childH = node.measured?.height ?? dragDefaultH;
 
       if (draggedVn.parentId) {
         const parentId = draggedVn.parentId;
-        const parentVn = nodesMap.get(parentId);
+        const parentNode = nodes.find((n) => n.id === parentId);
 
-        if (parentVn) {
-          const bounds = getGroupBounds(parentId, viewNodes, view.type, conceptMap);
-          if (bounds) {
-            const childAbsX = bounds.x + node.position.x;
-            const childAbsY = bounds.y + node.position.y;
+        if (parentNode) {
+          const parentW = (parentNode.style?.width ?? parentNode.measured?.width ?? 200) as number;
+          const parentH = (parentNode.style?.height ?? parentNode.measured?.height ?? 140) as number;
 
-            const centerX = node.position.x + childW / 2;
-            const centerY = node.position.y + childH / 2;
+          // Absolute positions calculated from React Flow local nodes
+          let childAbsX = node.position.x;
+          let childAbsY = node.position.y;
+          let currParentId: string = parentId;
+          while (currParentId) {
+            const pNode = nodes.find((n) => n.id === currParentId);
+            if (pNode) {
+              childAbsX += pNode.position.x;
+              childAbsY += pNode.position.y;
+              currParentId = pNode.parentId ?? '';
+            } else {
+              break;
+            }
+          }
 
-            const isOutside = centerX < 0 || centerX > bounds.w || centerY < 0 || centerY > bounds.h;
+          const centerX = node.position.x + childW / 2;
+          const centerY = node.position.y + childH / 2;
 
-            if (isOutside) {
-              ungroupConcept(view.id, toElementId(node.id));
-              onNodePositionChange(toElementId(node.id), childAbsX, childAbsY);
+          // Check if outside the parent (including the 100px detachment threshold)
+          const DETACHMENT_THRESHOLD = 100;
+          let isOutside = false;
+          
+          if (view.type === 'event_modeling') {
+            const isSlice = conceptMap.get(parentId)?.conceptType === 'em_slice';
+            if (isSlice) {
+              // Slices have fixed width 320, vertical boundary can grow downwards indefinitely
+              isOutside = centerX < -DETACHMENT_THRESHOLD || centerX > 320 + DETACHMENT_THRESHOLD || centerY < -DETACHMENT_THRESHOLD;
+            } else {
+              isOutside = centerX < -DETACHMENT_THRESHOLD || centerX > parentW + DETACHMENT_THRESHOLD || centerY < -DETACHMENT_THRESHOLD || centerY > parentH + DETACHMENT_THRESHOLD;
+            }
+          } else {
+            isOutside = centerX < -DETACHMENT_THRESHOLD || centerX > parentW + DETACHMENT_THRESHOLD || centerY < -DETACHMENT_THRESHOLD || centerY > parentH + DETACHMENT_THRESHOLD;
+          }
 
-              // Check if dropped inside ANOTHER group node
-              for (const otherVn of viewNodes) {
-                const otherC = conceptMap.get(otherVn.conceptId);
-                const isAllowedGroup = view.type === 'event_modeling'
-                  ? otherC?.conceptType === 'em_slice'
-                  : (otherC?.conceptType === 'bounded_context' || otherC?.conceptType === 'em_chapter' || otherC?.conceptType === 'em_slice');
-                if (!otherC || !isAllowedGroup || otherVn.conceptId === parentId) continue;
+          if (isOutside) {
+            ungroupConcept(view.id, toElementId(node.id));
+            onNodePositionChange(toElementId(node.id), childAbsX, childAbsY);
 
-                const otherBounds = getGroupBounds(otherVn.conceptId, viewNodes, view.type, conceptMap);
-                if (otherBounds) {
-                  const inNewGroup =
-                    childAbsX + childW / 2 >= otherBounds.x &&
-                    childAbsX + childW / 2 <= otherBounds.x + otherBounds.w &&
-                    childAbsY + childH / 2 >= otherBounds.y &&
-                    childAbsY + childH / 2 <= otherBounds.y + otherBounds.h;
+            // Check if dropped inside ANOTHER group node
+            for (const otherVn of viewNodes) {
+              const otherC = conceptMap.get(otherVn.conceptId);
+              const isAllowedGroup = view.type === 'event_modeling'
+                ? otherC?.conceptType === 'em_slice'
+                : (otherC?.conceptType === 'bounded_context' || otherC?.conceptType === 'em_chapter' || otherC?.conceptType === 'em_slice');
+              if (!otherC || !isAllowedGroup || otherVn.conceptId === parentId) continue;
 
-                  if (inNewGroup) {
-                    updateViewNodeParentId(view.id, toElementId(node.id), otherVn.conceptId);
-                    onNodePositionChange(toElementId(node.id), childAbsX, childAbsY);
-                    break;
+              const otherBounds = getGroupBounds(otherVn.conceptId, viewNodes, view.type, conceptMap);
+              if (otherBounds) {
+                const inNewGroup =
+                  childAbsX + childW / 2 >= otherBounds.x &&
+                  childAbsX + childW / 2 <= otherBounds.x + otherBounds.w &&
+                  childAbsY + childH / 2 >= otherBounds.y &&
+                  childAbsY + childH / 2 <= otherBounds.y + otherBounds.h;
+
+                if (inNewGroup) {
+                  updateViewNodeParentId(view.id, toElementId(node.id), otherVn.conceptId);
+                  let finalAbsX = childAbsX;
+                  if (view.type === 'event_modeling' && otherC?.conceptType === 'em_slice') {
+                    finalAbsX = otherBounds.x + (320 - childW) / 2;
                   }
+                  onNodePositionChange(toElementId(node.id), finalAbsX, childAbsY);
+                  break;
                 }
               }
-            } else {
-              onNodePositionChange(toElementId(node.id), childAbsX, childAbsY);
             }
+          } else {
+            let finalAbsX = childAbsX;
+            if (view.type === 'event_modeling' && conceptMap.get(parentId)?.conceptType === 'em_slice') {
+              let parentAbsX = 0;
+              let currParentId: string = parentId;
+              while (currParentId) {
+                const pNode = nodes.find((n) => n.id === currParentId);
+                if (pNode) {
+                  parentAbsX += pNode.position.x;
+                  currParentId = pNode.parentId ?? '';
+                } else {
+                  break;
+                }
+              }
+              finalAbsX = parentAbsX + (320 - childW) / 2;
+            }
+            onNodePositionChange(toElementId(node.id), finalAbsX, childAbsY);
           }
         }
       } else {
@@ -2242,7 +2573,7 @@ export function ReactFlowCanvas({
         }
       }
     }
-  }, [view, concepts, relations, currentAlgo, onNodePositionChange, batchUpdateViewNodePositions, ungroupConcept, updateViewNodeParentId]);
+  }, [view, concepts, nodes, currentAlgo, onNodePositionChange, batchUpdateViewNodePositions, ungroupConcept, updateViewNodeParentId]);
 
   // --- Selected Node Toolbar Event Handlers ---
   const handleDeleteClick = useCallback((e: React.MouseEvent) => {
@@ -2538,6 +2869,7 @@ export function ReactFlowCanvas({
           onNodeClick={onNodeClick}
           onNodeDoubleClick={onNodeDoubleClick}
           onNodeDragStart={onNodeDragStart}
+          onNodeDrag={onNodeDrag}
           onNodeDragStop={onNodeDragStop}
           onEdgeClick={(_e, edge) => onRelationSelect(toElementId(edge.id))}
           onPaneClick={() => { onNodeSelect(null); onRelationSelect(null); }}
