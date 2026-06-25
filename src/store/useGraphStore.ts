@@ -497,7 +497,9 @@ export const useGraphStore = create<GraphStoreState>()(
         const view = get().views.find((v) => v.id === viewId);
         if (!view) return;
         const node = view.nodes.find((n) => n.conceptId === conceptId);
-        if (node && node.x === x && node.y === y && node.manualX === x && node.manualY === y) {
+        const effectiveManualX = node?.manualX ?? node?.x;
+        const effectiveManualY = node?.manualY ?? node?.y;
+        if (node && node.x === x && node.y === y && effectiveManualX === x && effectiveManualY === y) {
           return;
         }
         set((s) => ({

@@ -860,7 +860,7 @@ describe('useGraphStore', () => {
       store.addConcept('class', 'Conceptual Class');
       store.addConcept('class', 'Information Class');
       
-      const conceptual = useGraphStore.getState().concepts.find(c => c.name === 'Conceptual Class')!;
+      // conceptual variable not needed — accessed via cClass below
       // Make it an information class by giving it a property
       const infoId = useGraphStore.getState().concepts.find(c => c.name === 'Information Class')!.id;
       useGraphStore.getState().addProperty(infoId, 'prop1', 'string', false);
@@ -938,10 +938,10 @@ describe('useGraphStore', () => {
               const hasManual = n.manualX !== undefined && n.manualY !== undefined;
               return {
                 ...n,
-                x: hasManual ? n.manualX : n.x,
-                y: hasManual ? n.manualY : n.y,
-                manualX: hasManual ? n.manualX : n.x,
-                manualY: hasManual ? n.manualY : n.y,
+                x: (hasManual ? n.manualX : n.x) ?? n.x,
+                y: (hasManual ? n.manualY : n.y) ?? n.y,
+                manualX: (hasManual ? n.manualX : n.x) ?? n.x,
+                manualY: (hasManual ? n.manualY : n.y) ?? n.y,
               };
             })
           };
@@ -985,10 +985,10 @@ describe('useGraphStore', () => {
               const hasManual = n.manualX !== undefined && n.manualY !== undefined;
               return {
                 ...n,
-                x: hasManual ? n.manualX : n.x,
-                y: hasManual ? n.manualY : n.y,
-                manualX: hasManual ? n.manualX : n.x,
-                manualY: hasManual ? n.manualY : n.y,
+                x: (hasManual ? n.manualX : n.x) ?? n.x,
+                y: (hasManual ? n.manualY : n.y) ?? n.y,
+                manualX: (hasManual ? n.manualX : n.x) ?? n.x,
+                manualY: (hasManual ? n.manualY : n.y) ?? n.y,
               };
             })
           };
