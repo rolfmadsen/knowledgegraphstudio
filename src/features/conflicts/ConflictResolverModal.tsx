@@ -14,6 +14,7 @@
  */
 import { useState, useMemo } from 'react';
 import { AlertTriangle, MapPin, Cloud, CheckCircle2, FileText, Code } from 'lucide-react';
+import '../../core/monacoLoader'; // Self-host Monaco — must run before Editor mounts
 import { DiffEditor } from '@monaco-editor/react';
 import { yamlToState, stateToYaml } from '../../core/yamlParser';
 import { useGraphStore } from '../../store/useGraphStore';

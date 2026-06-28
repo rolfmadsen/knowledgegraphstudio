@@ -7,7 +7,7 @@ export function ConceptualNodeComponent({ data, selected }: NodeProps) {
 
   return (
     <div className={`
-      relative min-w-[220px] max-w-[350px] bg-white border-2 rounded-2xl shadow-sm overflow-hidden flex flex-col font-sans transition-all text-left
+      relative min-w-[220px] max-w-[350px] bg-white border-2 rounded-2xl shadow-sm overflow-hidden flex flex-col font-sans transition-transform duration-300 text-left
       ${selected
         ? 'border-emerald-500 scale-[1.02] ring-4 ring-emerald-100/50 shadow-md'
         : 'border-slate-200 hover:border-slate-300'}
@@ -69,7 +69,7 @@ export function InformationNodeComponent({ data, selected }: NodeProps) {
 
   return (
     <div className={`
-      relative min-w-[250px] bg-white border-2 rounded-2xl shadow-md overflow-hidden flex flex-col font-sans transition-all text-left
+      relative min-w-[250px] bg-white border-2 rounded-2xl shadow-md overflow-hidden flex flex-col font-sans transition-transform duration-300 text-left
       ${selected
         ? 'border-emerald-500 scale-[1.02] ring-4 ring-emerald-100/50 shadow-lg'
         : 'border-slate-200 hover:border-slate-300'}
@@ -100,7 +100,7 @@ export function InformationNodeComponent({ data, selected }: NodeProps) {
               {enumerators.map((lit, i) => (
                 <div
                   key={i}
-                  className={`flex items-center justify-between px-4 py-2 hover:bg-slate-50/50 transition-colors ${
+                  className={`flex items-center justify-between px-4 py-2 hover:bg-slate-50/50 ${
                     i < enumerators.length - 1 ? 'border-b border-slate-100' : ''
                   }`}
                 >
@@ -124,7 +124,7 @@ export function InformationNodeComponent({ data, selected }: NodeProps) {
               {properties.map((p, i) => (
                 <div
                   key={p.id || i}
-                  className={`flex items-center justify-between px-4 py-2 hover:bg-slate-50/50 transition-colors ${
+                  className={`flex items-center justify-between px-4 py-2 hover:bg-slate-50/50 ${
                     i < properties.length - 1 ? 'border-b border-slate-100' : ''
                   }`}
                 >

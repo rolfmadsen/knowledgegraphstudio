@@ -81,18 +81,37 @@ body {
   scrollbar-color: #cbd5e1 transparent;
 }
 
-/* AI proposed elements styles */
+/* AI proposed elements styles
+ *
+ * PERFORMANCE: The ai-pulse animation previously animated outline-color and
+ * box-shadow — both non-composited properties that trigger paint on every frame.
+ * Replaced with opacity + transform on a ::after pseudo-element so the browser
+ * can run the animation entirely on the GPU compositor thread.
+ */
 .react-flow__node.ai-proposed {
   opacity: 0.65 !important;
-  outline: 2px dashed #10b981 !important;
-  outline-offset: 4px;
-  animation: ai-pulse 2s infinite ease-in-out;
   pointer-events: none;
+  /* Force compositor layer promotion to avoid janky repaints */
+  will-change: transform;
 }
 
+/* Pulsing glow ring via ::after — uses only opacity (composited) */
 .react-flow__node.ai-proposed > div {
+  position: relative;
   border-style: dashed !important;
   border-color: #10b981 !important;
+}
+
+.react-flow__node.ai-proposed > div::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: inherit;
+  border: 2px dashed #10b981;
+  animation: ai-pulse 2s infinite ease-in-out;
+  pointer-events: none;
+  /* Promote to own compositor layer */
+  will-change: opacity, transform;
 }
 
 .react-flow__edge.ai-proposed-edge .react-flow__edge-path {
@@ -102,17 +121,42 @@ body {
   stroke-width: 2px !important;
 }
 
+/* PERFORMANCE: Only animate composited properties (opacity, transform).
+ * The previous implementation animated outline-color and box-shadow which
+ * forced full repaints. Now uses opacity + scale for a GPU-only animation. */
 @keyframes ai-pulse {
   0% {
-    outline-color: rgba(16, 185, 129, 0.8);
-    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
+    opacity: 0.8;
+    transform: scale(1);
   }
-  70% {
-    outline-color: rgba(16, 185, 129, 0.3);
-    box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+  50% {
+    opacity: 0.2;
+    transform: scale(1.02);
   }
   100% {
-    outline-color: rgba(16, 185, 129, 0.8);
-    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+    opacity: 0.8;
+    transform: scale(1);
   }
+}
+
+/*
+ * PERFORMANCE: Node boxes use transition-colors (Tailwind) which triggers
+ * non-composited paint for border-color, box-shadow, background-color.
+ * Promote interactive node containers to compositor layer.
+ * This allows the browser to handle visual changes without main-thread paint.
+ */
+.react-flow__node {
+  will-change: transform;
+}
+
+/*
+ * PERFORMANCE: Input and button elements with hover transitions that change
+ * border-color, outline-color, box-shadow should use opacity-based overlays
+ * rather than direct property transitions where possible.
+ * Adding will-change on focus/hover states to hint compositor promotion.
+ */
+input:focus,
+button:hover,
+[role="button"]:hover {
+  will-change: transform;
 }

@@ -275,6 +275,11 @@ export function yamlToState(yamlString: string): {
           else if (lower.startsWith('realization')) type = 'realization';
           else if (lower.startsWith('specialization')) type = 'specialization';
           else if (lower.startsWith('association')) type = 'association';
+          else if (lower === 'has_condition' || lower === 'condition') type = 'has_condition';
+          else if (lower === 'has_response' || lower === 'response') type = 'has_response';
+          else if (lower === 'includes' || lower === 'include') type = 'includes';
+          else if (lower === 'excludes' || lower === 'exclude') type = 'excludes';
+          else if (lower === 'has_milestone' || lower === 'milestone') type = 'has_milestone';
           else {
             type = undefined; // omit if not one of the allowed types
           }

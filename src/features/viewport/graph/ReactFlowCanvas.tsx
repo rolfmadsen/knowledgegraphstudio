@@ -13,6 +13,7 @@ import {
   Controls,
   type InternalNode,
   useInternalNode,
+  useStore,
   BackgroundVariant,
   type EdgeProps,
   type NodeTypes,
@@ -201,15 +202,20 @@ function getOrthogonalParams(
   viewType?: string,
   nodesMap?: Map<string, any>
 ) {
-  const sourceWidth = source.measured?.width ?? 200;
-  const sourceHeight = source.measured?.height ?? 80;
-  const targetWidth = target.measured?.width ?? 200;
-  const targetHeight = target.measured?.height ?? 80;
+  const sourceW = source.measured?.width ?? 200;
+  const sourceH = source.measured?.height ?? 80;
+  const targetW = target.measured?.width ?? 200;
+  const targetH = target.measured?.height ?? 80;
 
-  const sx_center = source.internals.positionAbsolute.x + sourceWidth / 2;
-  const sy_center = source.internals.positionAbsolute.y + sourceHeight / 2;
-  const tx_center = target.internals.positionAbsolute.x + targetWidth / 2;
-  const ty_center = target.internals.positionAbsolute.y + targetHeight / 2;
+  const srcX = source.internals?.positionAbsolute?.x ?? source.position?.x ?? 0;
+  const srcY = source.internals?.positionAbsolute?.y ?? source.position?.y ?? 0;
+  const tgtX = target.internals?.positionAbsolute?.x ?? target.position?.x ?? 0;
+  const tgtY = target.internals?.positionAbsolute?.y ?? target.position?.y ?? 0;
+
+  const sx_center = srcX + sourceW / 2;
+  const sy_center = srcY + sourceH / 2;
+  const tx_center = tgtX + targetW / 2;
+  const ty_center = tgtY + targetH / 2;
 
   const dx = tx_center - sx_center;
   const dy = ty_center - sy_center;
@@ -334,38 +340,119 @@ function getOrthogonalParams(
         targetPosition = Position.Top;
       }
     }
+
+    // Obstruction avoidance
+    if (nodesMap) {
+      let isObstructed = false;
+      let obstructionDirection: 'horizontal' | 'vertical' = 'horizontal';
+
+      if (Math.abs(dx) > Math.abs(dy)) {
+        const xMin = Math.min(srcX, tgtX);
+        const xMax = Math.max(srcX + sourceW, tgtX + targetW);
+        const yCenter = (sy_center + ty_center) / 2;
+
+        for (const [id, node] of nodesMap.entries()) {
+          if (id === source.id || id === target.id) continue;
+          if (node.type !== 'conceptNode') continue;
+
+          const nodeW = node.measured?.width ?? 200;
+          const nodeH = node.measured?.height ?? 80;
+          const nodeXMin = node.internals?.positionAbsolute?.x ?? node.position?.x ?? 0;
+          const nodeXMax = nodeXMin + nodeW;
+          const nodeYMin = node.internals?.positionAbsolute?.y ?? node.position?.y ?? 0;
+          const nodeYMax = nodeYMin + nodeH;
+
+          if (nodeXMax > xMin && nodeXMin < xMax) {
+            if (yCenter >= nodeYMin - 15 && yCenter <= nodeYMax + 15) {
+              isObstructed = true;
+              obstructionDirection = 'horizontal';
+              break;
+            }
+          }
+        }
+      } else {
+        const yMin = Math.min(srcY, tgtY);
+        const yMax = Math.max(srcY + sourceH, tgtY + targetH);
+        const xCenter = (sx_center + tx_center) / 2;
+
+        for (const [id, node] of nodesMap.entries()) {
+          if (id === source.id || id === target.id) continue;
+          if (node.type !== 'conceptNode') continue;
+
+          const nodeW = node.measured?.width ?? 200;
+          const nodeH = node.measured?.height ?? 80;
+          const nodeXMin = node.internals?.positionAbsolute?.x ?? node.position?.x ?? 0;
+          const nodeXMax = nodeXMin + nodeW;
+          const nodeYMin = node.internals?.positionAbsolute?.y ?? node.position?.y ?? 0;
+          const nodeYMax = nodeYMin + nodeH;
+
+          if (nodeYMax > yMin && nodeYMin < yMax) {
+            if (xCenter >= nodeXMin - 15 && xCenter <= nodeXMax + 15) {
+              isObstructed = true;
+              obstructionDirection = 'vertical';
+              break;
+            }
+          }
+        }
+      }
+
+      if (isObstructed) {
+        if (obstructionDirection === 'horizontal') {
+          const sourceConcept = (source.data as any)?.concept;
+          const targetConcept = (target.data as any)?.concept;
+          const rel = sourceConcept?.relations?.find((r: any) => r.targetConceptId === targetConcept?.id);
+          const relName = rel?.name?.toLowerCase() || '';
+
+          if (relName.includes('condition') || relName.includes('milestone')) {
+            sourcePosition = Position.Top;
+            targetPosition = Position.Top;
+          } else {
+            sourcePosition = Position.Bottom;
+            targetPosition = Position.Bottom;
+          }
+        } else {
+          if (dx > 0) {
+            sourcePosition = Position.Right;
+            targetPosition = Position.Right;
+          } else {
+            sourcePosition = Position.Left;
+            targetPosition = Position.Left;
+          }
+        }
+      }
+    }
   }
 
   let sx = sx_center;
   let sy = sy_center;
   if (sourcePosition === Position.Left) {
-    sx = source.internals.positionAbsolute.x;
+    sx = srcX;
     sy = sy_center;
   } else if (sourcePosition === Position.Right) {
-    sx = source.internals.positionAbsolute.x + sourceWidth;
+    sx = srcX + sourceW;
     sy = sy_center;
   } else if (sourcePosition === Position.Top) {
     sx = sx_center;
-    sy = source.internals.positionAbsolute.y;
+    sy = srcY;
   } else if (sourcePosition === Position.Bottom) {
     sx = sx_center;
-    sy = source.internals.positionAbsolute.y + sourceHeight;
+    sy = srcY + sourceH;
   }
 
   let tx = tx_center;
   let ty = ty_center;
   if (targetPosition === Position.Left) {
-    tx = target.internals.positionAbsolute.x;
+    tx = tgtX;
     ty = ty_center;
   } else if (targetPosition === Position.Right) {
-    tx = target.internals.positionAbsolute.x + targetWidth;
+    tx = tgtX + targetW;
     ty = ty_center;
   } else if (targetPosition === Position.Top) {
     tx = tx_center;
-    ty = target.internals.positionAbsolute.y;
+    ty = tgtY;
   } else if (targetPosition === Position.Bottom) {
     tx = tx_center;
-    ty = target.internals.positionAbsolute.y + targetHeight;
+    ty = tgtY + targetH;
   }
 
   return {
@@ -502,10 +589,15 @@ function getEdgePoints(
   const targetWidth = targetNode.measured?.width ?? 200;
   const targetHeight = targetNode.measured?.height ?? 80;
 
-  const sx_center = sourceNode.internals.positionAbsolute.x + sourceWidth / 2;
-  const sy_center = sourceNode.internals.positionAbsolute.y + sourceHeight / 2;
-  const tx_center = targetNode.internals.positionAbsolute.x + targetWidth / 2;
-  const ty_center = targetNode.internals.positionAbsolute.y + targetHeight / 2;
+  const sourceX = sourceNode.internals?.positionAbsolute?.x ?? sourceNode.position?.x ?? 0;
+  const sourceY = sourceNode.internals?.positionAbsolute?.y ?? sourceNode.position?.y ?? 0;
+  const targetX = targetNode.internals?.positionAbsolute?.x ?? targetNode.position?.x ?? 0;
+  const targetY = targetNode.internals?.positionAbsolute?.y ?? targetNode.position?.y ?? 0;
+
+  const sx_center = sourceX + sourceWidth / 2;
+  const sy_center = sourceY + sourceHeight / 2;
+  const tx_center = targetX + targetWidth / 2;
+  const ty_center = targetY + targetHeight / 2;
 
   let sourcePosition = customLayout?.sourcePosition || Position.Bottom;
   let targetPosition = customLayout?.targetPosition || Position.Top;
@@ -542,40 +634,40 @@ function getEdgePoints(
   let sy = sy_center;
   const shouldSlide = viewType !== 'event_modeling';
   if (sourcePosition === Position.Left) {
-    sx = sourceNode.internals.positionAbsolute.x;
-    const nodeY = sourceNode.internals.positionAbsolute.y;
+    sx = sourceX;
+    const nodeY = sourceY;
     sy = shouldSlide ? Math.max(nodeY, Math.min(nodeY + sourceHeight, firstWaypoint.y)) : sy_center;
   } else if (sourcePosition === Position.Right) {
-    sx = sourceNode.internals.positionAbsolute.x + sourceWidth;
-    const nodeY = sourceNode.internals.positionAbsolute.y;
+    sx = sourceX + sourceWidth;
+    const nodeY = sourceY;
     sy = shouldSlide ? Math.max(nodeY, Math.min(nodeY + sourceHeight, firstWaypoint.y)) : sy_center;
   } else if (sourcePosition === Position.Top) {
-    sy = sourceNode.internals.positionAbsolute.y;
-    const nodeX = sourceNode.internals.positionAbsolute.x;
+    sy = sourceY;
+    const nodeX = sourceX;
     sx = shouldSlide ? Math.max(nodeX, Math.min(nodeX + sourceWidth, firstWaypoint.x)) : sx_center;
   } else if (sourcePosition === Position.Bottom) {
-    sy = sourceNode.internals.positionAbsolute.y + sourceHeight;
-    const nodeX = sourceNode.internals.positionAbsolute.x;
+    sy = sourceY + sourceHeight;
+    const nodeX = sourceX;
     sx = shouldSlide ? Math.max(nodeX, Math.min(nodeX + sourceWidth, firstWaypoint.x)) : sx_center;
   }
 
   let tx = tx_center;
   let ty = ty_center;
   if (targetPosition === Position.Left) {
-    tx = targetNode.internals.positionAbsolute.x;
-    const nodeY = targetNode.internals.positionAbsolute.y;
+    tx = targetX;
+    const nodeY = targetY;
     ty = shouldSlide ? Math.max(nodeY, Math.min(nodeY + targetHeight, lastWaypoint.y)) : ty_center;
   } else if (targetPosition === Position.Right) {
-    tx = targetNode.internals.positionAbsolute.x + targetWidth;
-    const nodeY = targetNode.internals.positionAbsolute.y;
+    tx = targetX + targetWidth;
+    const nodeY = targetY;
     ty = shouldSlide ? Math.max(nodeY, Math.min(nodeY + targetHeight, lastWaypoint.y)) : ty_center;
   } else if (targetPosition === Position.Top) {
-    ty = targetNode.internals.positionAbsolute.y;
-    const nodeX = targetNode.internals.positionAbsolute.x;
+    ty = targetY;
+    const nodeX = targetX;
     tx = shouldSlide ? Math.max(nodeX, Math.min(nodeX + targetWidth, lastWaypoint.x)) : tx_center;
   } else if (targetPosition === Position.Bottom) {
-    ty = targetNode.internals.positionAbsolute.y + targetHeight;
-    const nodeX = targetNode.internals.positionAbsolute.x;
+    ty = targetY + targetHeight;
+    const nodeX = targetX;
     tx = shouldSlide ? Math.max(nodeX, Math.min(nodeX + targetWidth, lastWaypoint.x)) : tx_center;
   }
 
@@ -702,9 +794,40 @@ function getEdgePoints(
           draggedY = waypoints[0].y;
         } else if (sourcePosition === targetPosition) {
           if (sourcePosition === Position.Top) {
-            draggedY = Math.min(sy, ty) - 40;
+            let minY = Math.min(sy, ty);
+            if (nodesMap) {
+              const xMin = Math.min(sx_center, tx_center);
+              const xMax = Math.max(sx_center, tx_center);
+              for (const [id, node] of nodesMap.entries()) {
+                if (id === sourceNode.id || id === targetNode.id) continue;
+                if (node.type !== 'conceptNode') continue;
+                const nodeX = node.internals?.positionAbsolute?.x ?? node.position?.x ?? 0;
+                const nodeW = node.measured?.width ?? 200;
+                if (nodeX + nodeW > xMin && nodeX < xMax) {
+                  const nodeY = node.internals?.positionAbsolute?.y ?? node.position?.y ?? 0;
+                  minY = Math.min(minY, nodeY);
+                }
+              }
+            }
+            draggedY = minY - 40;
           } else {
-            draggedY = Math.max(sy, ty) + 40;
+            let maxY = Math.max(sy, ty);
+            if (nodesMap) {
+              const xMin = Math.min(sx_center, tx_center);
+              const xMax = Math.max(sx_center, tx_center);
+              for (const [id, node] of nodesMap.entries()) {
+                if (id === sourceNode.id || id === targetNode.id) continue;
+                if (node.type !== 'conceptNode') continue;
+                const nodeX = node.internals?.positionAbsolute?.x ?? node.position?.x ?? 0;
+                const nodeW = node.measured?.width ?? 200;
+                if (nodeX + nodeW > xMin && nodeX < xMax) {
+                  const nodeY = node.internals?.positionAbsolute?.y ?? node.position?.y ?? 0;
+                  const nodeH = node.measured?.height ?? 80;
+                  maxY = Math.max(maxY, nodeY + nodeH);
+                }
+              }
+            }
+            draggedY = maxY + 40;
           }
         }
         rawPoints = [
@@ -719,9 +842,40 @@ function getEdgePoints(
           draggedX = waypoints[0].x;
         } else if (sourcePosition === targetPosition) {
           if (sourcePosition === Position.Left) {
-            draggedX = Math.min(sx, tx) - 40;
+            let minX = Math.min(sx, tx);
+            if (nodesMap) {
+              const yMin = Math.min(sy_center, ty_center);
+              const yMax = Math.max(sy_center, ty_center);
+              for (const [id, node] of nodesMap.entries()) {
+                if (id === sourceNode.id || id === targetNode.id) continue;
+                if (node.type !== 'conceptNode') continue;
+                const nodeY = node.internals?.positionAbsolute?.y ?? node.position?.y ?? 0;
+                const nodeH = node.measured?.height ?? 80;
+                if (nodeY + nodeH > yMin && nodeY < yMax) {
+                  const nodeX = node.internals?.positionAbsolute?.x ?? node.position?.x ?? 0;
+                  minX = Math.min(minX, nodeX);
+                }
+              }
+            }
+            draggedX = minX - 40;
           } else {
-            draggedX = Math.max(sx, tx) + 40;
+            let maxX = Math.max(sx, tx);
+            if (nodesMap) {
+              const yMin = Math.min(sy_center, ty_center);
+              const yMax = Math.max(sy_center, ty_center);
+              for (const [id, node] of nodesMap.entries()) {
+                if (id === sourceNode.id || id === targetNode.id) continue;
+                if (node.type !== 'conceptNode') continue;
+                const nodeY = node.internals?.positionAbsolute?.y ?? node.position?.y ?? 0;
+                const nodeH = node.measured?.height ?? 80;
+                if (nodeY + nodeH > yMin && nodeY < yMax) {
+                  const nodeX = node.internals?.positionAbsolute?.x ?? node.position?.x ?? 0;
+                  const nodeW = node.measured?.width ?? 200;
+                  maxX = Math.max(maxX, nodeX + nodeW);
+                }
+              }
+            }
+            draggedX = maxX + 40;
           }
         } else if (viewType === 'event_modeling') {
           if (targetPosition === Position.Left) {
@@ -815,6 +969,26 @@ function getWaypointsForDrag(
   };
 }
 
+// Helper to extract relation type string from an edge
+function getEdgeTypeString(edge: any): string {
+  const markerStart = edge.data?.markerStart || '';
+  const markerEnd = edge.data?.markerEnd || '';
+  const stroke = edge.style?.stroke || '';
+  
+  if (markerStart.includes('condition') || markerEnd.includes('condition')) return 'condition';
+  if (markerStart.includes('response') || markerEnd.includes('response')) return 'response';
+  if (markerStart.includes('include') || markerEnd.includes('include')) return 'include';
+  if (markerStart.includes('exclude') || markerEnd.includes('exclude')) return 'exclude';
+  if (markerStart.includes('milestone') || markerEnd.includes('milestone')) return 'milestone';
+  
+  return stroke || 'default';
+}
+
+// Module-level cache: maps edgeId → actual sourcePosition/targetPosition computed by getOrthogonalParams.
+// Each FloatingEdge writes its own entry when rendering; subsequent renders of OTHER edges read it.
+// One render cycle of lag is acceptable — by the 2nd render the values are correct.
+const _edgeRoutingCache = new Map<string, { sp: Position; tp: Position }>();
+
 // Custom FloatingEdge
 function FloatingEdge({ id, source, target, style, label, labelStyle, selected, data, className }: FloatingEdgeProps) {
   const sourceNode = useInternalNode(source);
@@ -825,10 +999,12 @@ function FloatingEdge({ id, source, target, style, label, labelStyle, selected, 
   const [dragDirection, setDragDirection] = useState<'horizontal' | 'vertical' | null>(null);
   const reactFlow = useReactFlow();
 
-  if (!sourceNode || !targetNode) return null;
+  // Use the xyflow internal nodeLookup so we get InternalNode objects with
+  // internals.positionAbsolute (absolute canvas coords) — not just local position.
+  // Must be called before any early returns (React rules of hooks).
+  const internalNodesMap = useStore(state => state.nodeLookup as Map<string, InternalNode>);
 
-  const nodes = reactFlow.getNodes();
-  const nodesMap = useMemo(() => new Map(nodes.map(n => [n.id, n])), [nodes]);
+  if (!sourceNode || !targetNode) return null;
 
   const activeNotation = NotationRegistry.forViewType(data?.viewType as ViewType);
   const isOrthogonal = activeNotation?.orthogonalEdges;
@@ -852,17 +1028,18 @@ function FloatingEdge({ id, source, target, style, label, labelStyle, selected, 
   const layoutAlgorithm = data?.layoutAlgorithm as string | undefined;
   const viewEdges = data?.viewEdges as any[] | undefined;
   const customLayout = layoutAlgorithm === 'manual' ? viewEdges?.find((ve) => ve.relationId === id) : undefined;
+  const isDragging = draggedSegment !== null;
 
   if (isOrthogonal) {
     const edgePoints = getEdgePoints(
-      sourceNode as InternalNode,
-      targetNode as InternalNode,
+      sourceNode,
+      targetNode,
       customLayout,
       layoutAlgorithm,
       dragDirection || undefined,
-      draggedSegment !== null,
+      isDragging,
       data?.viewType as string,
-      nodesMap
+      internalNodesMap
     );
     sourcePosition = edgePoints.sourcePosition;
     targetPosition = edgePoints.targetPosition;
@@ -887,24 +1064,87 @@ function FloatingEdge({ id, source, target, style, label, labelStyle, selected, 
       else if (targetPosition === Position.Bottom) pEnd.y += targetPadding;
     }
 
-    if (totalEdges && totalEdges > 1 && edgeIndex !== undefined) {
-      const step = 20;
-      const offsetVal = (edgeIndex - (totalEdges - 1) / 2) * step;
+    // Write this edge's actual routing sides to the cache so other edges can read them next render.
+    _edgeRoutingCache.set(id, { sp: sourcePosition, tp: targetPosition });
 
+    // ─── Side-aware handle distribution ─────────────────────────────────────
+    // Same type on same side  → stacked at center (no offset).
+    // Different types on same side → spread 20 px apart, centred around zero.
+    // We use _edgeRoutingCache for already-rendered edges (accurate), and a
+    // simple dx/dy fallback for edges whose cache entry doesn't exist yet.
+    const allEdges = reactFlow.getEdges();
+    const currentType = getEdgeTypeString({ data, style });
+
+    const getEdgeSrcSide = (e: { id: string; source: string; target: string }): Position => {
+      const cached = _edgeRoutingCache.get(e.id);
+      if (cached) return cached.sp;
+      // Fallback: approximate from absolute node centres
+      const src = internalNodesMap?.get(e.source);
+      const tgt = internalNodesMap?.get(e.target);
+      if (!src || !tgt) return sourcePosition;
+      const eDx = (tgt.internals.positionAbsolute.x + (tgt.measured?.width ?? 200) / 2)
+                - (src.internals.positionAbsolute.x + (src.measured?.width ?? 200) / 2);
+      const eDy = (tgt.internals.positionAbsolute.y + (tgt.measured?.height ?? 80) / 2)
+                - (src.internals.positionAbsolute.y + (src.measured?.height ?? 80) / 2);
+      if (Math.abs(eDx) >= Math.abs(eDy)) return eDx >= 0 ? Position.Right : Position.Left;
+      return eDy >= 0 ? Position.Bottom : Position.Top;
+    };
+
+    const getEdgeTgtSide = (e: { id: string; source: string; target: string }): Position => {
+      const cached = _edgeRoutingCache.get(e.id);
+      if (cached) return cached.tp;
+      const src = internalNodesMap?.get(e.source);
+      const tgt = internalNodesMap?.get(e.target);
+      if (!src || !tgt) return targetPosition;
+      const eDx = (tgt.internals.positionAbsolute.x + (tgt.measured?.width ?? 200) / 2)
+                - (src.internals.positionAbsolute.x + (src.measured?.width ?? 200) / 2);
+      const eDy = (tgt.internals.positionAbsolute.y + (tgt.measured?.height ?? 80) / 2)
+                - (src.internals.positionAbsolute.y + (src.measured?.height ?? 80) / 2);
+      if (Math.abs(eDx) >= Math.abs(eDy)) return eDx >= 0 ? Position.Left : Position.Right;
+      return eDy >= 0 ? Position.Top : Position.Bottom;
+    };
+
+    // Edges from this source exiting from the same side
+    const sameSourceSideEdges = allEdges.filter(
+      e => e.source === source && getEdgeSrcSide(e) === sourcePosition
+    );
+    const sourceUniqueTypes = Array.from(
+      new Set(sameSourceSideEdges.map(e => getEdgeTypeString(e)))
+    ).sort();
+    const sourceTotalEdges = sourceUniqueTypes.length;
+    const sourceOffsetIndex = sourceUniqueTypes.indexOf(currentType);
+
+    // Edges entering this target on the same side
+    const sameTargetSideEdges = allEdges.filter(
+      e => e.target === target && getEdgeTgtSide(e) === targetPosition
+    );
+    const targetUniqueTypes = Array.from(
+      new Set(sameTargetSideEdges.map(e => getEdgeTypeString(e)))
+    ).sort();
+    const targetTotalEdges = targetUniqueTypes.length;
+    const targetOffsetIndex = targetUniqueTypes.indexOf(currentType);
+
+    const step = 20;
+
+    if (sourceTotalEdges > 1 && sourceOffsetIndex !== -1) {
+      const sourceOffsetVal = (sourceOffsetIndex - (sourceTotalEdges - 1) / 2) * step;
       if (sourcePosition === Position.Top || sourcePosition === Position.Bottom) {
-        renderedPoints[0].x += offsetVal;
-        if (renderedPoints.length > 2) renderedPoints[1].x += offsetVal;
+        renderedPoints[0].x += sourceOffsetVal;
+        if (renderedPoints.length > 2) renderedPoints[1].x += sourceOffsetVal;
       } else {
-        renderedPoints[0].y += offsetVal;
-        if (renderedPoints.length > 2) renderedPoints[1].y += offsetVal;
+        renderedPoints[0].y += sourceOffsetVal;
+        if (renderedPoints.length > 2) renderedPoints[1].y += sourceOffsetVal;
       }
+    }
 
+    if (targetTotalEdges > 1 && targetOffsetIndex !== -1) {
+      const targetOffsetVal = (targetOffsetIndex - (targetTotalEdges - 1) / 2) * step;
       if (targetPosition === Position.Top || targetPosition === Position.Bottom) {
-        renderedPoints[renderedPoints.length - 1].x += offsetVal;
-        if (renderedPoints.length > 2) renderedPoints[renderedPoints.length - 2].x += offsetVal;
+        renderedPoints[renderedPoints.length - 1].x += targetOffsetVal;
+        if (renderedPoints.length > 2) renderedPoints[renderedPoints.length - 2].x += targetOffsetVal;
       } else {
-        renderedPoints[renderedPoints.length - 1].y += offsetVal;
-        if (renderedPoints.length > 2) renderedPoints[renderedPoints.length - 2].y += offsetVal;
+        renderedPoints[renderedPoints.length - 1].y += targetOffsetVal;
+        if (renderedPoints.length > 2) renderedPoints[renderedPoints.length - 2].y += targetOffsetVal;
       }
     }
 
@@ -1160,7 +1400,7 @@ function FloatingEdge({ id, source, target, style, label, labelStyle, selected, 
         undefined,
         false,
         data?.viewType as string,
-        nodesMap
+        internalNodesMap
       );
 
       const simplifiedPath = simplifyCollinearPoints(filterDuplicatePoints(edgePoints.points));
@@ -1184,6 +1424,17 @@ function FloatingEdge({ id, source, target, style, label, labelStyle, selected, 
 
   const maxChars = Math.max(10, Math.floor((distance - 12) / 6));
   const displayName = truncate(cleanName, maxChars);
+  const isDcrView = data?.viewType === 'dcr';
+  const isStandardDcrLabel = isDcrView && [
+    'condition',
+    'response',
+    'include',
+    'includes',
+    'exclude',
+    'excludes',
+    'milestone'
+  ].some(standardWord => cleanName.toLowerCase().trim().includes(standardWord));
+  const showLabel = displayName && !isStandardDcrLabel;
   const displayMultiplicity = multiplicity ? truncate(multiplicity, maxChars) : '';
   const hasMultiplicity = !!displayMultiplicity;
 
@@ -1265,7 +1516,7 @@ function FloatingEdge({ id, source, target, style, label, labelStyle, selected, 
           />
         );
       })}
-      {displayName && (
+      {showLabel && (
         <g
           transform={`translate(${midX}, ${midY})`}
           className="nodrag nopan"
@@ -1398,24 +1649,7 @@ export function ReactFlowCanvas({
     selectedConceptIdsRef.current = selectedConceptIds;
   }, [selectedConceptId, selectedConceptIds]);
 
-  // Smoothly center the canvas viewport on the selected node when centerSelectionCount changes (Navigator, Command, Tab cycle)
-  useEffect(() => {
-    if (!selectedConceptId) return;
-    const selectedNode = nodes.find((n) => n.id === selectedConceptId);
-    if (selectedNode) {
-      const nodeWidth = selectedNode.measured?.width ?? 200;
-      const nodeHeight = selectedNode.measured?.height ?? 80;
-      const x = selectedNode.position.x + nodeWidth / 2;
-      const y = selectedNode.position.y + nodeHeight / 2;
 
-      // Smoothly pan to the center of the node
-      reactFlow.setCenter(x, y, {
-        zoom: Math.min(reactFlow.getZoom(), 1.0),
-        duration: 200,
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [centerSelectionCount, reactFlow]);
 
   const computedNodes: Node[] = useMemo(() => {
     const activeNotation = NotationRegistry.forViewType(view.type);
@@ -1790,6 +2024,35 @@ export function ReactFlowCanvas({
 
   const [nodes, setNodes] = useNodesState(computedNodes);
   const [edges, setEdges] = useEdgesState(initialEdges);
+
+  // Smoothly center the canvas viewport on the selected node when centerSelectionCount changes (Navigator, Command, Tab cycle)
+  useEffect(() => {
+    if (!selectedConceptId) return;
+    const selectedNode = nodes.find((n) => n.id === selectedConceptId);
+    if (selectedNode) {
+      const nodeWidth = selectedNode.measured?.width ?? 200;
+      const nodeHeight = selectedNode.measured?.height ?? 80;
+      const x = selectedNode.position.x + nodeWidth / 2;
+      const y = selectedNode.position.y + nodeHeight / 2;
+
+      // Smoothly pan to the center of the node
+      reactFlow.setCenter(x, y, {
+        zoom: Math.min(reactFlow.getZoom(), 1.0),
+        duration: 200,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [centerSelectionCount, reactFlow]);
+
+  // Automatically fit the view when active view, notation, nodes length, or canvas width changes
+  useEffect(() => {
+    if (nodes.length > 0) {
+      const timer = setTimeout(() => {
+        reactFlow.fitView({ maxZoom: 1.0, duration: 200 });
+      }, 200);
+      return () => clearTimeout(timer);
+    }
+  }, [view.id, view.type, nodes.length, canvasWidth, reactFlow]);
 
   const onNodesChange = useCallback((changes: NodeChange[]) => {
     const safe = changes.filter((c) => c.type !== 'remove');

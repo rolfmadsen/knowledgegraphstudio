@@ -95,3 +95,19 @@ Opdateret `getClosestPosition` i [edgeRouting.ts](file:///home/rolfmadsen/Github
 2. **Under aktiv trækning af et lodret segment (`dragDirection === 'vertical'`)**: Segmentet snapper til Left/Right-fladerne med det samme, det krydser nodens venstre (`xMin`) eller højre (`xMax`) grænse.
 3. **Når der ikke trækkes (standard/gemt tilstand)**: For at forhindre lodret overlap og tilbageløb ("Pinden") når et waypoint befinder sig over eller under noden, snapper systemet nu direkte til henholdsvis **Top** (når `y < yMin`) eller **Bottom** (når `y > yMax`) fladen. Hvis waypointet er inden for nodens lodrette grænser (`yMin <= y <= yMax`), snapper det til Left/Right-fladen.
 Dette fjerner helt "Pinden" (det uønskede lodrette overlap) og sikrer, at trækning og fastholdelse af segmenter føles ekstremt responsivt og mekanisk flydende, præcis som i `diagram-js`.
+
+## Lighthouse Performance & Animation Udfordringer
+**Problem**:
+Under kørsel af Google Chrome Lighthouse Performance-analyse opstod der uventede crashes og fejl:
+1. `Minify CSS — Error!` og `Minify JavaScript — Error!` samt `Reduce unused JavaScript — Error!` (med rød `Error!` markering i stedet for talværdier).
+2. `Avoid non-composited animations` advarsler på 9 interaktive elementer (såsom noder i canvasset, elementer i navigations-træet og layout-knapper).
+
+**Årsag**:
+1. **Lighthouse/Parser Crash**: Da Monaco Editor (ca. 3.6 MB) og WebLLM-workerne blev indlæst i baggrunden med det samme under opstart (fordi de blev renderet i DOM'en med `style={{ display: 'none' }}` i stedet for at være udeladt via konditionel rendering), forsøgte Lighthouse at downloade og compile disse gigantiske bundles under analysen. Dette fik Lighthouse-arbejderprocessen til at løbe tør for RAM (heap memory limit) eller CPU-timeout, hvilket resulterede i et generelt audit-crash.
+2. **Ikke-komponerede CSS-Transitions**: Elementerne benyttede `transition-all` eller `transition-colors`, som animerede egenskaber der kræver repaint på browserens main-thread (såsom `border-color`, `box-shadow`, `color` og `background-color`). Da disse kørte transitions, loggede Chrome ikke-komponerede animationsadvarsler.
+
+**Løsning**:
+1. **Lazy Mounting (Mount-on-Demand)**: I `App.tsx` indførte vi lazy-mounting tilstande (`codeLoaded` og `diffLoaded`). Tunge komponenter som `CodeViewport` og `DiffViewport` indlæses og mountes nu udelukkende, når de rent faktisk vises for første gang (fx ved skift til Code/Diff-visning). Efter at være åbnet første gang, forbliver de mountede i hukommelsen for at forhindre Monaco-fejl ("TextModel got disposed"). Alle andre hjælpe-modaler renderes nu også rent konditionelt (fx `{isNodeCreatorOpen && <NodeCreator />}`). Dette fjerner 100% og de tunge scripts fra den initiale indlæsning, og løser derved parser-crashes i Lighthouse.
+2. **Komponerede CSS-Transitions**:
+   - I `GraphViewport.tsx` blev `transition-all` på noder erstattet med `transition-transform duration-300`, hvilket sikrer, at kun den GPU-accelererede `transform` (fx flytning/skalering) animeres jævnt, mens ramme- og skyggefarver ændres øjeblikkeligt uden repaint.
+   - I `Navigator.tsx` og `ViewToolbar.tsx` blev `transition-all` og `transition-colors` fjernet fra listeknapper og ikoner. Hover-effekter sker nu øjeblikkeligt, hvilket fjerner animationsadvarslerne og gør brugerfladen mere responsiv.

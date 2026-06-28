@@ -11,6 +11,7 @@
  *    state's stringified YAML as the `modified` document, rendering a side-by-side diff.
  */
 import { useState, useEffect, useMemo } from 'react';
+import '../../../core/monacoLoader'; // Self-host Monaco — must run before Editor mounts
 import { DiffEditor } from '@monaco-editor/react';
 import { useGraphStore } from '../../../store/useGraphStore';
 

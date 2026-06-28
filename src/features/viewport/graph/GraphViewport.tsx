@@ -17,7 +17,7 @@ export function ConceptNodeComponent({ data, selected }: NodeProps<ConceptNodeTy
   if (data.concept?.conceptType === 'bounded_context') {
     return (
       <div className={`
-        w-full h-full p-4 border-2 border-dashed rounded-2xl font-sans text-left transition-all duration-300
+        w-full h-full p-4 border-2 border-dashed rounded-2xl font-sans text-left transition-transform duration-300
         ${selected
           ? 'border-emerald-500 bg-emerald-50/5 ring-4 ring-emerald-100 shadow-sm'
           : 'border-slate-300 hover:border-slate-400 bg-transparent'}
@@ -42,7 +42,7 @@ export function ConceptNodeComponent({ data, selected }: NodeProps<ConceptNodeTy
 
   return (
     <div className={`
-      relative min-w-[220px] min-h-[80px] px-8 py-6 bg-white/95 backdrop-blur-md border-2 transition-all rounded-[2rem] flex flex-col justify-center
+      relative min-w-[220px] min-h-[80px] px-8 py-6 bg-white/95 backdrop-blur-md border-2 transition-transform duration-300 rounded-[2rem] flex flex-col justify-center
       ${selected
         ? 'border-emerald-500 shadow-2xl shadow-emerald-200/50 -translate-y-1'
         : 'border-slate-100 shadow-xl shadow-slate-200/30'}

@@ -139,7 +139,7 @@ export function ViewToolbar() {
                 onClick={() => handleLayoutChange(algo)}
                 title={description}
                 className={`
-                  flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all
+                  flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider
                   ${isActive
                     ? 'bg-emerald-600 text-white shadow-md shadow-emerald-200'
                     : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'}
@@ -158,7 +158,7 @@ export function ViewToolbar() {
           <button
             onClick={handleReLayout}
             disabled={!isAutoLayout}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all active:scale-95
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-transform active:scale-95
               disabled:opacity-30 disabled:cursor-not-allowed
               enabled:text-emerald-600 enabled:hover:bg-emerald-50"
             title={isAutoLayout ? 'Re-run auto layout' : 'Switch to Force or Tree to use auto layout'}

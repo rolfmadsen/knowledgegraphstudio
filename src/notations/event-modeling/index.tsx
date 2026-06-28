@@ -16,16 +16,19 @@
  * Gherkin: exposed via InspectorComponent on Command nodes only.
  */
 
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Handle, Position, type NodeProps, type Node } from '@xyflow/react';
 import type { Notation, NotationCanvasProps } from '../types';
 import { ReactFlowCanvas } from '../../features/viewport/graph/ReactFlowCanvas';
+import { useGraphStore } from '../../store/useGraphStore';
 import { eventModelingLayoutEngine } from './layout';
 import { isValidRelation, getAvailableRelations } from './validator';
 import { InspectorSection } from '../../features/properties/Inspector';
+import { type Policy } from '../../schema/graphSchema';
 import type {
   ConceptNode,
   ConceptProperty,
+  ConceptRelation,
   DataType,
   ElementId,
 } from '../../schema/graphSchema';
@@ -258,6 +261,219 @@ function EventModelingCanvas(props: NotationCanvasProps) {
 //           — em_slice: Actor field
 // ============================================================
 
+// ── Gherkin helper functions ───────────────────────────────
+
+function formatPoliciesToGherkinString(policies: Policy[]): string {
+  const gherkinPolicies = policies.filter((p) => p.type === 'gherkin');
+  if (gherkinPolicies.length === 0) return '';
+  return gherkinPolicies.map((spec) => {
+    let result = `Scenario: ${spec.name}\n`;
+    if (spec.given && spec.given.length > 0 && spec.given[0] !== '') {
+      result += spec.given.map((g, idx) => `  ${idx === 0 ? 'Given' : 'And'} ${g}`).join('\n') + '\n';
+    }
+    if (spec.when && spec.when.length > 0 && spec.when[0] !== '') {
+      result += spec.when.map((w, idx) => `  ${idx === 0 ? 'When' : 'And'} ${w}`).join('\n') + '\n';
+    }
+    if (spec.then && spec.then.length > 0 && spec.then[0] !== '') {
+      result += spec.then.map((t, idx) => `  ${idx === 0 ? 'Then' : 'And'} ${t}`).join('\n') + '\n';
+    }
+    return result;
+  }).join('\n');
+}
+
+function parseGherkinStringToPolicies(text: string): Policy[] {
+  const lines = text.split('\n');
+  const policies: Policy[] = [];
+  let currentSpec: any = null;
+  let currentStep: 'given' | 'when' | 'then' | null = null;
+
+  for (let line of lines) {
+    line = line.trim();
+    if (line === '') continue;
+
+    if (line.toLowerCase().startsWith('scenario:')) {
+      if (currentSpec) {
+        policies.push(currentSpec);
+      }
+      const name = line.substring(9).trim() || 'Specification';
+      currentSpec = {
+        id: `gherkin:spec-${Date.now()}-${policies.length}` as ElementId,
+        name,
+        tags: [],
+        type: 'gherkin' as const,
+        given: [],
+        when: [],
+        then: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        lifecycleState: 'active' as const,
+      };
+      currentStep = null;
+    } else {
+      if (!currentSpec) {
+        currentSpec = {
+          id: `gherkin:spec-${Date.now()}` as ElementId,
+          name: 'Implicit Scenario',
+          tags: [],
+          type: 'gherkin' as const,
+          given: [],
+          when: [],
+          then: [],
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          lifecycleState: 'active' as const,
+        };
+      }
+
+      const lower = line.toLowerCase();
+      if (lower.startsWith('given ')) {
+        currentStep = 'given';
+        currentSpec.given.push(line.substring(6).trim());
+      } else if (lower.startsWith('when ')) {
+        currentStep = 'when';
+        currentSpec.when.push(line.substring(5).trim());
+      } else if (lower.startsWith('then ')) {
+        currentStep = 'then';
+        currentSpec.then.push(line.substring(5).trim());
+      } else if (lower.startsWith('and ')) {
+        if (currentStep) {
+          currentSpec[currentStep].push(line.substring(4).trim());
+        }
+      } else {
+        if (currentStep && currentSpec[currentStep].length > 0) {
+          const lastIdx = currentSpec[currentStep].length - 1;
+          currentSpec[currentStep][lastIdx] += ' ' + line;
+        }
+      }
+    }
+  }
+
+  if (currentSpec) {
+    policies.push(currentSpec);
+  }
+
+  return policies;
+}
+
+// ── Gherkin text area editor ───────────────────────────────
+
+function GherkinTextEditor({
+  concept,
+  updateConcept,
+}: {
+  concept: ConceptNode;
+  updateConcept: (id: ElementId, updates: Partial<ConceptNode>) => void;
+}) {
+  const policies = concept.policies ?? [];
+  const initialText = useMemo(() => formatPoliciesToGherkinString(policies), [policies]);
+  const [localText, setLocalText] = useState(initialText);
+
+  useEffect(() => {
+    setLocalText(formatPoliciesToGherkinString(policies));
+  }, [policies]);
+
+  const handleBlur = () => {
+    const updatedPolicies = parseGherkinStringToPolicies(localText);
+    const nonGherkin = policies.filter((p) => p.type !== 'gherkin');
+    updateConcept(concept.id, { policies: [...nonGherkin, ...updatedPolicies] });
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      <textarea
+        value={localText}
+        onChange={(e) => setLocalText(e.target.value)}
+        onBlur={handleBlur}
+        rows={6}
+        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[11px] font-mono text-slate-700 hover:border-slate-300 focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/5 outline-none transition-all resize-y"
+        placeholder="Scenario: Godkend Gyldig Ordre&#10;  Given Ordre status er 'pending'&#10;  When Godkend Ordre udføres&#10;  Then Ordre status bliver 'approved'"
+      />
+    </div>
+  );
+}
+
+// ── DCR Rule Multi-Select Widget ───────────────────────────
+
+interface DcrRuleSelectProps {
+  label: string;
+  description: string;
+  placeholder: string;
+  options: Array<{ id: string; name: string; sliceName?: string }>;
+  selectedIds: string[];
+  onAdd: (id: string) => void;
+  onRemove: (id: string) => void;
+}
+
+function DcrRuleSelect({
+  label,
+  description,
+  placeholder,
+  options,
+  selectedIds,
+  onAdd,
+  onRemove,
+}: DcrRuleSelectProps) {
+  const selectedOptions = options.filter((o) => selectedIds.includes(o.id));
+  const availableOptions = options.filter((o) => !selectedIds.includes(o.id));
+
+  return (
+    <div className="flex flex-col gap-2.5">
+      <div className="flex flex-col gap-0.5">
+        <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider ml-1">{label}</label>
+        <span className="text-[9px] text-slate-400 ml-1 leading-normal">{description}</span>
+      </div>
+
+      {/* Selected list */}
+      {selectedOptions.length > 0 && (
+        <div className="flex flex-col gap-1.5 ml-1">
+          {selectedOptions.map((o) => (
+            <div key={o.id} className="flex items-center justify-between p-2 bg-slate-50 border border-slate-200/50 rounded-xl text-[11px] text-slate-700">
+              <span className="font-semibold truncate max-w-[200px]">
+                {o.sliceName ? `👤 ${o.name} (${o.sliceName})` : `⚙️ ${o.name}`}
+              </span>
+              <button
+                type="button"
+                onClick={() => onRemove(o.id)}
+                className="text-slate-400 hover:text-red-500 transition-colors px-1 cursor-pointer font-bold"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Dropdown to add */}
+      {availableOptions.length > 0 ? (
+        <div className="relative">
+          <select
+            value=""
+            onChange={(e) => {
+              const val = e.target.value;
+              if (val) onAdd(val);
+            }}
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-[11px] font-semibold text-slate-500 hover:border-slate-300 focus:bg-white focus:border-emerald-500 outline-none appearance-none cursor-pointer transition-all pr-8"
+          >
+            <option value="">{placeholder}</option>
+            {availableOptions.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.sliceName ? `${o.name} (${o.sliceName})` : o.name}
+              </option>
+            ))}
+          </select>
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 text-[10px]">▼</span>
+        </div>
+      ) : (
+        <div className="text-[10px] text-slate-400 italic ml-1">
+          Ingen tilgængelige valgmuligheder
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Event Modeling Main Inspector ─────────────────────────
+
 function EventModelingInspector({
   concept,
   updateConcept,
@@ -274,11 +490,24 @@ function EventModelingInspector({
   deleteProperty: (conceptId: ElementId, propertyId: ElementId) => void;
   concepts: ConceptNode[];
 }) {
-  // NOTE: addProperty, updateProperty, deleteProperty are intentionally unused here.
-  // The EM Inspector uses updateConcept to manage policies directly (Gherkin on Commands)
-  // and definition field (actor on em_slice). They are required by the Notation interface.
-  void concepts; // suppress unused warning — reserved for future cross-concept lookups
   const { conceptType, id } = concept;
+
+  // Retrieve relations and modifiers directly from Zustand via stable scalar selectors
+  const relations = useGraphStore((s) => s.relations);
+  const addRelation = useGraphStore((s) => s.addRelation);
+  const deleteRelation = useGraphStore((s) => s.deleteRelation);
+
+  const getSliceName = (conceptId: ElementId) => {
+    const node = concepts.find((c) => c.id === conceptId);
+    if (!node) return undefined;
+    if (node.parentId) {
+      const parent = concepts.find((c) => c.id === node.parentId);
+      if (parent && parent.conceptType === 'em_slice') {
+        return parent.name;
+      }
+    }
+    return undefined;
+  };
 
   // ── em_slice: actor label editor ──────────────────────────
   if (conceptType === 'em_slice') {
@@ -305,109 +534,176 @@ function EventModelingInspector({
 
   // ── command: Gherkin specification panel ──────────────────
   if (conceptType === 'command') {
-    const policies = concept.policies ?? [];
-    const gherkinPolicies = policies.filter((p) => p.type === 'gherkin');
+    return (
+      <InspectorSection title="Gherkin Specifikation">
+        <div className="flex flex-col gap-3">
+          <p className="text-[10px] text-slate-400 leading-relaxed">
+            Skriv forretningsscenarier i Gherkin-syntaks (Given-When-Then).
+          </p>
+          <GherkinTextEditor concept={concept} updateConcept={updateConcept} />
+        </div>
+      </InspectorSection>
+    );
+  }
 
-    const addGherkinSpec = () => {
-      const now = Date.now();
-      const newPolicy = {
-        id: `gherkin:spec-${now}` as ElementId,
-        name: 'New Specification',
-        tags: [],
-        type: 'gherkin' as const,
-        given: [''],
-        when: [''],
-        then: [''],
-        createdAt: now,
-        updatedAt: now,
-        lifecycleState: 'active' as const,
-      };
-      updateConcept(id, { policies: [...policies, newPolicy] });
+  // ── event & integration_event: DCR rule panel ─────────────
+  if (conceptType === 'event' || conceptType === 'integration_event') {
+    // List of other events to choose from
+    const eventOptions = concepts
+      .filter((c) => (c.conceptType === 'event' || c.conceptType === 'integration_event') && c.id !== id)
+      .map((c) => ({
+        id: c.id,
+        name: c.name,
+        sliceName: getSliceName(c.id),
+      }));
+
+    // Helper to identify DCR relation by type or name (supports relations created in both DCR and EM views)
+    const isDcrType = (r: ConceptRelation, typeKey: string) => {
+      const relType = (r.relationType || '').toLowerCase().trim();
+      const relName = (r.name || '').toLowerCase().trim();
+      return relType === typeKey || relType.includes(typeKey) || relName.includes(typeKey);
     };
 
-    const updateSpec = (
-      specId: string,
-      field: 'given' | 'when' | 'then' | 'name',
-      value: string | string[],
-    ) => {
-      const updated = policies.map((p) =>
-        p.id === specId ? { ...p, [field]: value, updatedAt: Date.now() } : p,
+    // 1. Condition Options (Preceding Events)
+    const selectedConditions = relations
+      .filter((r) => r.targetConceptId === id && isDcrType(r, 'condition'))
+      .map((r) => r.sourceConceptId);
+
+    const onAddCondition = (eventId: string) => {
+      addRelation(eventId as ElementId, id, 'Condition', { relationType: 'has_condition' });
+    };
+
+    const onRemoveCondition = (eventId: string) => {
+      const rel = relations.find(
+        (r) => r.sourceConceptId === eventId && r.targetConceptId === id && isDcrType(r, 'condition')
       );
-      updateConcept(id, { policies: updated });
+      if (rel) deleteRelation(rel.id);
     };
 
-    const removeSpec = (specId: string) => {
-      updateConcept(id, { policies: policies.filter((p) => p.id !== specId) });
+    // 2. Response Options (Succeeding Events)
+    const selectedResponses = relations
+      .filter((r) => r.sourceConceptId === id && isDcrType(r, 'response'))
+      .map((r) => r.targetConceptId);
+
+    const onAddResponse = (targetEventId: string) => {
+      addRelation(id, targetEventId as ElementId, 'Response', { relationType: 'has_response' });
+    };
+
+    const onRemoveResponse = (targetEventId: string) => {
+      const rel = relations.find(
+        (r) => r.sourceConceptId === id && r.targetConceptId === targetEventId && isDcrType(r, 'response')
+      );
+      if (rel) deleteRelation(rel.id);
+    };
+
+    // 3. Exclude Options (Events excluded by this)
+    const selectedExcludes = relations
+      .filter((r) => r.sourceConceptId === id && isDcrType(r, 'exclude'))
+      .map((r) => r.targetConceptId);
+
+    const onAddExclude = (targetEventId: string) => {
+      addRelation(id, targetEventId as ElementId, 'Exclude', { relationType: 'excludes' });
+    };
+
+    const onRemoveExclude = (targetEventId: string) => {
+      const rel = relations.find(
+        (r) => r.sourceConceptId === id && r.targetConceptId === targetEventId && isDcrType(r, 'exclude')
+      );
+      if (rel) deleteRelation(rel.id);
+    };
+
+    // 4. Include Options (Events activated by this)
+    const selectedIncludes = relations
+      .filter((r) => r.sourceConceptId === id && isDcrType(r, 'include'))
+      .map((r) => r.targetConceptId);
+
+    const onAddInclude = (targetEventId: string) => {
+      addRelation(id, targetEventId as ElementId, 'Include', { relationType: 'includes' });
+    };
+
+    const onRemoveInclude = (targetEventId: string) => {
+      const rel = relations.find(
+        (r) => r.sourceConceptId === id && r.targetConceptId === targetEventId && isDcrType(r, 'include')
+      );
+      if (rel) deleteRelation(rel.id);
+    };
+
+    // 5. Milestone Options (Pending events that block this)
+    const selectedMilestones = relations
+      .filter((r) => r.targetConceptId === id && isDcrType(r, 'milestone'))
+      .map((r) => r.sourceConceptId);
+
+    const onAddMilestone = (eventId: string) => {
+      addRelation(eventId as ElementId, id, 'Milestone', { relationType: 'has_milestone' });
+    };
+
+    const onRemoveMilestone = (eventId: string) => {
+      const rel = relations.find(
+        (r) => r.sourceConceptId === eventId && r.targetConceptId === id && isDcrType(r, 'milestone')
+      );
+      if (rel) deleteRelation(rel.id);
     };
 
     return (
-      <InspectorSection title="Gherkin Specifications">
+      <InspectorSection title="Forretningsregler (DCR Wizard)">
         <div className="flex flex-col gap-6">
-          <p className="text-[10px] text-slate-400 leading-relaxed">
-            Specifications validate that this Command produces a valid Domain Event.
-            Each step should describe observable behaviour.
-          </p>
+          <DcrRuleSelect
+            label="1. Hvilke hændelser skal være sket først?"
+            description="Betingelser (Conditions): Denne hændelse kan ikke indtræffe, før følgende hændelser er indtruffet."
+            placeholder="-- Vælg hændelse --"
+            options={eventOptions}
+            selectedIds={selectedConditions}
+            onAdd={onAddCondition}
+            onRemove={onRemoveCondition}
+          />
 
-          {gherkinPolicies.length === 0 && (
-            <div className="p-4 rounded-2xl border border-dashed border-blue-200 bg-blue-50/50 text-center">
-              <p className="text-[11px] text-blue-600 font-semibold">No specifications yet</p>
-              <p className="text-[10px] text-blue-400 mt-0.5">Add a Given/When/Then scenario to validate this command.</p>
-            </div>
-          )}
+          <div className="border-t border-slate-100 my-1" />
 
-          {gherkinPolicies.map((spec) => (
-            <div
-              key={spec.id}
-              className="flex flex-col gap-3 p-4 bg-white border border-slate-100 rounded-2xl shadow-sm"
-            >
-              {/* Spec name */}
-              <div className="flex items-center justify-between gap-2">
-                <input
-                  type="text"
-                  value={spec.name}
-                  onChange={(e) => updateSpec(spec.id, 'name', e.target.value)}
-                  className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-[12px] font-bold text-slate-700 focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/5 outline-none transition-all"
-                  placeholder="Scenario name"
-                />
-                <button
-                  onClick={() => removeSpec(spec.id)}
-                  className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all shrink-0"
-                  title="Remove specification"
-                >
-                  ✕
-                </button>
-              </div>
+          <DcrRuleSelect
+            label="2. Hvilke hændelser skal ske efterfølgende?"
+            description="Respons (Responses): Når denne hændelse sker, skal følgende hændelser efterfølgende indtræffe."
+            placeholder="-- Vælg hændelse --"
+            options={eventOptions}
+            selectedIds={selectedResponses}
+            onAdd={onAddResponse}
+            onRemove={onRemoveResponse}
+          />
 
-              {/* Given */}
-              <GherkinStepEditor
-                stepType="Given"
-                color="text-slate-600 bg-slate-50 border-slate-200"
-                steps={spec.given ?? []}
-                onChange={(v) => updateSpec(spec.id, 'given', v)}
-              />
-              {/* When */}
-              <GherkinStepEditor
-                stepType="When"
-                color="text-blue-600 bg-blue-50 border-blue-200"
-                steps={spec.when ?? []}
-                onChange={(v) => updateSpec(spec.id, 'when', v)}
-              />
-              {/* Then */}
-              <GherkinStepEditor
-                stepType="Then"
-                color="text-emerald-600 bg-emerald-50 border-emerald-200"
-                steps={spec.then ?? []}
-                onChange={(v) => updateSpec(spec.id, 'then', v)}
-              />
-            </div>
-          ))}
+          <div className="border-t border-slate-100 my-1" />
 
-          <button
-            onClick={addGherkinSpec}
-            className="flex items-center justify-center gap-2 p-3 text-[10px] font-black text-blue-600 hover:bg-blue-50 rounded-xl transition-all border border-dashed border-blue-200 hover:border-blue-300 tracking-widest uppercase cursor-pointer"
-          >
-            + Add Specification
-          </button>
+          <DcrRuleSelect
+            label="3. Hvilke hændelser udelukkes?"
+            description="Udelukkelser (Excludes): Deaktiverer efterfølgende hændelser midlertidigt eller permanent."
+            placeholder="-- Vælg hændelse --"
+            options={eventOptions}
+            selectedIds={selectedExcludes}
+            onAdd={onAddExclude}
+            onRemove={onRemoveExclude}
+          />
+
+          <div className="border-t border-slate-100 my-1" />
+
+          <DcrRuleSelect
+            label="4. Hvilke hændelser aktiveres?"
+            description="Inkluderinger (Includes): Genaktiverer en hændelse, som tidligere er blevet udelukket."
+            placeholder="-- Vælg hændelse --"
+            options={eventOptions}
+            selectedIds={selectedIncludes}
+            onAdd={onAddInclude}
+            onRemove={onRemoveInclude}
+          />
+
+          <div className="border-t border-slate-100 my-1" />
+
+          <DcrRuleSelect
+            label="5. Hvilke uafsluttede hændelser blokerer denne hændelse?"
+            description="Milepæle (Milestones): Forhindrer denne hændelse i at indtræffe, hvis en af de valgte hændelser afventer en respons."
+            placeholder="-- Vælg hændelse --"
+            options={eventOptions}
+            selectedIds={selectedMilestones}
+            onAdd={onAddMilestone}
+            onRemove={onRemoveMilestone}
+          />
         </div>
       </InspectorSection>
     );
@@ -416,59 +712,109 @@ function EventModelingInspector({
   return null;
 }
 
-// ── Gherkin step list editor ──────────────────────────────────
+// ── Event Modeling Relation/Edge Inspector ─────────────────
 
-function GherkinStepEditor({
-  stepType,
-  color,
-  steps,
-  onChange,
+function EventModelingRelationInspector({
+  relation,
+  updateRelation,
+  concepts,
 }: {
-  stepType: 'Given' | 'When' | 'Then';
-  color: string;
-  steps: string[];
-  onChange: (steps: string[]) => void;
+  relation: ConceptRelation;
+  updateRelation: (id: ElementId, updates: Partial<ConceptRelation>) => void;
+  concepts: ConceptNode[];
 }) {
-  const updateStep = (idx: number, value: string) => {
-    const next = [...steps];
-    next[idx] = value;
-    onChange(next);
-  };
+  const source = concepts.find((c) => c.id === relation.sourceConceptId);
+  const target = concepts.find((c) => c.id === relation.targetConceptId);
 
-  const addStep = () => onChange([...steps, '']);
-  const removeStep = (idx: number) => onChange(steps.filter((_, i) => i !== idx));
+  if (!source || !target) return null;
+
+  const isProjection = source.conceptType === 'event' && target.conceptType === 'read_model';
+  const isCommandTrigger =
+    (source.conceptType === 'screen' || source.conceptType === 'automation') &&
+    target.conceptType === 'command';
+
+  if (!isProjection && !isCommandTrigger) return null;
 
   return (
-    <div className="flex flex-col gap-1.5">
-      <span className={`text-[9px] font-black uppercase tracking-widest ml-1 ${color.split(' ')[0]}`}>
-        {stepType}
-      </span>
-      {steps.map((step, idx) => (
-        <div key={idx} className="flex gap-1.5 items-center group">
+    <InspectorSection title="Integrations-metadata">
+      <div className="flex flex-col gap-4">
+        {/* Pattern */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">Mønster</label>
+          <div className="relative">
+            <select
+              value={relation.integrationPattern ?? 'Local'}
+              onChange={(e) => updateRelation(relation.id, { integrationPattern: e.target.value as any })}
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[12px] font-semibold text-slate-700 hover:border-slate-300 focus:bg-white focus:border-emerald-500 outline-none appearance-none cursor-pointer transition-all pr-8"
+            >
+              <option value="Local">Local (In-Memory)</option>
+              <option value="PubSub">PubSub (Kafka, EventHubs)</option>
+              <option value="RequestResponse">RequestResponse (REST API, gRPC)</option>
+              <option value="OrchestratedPush">OrchestratedPush (ESB, Gravitee)</option>
+            </select>
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 text-[10px]">▼</span>
+          </div>
+        </div>
+
+        {/* Technology */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">Teknologi</label>
           <input
             type="text"
-            value={step}
-            onChange={(e) => updateStep(idx, e.target.value)}
-            placeholder={`${stepType} ...`}
-            className={`flex-1 border rounded-xl px-3 py-2 text-[11px] font-mono text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-400/30 transition-all ${color}`}
+            value={relation.technology ?? ''}
+            onChange={(e) => updateRelation(relation.id, { technology: e.target.value })}
+            placeholder="f.eks. Kafka, Gravitee, Mule"
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[12px] font-semibold text-slate-700 hover:border-slate-300 focus:bg-white focus:border-emerald-500 outline-none transition-all"
           />
-          {steps.length > 1 && (
-            <button
-              onClick={() => removeStep(idx)}
-              className="p-1 text-slate-300 hover:text-red-400 rounded opacity-0 group-hover:opacity-100 transition-all shrink-0"
-            >
-              ✕
-            </button>
-          )}
         </div>
-      ))}
-      <button
-        onClick={addStep}
-        className="text-[9px] font-bold text-slate-400 hover:text-slate-600 ml-1 text-left transition-colors"
-      >
-        + Add step
-      </button>
-    </div>
+
+        {/* Topic Name (PubSub) */}
+        {(relation.integrationPattern === 'PubSub' || !relation.integrationPattern) && (
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">Kafka Topic</label>
+            <input
+              type="text"
+              value={relation.topicName ?? ''}
+              onChange={(e) => updateRelation(relation.id, { topicName: e.target.value })}
+              placeholder="f.eks. ordre-oprettet-topic"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[12px] font-semibold text-slate-700 hover:border-slate-300 focus:bg-white focus:border-emerald-500 outline-none transition-all"
+            />
+          </div>
+        )}
+
+        {/* HTTP Method and Path (RequestResponse) */}
+        {relation.integrationPattern === 'RequestResponse' && (
+          <>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">HTTP Metode</label>
+              <div className="relative">
+                <select
+                  value={relation.httpMethod ?? 'POST'}
+                  onChange={(e) => updateRelation(relation.id, { httpMethod: e.target.value as any })}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[12px] font-semibold text-slate-700 hover:border-slate-300 focus:bg-white focus:border-emerald-500 outline-none appearance-none cursor-pointer transition-all pr-8"
+                >
+                  <option value="GET">GET</option>
+                  <option value="POST">POST</option>
+                  <option value="PUT">PUT</option>
+                  <option value="DELETE">DELETE</option>
+                </select>
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 text-[10px]">▼</span>
+              </div>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">Endpoint Path</label>
+              <input
+                type="text"
+                value={relation.endpointPath ?? ''}
+                onChange={(e) => updateRelation(relation.id, { endpointPath: e.target.value })}
+                placeholder="f.eks. /api/v1/orders"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[12px] font-semibold text-slate-700 hover:border-slate-300 focus:bg-white focus:border-emerald-500 outline-none transition-all"
+              />
+            </div>
+          </>
+        )}
+      </div>
+    </InspectorSection>
   );
 }
 
@@ -512,6 +858,7 @@ export const eventModelingNotation: Notation = {
   isValidRelation,
   getAvailableRelations,
   InspectorComponent: EventModelingInspector,
+  RelationInspectorComponent: EventModelingRelationInspector,
   hideViewsSection: false,
   conceptTypeLabels: {
     screen:            'Screen',

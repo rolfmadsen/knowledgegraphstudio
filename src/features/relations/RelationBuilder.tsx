@@ -758,14 +758,14 @@ export function RelationBuilder() {
                       }}
                       onMouseEnter={() => setSelectedIndex(idx)}
                       className={`
-                      w-full flex items-center justify-between p-4 rounded-[1.25rem] border transition-all duration-200 group outline-none
+                      w-full flex items-center justify-between p-4 rounded-[1.25rem] border transition-transform duration-200 group outline-none
                       ${idx === selectedIndex
                           ? 'bg-white border-emerald-500 shadow-lg shadow-emerald-200/20 translate-x-1 ring-1 ring-emerald-500/10'
                           : 'bg-transparent border-transparent hover:bg-white/50 hover:border-slate-200'}
                     `}
                     >
                       <div className="flex items-center gap-4">
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${idx === selectedIndex ? 'bg-emerald-600 text-white shadow-md' : 'bg-white border border-slate-200 text-slate-300'}`}>
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${idx === selectedIndex ? 'bg-emerald-600 text-white shadow-md' : 'bg-white border border-slate-200 text-slate-300'}`}>
                           {opt.isNew ? <Plus size={18} strokeWidth={2.5} /> : <Box size={18} />}
                         </div>
                         <div className="flex flex-col text-left">
@@ -843,7 +843,7 @@ export function RelationBuilder() {
                           }}
                           onMouseEnter={() => setSelectedIndex(idx)}
                           className={`
-                          flex flex-col gap-4 p-5 rounded-[1.25rem] border transition-all duration-300 group outline-none
+                          flex flex-col gap-4 p-5 rounded-[1.25rem] border transition-transform duration-300 group outline-none
                           ${idx === selectedIndex
                               ? 'bg-white border-emerald-500 shadow-lg shadow-emerald-200/20 -translate-y-1 ring-1 ring-emerald-500/10'
                               : 'bg-white/40 border-slate-100 hover:bg-white hover:border-slate-200'}
@@ -851,7 +851,7 @@ export function RelationBuilder() {
                         `}
                         >
                           <div className="flex items-start justify-between w-full">
-                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${idx === selectedIndex ? 'bg-emerald-600 text-white shadow-md' : 'bg-white border border-slate-200 text-slate-300'}`}>
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${idx === selectedIndex ? 'bg-emerald-600 text-white shadow-md' : 'bg-white border border-slate-200 text-slate-300'}`}>
                               {ct.icon}
                             </div>
                             {isCompatible && allowedRels.length > 0 && (
@@ -902,14 +902,14 @@ export function RelationBuilder() {
                         onClick={() => handleFinish(rel.label)}
                         onMouseEnter={() => setSelectedIndex(idx)}
                         className={`
-                        w-full flex items-center justify-between p-4 rounded-[1.25rem] border transition-all duration-200 group outline-none
+                        w-full flex items-center justify-between p-4 rounded-[1.25rem] border transition-transform duration-200 group outline-none
                         ${idx === selectedIndex
                             ? 'bg-white border-emerald-500 shadow-lg shadow-emerald-200/20 translate-x-1 ring-1 ring-emerald-500/10'
                             : 'bg-transparent border-transparent hover:bg-white/50 hover:border-slate-200'}
                       `}
                       >
                         <div className="flex items-center gap-4">
-                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${idx === selectedIndex ? 'bg-emerald-600 text-white shadow-md' : 'bg-white border border-slate-200 text-slate-300'}`}>
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${idx === selectedIndex ? 'bg-emerald-600 text-white shadow-md' : 'bg-white border border-slate-200 text-slate-300'}`}>
                             {rel.icon}
                           </div>
                           <div className="flex flex-col text-left">

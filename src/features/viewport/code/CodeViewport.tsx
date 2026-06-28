@@ -1,8 +1,12 @@
 import { useMemo, useState, useCallback, useEffect } from 'react';
+import '../../../core/monacoLoader'; // Self-host Monaco — must run before Editor mounts
 import Editor from '@monaco-editor/react';
 import { useGraphStore } from '../../../store/useGraphStore';
 import { debounce } from '../../../utils/debounce';
 import { Copy, Check, FileCode, Lock, AlertCircle, AlertTriangle } from 'lucide-react';
+import { generateOpenAPI } from '../../compiler/openapiGenerator';
+import { generateAsyncAPI } from '../../compiler/asyncapiGenerator';
+import { generateArazzo } from '../../compiler/arazzoGenerator';
 
 interface CodeViewportProps {
   isConflict?: boolean;
@@ -34,6 +38,15 @@ export function CodeViewport({ isConflict = false }: CodeViewportProps) {
       }
       return '# Ingen aktiv visning. Opret eller vælg en visning i Model Explorer.';
     }
+    if (activeCodeTab === 'openapi') {
+      return generateOpenAPI(concepts, relations);
+    }
+    if (activeCodeTab === 'asyncapi') {
+      return generateAsyncAPI(concepts, relations);
+    }
+    if (activeCodeTab === 'arazzo') {
+      return generateArazzo(concepts, relations, views, activeViewId);
+    }
     return stringifyState ? stringifyState() : '';
   }, [domains, concepts, relations, views, isConflict, rawYaml, stringifyState, activeCodeTab, activeViewId]);
 
@@ -64,7 +77,8 @@ export function CodeViewport({ isConflict = false }: CodeViewportProps) {
 
   const handleEditorChange = (value: string | undefined) => {
     setLocalYaml(value);
-    if (value && !isConflict && activeCodeTab !== 'view') {
+    const currentTab = useGraphStore.getState().activeCodeTab;
+    if (value && !isConflict && currentTab === 'full') {
       syncToStore(value);
     }
   };
@@ -92,7 +106,7 @@ export function CodeViewport({ isConflict = false }: CodeViewportProps) {
   }, [localYaml, yamlContent]);
 
   return (
-    <div className="relative w-full h-full flex flex-col">
+    <div className="relative w-full h-full flex flex-col font-sans">
       {/* Viewport Tabs */}
       <div className="flex border-b border-slate-200 bg-slate-50 shrink-0 select-none items-center justify-between h-10">
         <div className="flex flex-1 h-full">
@@ -118,6 +132,33 @@ export function CodeViewport({ isConflict = false }: CodeViewportProps) {
           >
             Aktuelt View
           </button>
+          <button
+            onClick={() => setActiveCodeTab?.('openapi')}
+            className={`flex-1 h-full flex items-center justify-center text-[9px] font-black uppercase tracking-wider border-b-2 transition-all ${activeCodeTab === 'openapi'
+              ? 'border-emerald-600 text-slate-800 bg-white'
+              : 'border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-100/50'
+              }`}
+          >
+            OpenAPI
+          </button>
+          <button
+            onClick={() => setActiveCodeTab?.('asyncapi')}
+            className={`flex-1 h-full flex items-center justify-center text-[9px] font-black uppercase tracking-wider border-b-2 transition-all ${activeCodeTab === 'asyncapi'
+              ? 'border-emerald-600 text-slate-800 bg-white'
+              : 'border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-100/50'
+              }`}
+          >
+            AsyncAPI
+          </button>
+          <button
+            onClick={() => setActiveCodeTab?.('arazzo')}
+            className={`flex-1 h-full flex items-center justify-center text-[9px] font-black uppercase tracking-wider border-b-2 transition-all ${activeCodeTab === 'arazzo'
+              ? 'border-emerald-600 text-slate-800 bg-white'
+              : 'border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-100/50'
+              }`}
+          >
+            Arazzo
+          </button>
         </div>
       </div>
 
@@ -126,7 +167,7 @@ export function CodeViewport({ isConflict = false }: CodeViewportProps) {
         <div className="flex items-center gap-3">
           <div className={`w-6 h-6 rounded-lg flex items-center justify-center shadow-md ${error
             ? 'bg-rose-600 shadow-rose-600/10 text-white'
-            : activeCodeTab === 'view'
+            : activeCodeTab !== 'full'
               ? 'bg-blue-600 shadow-blue-600/10 text-white'
               : isConflict
                 ? 'bg-amber-500 shadow-amber-500/10 text-white'
@@ -134,7 +175,7 @@ export function CodeViewport({ isConflict = false }: CodeViewportProps) {
             }`}>
             {error ? (
               <AlertCircle size={12} />
-            ) : activeCodeTab === 'view' ? (
+            ) : activeCodeTab !== 'full' ? (
               <Lock size={12} />
             ) : isConflict ? (
               <AlertTriangle size={12} />
@@ -143,12 +184,12 @@ export function CodeViewport({ isConflict = false }: CodeViewportProps) {
             )}
           </div>
           <div className="flex flex-col">
-            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-800 leading-tight">
-              YAML Exchange Format
+            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-800 leading-tight font-sans">
+              {activeCodeTab === 'openapi' ? 'OpenAPI 3.2' : activeCodeTab === 'asyncapi' ? 'AsyncAPI 3.0' : activeCodeTab === 'arazzo' ? 'Arazzo 1.0' : 'YAML Exchange Format'}
             </span>
             <span className={`text-[9px] font-bold mt-0.5 leading-none ${error
               ? 'text-rose-600'
-              : activeCodeTab === 'view'
+              : activeCodeTab !== 'full'
                 ? 'text-blue-600'
                 : isConflict
                   ? 'text-amber-600'
@@ -158,9 +199,15 @@ export function CodeViewport({ isConflict = false }: CodeViewportProps) {
                 ? 'Syntaksfejl i kildekoden'
                 : activeCodeTab === 'view'
                   ? 'Inkluderede elementer og relationer (Skrivebeskyttet)'
-                  : isConflict
-                    ? 'Konflikt i kildekode (Kan redigeres)'
-                    : 'Alle elementer og relationer (Kan redigeres)'}
+                  : activeCodeTab === 'openapi'
+                    ? 'Autogenereret OpenAPI v3.2.0 specifikation (Skrivebeskyttet)'
+                    : activeCodeTab === 'asyncapi'
+                      ? 'Autogenereret AsyncAPI v3.0.0 specifikation (Skrivebeskyttet)'
+                      : activeCodeTab === 'arazzo'
+                        ? 'Autogenereret Arazzo v1.0.1 specifikation (Skrivebeskyttet)'
+                        : isConflict
+                          ? 'Konflikt i kildekode (Kan redigeres)'
+                          : 'Alle elementer og relationer (Kan redigeres)'}
             </span>
           </div>
         </div>
@@ -168,7 +215,7 @@ export function CodeViewport({ isConflict = false }: CodeViewportProps) {
           <button
             onClick={handleCopy}
             className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-emerald-600 hover:bg-slate-100 transition-all rounded-xl active:scale-95 shrink-0 cursor-pointer"
-            title={copied ? "Kopieret!" : "Kopier YAML"}
+            title={copied ? "Kopieret!" : "Kopier specifikation"}
           >
             {copied ? (
               <Check size={14} className="text-emerald-600 animate-in zoom-in duration-200" />
@@ -177,9 +224,9 @@ export function CodeViewport({ isConflict = false }: CodeViewportProps) {
             )}
           </button>
           <div className="w-2 h-2 rounded-full relative flex mr-1">
-            <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${error ? 'bg-rose-400' : activeCodeTab === 'view' ? 'bg-blue-400' : isConflict ? 'bg-amber-400' : 'bg-emerald-400'
+            <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${error ? 'bg-rose-400' : activeCodeTab !== 'full' ? 'bg-blue-400' : isConflict ? 'bg-amber-400' : 'bg-emerald-400'
               }`}></span>
-            <span className={`relative inline-flex rounded-full h-2 w-2 ${error ? 'bg-rose-600' : activeCodeTab === 'view' ? 'bg-blue-600' : isConflict ? 'bg-amber-500' : 'bg-emerald-500'
+            <span className={`relative inline-flex rounded-full h-2 w-2 ${error ? 'bg-rose-600' : activeCodeTab !== 'full' ? 'bg-blue-600' : isConflict ? 'bg-amber-500' : 'bg-emerald-500'
               }`}></span>
           </div>
         </div>
@@ -193,7 +240,7 @@ export function CodeViewport({ isConflict = false }: CodeViewportProps) {
           onChange={handleEditorChange}
           theme="vs-light"
           options={{
-            readOnly: activeCodeTab === 'view',
+            readOnly: activeCodeTab !== 'full',
             minimap: { enabled: false },
             lineNumbers: 'on',
             scrollBeyondLastLine: false,

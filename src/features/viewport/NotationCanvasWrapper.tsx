@@ -91,7 +91,19 @@ export function NotationCanvasWrapper({ focusMode, isAIPanelActive }: NotationCa
     return [...filteredConcepts, ...proposedConcepts];
   }, [filteredConcepts, proposedConcepts]);
 
-  // Filter relations to only keep valid connections
+// Mapping of notation IDs to relation types that should not be rendered visually as edges on the canvas
+const HIDE_EDGES_IN_NOTATION: Record<string, Set<string>> = {
+  'event-modeling': new Set([
+    'has_condition', 'has_response', 'includes', 'excludes', 'has_milestone',
+    'condition', 'response', 'include', 'exclude', 'milestone'
+  ]),
+  'event_modeling': new Set([
+    'has_condition', 'has_response', 'includes', 'excludes', 'has_milestone',
+    'condition', 'response', 'include', 'exclude', 'milestone'
+  ])
+};
+
+// Filter relations to only keep valid connections
   const filteredRelations = useMemo(() => {
     const conceptMap = new Map(conceptsWithProposals.map((c) => [c.id, c]));
     return relations.filter((r) => {
@@ -101,6 +113,19 @@ export function NotationCanvasWrapper({ focusMode, isAIPanelActive }: NotationCa
       // Both endpoints must exist and be of allowed concept types
       if (!sourceConcept || !targetConcept) {
         return false;
+      }
+
+      // Do not render DCR/Workflow relations visually on the Event Modeling canvas.
+      const hideRelationTypes = HIDE_EDGES_IN_NOTATION[notation?.id || ''];
+      if (hideRelationTypes) {
+        const typeLower = (r.relationType || '').toLowerCase().trim();
+        const nameLower = (r.name || '').toLowerCase().trim();
+        const shouldHide = Array.from(hideRelationTypes).some(
+          (keyword) => typeLower === keyword || typeLower.includes(keyword) || nameLower === keyword || nameLower.includes(keyword)
+        );
+        if (shouldHide) {
+          return false;
+        }
       }
       
       // Execute notation-specific relation syntax validation if defined

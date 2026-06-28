@@ -4,15 +4,16 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "predev": "node scripts/compile-ontology.js",
-    "prebuild": "node scripts/compile-ontology.js",
+    "predev": "node scripts/compile-ontology.js && node scripts/copy-monaco.js",
+    "prebuild": "node scripts/compile-ontology.js && node scripts/copy-monaco.js",
     "pretest": "node scripts/compile-ontology.js",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
     "start": "vite preview --host 0.0.0.0 --port 8000",
-    "test": "vitest run"
+    "test": "vitest run",
+    "copy-monaco": "node scripts/copy-monaco.js"
   },
   "dependencies": {
     "@dagrejs/dagre": "3.0.0",

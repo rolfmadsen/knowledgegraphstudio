@@ -342,6 +342,17 @@ export type ConceptNode = z.infer<typeof ConceptNode>;
 export const ConceptNodeExport = ConceptNode;
 export type ConceptNodeExport = ConceptNode;
 
+export const IntegrationPattern = z.enum([
+  'PubSub',
+  'OrchestratedPush',
+  'RequestResponse',
+  'Local',
+]);
+export type IntegrationPattern = z.infer<typeof IntegrationPattern>;
+
+export const HttpMethod = z.enum(['GET', 'POST', 'PUT', 'DELETE']);
+export type HttpMethod = z.infer<typeof HttpMethod>;
+
 // ============================================================
 // Concept Relation
 // ============================================================
@@ -351,7 +362,7 @@ export const ConceptRelation = BaseEntity.extend({
   targetConceptId: ElementId,
   name: z.string().min(1),
   category: z.enum(['structural', 'semantic']).default('semantic'),
-  relationType: z.enum(['association', 'composition', 'aggregation', 'specialization', 'realization']).optional(),
+  relationType: z.enum(['association', 'composition', 'aggregation', 'specialization', 'realization', 'has_condition', 'has_response', 'includes', 'excludes', 'has_milestone']).optional(),
   multiplicity: z.string().optional(),
   mappingPattern: ContextMappingPattern.optional(),
   transformationDescription: z.string().optional(),
@@ -362,6 +373,11 @@ export const ConceptRelation = BaseEntity.extend({
   sourceMultiplicity: z.string().optional(),
   targetMultiplicity: z.string().optional(),
   createdBy: z.enum(['user', 'ai']).optional(),
+  integrationPattern: IntegrationPattern.optional(),
+  technology: z.string().optional(),
+  endpointPath: z.string().optional(),
+  topicName: z.string().optional(),
+  httpMethod: HttpMethod.optional(),
 });
 export type ConceptRelation = z.infer<typeof ConceptRelation>;
 

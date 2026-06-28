@@ -362,14 +362,14 @@ export function Navigator() {
               }
             }}
             disabled={!selectedConceptId}
-            className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-emerald-600 disabled:hover:text-slate-400 disabled:hover:bg-transparent transition-all rounded-xl active:scale-95 shrink-0 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+            className="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-emerald-600 disabled:hover:text-slate-400 disabled:hover:bg-transparent transition-transform rounded-xl active:scale-95 shrink-0 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
             title="Opret relation (Alt+E)"
           >
             <Link2 size={14} />
           </button>
           <button
             onClick={() => useGraphStore.getState().setNodeCreatorOpen(true)}
-            className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-emerald-600 transition-all rounded-xl active:scale-95 shrink-0 cursor-pointer"
+            className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-emerald-600 transition-transform rounded-xl active:scale-95 shrink-0 cursor-pointer"
             title="Opret begreb (Alt+N)"
           >
             <Plus size={14} />
@@ -383,7 +383,7 @@ export function Navigator() {
         {/* --- VIEWS FOLDER --- */}
         <div>
           <div
-            className="flex min-w-full w-max items-center justify-between py-1.5 px-2 hover:bg-slate-200/40 rounded-xl cursor-pointer group transition-all duration-150"
+            className="flex min-w-full w-max items-center justify-between py-1.5 px-2 hover:bg-slate-200/40 rounded-xl cursor-pointer group"
             onClick={() => toggleExpand('views')}
           >
             <div className="flex items-center gap-1.5 min-w-0">
@@ -407,7 +407,7 @@ export function Navigator() {
                 e.stopPropagation();
                 setCreateViewModalOpen(true);
               }}
-              className="w-6 h-6 flex items-center justify-center text-slate-400 hover:text-emerald-600 transition-all bg-white border border-slate-200 shadow-sm hover:border-emerald-200 hover:bg-emerald-50 rounded-md active:scale-90 shrink-0"
+              className="w-6 h-6 flex items-center justify-center text-slate-400 hover:text-emerald-600 transition-transform bg-white border border-slate-200 shadow-sm hover:border-emerald-200 hover:bg-emerald-50 rounded-md active:scale-90 shrink-0"
               title="Create new view"
             >
               <Plus size={12} strokeWidth={2.5} />
@@ -431,7 +431,7 @@ export function Navigator() {
                     key={view.id}
                     onClick={() => setActiveViewId(view.id)}
                     className={`
-                      min-w-full w-max flex items-center gap-2 py-1.5 px-2.5 rounded-lg transition-all text-left border cursor-pointer group
+                      min-w-full w-max flex items-center gap-2 py-1.5 px-2.5 rounded-lg text-left border cursor-pointer group
                       ${isActive
                         ? 'bg-emerald-50/80 border-emerald-100/70 text-emerald-800 font-bold shadow-sm'
                         : 'bg-transparent border-transparent text-slate-600 hover:bg-slate-200/30'}
@@ -454,7 +454,7 @@ export function Navigator() {
                           e.stopPropagation();
                           requestDeleteViewConfirm(view.id);
                         }}
-                        className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 p-0.5 rounded transition-all hover:bg-slate-100/50 active:scale-90"
+                        className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 p-0.5 rounded transition-[transform,opacity] hover:bg-slate-100/50 active:scale-90"
                         title="Slet visning"
                       >
                         <Trash2 size={11} />
@@ -470,7 +470,7 @@ export function Navigator() {
         {/* --- MODEL FOLDER --- */}
         <div>
           <div
-            className="flex min-w-full w-max items-center justify-between py-1.5 px-2 hover:bg-slate-200/40 rounded-xl cursor-pointer group transition-all duration-150"
+            className="flex min-w-full w-max items-center justify-between py-1.5 px-2 hover:bg-slate-200/40 rounded-xl cursor-pointer group"
             onClick={() => toggleExpand('model')}
           >
             <div className="flex items-center gap-1.5 min-w-0">
@@ -518,7 +518,7 @@ export function Navigator() {
                 return (
                   <div key={type}>
                     <div
-                      className="flex min-w-full w-max items-center justify-between py-1.5 px-2 hover:bg-slate-200/40 rounded-xl cursor-pointer group/folder transition-all duration-150"
+                      className="flex min-w-full w-max items-center justify-between py-1.5 px-2 hover:bg-slate-200/40 rounded-xl cursor-pointer group/folder"
                       onClick={() => toggleExpand(type)}
                     >
                       <div className="flex items-center gap-1.5 min-w-0">
@@ -551,7 +551,7 @@ export function Navigator() {
                             }
                           }}
                           className={`
-                            opacity-0 group-hover/folder:opacity-100 p-1 rounded-lg transition-all shrink-0 ml-4
+                            opacity-0 group-hover/folder:opacity-100 p-1 rounded-lg transition-opacity shrink-0 ml-4
                             ${nodesToAdd.length === 0
                               ? 'text-slate-300 cursor-not-allowed'
                               : 'hover:bg-emerald-50 hover:text-emerald-600 text-slate-400'}
@@ -583,7 +583,7 @@ export function Navigator() {
                                 document.dispatchEvent(new CustomEvent('focus-zone', { detail: { zone: 2 } }));
                               }}
                               className={`
-                                min-w-full w-max flex items-center gap-2 py-1 px-2.5 transition-all text-left border rounded-lg
+                                min-w-full w-max flex items-center gap-2 py-1 px-2.5 text-left border rounded-lg
                                 ${isActive
                                   ? 'bg-emerald-50/80 border-emerald-100/70 text-emerald-800 font-bold shadow-sm'
                                   : 'bg-transparent border-transparent text-slate-600 hover:bg-slate-200/30'}
@@ -591,7 +591,7 @@ export function Navigator() {
                               `}
                               title={activeViewId ? 'Drag to canvas to add to this view' : concept.name}
                             >
-                              <span className={`shrink-0 transition-colors ${isActive ? 'text-emerald-600' : 'text-slate-400 group-hover:text-emerald-500'}`}>
+                              <span className={`shrink-0 ${isActive ? 'text-emerald-600' : 'text-slate-400 group-hover:text-emerald-500'}`}>
                                 {typeIcon(concept.conceptType, isActive)}
                               </span>
                               <span className="text-[11px] whitespace-nowrap flex-1 text-left flex items-center gap-1.5">
@@ -620,7 +620,7 @@ export function Navigator() {
         <div className="p-3 border-t border-slate-200 shrink-0 bg-white/40">
           <button
             onClick={addAllConceptsToActiveView}
-            className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl border border-dashed border-emerald-300 text-emerald-600 hover:bg-emerald-50 hover:border-emerald-400 transition-all text-[10px] font-black uppercase tracking-wider active:scale-95"
+            className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl border border-dashed border-emerald-300 text-emerald-600 hover:bg-emerald-50 hover:border-emerald-400 transition-transform text-[10px] font-black uppercase tracking-wider active:scale-95"
             title="Add all model concepts to the active view"
           >
             <Download size={11} strokeWidth={2.5} />

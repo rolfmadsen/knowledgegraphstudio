@@ -10,7 +10,6 @@ import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react'
 import './index.css';
 import { useGraphStore, useTemporalStore } from './store/useGraphStore';
 import { useAIStore } from './features/ai/store/useAIStore';
-import { AIChatPanel } from './features/ai/components/AIChatPanel';
 import { toElementId } from './schema/graphSchema';
 import { useShallow } from 'zustand/react/shallow';
 import { useKeyboard } from './hooks/useKeyboard';
@@ -36,9 +35,13 @@ const HelpCenter = lazy(() => import('./features/help/HelpCenter').then(m => ({ 
 const ConflictResolverModal = lazy(() => import('./features/conflicts/ConflictResolverModal').then(m => ({ default: m.ConflictResolverModal })));
 const RemoteConfigModal = lazy(() => import('./features/conflicts/RemoteConfigModal').then(m => ({ default: m.RemoteConfigModal })));
 const WorkspaceSwitcherModal = lazy(() => import('./features/navigation/WorkspaceSwitcherModal').then(m => ({ default: m.WorkspaceSwitcherModal })));
-import { DeleteConceptModal } from './features/viewport/graph/DeleteConceptModal';
-import { DeleteViewModal } from './features/navigation/DeleteViewModal';
 const CreateViewModal = lazy(() => import('./features/navigation/CreateViewModal').then(m => ({ default: m.CreateViewModal })));
+// AIChatPanel pulls in AIService (WebLLM bindings) — lazy to avoid main-bundle bloat
+const AIChatPanel = lazy(() => import('./features/ai/components/AIChatPanel').then(m => ({ default: m.AIChatPanel })));
+// DeleteConceptModal is flagged as a long-task contributor — lazy load it
+const DeleteConceptModal = lazy(() => import('./features/viewport/graph/DeleteConceptModal').then(m => ({ default: m.DeleteConceptModal })));
+const DeleteViewModal = lazy(() => import('./features/navigation/DeleteViewModal').then(m => ({ default: m.DeleteViewModal })));
+
 
 const EMPTY_HISTORY = { pastStates: [], futureStates: [] };
 
@@ -71,6 +74,10 @@ function App() {
   } | null>(null);
   const [gitToast, setGitToast] = useState<string | null>(null);
 
+  // --- Lazy Mount Flags ---
+  const [codeLoaded, setCodeLoaded] = useState(false);
+  const [diffLoaded, setDiffLoaded] = useState(false);
+
   // --- Store ---
   const {
     focusMode,
@@ -85,6 +92,21 @@ function App() {
       setQuickFindOpen: s.setQuickFindOpen,
     } : { focusMode: false, setFocusMode: () => { }, isQuickFindOpen: false, setQuickFindOpen: () => { } }),
   );
+
+  const showCode = viewMode === 'code' && !diffMode;
+  const showSplit = viewMode === 'split' && !diffMode && !focusMode;
+
+  useEffect(() => {
+    if (showCode || showSplit) {
+      setCodeLoaded(true);
+    }
+  }, [showCode, showSplit]);
+
+  useEffect(() => {
+    if (diffMode) {
+      setDiffLoaded(true);
+    }
+  }, [diffMode]);
 
   // --- Layout Resizers ---
   const lib = useResizable({ initialWidth: 250, minWidth: 200, maxWidth: 500, direction: 'ltr' });
@@ -260,22 +282,23 @@ function App() {
 
   // --- Focus Return (Spec §5) ---
   // Ensure focus returns to Zone 2 (Canvas) when any global modal closes
-  const { isNodeCreatorOpen, isRelationBuilderOpen, isCreateViewModalOpen, deleteViewConfirm } = useGraphStore(useShallow(s => ({
+  const { isNodeCreatorOpen, isRelationBuilderOpen, isCreateViewModalOpen, deleteViewConfirm, deleteConceptConfirm } = useGraphStore(useShallow(s => ({
     isNodeCreatorOpen: s?.isNodeCreatorOpen,
     isRelationBuilderOpen: s?.isRelationBuilderOpen,
     isCreateViewModalOpen: s?.isCreateViewModalOpen,
     deleteViewConfirm: s?.deleteViewConfirm,
+    deleteConceptConfirm: s?.deleteConceptConfirm,
   })));
 
   useEffect(() => {
-    const isAnyModalOpen = isNodeCreatorOpen || isQuickFindOpen || isRelationBuilderOpen || remoteConfigOpen || workspacesOpen || !!deleteViewConfirm || isCreateViewModalOpen;
+    const isAnyModalOpen = isNodeCreatorOpen || isQuickFindOpen || isRelationBuilderOpen || remoteConfigOpen || workspacesOpen || !!deleteViewConfirm || isCreateViewModalOpen || !!deleteConceptConfirm;
     if (!isAnyModalOpen) {
       // Small delay to ensure DOM has updated and modal is gone
       setTimeout(() => {
         zone2Ref.current?.focus();
       }, 50);
     }
-  }, [isNodeCreatorOpen, isQuickFindOpen, isRelationBuilderOpen, remoteConfigOpen, workspacesOpen, deleteViewConfirm, isCreateViewModalOpen]);
+  }, [isNodeCreatorOpen, isQuickFindOpen, isRelationBuilderOpen, remoteConfigOpen, workspacesOpen, deleteViewConfirm, isCreateViewModalOpen, deleteConceptConfirm]);
 
   const handleGitPull = useCallback(async () => {
     try {
@@ -515,9 +538,11 @@ function App() {
               diffMode={diffMode}
               graphViewport={<NotationCanvasWrapper focusMode={focusMode} isAIPanelActive={propertiesOpen && activeTab === 'ai'} />}
               diffViewport={
-                <Suspense fallback={<div className="flex-1 flex items-center justify-center"><div className="animate-pulse text-xs text-slate-400">Loading Diff...</div></div>}>
-                  <DiffViewport />
-                </Suspense>
+                diffLoaded ? (
+                  <Suspense fallback={<div className="flex-1 flex items-center justify-center"><div className="animate-pulse text-xs text-slate-400">Loading Diff...</div></div>}>
+                    <DiffViewport />
+                  </Suspense>
+                ) : null
               }
             />
             {/* Floating View Toolbar — only in graph mode */}
@@ -531,9 +556,11 @@ function App() {
           >
 
             <div className="flex-1 min-h-0 relative">
-              <Suspense fallback={<div className="flex-1 flex items-center justify-center"><div className="animate-pulse text-xs text-slate-400">Loading Code Editor...</div></div>}>
-                <CodeViewport isConflict={isConflict} />
-              </Suspense>
+              {codeLoaded && (
+                <Suspense fallback={<div className="flex-1 flex items-center justify-center"><div className="animate-pulse text-xs text-slate-400">Loading Code Editor...</div></div>}>
+                  <CodeViewport isConflict={isConflict} />
+                </Suspense>
+              )}
             </div>
           </div>
 
@@ -560,9 +587,11 @@ function App() {
             >
 
               <div className="flex-1 min-h-0 relative">
-                <Suspense fallback={<div className="flex-1 flex items-center justify-center"><div className="animate-pulse text-xs text-slate-400">Loading Code Editor...</div></div>}>
-                  <CodeViewport isConflict={isConflict} />
-                </Suspense>
+                {codeLoaded && (
+                  <Suspense fallback={<div className="flex-1 flex items-center justify-center"><div className="animate-pulse text-xs text-slate-400">Loading Code Editor...</div></div>}>
+                    <CodeViewport isConflict={isConflict} />
+                  </Suspense>
+                )}
               </div>
             </aside>
           </>
@@ -608,7 +637,13 @@ function App() {
             </div>
             {/* Active Panel Content */}
             <div className="flex-1 min-h-0 flex flex-col">
-              {activeTab === 'properties' ? <Inspector /> : <AIChatPanel />}
+              {activeTab === 'properties' ? (
+                <Inspector />
+              ) : (
+                <Suspense fallback={<div className="flex-1 flex items-center justify-center text-slate-400 text-xs">Indlæser AI...</div>}>
+                  <AIChatPanel />
+                </Suspense>
+              )}
             </div>
           </div>
         </aside>
@@ -618,25 +653,29 @@ function App() {
       <StatusBar onOpenRemoteConfig={() => setRemoteConfigOpen(true)} />
 
       <Suspense fallback={null}>
-        <CommandOverlay
-          open={isQuickFindOpen}
-          onClose={() => setQuickFindOpen(false)}
-          onGitPush={handleGitPush}
-          onGitPull={handleGitPull}
-          onOpenRemoteConfig={() => setRemoteConfigOpen(true)}
-        />
-        <NodeCreator />
-        <RelationBuilder />
-        <CreateViewModal />
-        <HelpCenter isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
-        <DeleteConceptModal />
-        <DeleteViewModal />
+        {isQuickFindOpen && (
+          <CommandOverlay
+            open={isQuickFindOpen}
+            onClose={() => setQuickFindOpen(false)}
+            onGitPush={handleGitPush}
+            onGitPull={handleGitPull}
+            onOpenRemoteConfig={() => setRemoteConfigOpen(true)}
+          />
+        )}
+        {isNodeCreatorOpen && <NodeCreator />}
+        {isRelationBuilderOpen && <RelationBuilder />}
+        {isCreateViewModalOpen && <CreateViewModal />}
+        {isHelpOpen && <HelpCenter isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />}
+        {deleteConceptConfirm && <DeleteConceptModal />}
+        {deleteViewConfirm && <DeleteViewModal />}
 
         {/* Workspace Switcher */}
-        <WorkspaceSwitcherModal
-          isOpen={workspacesOpen}
-          onClose={() => setWorkspacesOpen(false)}
-        />
+        {workspacesOpen && (
+          <WorkspaceSwitcherModal
+            isOpen={workspacesOpen}
+            onClose={() => setWorkspacesOpen(false)}
+          />
+        )}
 
         {/* Remote Config Modal */}
         {remoteConfigOpen && (

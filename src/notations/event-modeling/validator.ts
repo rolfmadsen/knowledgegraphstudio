@@ -28,14 +28,28 @@ const VALID_EM_CONNECTIONS: Partial<Record<string, string[]>> = {
   automation:        ['command'],
 };
 
+const DCR_RELATIONS = new Set([
+  'has_condition', 'has_response', 'includes', 'excludes', 'has_milestone',
+  'condition', 'response', 'include', 'exclude'
+]);
+
+const EM_ELEMENT_TYPES = new Set([
+  'screen', 'command', 'event', 'read_model', 'integration_event', 'automation'
+]);
+
 /**
- * Returns true only if the source→target connection is valid per EM alphabet rules.
+ * Returns true only if the source→target connection is valid per EM alphabet rules
+ * or is a valid DCR relationship between Event Modeling elements.
  * Containers (em_chapter, em_slice) cannot be source or target of semantic edges.
  */
 export function isValidRelation(
   sourceType: ConceptType,
   targetType: ConceptType,
+  label?: string
 ): boolean {
+  if (label && DCR_RELATIONS.has(label.toLowerCase().trim())) {
+    return EM_ELEMENT_TYPES.has(sourceType) && EM_ELEMENT_TYPES.has(targetType);
+  }
   const allowed = VALID_EM_CONNECTIONS[sourceType as string];
   if (!allowed) return false;
   return allowed.includes(targetType as string);

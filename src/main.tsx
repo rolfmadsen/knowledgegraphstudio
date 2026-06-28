@@ -4,13 +4,6 @@ import { Buffer } from 'buffer'
 import { ReactFlowProvider } from '@xyflow/react'
 import App from './App.tsx'
 import { NotationRegistry } from './notations/NotationRegistry'
-import { knowledgeGraphNotation } from './notations/knowledge-graph'
-import { archimateNotation } from './notations/archimate'
-import { c4Notation } from './notations/c4'
-import { conceptualNotation } from './notations/core-model/conceptualNotation'
-import { informationNotation } from './notations/core-model/informationNotation'
-import { dcrNotation } from './notations/dcr'
-import { eventModelingNotation } from './notations/event-modeling'
 
 // Polyfill Buffer for isomorphic-git
 (window as any).Buffer = Buffer;
@@ -41,14 +34,25 @@ import { eventModelingNotation } from './notations/event-modeling'
 })();
 
 
-// Register notations before React mounts
-NotationRegistry.register(knowledgeGraphNotation);
-NotationRegistry.register(archimateNotation);
-NotationRegistry.register(c4Notation);
-NotationRegistry.register(conceptualNotation);
-NotationRegistry.register(informationNotation);
-NotationRegistry.register(dcrNotation);
-NotationRegistry.register(eventModelingNotation);
+// Register notations before React mounts.
+// Core notation (knowledge-graph) is loaded eagerly — it's the default and
+// used immediately. All other notations are registered lazily via dynamic
+// import so they don't contribute to the initial JS parse cost.
+import('./notations/knowledge-graph').then(({ knowledgeGraphNotation }) => {
+  NotationRegistry.register(knowledgeGraphNotation);
+});
+
+// Secondary notations — loaded in the background after the app boots
+Promise.all([
+  import('./notations/archimate').then(({ archimateNotation }) => archimateNotation),
+  import('./notations/c4').then(({ c4Notation }) => c4Notation),
+  import('./notations/core-model/conceptualNotation').then(({ conceptualNotation }) => conceptualNotation),
+  import('./notations/core-model/informationNotation').then(({ informationNotation }) => informationNotation),
+  import('./notations/dcr').then(({ dcrNotation }) => dcrNotation),
+  import('./notations/event-modeling').then(({ eventModelingNotation }) => eventModelingNotation),
+]).then((notations) => {
+  notations.forEach((n) => NotationRegistry.register(n));
+});
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
