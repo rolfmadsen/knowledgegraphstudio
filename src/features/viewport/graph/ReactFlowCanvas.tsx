@@ -334,10 +334,9 @@ function getOrthogonalParams(
         sourcePosition = Position.Bottom;
         targetPosition = Position.Top;
       } else {
-        // Target is above source → upward flow: exit top, enter top
-        // Both nodes connect via their top handles with a bridge between them.
+        // Target is above source → upward flow: exit top, enter bottom
         sourcePosition = Position.Top;
-        targetPosition = Position.Top;
+        targetPosition = Position.Bottom;
       }
     }
 
@@ -582,7 +581,10 @@ function getEdgePoints(
   dragDirection?: 'horizontal' | 'vertical',
   isDragging?: boolean,
   viewType?: string,
-  nodesMap?: Map<string, any>
+  nodesMap?: Map<string, any>,
+  edgeId?: string,
+  allEdges?: any[],
+  viewEdges?: any[]
 ) {
   const sourceWidth = sourceNode.measured?.width ?? 200;
   const sourceHeight = sourceNode.measured?.height ?? 80;
@@ -608,21 +610,242 @@ function getEdgePoints(
     sourcePosition = getClosestPosition(sourceNode, waypoints[0], dragDirection);
     targetPosition = getClosestPosition(targetNode, waypoints[waypoints.length - 1], dragDirection);
   } else {
-    if (!customLayout || viewType === 'event_modeling') {
-      const params = getOrthogonalParams(sourceNode, targetNode, layoutAlgorithm, viewType, nodesMap);
-      sourcePosition = params.sourcePosition;
-      targetPosition = params.targetPosition;
-    } else {
-      // Validate the stored layout: perpendicular combinations (e.g., Top+Left, Right+Bottom)
-      // without waypoints were created accidentally during edge dragging and produce ugly routing
-      // (the path hugs the side of a node). Fall back to auto-routing for these cases.
-      const isStoredSourceVertical = sourcePosition === Position.Top || sourcePosition === Position.Bottom;
-      const isStoredTargetVertical = targetPosition === Position.Top || targetPosition === Position.Bottom;
-      const isPerpendicular = isStoredSourceVertical !== isStoredTargetVertical;
-      if (isPerpendicular) {
-        const params = getOrthogonalParams(sourceNode, targetNode, layoutAlgorithm, viewType, nodesMap);
-        sourcePosition = params.sourcePosition;
-        targetPosition = params.targetPosition;
+    // If there are no manual waypoints, we always calculate the closest handles dynamically.
+    // This allows the handles to adapt (e.g., switch to top/bottom) when nodes are moved in manual layout.
+    const params = getOrthogonalParams(sourceNode, targetNode, layoutAlgorithm, viewType, nodesMap);
+    sourcePosition = params.sourcePosition;
+    targetPosition = params.targetPosition;
+  }
+
+  const activeNotation = NotationRegistry.forViewType(viewType as ViewType);
+  const isOrthogonal = activeNotation?.orthogonalEdges;
+
+  let sourceOffset = 0;
+  let targetOffset = 0;
+
+  if (isOrthogonal && viewType === 'dcr' && edgeId && allEdges && nodesMap) {
+    const currentEdge = allEdges.find(e => e.id === edgeId);
+    if (currentEdge) {
+      const getEdgeSrcSide = (e: any): Position => {
+        const srcNode = nodesMap.get(e.source);
+        const tgtNode = nodesMap.get(e.target);
+        if (!srcNode || !tgtNode) return Position.Bottom;
+        const eCustomLayout = layoutAlgorithm === 'manual' ? viewEdges?.find((ve) => ve.relationId === e.id) : undefined;
+        const wpts = eCustomLayout?.waypoints;
+        if (wpts && wpts.length >= 1) {
+          return getClosestPosition(srcNode, wpts[0], undefined);
+        }
+        if (eCustomLayout?.sourcePosition) {
+          return eCustomLayout.sourcePosition;
+        }
+        return getOrthogonalParams(srcNode, tgtNode, layoutAlgorithm, viewType, nodesMap).sourcePosition;
+      };
+
+      const getEdgeTgtSide = (e: any): Position => {
+        const srcNode = nodesMap.get(e.source);
+        const tgtNode = nodesMap.get(e.target);
+        if (!srcNode || !tgtNode) return Position.Top;
+        const eCustomLayout = layoutAlgorithm === 'manual' ? viewEdges?.find((ve) => ve.relationId === e.id) : undefined;
+        const wpts = eCustomLayout?.waypoints;
+        if (wpts && wpts.length >= 1) {
+          return getClosestPosition(tgtNode, wpts[wpts.length - 1], undefined);
+        }
+        if (eCustomLayout?.targetPosition) {
+          return eCustomLayout.targetPosition;
+        }
+        return getOrthogonalParams(srcNode, tgtNode, layoutAlgorithm, viewType, nodesMap).targetPosition;
+      };
+
+      const currentSrcSide = sourcePosition;
+      const currentTgtSide = targetPosition;
+      const TYPE_ORDER = ['condition', 'exclude', 'include', 'milestone', 'response'];
+
+      const getRoutingCoordinate = (e: any, sideNodeId: string, side: Position) => {
+        const isSource = e.source === sideNodeId;
+        const otherId = isSource ? e.target : e.source;
+        const otherNode = nodesMap?.get(otherId);
+        if (!otherNode) return 0;
+
+        const srcNode = nodesMap.get(e.source);
+        const tgtNode = nodesMap.get(e.target);
+        if (!srcNode || !tgtNode) return 0;
+
+        const srcX = srcNode.internals?.positionAbsolute?.x ?? srcNode.position?.x ?? 0;
+        const srcY = srcNode.internals?.positionAbsolute?.y ?? srcNode.position?.y ?? 0;
+        const tgtX = tgtNode.internals?.positionAbsolute?.x ?? tgtNode.position?.x ?? 0;
+        const tgtY = tgtNode.internals?.positionAbsolute?.y ?? tgtNode.position?.y ?? 0;
+
+        const sourceW = srcNode.measured?.width ?? 200;
+        const sourceH = srcNode.measured?.height ?? 80;
+        const targetW = tgtNode.measured?.width ?? 200;
+        const targetH = tgtNode.measured?.height ?? 80;
+
+        const sy_center = srcY + sourceH / 2;
+        const ty_center = tgtY + targetH / 2;
+
+        if (side === Position.Left || side === Position.Right) {
+          const eCustomLayout = layoutAlgorithm === 'manual' ? viewEdges?.find((ve) => ve.relationId === e.id) : undefined;
+          const wpts = eCustomLayout?.waypoints;
+          if (wpts && wpts.length >= 1) {
+            return isSource ? wpts[0].y : wpts[wpts.length - 1].y;
+          }
+
+          const sx = srcX + sourceW;
+          const tx = tgtX;
+          const xMin = Math.min(sx, tx);
+          const xMax = Math.max(sx, tx);
+          const intermediateNodes: any[] = [];
+          
+          const yMinPath = Math.min(sy_center, ty_center);
+          const yMaxPath = Math.max(sy_center, ty_center);
+          for (const [id, node] of nodesMap.entries()) {
+            if (id === e.source || id === e.target) continue;
+            if (node.type !== 'conceptNode') continue;
+            const nodeX = node.internals?.positionAbsolute?.x ?? node.position?.x ?? 0;
+            const nodeW = node.measured?.width ?? 200;
+            const nodeY = node.internals?.positionAbsolute?.y ?? node.position?.y ?? 0;
+            const nodeH = node.measured?.height ?? 80;
+
+            const verticalOverlap = (nodeY < yMaxPath + 10) && (nodeY + nodeH > yMinPath - 10);
+            if (nodeX + nodeW > xMin + 5 && nodeX < xMax - 5 && verticalOverlap) {
+              intermediateNodes.push(node);
+            }
+          }
+
+          if (intermediateNodes.length > 0) {
+            const type = getEdgeTypeString(e);
+            if (type === 'condition' || type === 'milestone') {
+              let minY = Math.min(sy_center, ty_center);
+              intermediateNodes.forEach(node => {
+                const nodeY = node.internals?.positionAbsolute?.y ?? node.position?.y ?? 0;
+                minY = Math.min(minY, nodeY);
+              });
+              return minY - 32;
+            } else {
+              let maxY = Math.max(sy_center, ty_center);
+              intermediateNodes.forEach(node => {
+                const nodeY = node.internals?.positionAbsolute?.y ?? node.position?.y ?? 0;
+                const nodeH = node.measured?.height ?? 80;
+                maxY = Math.max(maxY, nodeY + nodeH);
+              });
+              return maxY + 32;
+            }
+          }
+
+          return isSource ? ty_center : sy_center;
+        } else {
+          const eCustomLayout = layoutAlgorithm === 'manual' ? viewEdges?.find((ve) => ve.relationId === e.id) : undefined;
+          const wpts = eCustomLayout?.waypoints;
+          if (wpts && wpts.length >= 1) {
+            return isSource ? wpts[0].x : wpts[wpts.length - 1].x;
+          }
+
+          // Compute vertical path intermediate nodes
+          const sx = srcX + sourceW / 2;
+          const tx = tgtX + targetW / 2;
+          const yMin = Math.min(srcY, tgtY);
+          const yMax = Math.max(srcY + sourceH, tgtY + targetH);
+          const xMinPath = Math.min(sx, tx);
+          const xMaxPath = Math.max(sx, tx);
+          const intermediateNodes: any[] = [];
+          
+          for (const [id, node] of nodesMap.entries()) {
+            if (id === e.source || id === e.target) continue;
+            if (node.type !== 'conceptNode') continue;
+            const nodeY = node.internals?.positionAbsolute?.y ?? node.position?.y ?? 0;
+            const nodeH = node.measured?.height ?? 80;
+            const nodeX = node.internals?.positionAbsolute?.x ?? node.position?.x ?? 0;
+            const nodeW = node.measured?.width ?? 200;
+
+            const horizontalOverlap = (nodeX < xMaxPath + 10) && (nodeX + nodeW > xMinPath - 10);
+            if (nodeY + nodeH > yMin + 5 && nodeY < yMax - 5 && horizontalOverlap) {
+              intermediateNodes.push(node);
+            }
+          }
+
+          if (intermediateNodes.length > 0) {
+            const type = getEdgeTypeString(e);
+            if (type === 'condition' || type === 'milestone') {
+              let minX = Math.min(sx, tx);
+              intermediateNodes.forEach(node => {
+                const nodeX = node.internals?.positionAbsolute?.x ?? node.position?.x ?? 0;
+                minX = Math.min(minX, nodeX);
+              });
+              return minX - 32;
+            } else {
+              let maxX = Math.max(sx, tx);
+              intermediateNodes.forEach(node => {
+                const nodeX = node.internals?.positionAbsolute?.x ?? node.position?.x ?? 0;
+                const nodeW = node.measured?.width ?? 200;
+                maxX = Math.max(maxX, nodeX + nodeW);
+              });
+              return maxX + 32;
+            }
+          }
+
+          return isSource ? (tgtX + targetW / 2) : (srcX + sourceW / 2);
+        }
+      };
+
+      const sortEdgesOnSide = (edges: any[], sideNodeId: string, side: Position) => {
+        return [...edges].sort((e1, e2) => {
+          const coord1 = getRoutingCoordinate(e1, sideNodeId, side);
+          const coord2 = getRoutingCoordinate(e2, sideNodeId, side);
+          if (Math.abs(coord1 - coord2) > 0.1) {
+            return coord1 - coord2;
+          }
+
+          const t1 = getEdgeTypeString(e1);
+          const t2 = getEdgeTypeString(e2);
+          const idx1 = TYPE_ORDER.indexOf(t1);
+          const idx2 = TYPE_ORDER.indexOf(t2);
+          
+          if (idx1 !== idx2) {
+            return idx1 - idx2;
+          }
+          return e1.id.localeCompare(e2.id);
+        });
+      };
+
+      // Group all connections on the sourceNode side (can be outgoing or incoming)
+      const sourceSideEdges: any[] = [];
+      allEdges.forEach(e => {
+        const srcSide = getEdgeSrcSide(e);
+        const tgtSide = getEdgeTgtSide(e);
+        if (e.source === sourceNode.id && srcSide === currentSrcSide) {
+          sourceSideEdges.push(e);
+        } else if (e.target === sourceNode.id && tgtSide === currentSrcSide) {
+          sourceSideEdges.push(e);
+        }
+      });
+      const uniqueSourceEdges = sourceSideEdges.filter((e, idx, self) => self.findIndex(x => x.id === e.id) === idx);
+      const sortedSourceEdges = sortEdgesOnSide(uniqueSourceEdges, sourceNode.id, currentSrcSide);
+      const sourceTotalEdges = sortedSourceEdges.length;
+      const sourceOffsetIndex = sortedSourceEdges.findIndex(e => e.id === edgeId);
+
+      // Group all connections on the targetNode side (can be outgoing or incoming)
+      const targetSideEdges: any[] = [];
+      allEdges.forEach(e => {
+        const srcSide = getEdgeSrcSide(e);
+        const tgtSide = getEdgeTgtSide(e);
+        if (e.source === targetNode.id && srcSide === currentTgtSide) {
+          targetSideEdges.push(e);
+        } else if (e.target === targetNode.id && tgtSide === currentTgtSide) {
+          targetSideEdges.push(e);
+        }
+      });
+      const uniqueTargetEdges = targetSideEdges.filter((e, idx, self) => self.findIndex(x => x.id === e.id) === idx);
+      const sortedTargetEdges = sortEdgesOnSide(uniqueTargetEdges, targetNode.id, currentTgtSide);
+      const targetTotalEdges = sortedTargetEdges.length;
+      const targetOffsetIndex = sortedTargetEdges.findIndex(e => e.id === edgeId);
+
+      const step = 20;
+
+      if (sourceTotalEdges > 1 && sourceOffsetIndex !== -1) {
+        sourceOffset = (sourceOffsetIndex - (sourceTotalEdges - 1) / 2) * step;
+      }
+      if (targetTotalEdges > 1 && targetOffsetIndex !== -1) {
+        targetOffset = (targetOffsetIndex - (targetTotalEdges - 1) / 2) * step;
       }
     }
   }
@@ -632,23 +855,27 @@ function getEdgePoints(
 
   let sx = sx_center;
   let sy = sy_center;
-  const shouldSlide = viewType !== 'event_modeling';
+  const shouldSlide = !isOrthogonal;
   if (sourcePosition === Position.Left) {
     sx = sourceX;
     const nodeY = sourceY;
     sy = shouldSlide ? Math.max(nodeY, Math.min(nodeY + sourceHeight, firstWaypoint.y)) : sy_center;
+    sy += sourceOffset;
   } else if (sourcePosition === Position.Right) {
     sx = sourceX + sourceWidth;
     const nodeY = sourceY;
     sy = shouldSlide ? Math.max(nodeY, Math.min(nodeY + sourceHeight, firstWaypoint.y)) : sy_center;
+    sy += sourceOffset;
   } else if (sourcePosition === Position.Top) {
     sy = sourceY;
     const nodeX = sourceX;
     sx = shouldSlide ? Math.max(nodeX, Math.min(nodeX + sourceWidth, firstWaypoint.x)) : sx_center;
+    sx += sourceOffset;
   } else if (sourcePosition === Position.Bottom) {
     sy = sourceY + sourceHeight;
     const nodeX = sourceX;
     sx = shouldSlide ? Math.max(nodeX, Math.min(nodeX + sourceWidth, firstWaypoint.x)) : sx_center;
+    sx += sourceOffset;
   }
 
   let tx = tx_center;
@@ -657,18 +884,22 @@ function getEdgePoints(
     tx = targetX;
     const nodeY = targetY;
     ty = shouldSlide ? Math.max(nodeY, Math.min(nodeY + targetHeight, lastWaypoint.y)) : ty_center;
+    ty += targetOffset;
   } else if (targetPosition === Position.Right) {
     tx = targetX + targetWidth;
     const nodeY = targetY;
     ty = shouldSlide ? Math.max(nodeY, Math.min(nodeY + targetHeight, lastWaypoint.y)) : ty_center;
+    ty += targetOffset;
   } else if (targetPosition === Position.Top) {
     ty = targetY;
     const nodeX = targetX;
     tx = shouldSlide ? Math.max(nodeX, Math.min(nodeX + targetWidth, lastWaypoint.x)) : tx_center;
+    tx += targetOffset;
   } else if (targetPosition === Position.Bottom) {
     ty = targetY + targetHeight;
     const nodeX = targetX;
     tx = shouldSlide ? Math.max(nodeX, Math.min(nodeX + targetWidth, lastWaypoint.x)) : tx_center;
+    tx += targetOffset;
   }
 
 
@@ -790,8 +1021,105 @@ function getEdgePoints(
       // Parallel or opposite
       if (isSourceVertical) {
         let draggedY = (sy + ty) / 2;
+
+        let isEmCrossChapter = false;
+        let emGutterY = draggedY;
+
+        if (viewType === 'event_modeling' && nodesMap) {
+          const getChapterNode = (n: InternalNode): any => {
+            let curr: any = n;
+            while (curr) {
+              const concept = curr.data?.concept;
+              if (concept?.conceptType === 'em_chapter') {
+                return curr;
+              }
+              if (!curr.parentId) break;
+              curr = nodesMap.get(curr.parentId);
+            }
+            return undefined;
+          };
+          const isAncestor = (ancestorId: string, nodeId: string): boolean => {
+            let curr = nodesMap.get(nodeId);
+            while (curr) {
+              if (curr.parentId === ancestorId) return true;
+              if (!curr.parentId) break;
+              curr = nodesMap.get(curr.parentId);
+            }
+            return false;
+          };
+          const getChapterBottom = (chapterId: string): number => {
+            const chNode = nodesMap.get(chapterId);
+            if (!chNode) return 0;
+            const cy = chNode.internals?.positionAbsolute?.y ?? chNode.position?.y ?? 0;
+            const ch = chNode.measured?.height ?? 0;
+            if (ch > 0) return cy + ch;
+            
+            let maxBottom = cy;
+            for (const [id, node] of nodesMap.entries()) {
+              if (id === chapterId) continue;
+              if (isAncestor(chapterId, id)) {
+                const nodeY = node.internals?.positionAbsolute?.y ?? node.position?.y ?? 0;
+                const nodeH = node.measured?.height ?? 80;
+                maxBottom = Math.max(maxBottom, nodeY + nodeH);
+              }
+            }
+            return maxBottom;
+          };
+
+          const srcChapter = getChapterNode(sourceNode);
+          const tgtChapter = getChapterNode(targetNode);
+          if (srcChapter && tgtChapter && srcChapter.id !== tgtChapter.id) {
+            isEmCrossChapter = true;
+            const srcY = srcChapter.internals?.positionAbsolute?.y ?? srcChapter.position?.y ?? 0;
+            const srcBottom = getChapterBottom(srcChapter.id);
+            const tgtY = tgtChapter.internals?.positionAbsolute?.y ?? tgtChapter.position?.y ?? 0;
+            const tgtBottom = getChapterBottom(tgtChapter.id);
+            
+            if (srcBottom < tgtY) {
+              emGutterY = (srcBottom + tgtY) / 2;
+            } else if (tgtBottom < srcY) {
+              emGutterY = (tgtBottom + srcY) / 2;
+            }
+          }
+        }
+
+        if (isEmCrossChapter) {
+          draggedY = emGutterY;
+        } else if (sourceOffset !== 0) {
+          draggedY += sourceOffset;
+        }
+
+        // Find intermediate nodes in the vertical path
+        const yMin = Math.min(sy, ty);
+        const yMax = Math.max(sy, ty);
+        const xMinPath = Math.min(sx, tx);
+        const xMaxPath = Math.max(sx, tx);
+        const intermediateNodes: any[] = [];
+        if (nodesMap && viewType === 'dcr' && !waypoints) {
+          for (const [id, node] of nodesMap.entries()) {
+            if (id === sourceNode.id || id === targetNode.id) continue;
+            if (node.type !== 'conceptNode') continue;
+            const nodeY = node.internals?.positionAbsolute?.y ?? node.position?.y ?? 0;
+            const nodeH = node.measured?.height ?? 80;
+            const nodeX = node.internals?.positionAbsolute?.x ?? node.position?.x ?? 0;
+            const nodeW = node.measured?.width ?? 200;
+
+            // Only count as intermediate obstacle if it horizontally overlaps the line's X range (with 10px margin)
+            const horizontalOverlap = (nodeX < xMaxPath + 10) && (nodeX + nodeW > xMinPath - 10);
+            if (nodeY + nodeH > yMin + 5 && nodeY < yMax - 5 && horizontalOverlap) {
+              intermediateNodes.push(node);
+            }
+          }
+        }
+
         if (waypoints && waypoints.length >= 1) {
           draggedY = waypoints[0].y;
+          rawPoints = [
+            { x: sx, y: sy },
+            { x: sx, y: draggedY },
+            { x: tx, y: draggedY },
+            { x: tx, y: ty }
+          ];
         } else if (sourcePosition === targetPosition) {
           if (sourcePosition === Position.Top) {
             let minY = Math.min(sy, ty);
@@ -829,17 +1157,89 @@ function getEdgePoints(
             }
             draggedY = maxY + 40;
           }
+          rawPoints = [
+            { x: sx, y: sy },
+            { x: sx, y: draggedY },
+            { x: tx, y: draggedY },
+            { x: tx, y: ty }
+          ];
+        } else if (intermediateNodes.length > 0 && edgeId && allEdges) {
+          const currentEdge = allEdges.find(e => e.id === edgeId);
+          const type = currentEdge ? getEdgeTypeString(currentEdge) : 'default';
+          let draggedX = 0;
+
+          if (type === 'condition' || type === 'milestone') {
+            let minX = Math.min(sx, tx);
+            intermediateNodes.forEach(node => {
+              const nodeX = node.internals?.positionAbsolute?.x ?? node.position?.x ?? 0;
+              minX = Math.min(minX, nodeX);
+            });
+            draggedX = minX - 32;
+          } else {
+            let maxX = Math.max(sx, tx);
+            intermediateNodes.forEach(node => {
+              const nodeX = node.internals?.positionAbsolute?.x ?? node.position?.x ?? 0;
+              const nodeW = node.measured?.width ?? 200;
+              maxX = Math.max(maxX, nodeX + nodeW);
+            });
+            draggedX = maxX + 32;
+          }
+
+          const exitY = sourcePosition === Position.Bottom ? sy + 24 : sy - 24;
+          const entryY = targetPosition === Position.Top ? ty - 24 : ty + 24;
+          rawPoints = [
+            { x: sx, y: sy },
+            { x: sx, y: exitY },
+            { x: draggedX, y: exitY },
+            { x: draggedX, y: entryY },
+            { x: tx, y: entryY },
+            { x: tx, y: ty }
+          ];
+        } else {
+          rawPoints = [
+            { x: sx, y: sy },
+            { x: sx, y: draggedY },
+            { x: tx, y: draggedY },
+            { x: tx, y: ty }
+          ];
         }
-        rawPoints = [
-          { x: sx, y: sy },
-          { x: sx, y: draggedY },
-          { x: tx, y: draggedY },
-          { x: tx, y: ty }
-        ];
       } else {
         let draggedX = (sx + tx) / 2;
+        if (sourceOffset !== 0) {
+          draggedX += sourceOffset;
+        }
+
+        // Find intermediate nodes in the horizontal path
+        const xMin = Math.min(sx, tx);
+        const xMax = Math.max(sx, tx);
+        const intermediateNodes: any[] = [];
+        if (nodesMap && viewType === 'dcr' && !waypoints) {
+          const yMinPath = Math.min(sy, ty);
+          const yMaxPath = Math.max(sy, ty);
+          for (const [id, node] of nodesMap.entries()) {
+            if (id === sourceNode.id || id === targetNode.id) continue;
+            if (node.type !== 'conceptNode') continue;
+            const nodeX = node.internals?.positionAbsolute?.x ?? node.position?.x ?? 0;
+            const nodeW = node.measured?.width ?? 200;
+            const nodeY = node.internals?.positionAbsolute?.y ?? node.position?.y ?? 0;
+            const nodeH = node.measured?.height ?? 80;
+
+            // Only count as intermediate obstacle if it vertically overlaps the line's Y range (with 10px margin)
+            const verticalOverlap = (nodeY < yMaxPath + 10) && (nodeY + nodeH > yMinPath - 10);
+            if (nodeX + nodeW > xMin + 5 && nodeX < xMax - 5 && verticalOverlap) {
+              intermediateNodes.push(node);
+            }
+          }
+        }
+
         if (waypoints && waypoints.length >= 1) {
           draggedX = waypoints[0].x;
+          rawPoints = [
+            { x: sx, y: sy },
+            { x: draggedX, y: sy },
+            { x: draggedX, y: ty },
+            { x: tx, y: ty }
+          ];
         } else if (sourcePosition === targetPosition) {
           if (sourcePosition === Position.Left) {
             let minX = Math.min(sx, tx);
@@ -877,19 +1277,64 @@ function getEdgePoints(
             }
             draggedX = maxX + 40;
           }
+          rawPoints = [
+            { x: sx, y: sy },
+            { x: draggedX, y: sy },
+            { x: draggedX, y: ty },
+            { x: tx, y: ty }
+          ];
+        } else if (intermediateNodes.length > 0 && edgeId && allEdges) {
+          const currentEdge = allEdges.find(e => e.id === edgeId);
+          const type = currentEdge ? getEdgeTypeString(currentEdge) : 'default';
+          let draggedY = 0;
+
+          if (type === 'condition' || type === 'milestone') {
+            let minY = Math.min(sy, ty);
+            intermediateNodes.forEach(node => {
+              const nodeY = node.internals?.positionAbsolute?.y ?? node.position?.y ?? 0;
+              minY = Math.min(minY, nodeY);
+            });
+            draggedY = minY - 32;
+          } else {
+            let maxY = Math.max(sy, ty);
+            intermediateNodes.forEach(node => {
+              const nodeY = node.internals?.positionAbsolute?.y ?? node.position?.y ?? 0;
+              const nodeH = node.measured?.height ?? 80;
+              maxY = Math.max(maxY, nodeY + nodeH);
+            });
+            draggedY = maxY + 32;
+          }
+
+          const exitX = sourcePosition === Position.Right ? sx + 24 : sx - 24;
+          const entryX = targetPosition === Position.Left ? tx - 24 : tx + 24;
+          rawPoints = [
+            { x: sx, y: sy },
+            { x: exitX, y: sy },
+            { x: exitX, y: draggedY },
+            { x: entryX, y: draggedY },
+            { x: entryX, y: ty },
+            { x: tx, y: ty }
+          ];
         } else if (viewType === 'event_modeling') {
           if (targetPosition === Position.Left) {
             draggedX = tx - 42;
           } else if (targetPosition === Position.Right) {
             draggedX = tx + 42;
           }
+          rawPoints = [
+            { x: sx, y: sy },
+            { x: draggedX, y: sy },
+            { x: draggedX, y: ty },
+            { x: tx, y: ty }
+          ];
+        } else {
+          rawPoints = [
+            { x: sx, y: sy },
+            { x: draggedX, y: sy },
+            { x: draggedX, y: ty },
+            { x: tx, y: ty }
+          ];
         }
-        rawPoints = [
-          { x: sx, y: sy },
-          { x: draggedX, y: sy },
-          { x: draggedX, y: ty },
-          { x: tx, y: ty }
-        ];
       }
     }
   }
@@ -974,20 +1419,15 @@ function getEdgeTypeString(edge: any): string {
   const markerStart = edge.data?.markerStart || '';
   const markerEnd = edge.data?.markerEnd || '';
   const stroke = edge.style?.stroke || '';
-  
+
   if (markerStart.includes('condition') || markerEnd.includes('condition')) return 'condition';
   if (markerStart.includes('response') || markerEnd.includes('response')) return 'response';
   if (markerStart.includes('include') || markerEnd.includes('include')) return 'include';
   if (markerStart.includes('exclude') || markerEnd.includes('exclude')) return 'exclude';
   if (markerStart.includes('milestone') || markerEnd.includes('milestone')) return 'milestone';
-  
+
   return stroke || 'default';
 }
-
-// Module-level cache: maps edgeId → actual sourcePosition/targetPosition computed by getOrthogonalParams.
-// Each FloatingEdge writes its own entry when rendering; subsequent renders of OTHER edges read it.
-// One render cycle of lag is acceptable — by the 2nd render the values are correct.
-const _edgeRoutingCache = new Map<string, { sp: Position; tp: Position }>();
 
 // Custom FloatingEdge
 function FloatingEdge({ id, source, target, style, label, labelStyle, selected, data, className }: FloatingEdgeProps) {
@@ -1039,7 +1479,10 @@ function FloatingEdge({ id, source, target, style, label, labelStyle, selected, 
       dragDirection || undefined,
       isDragging,
       data?.viewType as string,
-      internalNodesMap
+      internalNodesMap,
+      id,
+      reactFlow.getEdges(),
+      viewEdges
     );
     sourcePosition = edgePoints.sourcePosition;
     targetPosition = edgePoints.targetPosition;
@@ -1062,90 +1505,6 @@ function FloatingEdge({ id, source, target, style, label, labelStyle, selected, 
       else if (targetPosition === Position.Right) pEnd.x += targetPadding;
       else if (targetPosition === Position.Top) pEnd.y -= targetPadding;
       else if (targetPosition === Position.Bottom) pEnd.y += targetPadding;
-    }
-
-    // Write this edge's actual routing sides to the cache so other edges can read them next render.
-    _edgeRoutingCache.set(id, { sp: sourcePosition, tp: targetPosition });
-
-    // ─── Side-aware handle distribution ─────────────────────────────────────
-    // Same type on same side  → stacked at center (no offset).
-    // Different types on same side → spread 20 px apart, centred around zero.
-    // We use _edgeRoutingCache for already-rendered edges (accurate), and a
-    // simple dx/dy fallback for edges whose cache entry doesn't exist yet.
-    const allEdges = reactFlow.getEdges();
-    const currentType = getEdgeTypeString({ data, style });
-
-    const getEdgeSrcSide = (e: { id: string; source: string; target: string }): Position => {
-      const cached = _edgeRoutingCache.get(e.id);
-      if (cached) return cached.sp;
-      // Fallback: approximate from absolute node centres
-      const src = internalNodesMap?.get(e.source);
-      const tgt = internalNodesMap?.get(e.target);
-      if (!src || !tgt) return sourcePosition;
-      const eDx = (tgt.internals.positionAbsolute.x + (tgt.measured?.width ?? 200) / 2)
-                - (src.internals.positionAbsolute.x + (src.measured?.width ?? 200) / 2);
-      const eDy = (tgt.internals.positionAbsolute.y + (tgt.measured?.height ?? 80) / 2)
-                - (src.internals.positionAbsolute.y + (src.measured?.height ?? 80) / 2);
-      if (Math.abs(eDx) >= Math.abs(eDy)) return eDx >= 0 ? Position.Right : Position.Left;
-      return eDy >= 0 ? Position.Bottom : Position.Top;
-    };
-
-    const getEdgeTgtSide = (e: { id: string; source: string; target: string }): Position => {
-      const cached = _edgeRoutingCache.get(e.id);
-      if (cached) return cached.tp;
-      const src = internalNodesMap?.get(e.source);
-      const tgt = internalNodesMap?.get(e.target);
-      if (!src || !tgt) return targetPosition;
-      const eDx = (tgt.internals.positionAbsolute.x + (tgt.measured?.width ?? 200) / 2)
-                - (src.internals.positionAbsolute.x + (src.measured?.width ?? 200) / 2);
-      const eDy = (tgt.internals.positionAbsolute.y + (tgt.measured?.height ?? 80) / 2)
-                - (src.internals.positionAbsolute.y + (src.measured?.height ?? 80) / 2);
-      if (Math.abs(eDx) >= Math.abs(eDy)) return eDx >= 0 ? Position.Left : Position.Right;
-      return eDy >= 0 ? Position.Top : Position.Bottom;
-    };
-
-    // Edges from this source exiting from the same side
-    const sameSourceSideEdges = allEdges.filter(
-      e => e.source === source && getEdgeSrcSide(e) === sourcePosition
-    );
-    const sourceUniqueTypes = Array.from(
-      new Set(sameSourceSideEdges.map(e => getEdgeTypeString(e)))
-    ).sort();
-    const sourceTotalEdges = sourceUniqueTypes.length;
-    const sourceOffsetIndex = sourceUniqueTypes.indexOf(currentType);
-
-    // Edges entering this target on the same side
-    const sameTargetSideEdges = allEdges.filter(
-      e => e.target === target && getEdgeTgtSide(e) === targetPosition
-    );
-    const targetUniqueTypes = Array.from(
-      new Set(sameTargetSideEdges.map(e => getEdgeTypeString(e)))
-    ).sort();
-    const targetTotalEdges = targetUniqueTypes.length;
-    const targetOffsetIndex = targetUniqueTypes.indexOf(currentType);
-
-    const step = 20;
-
-    if (sourceTotalEdges > 1 && sourceOffsetIndex !== -1) {
-      const sourceOffsetVal = (sourceOffsetIndex - (sourceTotalEdges - 1) / 2) * step;
-      if (sourcePosition === Position.Top || sourcePosition === Position.Bottom) {
-        renderedPoints[0].x += sourceOffsetVal;
-        if (renderedPoints.length > 2) renderedPoints[1].x += sourceOffsetVal;
-      } else {
-        renderedPoints[0].y += sourceOffsetVal;
-        if (renderedPoints.length > 2) renderedPoints[1].y += sourceOffsetVal;
-      }
-    }
-
-    if (targetTotalEdges > 1 && targetOffsetIndex !== -1) {
-      const targetOffsetVal = (targetOffsetIndex - (targetTotalEdges - 1) / 2) * step;
-      if (targetPosition === Position.Top || targetPosition === Position.Bottom) {
-        renderedPoints[renderedPoints.length - 1].x += targetOffsetVal;
-        if (renderedPoints.length > 2) renderedPoints[renderedPoints.length - 2].x += targetOffsetVal;
-      } else {
-        renderedPoints[renderedPoints.length - 1].y += targetOffsetVal;
-        if (renderedPoints.length > 2) renderedPoints[renderedPoints.length - 2].y += targetOffsetVal;
-      }
     }
 
     if (renderedPoints.length > 0) {
@@ -1231,7 +1590,7 @@ function FloatingEdge({ id, source, target, style, label, labelStyle, selected, 
         ny = -ny;
       }
 
-      const step = 40; 
+      const step = 40;
       const offsetIndex = edgeIndex - (totalEdges - 1) / 2;
       const offsetVal = offsetIndex * step;
 
@@ -1400,7 +1759,10 @@ function FloatingEdge({ id, source, target, style, label, labelStyle, selected, 
         undefined,
         false,
         data?.viewType as string,
-        internalNodesMap
+        internalNodesMap,
+        id,
+        reactFlow.getEdges(),
+        currentView?.viewEdges
       );
 
       const simplifiedPath = simplifyCollinearPoints(filterDuplicatePoints(edgePoints.points));
@@ -1439,7 +1801,7 @@ function FloatingEdge({ id, source, target, style, label, labelStyle, selected, 
   const hasMultiplicity = !!displayMultiplicity;
 
   const longestLine = Math.max(displayName.length, displayMultiplicity.length);
-  const rectWidth = longestLine * 6 + 16; 
+  const rectWidth = longestLine * 6 + 16;
   const rectHeight = hasMultiplicity ? 28 : 18;
   const rectX = -rectWidth / 2;
   const rectY = -rectHeight / 2;
@@ -1690,8 +2052,8 @@ export function ReactFlowCanvas({
         });
 
         const sliceY = chapterVn.y + 48; // CHAPTER_PADDING
-        const hSlice = maxElementBottom !== -Infinity 
-          ? Math.max(200, (maxElementBottom + (view.type === 'event_modeling' ? 48 : PADDING_BOTTOM)) - sliceY) 
+        const hSlice = maxElementBottom !== -Infinity
+          ? Math.max(200, (maxElementBottom + (view.type === 'event_modeling' ? 48 : PADDING_BOTTOM)) - sliceY)
           : 500;
         const hChapter = hSlice + 96; // 48 padding top + 48 padding bottom
 
@@ -1703,7 +2065,7 @@ export function ReactFlowCanvas({
     }
 
     const groupBounds = new Map<ElementId, { x: number; y: number; w: number; h: number }>();
-    
+
     // Sort group nodes by nesting depth in descending order (deepest child groups first)
     // so that child group bounds are calculated before parent groups recalculate their bounds.
     const groupNodes = viewNodes.filter((vn) => {
@@ -2131,13 +2493,17 @@ export function ReactFlowCanvas({
 
                 if (isSource) {
                   const wp = waypoints[0];
-                  if (wp.x >= xMin && wp.x <= xMax && wp.y >= yMin && wp.y <= yMax) {
+                  const isInsideX = wp.x > xMin + 5 && wp.x < xMax - 5;
+                  const isInsideY = wp.y > yMin + 5 && wp.y < yMax - 5;
+                  if (isInsideX && isInsideY) {
                     waypoints.shift();
                     pruned = true;
                   }
                 } else if (isTarget) {
                   const wp = waypoints[waypoints.length - 1];
-                  if (wp.x >= xMin && wp.x <= xMax && wp.y >= yMin && wp.y <= yMax) {
+                  const isInsideX = wp.x > xMin + 5 && wp.x < xMax - 5;
+                  const isInsideY = wp.y > yMin + 5 && wp.y < yMax - 5;
+                  if (isInsideX && isInsideY) {
                     waypoints.pop();
                     pruned = true;
                   }
@@ -2380,7 +2746,7 @@ export function ReactFlowCanvas({
 
       let anyChanged = false;
       const DETACHMENT_THRESHOLD = 100;
-      
+
       // Trace up the chain
       for (let i = 0; i < parentChain.length; i++) {
         const parentId = parentChain[i];
@@ -2519,7 +2885,7 @@ export function ReactFlowCanvas({
         }
 
         // Check if anything actually changed for this parent
-        const parentBoundsChanged = 
+        const parentBoundsChanged =
           proposedX !== parentNode.position.x ||
           proposedY !== parentNode.position.y ||
           proposedW !== parentNode.style?.width ||
@@ -2611,7 +2977,7 @@ export function ReactFlowCanvas({
       if (draggedConcept.conceptType === 'em_slice') {
         const sliceW = node.measured?.width ?? 320;
         const sliceH = node.measured?.height ?? 500;
-        
+
         const parentId = draggedVn.parentId;
         const parentNode = parentId ? nodes.find((n) => n.id === parentId) : null;
         const parentW = parentNode ? (parentNode.style?.width ?? parentNode.measured?.width ?? 600) as number : 600;
@@ -2739,7 +3105,7 @@ export function ReactFlowCanvas({
           // Check if outside the parent (including the 100px detachment threshold)
           const DETACHMENT_THRESHOLD = 100;
           let isOutside = false;
-          
+
           if (view.type === 'event_modeling') {
             const isSlice = conceptMap.get(parentId)?.conceptType === 'em_slice';
             if (isSlice) {
@@ -2939,11 +3305,11 @@ export function ReactFlowCanvas({
           const childConcepts = sliceElements
             .map((vn) => concepts.find((c) => c.id === vn.conceptId))
             .filter((c): c is ConceptNode => !!c);
-          
+
           childConcepts.sort((a, b) => b.createdAt - a.createdAt);
           const newestConcept = childConcepts[0];
           const nextType = emTypeMap[newestConcept.conceptType];
-          
+
           if (nextType) {
             targetType = nextType;
             defaultName = emNameMap[targetType] || defaultName;
@@ -2951,11 +3317,11 @@ export function ReactFlowCanvas({
             targetType = 'screen';
             defaultName = 'Nyt Skærmbillede';
           }
-          
+
           const newestVn = sliceElements.find((vn) => vn.conceptId === newestConcept.id);
           newX = currentViewNode.x + 30;
           newY = (newestVn?.y ?? currentViewNode.y) + 140;
-          
+
           shouldAddRelation = true;
           relationSourceId = newestConcept.id;
         }
@@ -3004,7 +3370,7 @@ export function ReactFlowCanvas({
     if (!selectedConceptId) return "Opret og forbind nyt begreb";
     const concept = concepts.find((c) => c.id === selectedConceptId);
     if (!concept) return "Opret og forbind nyt begreb";
-    
+
     if (view.type === 'event_modeling') {
       if (concept.conceptType === 'em_chapter') {
         return "Tilføj ny Slice til Chapter";
@@ -3135,6 +3501,7 @@ export function ReactFlowCanvas({
           onNodeDrag={onNodeDrag}
           onNodeDragStop={onNodeDragStop}
           onEdgeClick={(_e, edge) => onRelationSelect(toElementId(edge.id))}
+          onEdgeDoubleClick={(_e, edge) => useGraphStore.getState().resetViewEdgeLayout(view.id, toElementId(edge.id))}
           onPaneClick={() => { onNodeSelect(null); onRelationSelect(null); }}
           onSelectionChange={onSelectionChange}
           edgeTypes={edgeTypes}

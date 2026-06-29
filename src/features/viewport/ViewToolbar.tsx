@@ -82,10 +82,10 @@ export function ViewToolbar() {
           // manualX/Y would cause nodes to "bunch" at their old positions from a prior MANUAL session.
           nodes = v.nodes.map((n) => ({
             ...n,
-            x: n.x,
-            y: n.y,
-            manualX: n.x,
-            manualY: n.y,
+            x: n.manualX ?? n.x,
+            y: n.manualY ?? n.y,
+            manualX: n.manualX ?? n.x,
+            manualY: n.manualY ?? n.y,
           }));
         }
 
