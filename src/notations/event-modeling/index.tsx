@@ -18,7 +18,7 @@
 
 import { useMemo, useState, useEffect } from 'react';
 import { Handle, Position, type NodeProps, type Node } from '@xyflow/react';
-import type { Notation, NotationCanvasProps } from '../types';
+import type { Notation, NotationCanvasProps, QuickActionConfig } from '../types';
 import { ReactFlowCanvas } from '../../features/viewport/graph/ReactFlowCanvas';
 import { useGraphStore } from '../../store/useGraphStore';
 import { eventModelingLayoutEngine } from './layout';
@@ -29,6 +29,7 @@ import type {
   ConceptNode,
   ConceptProperty,
   ConceptRelation,
+  ConceptType,
   DataType,
   ElementId,
 } from '../../schema/graphSchema';
@@ -844,7 +845,11 @@ export const eventModelingNotation: Notation = {
   orthogonalEdges: true,
   CanvasComponent: EventModelingCanvas,
   layoutEngine: eventModelingLayoutEngine,
-  defaultElement: { conceptType: 'em_chapter', name: 'Start Kapitel' },
+  defaultElements: [
+    { conceptType: 'em_chapter', name: 'Start Chapter', xOffset: 100, yOffset: 80 },
+    { conceptType: 'em_slice', name: 'Start Slice', parentIndex: 0, xOffset: 48, yOffset: 48 },
+    { conceptType: 'event', name: 'Start Event', parentIndex: 1, xOffset: 30, yOffset: 140 },
+  ],
   allowedConceptTypes: [
     'screen',
     'command',
@@ -857,6 +862,55 @@ export const eventModelingNotation: Notation = {
   ],
   isValidRelation,
   getAvailableRelations,
+  getQuickActions: (nodeType: ConceptType): QuickActionConfig[] => {
+    switch (nodeType) {
+      case 'screen':
+        return [
+          { conceptType: 'command', label: 'Ny Command', position: 'bottom', direction: 'source-to-target', createNewParent: 'same-parent' },
+          { conceptType: 'read_model', label: 'Ny Read Model (Left)', position: 'left', direction: 'target-to-source', createNewParent: 'sibling-slice-left' }
+        ];
+      case 'command':
+        return [
+          { conceptType: 'screen', label: 'Ny Screen', position: 'top', direction: 'target-to-source', createNewParent: 'same-parent' },
+          { conceptType: 'automation', label: 'Ny Automation (Left)', position: 'top', direction: 'target-to-source', createNewParent: 'sibling-slice-left' },
+          { conceptType: 'event', label: 'Ny Event', position: 'bottom', direction: 'source-to-target', createNewParent: 'same-parent' },
+          { conceptType: 'integration_event', label: 'Ny Integration Event', position: 'right', direction: 'source-to-target', createNewParent: 'same-parent' }
+        ];
+      case 'event':
+        return [
+          { conceptType: 'command', label: 'Ny Command', position: 'top', direction: 'target-to-source', createNewParent: 'same-parent' },
+          { conceptType: 'automation', label: 'Ny Automation', position: 'bottom', direction: 'source-to-target', createNewParent: 'sibling-slice' },
+          { conceptType: 'read_model', label: 'Ny Read Model (Left)', position: 'left', direction: 'source-to-target', createNewParent: 'sibling-slice-left' },
+          { conceptType: 'read_model', label: 'Ny Read Model (Right)', position: 'right', direction: 'source-to-target', createNewParent: 'sibling-slice' },
+          { conceptType: 'event', label: 'Ny Event (Left)', position: 'left', direction: 'target-to-source', createNewParent: 'sibling-slice-left' },
+          { conceptType: 'event', label: 'Ny Event (Right)', position: 'right', direction: 'source-to-target', createNewParent: 'sibling-slice' }
+        ];
+      case 'read_model':
+        return [
+          { conceptType: 'screen', label: 'Ny Screen', position: 'right', direction: 'source-to-target', createNewParent: 'sibling-slice' },
+          { conceptType: 'automation', label: 'Ny Automation', position: 'right', direction: 'source-to-target', createNewParent: 'sibling-slice' },
+          { conceptType: 'event', label: 'Ny Event (Left)', position: 'left', direction: 'target-to-source', createNewParent: 'sibling-slice-left' },
+          { conceptType: 'integration_event', label: 'Ny Integration Event (Left)', position: 'left', direction: 'target-to-source', createNewParent: 'sibling-slice-left' }
+        ];
+      case 'integration_event':
+        return [
+          { conceptType: 'command', label: 'Ny Command (Left)', position: 'left', direction: 'target-to-source', createNewParent: 'same-parent' },
+          { conceptType: 'event', label: 'Ny Event (Left)', position: 'left', direction: 'target-to-source', createNewParent: 'sibling-slice-left' },
+          { conceptType: 'read_model', label: 'Ny Read Model (Left)', position: 'left', direction: 'target-to-source', createNewParent: 'sibling-slice-left' },
+          { conceptType: 'read_model', label: 'Ny Read Model (Right)', position: 'right', direction: 'source-to-target', createNewParent: 'sibling-slice' },
+          { conceptType: 'automation', label: 'Ny Automation', position: 'bottom', direction: 'source-to-target', createNewParent: 'sibling-slice' }
+        ];
+      case 'automation':
+        return [
+          { conceptType: 'event', label: 'Ny Event (Left)', position: 'left', direction: 'target-to-source', createNewParent: 'sibling-slice-left' },
+          { conceptType: 'read_model', label: 'Ny Read Model (Left)', position: 'left', direction: 'target-to-source', createNewParent: 'sibling-slice-left' },
+          { conceptType: 'integration_event', label: 'Ny Integration Event (Left)', position: 'left', direction: 'target-to-source', createNewParent: 'sibling-slice-left' },
+          { conceptType: 'command', label: 'Ny Command', position: 'right', direction: 'source-to-target', createNewParent: 'sibling-slice' }
+        ];
+      default:
+        return [];
+    }
+  },
   InspectorComponent: EventModelingInspector,
   RelationInspectorComponent: EventModelingRelationInspector,
   hideViewsSection: false,

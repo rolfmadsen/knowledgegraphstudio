@@ -408,7 +408,7 @@ const HIDE_EDGES_IN_NOTATION: Record<string, Set<string>> = {
   if (!activeView) {
     return (
       <div className="flex-1 flex items-center justify-center bg-slate-50 text-slate-400 font-sans text-xs">
-        No active view. Select or create one from the Navigator.
+        No active view. Select or create one from the Model Explorer.
       </div>
     );
   }

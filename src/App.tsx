@@ -17,11 +17,11 @@ import { ViewportContainer } from './features/viewport/ViewportContainer';
 import { type ViewMode } from './types/view';
 import { NotationCanvasWrapper } from './features/viewport/NotationCanvasWrapper';
 import { Inspector } from './features/properties/Inspector';
-import { Navigator } from './features/navigation/Navigator';
+import { ModelExplorer } from './features/modelexplorer/ModelExplorer';
 import { ViewToolbar } from './features/viewport/ViewToolbar';
 import type { PullResult } from './services/GitService';
-import { RefinedToolbar } from './components/ui/RefinedToolbar';
-import { LayoutGrid, Code2, Columns2, HelpCircle } from 'lucide-react';
+import { Header } from './components/ui/Header';
+import { LayoutGrid, Code2, Columns2, HelpCircle, PanelLeftOpen } from 'lucide-react';
 import { StatusBar } from './features/statusbar/StatusBar';
 import { useUISession, readUISession } from './hooks/useUISession';
 
@@ -34,13 +34,13 @@ const NodeCreator = lazy(() => import('./features/concepts/NodeCreator').then(m 
 const HelpCenter = lazy(() => import('./features/help/HelpCenter').then(m => ({ default: m.HelpCenter })));
 const ConflictResolverModal = lazy(() => import('./features/conflicts/ConflictResolverModal').then(m => ({ default: m.ConflictResolverModal })));
 const RemoteConfigModal = lazy(() => import('./features/conflicts/RemoteConfigModal').then(m => ({ default: m.RemoteConfigModal })));
-const WorkspaceSwitcherModal = lazy(() => import('./features/navigation/WorkspaceSwitcherModal').then(m => ({ default: m.WorkspaceSwitcherModal })));
-const CreateViewModal = lazy(() => import('./features/navigation/CreateViewModal').then(m => ({ default: m.CreateViewModal })));
+const WorkspaceSwitcherModal = lazy(() => import('./features/modelexplorer/WorkspaceSwitcherModal').then(m => ({ default: m.WorkspaceSwitcherModal })));
+const CreateViewModal = lazy(() => import('./features/modelexplorer/CreateViewModal').then(m => ({ default: m.CreateViewModal })));
 // AIChatPanel pulls in AIService (WebLLM bindings) — lazy to avoid main-bundle bloat
 const AIChatPanel = lazy(() => import('./features/ai/components/AIChatPanel').then(m => ({ default: m.AIChatPanel })));
 // DeleteConceptModal is flagged as a long-task contributor — lazy load it
 const DeleteConceptModal = lazy(() => import('./features/viewport/graph/DeleteConceptModal').then(m => ({ default: m.DeleteConceptModal })));
-const DeleteViewModal = lazy(() => import('./features/navigation/DeleteViewModal').then(m => ({ default: m.DeleteViewModal })));
+const DeleteViewModal = lazy(() => import('./features/modelexplorer/DeleteViewModal').then(m => ({ default: m.DeleteViewModal })));
 
 
 const EMPTY_HISTORY = { pastStates: [], futureStates: [] };
@@ -59,7 +59,7 @@ function App() {
       setActiveTab: s.setActiveTab,
     }))
   );
-  const [indexOpen, setIndexOpen] = useState(true);
+  const [modelExplorerOpen, setModelExplorerOpen] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>(_session.viewMode);
   const [diffMode, setDiffMode] = useState(false);
   const [isConflict, setIsConflict] = useState(false);
@@ -109,8 +109,16 @@ function App() {
   }, [diffMode]);
 
   // --- Layout Resizers ---
-  const lib = useResizable({ initialWidth: 250, minWidth: 200, maxWidth: 500, direction: 'ltr' });
+  const lib = useResizable({ initialWidth: 250, minWidth: 100, maxWidth: 500, direction: 'ltr' });
   const prop = useResizable({ initialWidth: 200, minWidth: 200, maxWidth: 500, direction: 'rtl' });
+
+  // Snap-to-close behavior for Model Explorer
+  useEffect(() => {
+    if (lib.width < 120 && modelExplorerOpen) {
+      setModelExplorerOpen(false);
+      lib.setWidth(200); // Reset to standard width so it reopens nicely
+    }
+  }, [lib.width, modelExplorerOpen, lib]);
 
   const splitOffset = (propertiesOpen && !focusMode) ? prop.width : 0;
   const split = useResizable({
@@ -318,7 +326,7 @@ function App() {
   // --- Keyboard shortcuts ---
   useKeyboard({
     onToggleProperties: () => setPropertiesOpen((prev) => !prev),
-    onToggleIndex: () => setIndexOpen((prev) => !prev),
+    onToggleModelExplorer: () => setModelExplorerOpen((prev) => !prev),
     onToggleViewMode: cycleViewMode,
     onToggleDiffMode: () => setDiffMode((prev) => !prev),
     onToggleFocusMode: () => setFocusMode(!focusMode),
@@ -412,7 +420,7 @@ function App() {
 
   return (
     <div className="w-full h-screen bg-background text-slate-900 overflow-hidden font-sans flex flex-col">
-      <RefinedToolbar
+      <Header
         undo={() => {
           const state = useGraphStore.getState();
           if (!state.activeViewId || !state.undoViewMembership(state.activeViewId)) {
@@ -444,14 +452,14 @@ function App() {
         focusMode={focusMode}
       />
       <div className="flex-1 flex overflow-hidden bg-slate-50">
-        {/* Left Side: Catalogue/Navigator */}
-        {indexOpen && !focusMode && (
+        {/* Left Side: Catalogue/Model Explorer */}
+        {modelExplorerOpen && !focusMode && (
           <>
             <aside
               className="relative z-30 border-r border-slate-200 bg-slate-50 flex flex-col shrink-0 overflow-hidden"
               style={{ width: `${lib.width}px` }}
             >
-              <Navigator />
+              <ModelExplorer onCollapse={() => setModelExplorerOpen(false)} />
             </aside>
             <div
               onMouseDown={lib.startResizing}
@@ -485,6 +493,15 @@ function App() {
             className="absolute left-6 z-[100] flex items-center gap-3"
             style={{ top: '24px' }}
           >
+            {!modelExplorerOpen && !focusMode && (
+              <button
+                onClick={() => setModelExplorerOpen(true)}
+                className="w-10 h-10 bg-white/90 backdrop-blur-xl border border-slate-200/80 rounded-2xl flex items-center justify-center text-slate-500 hover:text-slate-900 transition-all shadow-xl shadow-slate-200/60 active:scale-95 cursor-pointer shrink-0"
+                title="Vis Model Explorer (Ctrl+B)"
+              >
+                <PanelLeftOpen size={16} strokeWidth={2.5} />
+              </button>
+            )}
             <div 
               ref={switcherRefCallback}
               className="flex items-center gap-1 px-2 h-10 bg-white/90 backdrop-blur-xl border border-slate-200/80 rounded-2xl shadow-xl shadow-slate-200/60"

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useGraphStore } from '../../store/useGraphStore';
 import { ConceptType } from '../../schema/graphSchema';
 import { NotationRegistry } from '../../notations/NotationRegistry';
-import { GraphService } from '../../services/GraphService';
+import { getVirtualType } from '../../utils/virtualType';
 import { X, Plus, User, Activity, Box, Server, Zap, Shield, Layout, Globe, Search } from 'lucide-react';
 
 export const NodeCreator: React.FC = () => {
@@ -147,7 +147,7 @@ export const NodeCreator: React.FC = () => {
         const isCreatingConceptual = activeView?.type === 'conceptual_model';
         const isCreatingInformation = activeView?.type === 'information_model';
 
-        const virtualType = GraphService.getVirtualType(c, views);
+        const virtualType = getVirtualType(c, views);
 
         if (isCreatingConceptual && virtualType === 'conceptual_class') return true;
         if (isCreatingInformation && virtualType === 'information_class') return true;
@@ -418,7 +418,7 @@ export const NodeCreator: React.FC = () => {
               </label>
               <div className="max-h-[120px] overflow-y-auto pr-1 custom-scrollbar border border-slate-100 bg-slate-50/50 rounded-2xl p-3 space-y-2">
                 {similarConcepts.map((c) => {
-                  const virtualType = GraphService.getVirtualType(c, views);
+                  const virtualType = getVirtualType(c, views);
                   const labelStr = virtualType === 'conceptual_class' ? 'Begreb' : virtualType === 'information_class' ? 'Klasse' : c.conceptType.replace('_', ' ');
                   
                   // Check if already in the active view

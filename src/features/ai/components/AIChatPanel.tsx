@@ -376,7 +376,7 @@ export function AIChatPanel() {
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-slate-400 bg-slate-50">
         <Sparkles size={24} className="mb-2 text-slate-300 animate-pulse" />
-        <p className="text-xs font-semibold">Vælg et view i Navigator for at aktivere AI-arkitekten.</p>
+        <p className="text-xs font-semibold">Vælg et view i Model Explorer for at aktivere AI-arkitekten.</p>
       </div>
     );
   }

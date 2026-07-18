@@ -40,5 +40,5 @@ export const useResizable = (config: {
     };
   }, [isResizing, resize, stopResizing]);
 
-  return { width, isResizing, startResizing };
+  return { width, isResizing, startResizing, setWidth };
 };

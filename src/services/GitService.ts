@@ -14,7 +14,7 @@ import { getFS, REPO_DIR, recursiveDelete } from '../core/fileSystem';
 import { CredentialService } from './CredentialService';
 import { PersistenceService, type PersistableState } from './PersistenceService';
 import type { GraphState } from '../schema/graphSchema';
-import type { SyncStatus } from '../store/useGraphStore';
+import type { SyncStatus } from '../types/sync';
 
 // ============================================================
 // Types

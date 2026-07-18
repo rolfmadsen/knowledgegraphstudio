@@ -112,6 +112,16 @@ export interface Notation {
     name: string;
   };
   /**
+   * Optional list of nested default elements to automatically create when a new view is created for this notation.
+   */
+  readonly defaultElements?: Array<{
+    conceptType: ConceptType;
+    name: string;
+    parentIndex?: number;
+    xOffset?: number;
+    yOffset?: number;
+  }>;
+  /**
    * Optional validator to check if a specific relationship type is allowed
    * between two concept types.
    */
@@ -153,5 +163,17 @@ export interface Notation {
    * Optional flag to suppress the generic views membership section in the properties inspector.
    */
   readonly hideViewsSection?: boolean;
+  /**
+   * Optional quick actions for creating related nodes from the toolbar.
+   */
+  readonly getQuickActions?: (nodeType: ConceptType) => QuickActionConfig[];
+}
+
+export interface QuickActionConfig {
+  conceptType: ConceptType;
+  label: string;
+  position: 'top' | 'right' | 'bottom' | 'left';
+  direction: 'source-to-target' | 'target-to-source';
+  createNewParent?: 'sibling-slice' | 'sibling-slice-left' | 'same-parent';
 }
 

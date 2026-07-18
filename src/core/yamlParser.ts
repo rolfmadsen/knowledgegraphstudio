@@ -16,6 +16,7 @@ import {
   type ConceptNode,
   type ConceptRelation,
   type View,
+  type ViewNode,
   type ConceptProperty,
   type Policy,
   type BaseConceptNode,
@@ -384,13 +385,26 @@ export function yamlToViews(yamlString: string): View[] {
     
     // Map legacy 'global_explorer' to 'knowledge_graph'
     return (parsed.views as View[]).map((v) => {
+      const uniqueNodesMap = new Map<string, ViewNode>();
+      for (const node of (v.nodes ?? [])) {
+        if (node && node.conceptId && !uniqueNodesMap.has(node.conceptId)) {
+          uniqueNodesMap.set(node.conceptId, node);
+        }
+      }
+      const deduplicatedNodes = Array.from(uniqueNodesMap.values());
+
+      const nextView = {
+        ...v,
+        nodes: deduplicatedNodes,
+      };
+
       if ((v.type as string) === 'global_explorer') {
         return {
-          ...v,
+          ...nextView,
           type: 'knowledge_graph',
         };
       }
-      return v;
+      return nextView;
     });
   } catch (err) {
     console.warn('[yamlParser] Failed to parse views.typegraph.yaml:', err);

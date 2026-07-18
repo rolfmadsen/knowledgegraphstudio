@@ -21,7 +21,7 @@ import {
   Position,
   NodeToolbar,
 } from '@xyflow/react';
-import { Trash2, ArrowUpRight, Plus, X } from 'lucide-react';
+import { Trash2, ArrowUpRight, Plus, X, Tv, Zap, GitCommit, Database, Share2, Cpu } from 'lucide-react';
 import '@xyflow/react/dist/style.css';
 import type { NotationCanvasProps } from '../../../notations/types';
 import { NotationRegistry } from '../../../notations/NotationRegistry';
@@ -224,19 +224,8 @@ function getOrthogonalParams(
   let targetPosition = Position.Top;
 
   if (viewType === 'event_modeling') {
-    const sourceConcept = (source.data as any)?.concept;
-    const targetConcept = (target.data as any)?.concept;
     const sourceParentId = source.parentId;
     const targetParentId = target.parentId;
-    const sourceConceptType = sourceConcept?.conceptType;
-    const targetConceptType = targetConcept?.conceptType;
-
-    const EM_ROW_ORDER = ['screen', 'command', 'event', 'read_model', 'integration_event', 'automation'];
-    const getEmRowIndex = (type?: string): number => {
-      if (!type) return -1;
-      const idx = EM_ROW_ORDER.indexOf(type);
-      return idx >= 0 ? idx : EM_ROW_ORDER.length;
-    };
 
     let crossChapter = false;
     if (nodesMap) {
@@ -271,23 +260,12 @@ function getOrthogonalParams(
       const inSameSlice = sourceParentId && targetParentId && sourceParentId === targetParentId;
 
       if (inSameSlice) {
-        const rowSource = getEmRowIndex(sourceConceptType);
-        const rowTarget = getEmRowIndex(targetConceptType);
-        const rowDiff = Math.abs(rowSource - rowTarget);
-
-        if (rowDiff === 1) {
-          if (dy > 0) {
-            sourcePosition = Position.Bottom;
-            targetPosition = Position.Top;
-          } else {
-            sourcePosition = Position.Top;
-            targetPosition = Position.Bottom;
-          }
+        if (dy > 0) {
+          sourcePosition = Position.Bottom;
+          targetPosition = Position.Top;
         } else {
-          // Non-adjacent rows inside same slice (e.g. Read Model to Screen, row difference is 3):
-          // Route around the left side using Left handles to avoid crossing other elements vertically
-          sourcePosition = Position.Left;
-          targetPosition = Position.Left;
+          sourcePosition = Position.Top;
+          targetPosition = Position.Bottom;
         }
       } else {
         // Different slices: always Left/Right horizontal flow
@@ -2000,6 +1978,9 @@ export function ReactFlowCanvas({
     selectConcept,
     triggerLayout,
     views,
+    focusedToolbarButtonId,
+    setFocusedToolbarButtonId,
+    updateConcept,
   } = useGraphStore();
 
   const [connectingSourceId, setConnectingSourceId] = useState<ElementId | null>(null);
@@ -2387,7 +2368,7 @@ export function ReactFlowCanvas({
   const [nodes, setNodes] = useNodesState(computedNodes);
   const [edges, setEdges] = useEdgesState(initialEdges);
 
-  // Smoothly center the canvas viewport on the selected node when centerSelectionCount changes (Navigator, Command, Tab cycle)
+  // Smoothly center the canvas viewport on the selected node when centerSelectionCount changes (Model Explorer, Command, Tab cycle)
   useEffect(() => {
     if (!selectedConceptId) return;
     const selectedNode = nodes.find((n) => n.id === selectedConceptId);
@@ -3259,18 +3240,18 @@ export function ReactFlowCanvas({
       };
 
       const emNameMap: Record<string, string> = {
-        screen: 'Nyt Skærmbillede',
-        command: 'Ny Kommando',
-        event: 'Ny Domænehændelse',
-        read_model: 'Ny Læsemodel',
+        screen: 'Ny Screen',
+        command: 'Ny Command',
+        event: 'Ny Event',
+        read_model: 'Ny Read Model',
         automation: 'Ny Automation',
-        integration_event: 'Ny Integrationshændelse',
-        em_slice: 'New Slice',
+        integration_event: 'Ny Integration Event',
+        em_slice: 'Ny Slice',
       };
 
       if (sourceConcept.conceptType === 'em_chapter') {
         targetType = 'em_slice';
-        defaultName = 'New Slice';
+        defaultName = 'Ny Slice';
         parentId = selectedConceptId;
         shouldAddRelation = false;
 
@@ -3297,7 +3278,7 @@ export function ReactFlowCanvas({
 
         if (sliceElements.length === 0) {
           targetType = 'screen';
-          defaultName = 'Nyt Skærmbillede';
+          defaultName = 'Ny Screen';
           shouldAddRelation = false;
           newX = currentViewNode.x + 30;
           newY = currentViewNode.y + 48;
@@ -3315,7 +3296,7 @@ export function ReactFlowCanvas({
             defaultName = emNameMap[targetType] || defaultName;
           } else {
             targetType = 'screen';
-            defaultName = 'Nyt Skærmbillede';
+            defaultName = 'Ny Screen';
           }
 
           const newestVn = sliceElements.find((vn) => vn.conceptId === newestConcept.id);
@@ -3332,6 +3313,41 @@ export function ReactFlowCanvas({
           defaultName = emNameMap[targetType] || defaultName;
         }
         parentId = currentViewNode.parentId;
+
+        if (
+          (sourceConcept.conceptType === 'event' && targetType === 'read_model') ||
+          (sourceConcept.conceptType === 'read_model' && targetType === 'screen') ||
+          (sourceConcept.conceptType === 'automation' && targetType === 'command') ||
+          (sourceConcept.conceptType === 'integration_event' && targetType === 'read_model')
+        ) {
+          const sliceVn = view.nodes.find((vn) => vn.conceptId === currentViewNode.parentId);
+          const chapterId = sliceVn?.parentId;
+          const sliceA = sliceVn ? concepts.find((c) => c.id === sliceVn.conceptId) : undefined;
+          if (sliceA && chapterId) {
+            const chapterSlices = view.nodes
+              .filter((vn) => vn.parentId === chapterId)
+              .map((vn) => concepts.find((c) => c.id === vn.conceptId))
+              .filter((c): c is any => !!c && c.conceptType === 'em_slice')
+              .sort((a, b) => a.createdAt - b.createdAt);
+
+            const sliceAIndex = chapterSlices.findIndex((s) => s.id === sliceA.id);
+            let newSliceCreatedAt = Date.now();
+
+            if (sliceAIndex >= 0 && sliceAIndex < chapterSlices.length - 1) {
+              const nextSlice = chapterSlices[sliceAIndex + 1];
+              newSliceCreatedAt = (sliceA.createdAt + nextSlice.createdAt) / 2;
+            } else {
+              newSliceCreatedAt = sliceA.createdAt + 1000;
+            }
+
+            const newSlice = addConcept('em_slice', 'Ny Slice', {
+              parentId: chapterId,
+              createdBy: 'user',
+            });
+            updateConcept(newSlice.id, { createdAt: newSliceCreatedAt });
+            parentId = newSlice.id;
+          }
+        }
       }
     }
 
@@ -3364,7 +3380,209 @@ export function ReactFlowCanvas({
     if (view.layoutAlgorithm !== 'manual') {
       triggerLayout();
     }
-  }, [selectedConceptId, concepts, view, addConcept, addRelation, selectConcept, triggerLayout]);
+  }, [selectedConceptId, concepts, view, addConcept, addRelation, selectConcept, triggerLayout, updateConcept]);
+
+  const selectedConcept = useMemo(
+    () => concepts.find((c) => c.id === selectedConceptId),
+    [concepts, selectedConceptId]
+  );
+
+  const quickActions = useMemo(() => {
+    if (!selectedConcept) return [];
+    const activeNotation = NotationRegistry.forViewType(view.type);
+    return activeNotation?.getQuickActions?.(selectedConcept.conceptType) ?? [];
+  }, [selectedConcept, view.type]);
+
+  const topActions = useMemo(() => quickActions.filter((a) => a.position === 'top'), [quickActions]);
+  const rightActions = useMemo(() => quickActions.filter((a) => a.position === 'right'), [quickActions]);
+  const bottomActions = useMemo(() => quickActions.filter((a) => a.position === 'bottom'), [quickActions]);
+  const leftActions = useMemo(() => quickActions.filter((a) => a.position === 'left'), [quickActions]);
+
+  const handleQuickAction = useCallback((action: any) => {
+    if (!selectedConceptId) return;
+
+    const sourceConcept = concepts.find((c) => c.id === selectedConceptId);
+    if (!sourceConcept) return;
+
+    const currentViewNode = view.nodes.find((vn) => vn.conceptId === selectedConceptId);
+    if (!currentViewNode) return;
+
+    const targetType = action.conceptType;
+
+    const defaultNames: Record<string, string> = {
+      screen: 'Ny Screen',
+      command: 'Ny Command',
+      event: 'Ny Event',
+      read_model: 'Ny Read Model',
+      integration_event: 'Ny Integration Event',
+      automation: 'Ny Automation',
+      em_slice: 'Ny Slice',
+    };
+
+    const defaultName = defaultNames[targetType] || 'Ny Concept';
+    let targetName = defaultName;
+    let counter = 2;
+    while (
+      concepts.some(
+        (c) =>
+          c.conceptType === targetType &&
+          c.name.trim().toLowerCase() === targetName.trim().toLowerCase()
+      )
+    ) {
+      targetName = `${defaultName} ${counter}`;
+      counter++;
+    }
+
+    let parentId = currentViewNode.parentId;
+    let newX = currentViewNode.x;
+    let newY = currentViewNode.y;
+
+    const ROW_HEIGHT = 140;
+    const SLICE_WIDTH = 320;
+    const SLICE_GAP = 24;
+
+    if (action.createNewParent === 'sibling-slice' || action.createNewParent === 'sibling-slice-left') {
+      const sliceVn = view.nodes.find((vn) => vn.conceptId === currentViewNode.parentId);
+      const chapterId = sliceVn?.parentId;
+      const sliceA = sliceVn ? concepts.find((c) => c.id === sliceVn.conceptId) : undefined;
+
+      if (sliceA && chapterId) {
+        const chapterSlices = view.nodes
+          .filter((vn) => vn.parentId === chapterId)
+          .map((vn) => concepts.find((c) => c.id === vn.conceptId))
+          .filter((c): c is any => !!c && c.conceptType === 'em_slice')
+          .sort((a, b) => a.createdAt - b.createdAt);
+
+        const sliceAIndex = chapterSlices.findIndex((s) => s.id === sliceA.id);
+        let newSliceCreatedAt = Date.now();
+
+        if (action.createNewParent === 'sibling-slice') {
+          if (sliceAIndex >= 0 && sliceAIndex < chapterSlices.length - 1) {
+            const nextSlice = chapterSlices[sliceAIndex + 1];
+            newSliceCreatedAt = (sliceA.createdAt + nextSlice.createdAt) / 2;
+          } else {
+            newSliceCreatedAt = sliceA.createdAt + 1000;
+          }
+        } else {
+          if (sliceAIndex > 0) {
+            const prevSlice = chapterSlices[sliceAIndex - 1];
+            newSliceCreatedAt = (sliceA.createdAt + prevSlice.createdAt) / 2;
+          } else {
+            newSliceCreatedAt = sliceA.createdAt - 1000;
+          }
+        }
+
+        const newSlice = addConcept('em_slice', 'Ny Slice', {
+          parentId: chapterId,
+          createdBy: 'user',
+        });
+
+        updateConcept(newSlice.id, { createdAt: newSliceCreatedAt });
+        parentId = newSlice.id;
+      }
+    }
+
+    if (view.layoutAlgorithm === 'manual') {
+      if (action.position === 'top') {
+        newX = currentViewNode.x;
+        newY = currentViewNode.y - ROW_HEIGHT;
+      } else if (action.position === 'bottom') {
+        newX = currentViewNode.x;
+        newY = currentViewNode.y + ROW_HEIGHT;
+      } else if (action.position === 'right') {
+        newX = currentViewNode.x + SLICE_WIDTH + SLICE_GAP;
+        newY = currentViewNode.y;
+      } else if (action.position === 'left') {
+        newX = currentViewNode.x - (SLICE_WIDTH + SLICE_GAP);
+        newY = currentViewNode.y;
+      }
+    } else {
+      if (action.position === 'top') {
+        newX = currentViewNode.x;
+        newY = currentViewNode.y - ROW_HEIGHT;
+      } else if (action.position === 'bottom') {
+        newX = currentViewNode.x;
+        newY = currentViewNode.y + ROW_HEIGHT;
+      } else if (action.position === 'right') {
+        newX = currentViewNode.x + 250;
+        newY = currentViewNode.y;
+      } else if (action.position === 'left') {
+        newX = currentViewNode.x - 250;
+        newY = currentViewNode.y;
+      }
+    }
+
+    const newConcept = addConcept(targetType, targetName, {
+      x: newX,
+      y: newY,
+      parentId,
+      createdBy: 'user',
+    });
+
+    if (action.direction === 'source-to-target') {
+      addRelation(selectedConceptId, newConcept.id, undefined, { createdBy: 'user' });
+    } else {
+      addRelation(newConcept.id, selectedConceptId, undefined, { createdBy: 'user' });
+    }
+
+    selectConcept(newConcept.id);
+
+    if (view.layoutAlgorithm !== 'manual') {
+      triggerLayout();
+    }
+  }, [selectedConceptId, concepts, view, addConcept, addRelation, selectConcept, triggerLayout, updateConcept]);
+
+  useEffect(() => {
+    const handleTrigger = () => {
+      const activeFocusedId = useGraphStore.getState().focusedToolbarButtonId;
+      if (!activeFocusedId) return;
+
+      const parts = activeFocusedId.split('-');
+      const group = parts[0];
+      const action = parts[1];
+
+      if (group === 'bottom') {
+        if (action === 'delete') {
+          handleDeleteClick(new MouseEvent('click') as any);
+        } else if (action === 'connect') {
+          handleArrowClick(new MouseEvent('click') as any);
+        } else if (action === 'plus') {
+          handleCreateTargetNodeClick(new MouseEvent('click') as any);
+        } else if (action === 'qa') {
+          const idx = parseInt(parts[2]);
+          const actionConfig = bottomActions[idx];
+          if (actionConfig) handleQuickAction(actionConfig);
+        }
+      } else if (group === 'top') {
+        const idx = parseInt(action);
+        const actionConfig = topActions[idx];
+        if (actionConfig) handleQuickAction(actionConfig);
+      } else if (group === 'right') {
+        const idx = parseInt(action);
+        const actionConfig = rightActions[idx];
+        if (actionConfig) handleQuickAction(actionConfig);
+      } else if (group === 'left') {
+        const idx = parseInt(action);
+        const actionConfig = leftActions[idx];
+        if (actionConfig) handleQuickAction(actionConfig);
+      }
+
+      setFocusedToolbarButtonId(null);
+    };
+
+    document.addEventListener('trigger-focused-toolbar-button', handleTrigger);
+    return () => document.removeEventListener('trigger-focused-toolbar-button', handleTrigger);
+  }, [
+    handleDeleteClick,
+    handleArrowClick,
+    handleCreateTargetNodeClick,
+    handleQuickAction,
+    topActions,
+    rightActions,
+    bottomActions,
+    leftActions,
+    setFocusedToolbarButtonId,
+  ]);
 
   const getPlusButtonTitle = useCallback(() => {
     if (!selectedConceptId) return "Opret og forbind nyt begreb";
@@ -3517,7 +3735,97 @@ export function ReactFlowCanvas({
           <Background variant={BackgroundVariant.Dots} color="#1C1917" gap={24} size={1} style={{ opacity: 0.05 }} />
           <Controls showInteractive={false} fitViewOptions={{ maxZoom: 1.0 }} className="!bg-white !border-slate-200 !shadow-studio !rounded-xl !mb-6 !ml-6 p-1 flex flex-col gap-1 overflow-hidden" />
 
-          {/* Premium Mouse-based Interactive Selected Node Overlay Toolbar */}
+          {/* Top Quick Actions Toolbar */}
+          {showToolbar && topActions.length > 0 && (
+            <NodeToolbar
+              nodeId={selectedConceptId}
+              position={Position.Top}
+              align="center"
+              offset={12}
+              className="z-50"
+            >
+              <div className="flex items-center gap-1.5 p-1 bg-white/95 backdrop-blur-md border border-slate-200/80 rounded-full shadow-lg shadow-slate-200/30 no-drag">
+                {topActions.map((action, idx) => {
+                  const id = `top-${idx}`;
+                  const isFocused = focusedToolbarButtonId === id;
+                  return (
+                    <button
+                      key={id}
+                      onClick={(e) => { e.stopPropagation(); handleQuickAction(action); }}
+                      title={action.label}
+                      className={`p-2 rounded-full border transition-all duration-200 cursor-pointer active:scale-95 flex items-center justify-center
+                        ${isFocused ? 'ring-2 ring-emerald-400 scale-[1.08] shadow-md bg-emerald-50/50' : ''}
+                        ${getQuickActionButtonStyle(action.conceptType)}`}
+                    >
+                      {getQuickActionIcon(action.conceptType)}
+                    </button>
+                  );
+                })}
+              </div>
+            </NodeToolbar>
+          )}
+
+          {/* Right Quick Actions Toolbar */}
+          {showToolbar && rightActions.length > 0 && (
+            <NodeToolbar
+              nodeId={selectedConceptId}
+              position={Position.Right}
+              align="center"
+              offset={12}
+              className="z-50"
+            >
+              <div className="flex flex-col items-center gap-1.5 p-1 bg-white/95 backdrop-blur-md border border-slate-200/80 rounded-full shadow-lg shadow-slate-200/30 no-drag">
+                {rightActions.map((action, idx) => {
+                  const id = `right-${idx}`;
+                  const isFocused = focusedToolbarButtonId === id;
+                  return (
+                    <button
+                      key={id}
+                      onClick={(e) => { e.stopPropagation(); handleQuickAction(action); }}
+                      title={action.label}
+                      className={`p-2 rounded-full border transition-all duration-200 cursor-pointer active:scale-95 flex items-center justify-center
+                        ${isFocused ? 'ring-2 ring-emerald-400 scale-[1.08] shadow-md bg-emerald-50/50' : ''}
+                        ${getQuickActionButtonStyle(action.conceptType)}`}
+                    >
+                      {getQuickActionIcon(action.conceptType)}
+                    </button>
+                  );
+                })}
+              </div>
+            </NodeToolbar>
+          )}
+
+          {/* Left Quick Actions Toolbar */}
+          {showToolbar && leftActions.length > 0 && (
+            <NodeToolbar
+              nodeId={selectedConceptId}
+              position={Position.Left}
+              align="center"
+              offset={12}
+              className="z-50"
+            >
+              <div className="flex flex-col items-center gap-1.5 p-1 bg-white/95 backdrop-blur-md border border-slate-200/80 rounded-full shadow-lg shadow-slate-200/30 no-drag">
+                {leftActions.map((action, idx) => {
+                  const id = `left-${idx}`;
+                  const isFocused = focusedToolbarButtonId === id;
+                  return (
+                    <button
+                      key={id}
+                      onClick={(e) => { e.stopPropagation(); handleQuickAction(action); }}
+                      title={action.label}
+                      className={`p-2 rounded-full border transition-all duration-200 cursor-pointer active:scale-95 flex items-center justify-center
+                        ${isFocused ? 'ring-2 ring-emerald-400 scale-[1.08] shadow-md bg-emerald-50/50' : ''}
+                        ${getQuickActionButtonStyle(action.conceptType)}`}
+                    >
+                      {getQuickActionIcon(action.conceptType)}
+                    </button>
+                  );
+                })}
+              </div>
+            </NodeToolbar>
+          )}
+
+          {/* Premium Mouse-based Interactive Selected Node Overlay Toolbar (Bottom) */}
           {showToolbar && (
             <NodeToolbar
               nodeId={selectedConceptId}
@@ -3531,7 +3839,11 @@ export function ReactFlowCanvas({
                 <button
                   onClick={handleDeleteClick}
                   title="Fjern fra visning eller slet helt (Delete)"
-                  className="p-2.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50/50 rounded-xl transition-all duration-200 cursor-pointer active:scale-90"
+                  className={`p-2.5 rounded-xl transition-all duration-200 cursor-pointer active:scale-90 flex items-center justify-center
+                    ${focusedToolbarButtonId === 'bottom-delete'
+                      ? 'ring-2 ring-emerald-400 scale-[1.08] shadow-md text-rose-500 bg-rose-50/50'
+                      : 'text-slate-400 hover:text-rose-500 hover:bg-rose-50/50'
+                    }`}
                 >
                   <Trash2 size={15} strokeWidth={2.5} />
                 </button>
@@ -3544,6 +3856,8 @@ export function ReactFlowCanvas({
                   className={`p-2.5 rounded-xl transition-all duration-200 cursor-pointer active:scale-90 flex items-center justify-center
                     ${connectingSourceId === selectedConceptId
                       ? 'text-emerald-500 bg-emerald-50'
+                      : focusedToolbarButtonId === 'bottom-connect'
+                      ? 'ring-2 ring-emerald-400 scale-[1.08] shadow-md text-emerald-500 bg-emerald-50'
                       : 'text-slate-400 hover:text-emerald-500 hover:bg-emerald-50/50'
                     }`}
                 >
@@ -3554,10 +3868,33 @@ export function ReactFlowCanvas({
                 <button
                   onClick={handleCreateTargetNodeClick}
                   title={getPlusButtonTitle()}
-                  className="p-2.5 text-slate-400 hover:text-emerald-500 hover:bg-emerald-50/50 rounded-xl transition-all duration-200 cursor-pointer active:scale-90"
+                  className={`p-2.5 rounded-xl transition-all duration-200 cursor-pointer active:scale-90 flex items-center justify-center
+                    ${focusedToolbarButtonId === 'bottom-plus'
+                      ? 'ring-2 ring-emerald-400 scale-[1.08] shadow-md text-emerald-500 bg-emerald-50/50'
+                      : 'text-slate-400 hover:text-emerald-500 hover:bg-emerald-50/50'
+                    }`}
                 >
                   <Plus size={15} strokeWidth={2.5} />
                 </button>
+
+                {/* Bottom Quick Actions */}
+                {bottomActions.length > 0 && <div className="w-px h-5 bg-slate-200/80 self-center mx-0.5" />}
+                {bottomActions.map((action, idx) => {
+                  const id = `bottom-qa-${idx}`;
+                  const isFocused = focusedToolbarButtonId === id;
+                  return (
+                    <button
+                      key={id}
+                      onClick={(e) => { e.stopPropagation(); handleQuickAction(action); }}
+                      title={action.label}
+                      className={`p-2.5 rounded-xl border border-transparent transition-all duration-200 cursor-pointer active:scale-90 flex items-center justify-center
+                        ${isFocused ? 'ring-2 ring-emerald-400 scale-[1.08] shadow-md bg-emerald-50/50' : ''}
+                        ${getQuickActionButtonStyle(action.conceptType)}`}
+                    >
+                      {getQuickActionIcon(action.conceptType)}
+                    </button>
+                  );
+                })}
               </div>
             </NodeToolbar>
           )}
@@ -3602,3 +3939,41 @@ export function ReactFlowCanvas({
     </div>
   );
 }
+
+const getQuickActionButtonStyle = (conceptType: string) => {
+  switch (conceptType) {
+    case 'screen':
+      return 'bg-yellow-50 text-yellow-600 border-yellow-200 hover:bg-yellow-100 hover:text-yellow-700 hover:border-yellow-300';
+    case 'command':
+      return 'bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100 hover:text-blue-700 hover:border-blue-300';
+    case 'event':
+      return 'bg-amber-50 text-amber-600 border-amber-200 hover:bg-amber-100 hover:text-amber-700 hover:border-amber-300';
+    case 'read_model':
+      return 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100 hover:text-emerald-700 hover:border-emerald-300';
+    case 'integration_event':
+      return 'bg-purple-50 text-purple-600 border-purple-200 hover:bg-purple-100 hover:text-purple-700 hover:border-purple-300';
+    case 'automation':
+      return 'bg-rose-50 text-rose-600 border-rose-200 hover:bg-rose-100 hover:text-rose-700 hover:border-rose-300';
+    default:
+      return 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 hover:text-slate-700 hover:border-slate-300';
+  }
+};
+
+const getQuickActionIcon = (conceptType: string) => {
+  switch (conceptType) {
+    case 'screen':
+      return <Tv size={14} strokeWidth={2.5} />;
+    case 'command':
+      return <Zap size={14} strokeWidth={2.5} />;
+    case 'event':
+      return <GitCommit size={14} strokeWidth={2.5} />;
+    case 'read_model':
+      return <Database size={14} strokeWidth={2.5} />;
+    case 'integration_event':
+      return <Share2 size={14} strokeWidth={2.5} />;
+    case 'automation':
+      return <Cpu size={14} strokeWidth={2.5} />;
+    default:
+      return <Plus size={14} strokeWidth={2.5} />;
+  }
+};

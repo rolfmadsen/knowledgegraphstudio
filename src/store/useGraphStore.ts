@@ -33,19 +33,8 @@ import git from 'isomorphic-git';
 import { getFS, REPO_DIR, writeYaml, setRepoDir, readViewsYaml } from '../core/fileSystem';
 import { yamlToViews } from '../core/yamlParser';
 
-// ============================================================
-// Sync Status (Spec §10.5)
-// ============================================================
-
-export type SyncStatus =
-  | 'idle'        // No remote configured
-  | 'synced'      // HEAD matches remote
-  | 'pending'     // Uncommitted local changes
-  | 'pushing'     // Push in progress
-  | 'pulling'     // Pull/fetch in progress
-  | 'behind'      // Remote has commits we don't have (after fetch)
-  | 'conflict'    // Non-FF merge attempted — Conflict Resolver open
-  | 'auth_error'; // 401/403 from remote
+import { FileSystemAccessService } from '../services/FileSystemAccessService';
+import type { SyncStatus } from '../types/sync';
 
 export interface GraphStoreState {
   // --- Domain Data ---
@@ -59,6 +48,7 @@ export interface GraphStoreState {
   selectedConceptId: ElementId | null;
   selectedConceptIds: ElementId[];
   selectedRelationId: ElementId | null;
+  focusedToolbarButtonId: string | null;
   rawYaml: string | null; // For conflict mode
   conflictError: string | null; // Detailed validation error message when in conflict mode
   isRelationBuilderOpen: boolean;
@@ -100,10 +90,22 @@ export interface GraphStoreState {
   behindBy: number;
   lastSyncedAt: number | null;
 
+  // --- File System Access handles ---
+  linkedHandles: Record<string, { isLinked: boolean; isGranted: boolean }>;
+  loadWorkspaceHandles: (paths: string[]) => Promise<void>;
+  linkWorkspaceDirectory: (workspacePath: string, handle: FileSystemDirectoryHandle) => Promise<boolean>;
+  unlinkWorkspaceDirectory: (workspacePath: string) => Promise<void>;
+  requestActiveHandlePermission: () => Promise<boolean>;
+  loadHandleForWorkspace: (workspacePath: string) => Promise<FileSystemDirectoryHandle | null>;
+  verifyPermission: (handle: FileSystemDirectoryHandle, withPrompt?: boolean) => Promise<boolean>;
+  setActiveHandle: (handle: FileSystemDirectoryHandle | null, workspacePath: string) => Promise<void>;
+
   // --- Selection Actions ---
   selectConcept: (id: ElementId | null) => void;
   setSelectedConceptIds: (ids: ElementId[]) => void;
   selectRelation: (id: ElementId | null) => void;
+  setFocusedToolbarButtonId: (id: string | null) => void;
+  navigateToolbarFocus: (direction: 'up' | 'down' | 'left' | 'right') => void;
   centerSelectedNode: () => void;
   setFocusMode: (focus: boolean) => void;
   setActiveCodeTab: (tab: 'full' | 'view' | 'openapi' | 'asyncapi' | 'arazzo') => void;
@@ -296,6 +298,7 @@ export const useGraphStore = create<GraphStoreState>()(
       selectedConceptId: null,
       selectedConceptIds: [],
       selectedRelationId: null,
+      focusedToolbarButtonId: null,
       rawYaml: null,
       conflictError: null,
       isRelationBuilderOpen: false,
@@ -330,19 +333,58 @@ export const useGraphStore = create<GraphStoreState>()(
       aheadBy: 0,
       behindBy: 0,
       lastSyncedAt: null,
+      linkedHandles: {},
 
       // --- UI Actions (State only) ---
-      selectConcept: (id) => set({ selectedConceptId: id, selectedConceptIds: id ? [id] : [], selectedRelationId: null }),
+      selectConcept: (id) => set({ selectedConceptId: id, selectedConceptIds: id ? [id] : [], selectedRelationId: null, focusedToolbarButtonId: null }),
       setSelectedConceptIds: (ids) => set({ 
         selectedConceptIds: ids,
         selectedConceptId: ids.length > 0 ? ids[0] : null,
-        selectedRelationId: ids.length > 0 ? null : get().selectedRelationId
+        selectedRelationId: ids.length > 0 ? null : get().selectedRelationId,
+        focusedToolbarButtonId: null
       }),
       selectRelation: (id) => set({ 
         selectedRelationId: id,
         selectedConceptId: id ? null : get().selectedConceptId,
         selectedConceptIds: id ? [] : get().selectedConceptIds,
+        focusedToolbarButtonId: null
       }),
+      setFocusedToolbarButtonId: (id) => set({ focusedToolbarButtonId: id }),
+      navigateToolbarFocus: (direction) => {
+        const state = get();
+        const selectedConceptId = state.selectedConceptId;
+        if (!selectedConceptId) return;
+
+        const concept = state.concepts.find((c) => c.id === selectedConceptId);
+        if (!concept) return;
+
+        const activeViewId = state.activeViewId;
+        const activeView = state.views.find((v) => v.id === activeViewId);
+        if (!activeView) return;
+
+        const notation = NotationRegistry.forViewType(activeView.type);
+        const quickActions = (concept && notation?.getQuickActions)
+          ? notation.getQuickActions(concept.conceptType)
+          : [];
+
+        const top = quickActions.filter((a) => a.position === 'top').map((_, i) => `top-${i}`);
+        const right = quickActions.filter((a) => a.position === 'right').map((_, i) => `right-${i}`);
+        const left = quickActions.filter((a) => a.position === 'left').map((_, i) => `left-${i}`);
+        const bottomQA = quickActions.filter((a) => a.position === 'bottom').map((_, i) => `bottom-qa-${i}`);
+        const bottom = ['bottom-delete', 'bottom-connect', 'bottom-plus', ...bottomQA];
+
+        const buttons = { top, right, bottom, left };
+        const currentId = state.focusedToolbarButtonId;
+
+        let key: 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight' = 'ArrowDown';
+        if (direction === 'up') key = 'ArrowUp';
+        if (direction === 'down') key = 'ArrowDown';
+        if (direction === 'left') key = 'ArrowLeft';
+        if (direction === 'right') key = 'ArrowRight';
+
+        const nextId = navigateToolbar(currentId, key, buttons);
+        set({ focusedToolbarButtonId: nextId });
+      },
       centerSelectedNode: () => set((s) => ({ centerSelectionCount: s.centerSelectionCount + 1 })),
       setFocusMode: (focus) => set({ focusMode: focus }),
       setActiveCodeTab: (tab) => set({ activeCodeTab: tab }),
@@ -682,33 +724,69 @@ export const useGraphStore = create<GraphStoreState>()(
       createView: (name, type = 'knowledge_graph', layoutAlgorithm = 'force_directed') => {
         const viewId = toElementId(`view:${crypto.randomUUID()}`);
         
-        // Resolve default element from the notation definition
         const notation = NotationRegistry.forViewType(type as any);
-        const defaultElem = notation?.defaultElement;
+        const defaultElements = notation?.defaultElements ?? (notation?.defaultElement ? [notation.defaultElement] as Array<{
+          conceptType: ConceptType;
+          name: string;
+          parentIndex?: number;
+          xOffset?: number;
+          yOffset?: number;
+        }> : undefined);
         
         let nodes: ViewNode[] = [];
         let nextConcepts = get().concepts;
 
-        if (defaultElem) {
-          const { concept, nextState } = GraphService.addConcept(
-            { ...get(), activeViewId: viewId },
-            defaultElem.conceptType,
-            defaultElem.name
-          );
+        if (defaultElements && defaultElements.length > 0) {
+          const createdConcepts: ConceptNode[] = [];
+          const createdViewNodes: ViewNode[] = [];
 
-          if (nextState.concepts) {
-            nextConcepts = nextState.concepts as ConceptNode[];
+          let tempState = { ...get(), activeViewId: viewId, concepts: nextConcepts };
+
+          for (let i = 0; i < defaultElements.length; i++) {
+            const config = defaultElements[i];
+            
+            let parentId: ElementId | undefined = undefined;
+            if (config.parentIndex !== undefined && createdConcepts[config.parentIndex]) {
+              parentId = createdConcepts[config.parentIndex].id;
+            }
+
+            const { concept, nextState } = GraphService.addConcept(
+              tempState,
+              config.conceptType,
+              config.name,
+              { parentId }
+            );
+
+            createdConcepts.push(concept);
+            if (nextState.concepts) {
+              tempState.concepts = nextState.concepts as ConceptNode[];
+            }
+
+            let x = 150;
+            let y = 150;
+
+            if (config.parentIndex !== undefined && createdViewNodes[config.parentIndex]) {
+              const parentNode = createdViewNodes[config.parentIndex];
+              x = parentNode.x + (config.xOffset ?? 48);
+              y = parentNode.y + (config.yOffset ?? 48);
+            } else {
+              x = config.xOffset ?? 150;
+              y = config.yOffset ?? 150;
+            }
+
+            const viewNode: ViewNode = {
+              conceptId: concept.id,
+              x,
+              y,
+              ...(layoutAlgorithm === 'manual' ? { manualX: x, manualY: y } : {}),
+              parentId,
+            };
+
+            createdViewNodes.push(viewNode);
           }
 
-          const x = 150;
-          const y = 150;
-
-          nodes.push({
-            conceptId: concept.id,
-            x,
-            y,
-            ...(layoutAlgorithm === 'manual' ? { manualX: x, manualY: y } : {}),
-          });
+          nextConcepts = tempState.concepts;
+          nodes = createdViewNodes;
         }
 
         const newView: View = {
@@ -1093,7 +1171,7 @@ export const useGraphStore = create<GraphStoreState>()(
         console.log(`%c[Store Action] 🔴 Deleted Concept: "${concept?.name || id}"`, 'color: #ef4444; font-weight: bold;');
         const nextState = GraphService.deleteConcept(get(), id);
         // Also remove this concept's ViewNode from every view so
-        // node-count badges in the Navigator stay accurate, and clean up parentId.
+        // node-count badges in the Model Explorer stay accurate, and clean up parentId.
         const prunedViews = get().views.map((v) => ({
           ...v,
           nodes: v.nodes
@@ -1712,7 +1790,38 @@ export const useGraphStore = create<GraphStoreState>()(
       getHeadVersion: async () => {
         return (await GitService.getHeadVersion()) || '';
       },
-      };
+      loadWorkspaceHandles: async (paths: string[]) => {
+        const statuses: Record<string, { isLinked: boolean; isGranted: boolean }> = {};
+        for (const path of paths) {
+          const status = await FileSystemAccessService.getWorkspaceHandleStatus(path);
+          statuses[path] = status;
+        }
+        set({ linkedHandles: statuses });
+      },
+      linkWorkspaceDirectory: async (workspacePath: string, handle: FileSystemDirectoryHandle) => {
+        const granted = await FileSystemAccessService.verifyPermission(handle, true);
+        if (granted) {
+          await FileSystemAccessService.setActiveHandle(handle, workspacePath);
+          return true;
+        }
+        return false;
+      },
+      unlinkWorkspaceDirectory: async (workspacePath: string) => {
+        await FileSystemAccessService.setActiveHandle(null, workspacePath);
+      },
+      requestActiveHandlePermission: async () => {
+        return await FileSystemAccessService.requestActiveHandlePermission();
+      },
+      loadHandleForWorkspace: async (workspacePath: string) => {
+        return await FileSystemAccessService.loadHandleForWorkspace(workspacePath);
+      },
+      verifyPermission: async (handle: FileSystemDirectoryHandle, withPrompt?: boolean) => {
+        return await FileSystemAccessService.verifyPermission(handle, withPrompt);
+      },
+      setActiveHandle: async (handle: FileSystemDirectoryHandle | null, workspacePath: string) => {
+        await FileSystemAccessService.setActiveHandle(handle, workspacePath);
+      },
+    };
     },
     {
       partialize: (state) => ({
@@ -1848,3 +1957,109 @@ useGraphStore.subscribe((state) => {
     PersistenceService.scheduleAutoSave(state);
   }
 });
+
+function navigateToolbar(
+  currentId: string | null,
+  key: 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight',
+  buttons: {
+    top: string[];
+    right: string[];
+    bottom: string[];
+    left: string[];
+  }
+): string | null {
+  if (!currentId) {
+    if (key === 'ArrowDown') return buttons.bottom[0] || null;
+    if (key === 'ArrowUp') return buttons.top[0] || null;
+    if (key === 'ArrowRight') return buttons.right[0] || null;
+    if (key === 'ArrowLeft') return buttons.left[0] || null;
+    return null;
+  }
+
+  const parts = currentId.split('-');
+  const group = parts[0]; // 'top', 'right', 'bottom', 'left'
+  const action = parts[1]; // index or 'delete' / 'connect' / 'plus'
+
+  const getBottomIndex = (act: string) => {
+    if (act === 'delete') return 0;
+    if (act === 'connect') return 1;
+    if (act === 'plus') return 2;
+    return parseInt(act) + 3; // quick actions start at index 3
+  };
+
+  if (group === 'bottom') {
+    const idx = getBottomIndex(action);
+    if (key === 'ArrowLeft') {
+      if (idx > 0) {
+        const nextIdx = idx - 1;
+        if (nextIdx === 0) return 'bottom-delete';
+        if (nextIdx === 1) return 'bottom-connect';
+        if (nextIdx === 2) return 'bottom-plus';
+        return `bottom-qa-${nextIdx - 3}`;
+      }
+      if (buttons.left.length > 0) return buttons.left[0];
+    }
+    if (key === 'ArrowRight') {
+      const maxIdx = 3 + (buttons.bottom.length - 3); // total buttons in bottom
+      if (idx < maxIdx - 1) {
+        const nextIdx = idx + 1;
+        if (nextIdx === 1) return 'bottom-connect';
+        if (nextIdx === 2) return 'bottom-plus';
+        return `bottom-qa-${nextIdx - 3}`;
+      }
+      if (buttons.right.length > 0) return buttons.right[0];
+    }
+    if (key === 'ArrowUp') {
+      if (buttons.top.length > 0) return buttons.top[0];
+      return null; // goes back to node selection
+    }
+  }
+
+  if (group === 'top') {
+    const idx = parseInt(action);
+    if (key === 'ArrowLeft') {
+      if (idx > 0) return `top-${idx - 1}`;
+      if (buttons.left.length > 0) return buttons.left[0];
+    }
+    if (key === 'ArrowRight') {
+      if (idx < buttons.top.length - 1) return `top-${idx + 1}`;
+      if (buttons.right.length > 0) return buttons.right[0];
+    }
+    if (key === 'ArrowDown') {
+      return buttons.bottom[1] || buttons.bottom[0] || null;
+    }
+  }
+
+  if (group === 'right') {
+    const idx = parseInt(action);
+    if (key === 'ArrowUp') {
+      if (idx > 0) return `right-${idx - 1}`;
+      if (buttons.top.length > 0) return buttons.top[0];
+    }
+    if (key === 'ArrowDown') {
+      if (idx < buttons.right.length - 1) return `right-${idx + 1}`;
+      return 'bottom-plus';
+    }
+    if (key === 'ArrowLeft') {
+      return null; // goes back to node selection
+    }
+  }
+
+  if (group === 'left') {
+    const idx = parseInt(action);
+    if (key === 'ArrowUp') {
+      if (idx > 0) return `left-${idx - 1}`;
+      if (buttons.top.length > 0) return buttons.top[0];
+    }
+    if (key === 'ArrowDown') {
+      if (idx < buttons.left.length - 1) return `left-${idx + 1}`;
+      return 'bottom-delete';
+    }
+    if (key === 'ArrowRight') {
+      return null; // goes back to node selection
+    }
+  }
+
+  return currentId;
+}
+

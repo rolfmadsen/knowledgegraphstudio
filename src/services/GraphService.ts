@@ -19,6 +19,7 @@ import {
   type BaseConceptNode,
 } from '../schema/graphSchema';
 import { NotationRegistry } from '../notations/NotationRegistry';
+import { getVirtualType } from '../utils/virtualType';
 
 export interface GraphStateWithSelection {
   domains: Domain[];
@@ -116,7 +117,7 @@ export class GraphService {
       return true;
     });
 
-    if (existing) {
+    if (existing && conceptType !== 'em_slice' && conceptType !== 'em_chapter') {
       return {
         concept: existing,
         nextState: {},
@@ -332,7 +333,18 @@ export class GraphService {
     // 1. Resolve relation type first if not specified, since default name can be derived from it
     let finalRelationType = options.relationType;
     if (!finalRelationType && sType && tType) {
-      if (sType === 'event' && tType === 'event') finalRelationType = 'has_condition';
+      if (activeView?.type === 'event_modeling') {
+        if (sType === 'event' && tType === 'event') finalRelationType = 'precedes';
+        else if (sType === 'screen' && tType === 'command') finalRelationType = 'invokes';
+        else if (sType === 'command' && tType === 'event') finalRelationType = 'triggers';
+        else if (sType === 'event' && tType === 'read_model') finalRelationType = 'feeds';
+        else if (sType === 'read_model' && tType === 'screen') finalRelationType = 'displays';
+        else if (sType === 'event' && tType === 'automation') finalRelationType = 'triggers';
+        else if (sType === 'automation' && tType === 'command') finalRelationType = 'automates';
+        else if (sType === 'command' && tType === 'integration_event') finalRelationType = 'emits';
+        else if (sType === 'integration_event' && tType === 'read_model') finalRelationType = 'feeds';
+        else if (sType === 'integration_event' && tType === 'automation') finalRelationType = 'triggers';
+      } else if (sType === 'event' && tType === 'event') finalRelationType = 'has_condition';
       else if (sType === 'event' && tType === 'business_role') finalRelationType = 'has_role';
       else if (sType === 'business_role' && tType === 'actor') finalRelationType = 'has_principal';
       else if (sType === 'event' && tType === 'bounded_context') finalRelationType = 'is_nested_in';
@@ -379,7 +391,18 @@ export class GraphService {
     // 2. Generate a smart default name if none provided
     let finalName = name;
     if (!finalName) {
-      if (sType === 'actor' && tType === 'process') finalName = 'performs';
+      if (activeView?.type === 'event_modeling') {
+        if (sType === 'event' && tType === 'event') finalName = 'precedes (derived)';
+        else if (sType === 'screen' && tType === 'command') finalName = 'invokes';
+        else if (sType === 'command' && tType === 'event') finalName = 'triggers';
+        else if (sType === 'event' && tType === 'read_model') finalName = 'feeds';
+        else if (sType === 'read_model' && tType === 'screen') finalName = 'displays';
+        else if (sType === 'event' && tType === 'automation') finalName = 'triggers';
+        else if (sType === 'automation' && tType === 'command') finalName = 'automates';
+        else if (sType === 'command' && tType === 'integration_event') finalName = 'emits';
+        else if (sType === 'integration_event' && tType === 'read_model') finalName = 'feeds';
+        else if (sType === 'integration_event' && tType === 'automation') finalName = 'triggers';
+      } else if (sType === 'actor' && tType === 'process') finalName = 'performs';
       else if (sType === 'process' && tType === 'event') finalName = 'emits';
       else if (sType === 'event' && tType === 'process') finalName = 'triggers';
       else if (sType === 'process' && tType === 'entity') finalName = 'updates';
@@ -405,6 +428,10 @@ export class GraphService {
       } else {
         finalName = 'relates to';
       }
+    }
+
+    if (!finalName) {
+      finalName = 'relates to';
     }
 
     const id = generateId('other', finalName);
@@ -932,20 +959,22 @@ export class GraphService {
         ),
       };
     });
-    return { views: nextViews };
+
+    const nextConcepts = state.concepts?.map((c) => {
+      if (c.id === conceptId) {
+        return { ...c, parentId };
+      }
+      return c;
+    });
+
+    return { views: nextViews, concepts: nextConcepts };
   }
 
   /**
-   * Determine the virtual type of a concept.
+   * Returns virtual types 'conceptual_class' or 'information_class' for classes,
+   * otherwise returns the node's standard concept type.
    */
   static getVirtualType(concept: ConceptNode, views: View[] = []): 'conceptual_class' | 'information_class' | ConceptType {
-    if (concept.conceptType !== 'class') return concept.conceptType;
-    const isInInformation = views.some(v => v.type === 'information_model' && v.nodes.some(vn => vn.conceptId === concept.id));
-    
-    const hasProps = 'properties' in concept && Array.isArray(concept.properties) && concept.properties.length > 0;
-    if (isInInformation || concept.wasDerivedFrom || hasProps) {
-      return 'information_class';
-    }
-    return 'conceptual_class';
+    return getVirtualType(concept, views);
   }
 }

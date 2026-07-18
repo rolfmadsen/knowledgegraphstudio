@@ -22,8 +22,8 @@ import type { ConceptType } from '../../schema/graphSchema';
 const VALID_EM_CONNECTIONS: Partial<Record<string, string[]>> = {
   screen:            ['command'],
   command:           ['event', 'integration_event'],
-  event:             ['read_model', 'automation', 'integration_event'],
-  read_model:        ['screen', 'automation', 'integration_event'],
+  event:             ['read_model', 'automation', 'event'],
+  read_model:        ['screen', 'automation'],
   integration_event: ['read_model', 'automation'],
   automation:        ['command'],
 };
@@ -82,6 +82,11 @@ const RELATION_LABELS: Partial<Record<string, Partial<Record<string, RelationSug
     },
   },
   event: {
+    event: {
+      id: 'precedes',
+      label: 'precedes (derived)',
+      description: 'An Event precedes another Event in the chronological storyline',
+    },
     read_model: {
       id: 'feeds',
       label: 'feeds',
@@ -91,11 +96,6 @@ const RELATION_LABELS: Partial<Record<string, Partial<Record<string, RelationSug
       id: 'triggers',
       label: 'triggers',
       description: 'A Domain Event triggers an Automation (saga/policy)',
-    },
-    integration_event: {
-      id: 'emits',
-      label: 'emits',
-      description: 'A Domain Event emits an Integration Event',
     },
   },
   read_model: {

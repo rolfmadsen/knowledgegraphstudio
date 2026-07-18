@@ -11,7 +11,7 @@ import { useGraphStore } from '../store/useGraphStore';
 
 interface KeyboardConfig {
   onToggleProperties: () => void;
-  onToggleIndex: () => void;
+  onToggleModelExplorer: () => void;
   onToggleViewMode: () => void;
   onToggleDiffMode: () => void;
   onOpenCommandArchive?: (initialQuery?: string) => void;
@@ -166,6 +166,17 @@ export function useKeyboard(config: KeyboardConfig) {
         return;
       }
 
+      // CTRL + Arrows — Spatial Node Toolbar Navigation
+      if (ctrl && !alt && !isEditingText()) {
+        const state = useGraphStore.getState();
+        if (state.selectedConceptId && state.selectedConceptIds.length === 1) {
+          if (e.key === 'ArrowUp') { e.preventDefault(); e.stopPropagation(); state.navigateToolbarFocus('up'); return; }
+          if (e.key === 'ArrowDown') { e.preventDefault(); e.stopPropagation(); state.navigateToolbarFocus('down'); return; }
+          if (e.key === 'ArrowLeft') { e.preventDefault(); e.stopPropagation(); state.navigateToolbarFocus('left'); return; }
+          if (e.key === 'ArrowRight') { e.preventDefault(); e.stopPropagation(); state.navigateToolbarFocus('right'); return; }
+        }
+      }
+
       // Arrows — Spatial Node Navigation (only if no alt/ctrl and not editing text)
       if (!alt && !ctrl && !isEditingText()) {
         const state = useGraphStore.getState();
@@ -188,9 +199,15 @@ export function useKeyboard(config: KeyboardConfig) {
       // ==========================================================
       if (isInputFocused()) return;
 
-      // Enter — Drill into Inspector
+      // Enter — Drill into Inspector or Execute Focused Toolbar Action
       if (e.key === 'Enter') {
         const state = useGraphStore.getState();
+        if (state.focusedToolbarButtonId) {
+          e.preventDefault();
+          e.stopPropagation();
+          document.dispatchEvent(new CustomEvent('trigger-focused-toolbar-button'));
+          return;
+        }
         if (state.selectedConceptId || state.selectedRelationId) {
           e.preventDefault();
           config.onFocusZone(4); // Focus Inspector
@@ -253,7 +270,8 @@ export function useKeyboard(config: KeyboardConfig) {
 
       // Other Toggles
       if (alt && e.key === 'p') { e.preventDefault(); config.onToggleProperties(); return; }
-      if (alt && e.key === 'c') { e.preventDefault(); config.onToggleIndex(); return; }
+      if (alt && e.key === 'c') { e.preventDefault(); config.onToggleModelExplorer(); return; }
+      if (ctrl && e.key === 'b') { e.preventDefault(); config.onToggleModelExplorer(); return; }
       if (alt && e.key === '3') { e.preventDefault(); config.onToggleViewMode(); return; }
       if (alt && e.key === 'd') { e.preventDefault(); config.onToggleDiffMode(); return; }
       if (e.key === 'f') { e.preventDefault(); config.onToggleFocusMode?.(); return; }

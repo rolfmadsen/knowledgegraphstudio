@@ -3,7 +3,7 @@ import { useGraphStore } from '../../store/useGraphStore';
 import { useShallow } from 'zustand/react/shallow';
 import { ConceptType } from '../../schema/graphSchema';
 import { NotationRegistry } from '../../notations/NotationRegistry';
-import { GraphService } from '../../services/GraphService';
+import { getVirtualType } from '../../utils/virtualType';
 import {
   Search,
   Plus,
@@ -240,7 +240,7 @@ export function RelationBuilder() {
       id: c.id,
       label: c.name,
       description: c.conceptType,
-      virtualType: GraphService.getVirtualType(c, views),
+      virtualType: getVirtualType(c, views),
       isNew: false
     }));
 
@@ -367,7 +367,7 @@ export function RelationBuilder() {
           const isCreatingConceptual = activeView?.type === 'conceptual_model';
           const isCreatingInformation = activeView?.type === 'information_model';
 
-          const virtualType = GraphService.getVirtualType(c, views);
+          const virtualType = getVirtualType(c, views);
 
           if (isCreatingConceptual && virtualType === 'conceptual_class') return true;
           if (isCreatingInformation && virtualType === 'information_class') return true;

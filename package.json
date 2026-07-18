@@ -58,6 +58,6 @@
     "vitest": "^4.1.7"
   },
   "overrides": {
-    "dompurify": "latest"
+    "dompurify": "3.4.11"
   }
 }

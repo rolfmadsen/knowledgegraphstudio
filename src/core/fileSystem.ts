@@ -94,7 +94,13 @@ export async function ensureWorkspaceDir(): Promise<void> {
   try {
     await pfs.stat(REPO_DIR);
   } catch {
-    await pfs.mkdir(REPO_DIR);
+    try {
+      await pfs.mkdir(REPO_DIR);
+    } catch (err: any) {
+      if (err.code !== 'EEXIST') {
+        throw err;
+      }
+    }
   }
 }
 

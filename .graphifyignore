@@ -1,0 +1,2 @@
+# Exclude minified monaco-editor files to prevent polluting the dependency graph
+public/monaco-editor/
