@@ -22,8 +22,8 @@
   "properties": {
     "global": {
       "labels": {
-        "en": "TypeGraph Federated Over-Ontology",
-        "da": "TypeGraph Fødereret Over-ontologi"
+        "en": "xArchi Federated Over-Ontology",
+        "da": "xArchi Fødereret Over-ontologi"
       }
     },
     "realizesConcept": {

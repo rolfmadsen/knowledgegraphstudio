@@ -127,8 +127,8 @@ export class GitService {
       // Commit changes
       try {
         await gitCommit(`Auto-commit: ${new Date().toISOString()}`, {
-          name: config.authorName || 'TypeGraph User',
-          email: config.authorEmail || 'user@typegraph.io'
+          name: config.authorName || 'xArchi User',
+          email: config.authorEmail || 'user@xarchi.io'
         });
       } catch (err) {
         if (err instanceof Error && err.name === 'NothingToCommitError') {

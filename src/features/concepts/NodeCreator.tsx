@@ -3,14 +3,15 @@ import { useGraphStore } from '../../store/useGraphStore';
 import { ConceptType } from '../../schema/graphSchema';
 import { NotationRegistry } from '../../notations/NotationRegistry';
 import { getVirtualType } from '../../utils/virtualType';
-import { X, Plus, User, Activity, Box, Server, Zap, Shield, Layout, Globe, Search } from 'lucide-react';
+import { X, Plus, User, Activity, Box, Server, Zap, Shield, Layout, Globe, Search, Layers, ChevronDown } from 'lucide-react';
 
 export const NodeCreator: React.FC = () => {
-  const { isNodeCreatorOpen, setNodeCreatorOpen, addConcept, activeViewId, views, concepts } = useGraphStore();
+  const { isNodeCreatorOpen, setNodeCreatorOpen, addConcept, activeViewId, views, concepts, selectedConceptIds } = useGraphStore();
   const [name, setName] = useState('');
   const [type, setType] = useState<ConceptType>('entity');
   const [typeQuery, setTypeQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [targetSliceId, setTargetSliceId] = useState<string>('');
   const containerRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -20,6 +21,15 @@ export const NodeCreator: React.FC = () => {
 
   const activeView = views.find((v) => v.id === activeViewId);
   const activeNotation = activeView ? NotationRegistry.forViewType(activeView.type) : undefined;
+
+  const slicesInView = useMemo(() => {
+    if (!activeView || activeView.type !== 'event_modeling') return [];
+    const slices = (activeView.nodes ?? []).filter((vn) => {
+      const c = concepts.find((comp) => comp.id === vn.conceptId);
+      return c?.conceptType === 'em_slice';
+    });
+    return [...slices].sort((a, b) => a.x - b.x);
+  }, [activeView, concepts]);
 
   const getIconForType = (t: ConceptType) => {
     // 1. Strategy & Motivation Layer (Shield)
@@ -107,10 +117,21 @@ export const NodeCreator: React.FC = () => {
       } else {
         setType('entity');
       }
+
+      if (slicesInView.length > 0) {
+        const selectedSlice = slicesInView.find((vn) => selectedConceptIds.includes(vn.conceptId));
+        if (selectedSlice) {
+          setTargetSliceId(selectedSlice.conceptId);
+        } else {
+          setTargetSliceId(slicesInView[slicesInView.length - 1].conceptId);
+        }
+      } else {
+        setTargetSliceId('');
+      }
       
       setTimeout(() => inputRef.current?.focus(), 50);
     }
-  }, [isNodeCreatorOpen]);
+  }, [isNodeCreatorOpen, slicesInView, selectedConceptIds, allTypes]);
 
   // Sync selected index to match the selected type when search is cleared
   useEffect(() => {
@@ -185,7 +206,9 @@ export const NodeCreator: React.FC = () => {
 
   const handleCreate = () => {
     if (!name.trim() || isDuplicate) return;
-    addConcept(type, name.trim());
+    const isElementNodeInEM = activeView?.type === 'event_modeling' && type !== 'em_chapter' && type !== 'em_slice';
+    const parentId = isElementNodeInEM && targetSliceId ? (targetSliceId as any) : undefined;
+    addConcept(type, name.trim(), { parentId });
     setNodeCreatorOpen(false);
   };
 
@@ -460,16 +483,50 @@ export const NodeCreator: React.FC = () => {
             </div>
           )}
 
-          {isDuplicate && (
-            <div className="text-[11px] font-semibold text-rose-500 bg-rose-50 border border-rose-100 rounded-xl px-4 py-2 flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
-              <span>
-                {type === 'class'
-                  ? (activeView?.type === 'conceptual_model'
-                      ? 'Der findes allerede et begreb med dette navn.'
-                      : 'Der findes allerede en klasse med dette navn.')
-                  : `Der findes allerede et element af typen "${type}" med dette navn.`}
-              </span>
+          {/* Slice Selector for Event Modeling element nodes */}
+          {activeView?.type === 'event_modeling' && type !== 'em_chapter' && type !== 'em_slice' && (
+            <div className="space-y-2 pt-1">
+              <div className="flex items-center justify-between ml-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                  <Layers size={12} className="text-emerald-500" />
+                  Placer i Slice
+                </label>
+              </div>
+
+              {slicesInView.length === 1 ? (
+                <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-slate-50 border border-slate-200">
+                  <Layers size={14} className="text-emerald-600" />
+                  <span className="text-[12px] font-bold text-slate-700 flex-1 truncate">
+                    {concepts.find(c => c.id === slicesInView[0].conceptId)?.name || 'Navnløst Slice'}
+                  </span>
+                  <span className="text-[9px] font-bold text-emerald-600 bg-emerald-100/80 px-2 py-0.5 rounded-full uppercase tracking-widest">
+                    Auto-valgt
+                  </span>
+                </div>
+              ) : slicesInView.length > 1 ? (
+                <div className="relative">
+                  <select
+                    value={targetSliceId}
+                    onChange={(e) => setTargetSliceId(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-[12px] font-semibold text-slate-700 hover:border-slate-300 focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/5 outline-none appearance-none cursor-pointer transition-all"
+                  >
+                    {slicesInView.map((vn) => {
+                      const c = concepts.find((comp) => comp.id === vn.conceptId);
+                      return (
+                        <option key={vn.conceptId} value={vn.conceptId}>
+                          {c?.name || 'Navnløst Slice'}
+                        </option>
+                      );
+                    })}
+                    <option value="">-- Fritliggende (Uden for slice) --</option>
+                  </select>
+                  <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400" />
+                </div>
+              ) : (
+                <div className="text-[11px] text-amber-600 bg-amber-50 border border-amber-200 rounded-xl p-3 font-medium">
+                  Ingen slices fundet i dette view endnu. Noden oprettes som fritliggende.
+                </div>
+              )}
             </div>
           )}
 

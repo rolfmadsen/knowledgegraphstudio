@@ -2,7 +2,7 @@
  * CredentialService — Secure credential storage via Dexie.js (Spec §10.1, §10.8)
  *
  * Stores the GitHub PAT and RemoteConfig in IndexedDB.
- * These values are NEVER written to lightning-fs, .typegraph.yaml, or any Git commit.
+ * These values are NEVER written to lightning-fs, .xarchi.yaml, or any Git commit.
  */
 import Dexie, { type Table } from 'dexie';
 
@@ -39,7 +39,7 @@ class CredentialDatabase extends Dexie {
   credentials!: Table<CredentialRow, string>;
 
   constructor() {
-    super('typegraph_credentials');
+    super('xarchi_credentials');
     this.version(1).stores({
       credentials: 'key',
     });

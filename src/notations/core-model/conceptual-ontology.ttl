@@ -11,7 +11,7 @@
     rdfs:label "Conceptual Model (Begrebsmodel) OWL Ontology"@en , "Begrebsmodel OWL-ontologi"@da ;
     rdfs:comment "A formal OWL ontology representing the Conceptual Model notation with core UML relationship types."@en , "En formel OWL-ontologi, der repræsenterer Begrebsmodel-notationen med centrale UML-relationstyper."@da ;
     dct:title "Conceptual Model OWL Ontology" ;
-    dct:creator "TypeGraph Knowledge Graph Studio Agent" ;
+    dct:creator "xArchi Knowledge Graph Studio Agent" ;
     dct:created "2026-05-31"^^xsd:date .
 
 ### =========================================================================

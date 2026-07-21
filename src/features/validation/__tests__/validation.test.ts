@@ -14,7 +14,7 @@ import { calculateValidationWarnings } from '../useValidation';
 import type { ConceptNode, ConceptRelation } from '../../../schema/graphSchema';
 import { toElementId } from '../../../schema/graphSchema';
 
-describe('TypeGraph Global Validator', () => {
+describe('xArchi Global Validator', () => {
   const baseNode = {
     createdAt: Date.now(),
     updatedAt: Date.now(),

@@ -58,8 +58,8 @@ describe('FileSystem', () => {
     it('updates REPO_DIR and YAML_PATH and persists to localStorage', () => {
       setRepoDir('my-project');
       expect(REPO_DIR).toBe('/my-project');
-      expect(YAML_PATH).toBe('/my-project/.typegraph.yaml');
-      expect(localStorage.getItem('tg_active_workspace')).toBe('/my-project');
+      expect(YAML_PATH).toBe('/my-project/.xarchi.yaml');
+      expect(localStorage.getItem('xa_active_workspace')).toBe('/my-project');
     });
 
     it('ensures leading slash', () => {
@@ -76,7 +76,7 @@ describe('FileSystem', () => {
       await writeYaml('content');
       
       expect(mockFs.promises.mkdir).toHaveBeenCalledWith('/test-write');
-      expect(mockFs.promises.writeFile).toHaveBeenCalledWith('/test-write/.typegraph.yaml', 'content', 'utf8');
+      expect(mockFs.promises.writeFile).toHaveBeenCalledWith('/test-write/.xarchi.yaml', 'content', 'utf8');
     });
   });
 

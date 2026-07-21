@@ -20,6 +20,7 @@ import {
   type ConceptProperty,
   type Policy,
   type BaseConceptNode,
+  type ElementId,
 } from '../schema/graphSchema';
 
 // ============================================================
@@ -51,7 +52,7 @@ interface YamlGraph {
  * Relations are nested under their source ConceptNode for maximum
  * human readability in Git diffs.
  *
- * Note: 'views' are serialized separately by PersistenceService → views.typegraph.yaml
+ * Note: 'views' are serialized separately by PersistenceService → views.xarchi.yaml
  */
 export function stateToYaml(state: {
   domains: Domain[];
@@ -240,7 +241,14 @@ export function yamlToState(yamlString: string): {
       updatedAt: conceptData.updatedAt ?? now,
       lifecycleState: conceptData.lifecycleState ?? 'active',
       aliases: conceptData.aliases ?? [],
-      policies: conceptData.policies ?? [],
+      policies: ((conceptData.policies as any[]) ?? []).map((p, idx) => ({
+        ...p,
+        id: p.id ?? `policy:concept-${conceptData.id || idx}-${Date.now()}-${idx}` as ElementId,
+        createdAt: p.createdAt ?? now,
+        updatedAt: p.updatedAt ?? now,
+        lifecycleState: p.lifecycleState ?? 'active',
+        tags: p.tags ?? [],
+      })),
     };
 
     let concept: ConceptNode;
@@ -325,7 +333,14 @@ export function yamlToState(yamlString: string): {
           createdAt: rel.createdAt ?? now,
           updatedAt: rel.updatedAt ?? now,
           lifecycleState: rel.lifecycleState ?? 'active',
-          policies: rel.policies ?? [],
+          policies: ((rel.policies as any[]) ?? []).map((p, idx) => ({
+            ...p,
+            id: p.id ?? `policy:relation-${rel.id || idx}-${Date.now()}-${idx}` as ElementId,
+            createdAt: p.createdAt ?? now,
+            updatedAt: p.updatedAt ?? now,
+            lifecycleState: p.lifecycleState ?? 'active',
+            tags: p.tags ?? [],
+          })),
           relationType: type as any,
         });
       }
@@ -346,7 +361,8 @@ export function yamlToState(yamlString: string): {
 }
 
 // ============================================================
-// Views YAML — Separate serialization for views.typegraph.yaml
+// ============================================================
+// Views YAML — Separate serialization for views.xarchi.yaml
 // ============================================================
 
 interface ViewsYamlDocument {
@@ -356,8 +372,8 @@ interface ViewsYamlDocument {
 
 /**
  * Serialize the views array to a separate YAML string.
- * This is written to views.typegraph.yaml, keeping position data
- * out of model.typegraph.yaml for clean semantic Git diffs.
+ * This is written to views.xarchi.yaml, keeping position data
+ * out of model.xarchi.yaml for clean semantic Git diffs.
  */
 export function viewsToYaml(views: View[]): string {
   const doc: ViewsYamlDocument = {
@@ -375,7 +391,7 @@ export function viewsToYaml(views: View[]): string {
 }
 
 /**
- * Parse views.typegraph.yaml back into a View array.
+ * Parse views.xarchi.yaml back into a View array.
  * Returns [] if the content is empty or malformed (safe fallback).
  */
 export function yamlToViews(yamlString: string): View[] {
@@ -386,9 +402,17 @@ export function yamlToViews(yamlString: string): View[] {
     // Map legacy 'global_explorer' to 'knowledge_graph'
     return (parsed.views as View[]).map((v) => {
       const uniqueNodesMap = new Map<string, ViewNode>();
+      let autoInstCounter = 1;
       for (const node of (v.nodes ?? [])) {
-        if (node && node.conceptId && !uniqueNodesMap.has(node.conceptId)) {
-          uniqueNodesMap.set(node.conceptId, node);
+        if (node && node.conceptId) {
+          const instanceId = node.instanceId || (uniqueNodesMap.has(node.conceptId) ? `${node.conceptId}#inst_${autoInstCounter++}` : node.conceptId);
+          const nodeWithInst: ViewNode = {
+            ...node,
+            instanceId,
+          };
+          if (!uniqueNodesMap.has(instanceId)) {
+            uniqueNodesMap.set(instanceId, nodeWithInst);
+          }
         }
       }
       const deduplicatedNodes = Array.from(uniqueNodesMap.values());
@@ -407,7 +431,7 @@ export function yamlToViews(yamlString: string): View[] {
       return nextView;
     });
   } catch (err) {
-    console.warn('[yamlParser] Failed to parse views.typegraph.yaml:', err);
+    console.warn('[yamlParser] Failed to parse views.xarchi.yaml:', err);
     return [];
   }
 }

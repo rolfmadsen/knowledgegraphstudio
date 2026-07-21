@@ -11,7 +11,7 @@
     rdfs:label "Dynamic Condition Response (DCR) Graphs OWL Ontology"@en , "Dynamic Condition Response (DCR) Graphs OWL-ontologi"@da ;
     rdfs:comment "A formal OWL ontology representing the Dynamic Condition Response (DCR) Graphs specification, including nested graphs, milestones, roles, and marking states."@en , "En formel OWL-ontologi, der repræsenterer DCR Graphs-specifikationen, herunder indlejrede grafer, milepæle, roller og tilstandsmarkeringer."@da ;
     dct:title "DCR Graphs Specification OWL Ontology" ;
-    dct:creator "TypeGraph Knowledge Graph Studio Agent" ;
+    dct:creator "xArchi Knowledge Graph Studio Agent" ;
     dct:created "2026-05-31"^^xsd:date .
 
 ### =========================================================================

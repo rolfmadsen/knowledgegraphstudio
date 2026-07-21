@@ -11,7 +11,7 @@
     rdfs:label "ArchiMate 3.2 Advanced OWL Ontology"@en , "ArchiMate 3.2 Avanceret OWL-ontologi"@da ;
     rdfs:comment "A formal OWL ontology representing the complete ArchiMate 3.2 specification, mapping layers, aspects, elements, and bidirectional relationships."@en , "En formel OWL-ontologi, der repræsenterer den fulde ArchiMate 3.2-specifikation med kortlægning af lag, aspekter, elementer og tovejsrelationer."@da ;
     dct:title "ArchiMate 3.2 Specification OWL Ontology" ;
-    dct:creator "TypeGraph Knowledge Graph Studio Agent" ;
+    dct:creator "xArchi Knowledge Graph Studio Agent" ;
     dct:created "2026-05-30"^^xsd:date .
 
 ### =========================================================================

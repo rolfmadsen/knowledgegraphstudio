@@ -49,6 +49,7 @@ const EM_ROW_ORDER: string[] = [
 ];
 
 function getRowIndex(conceptType: string): number {
+  if (conceptType === 'automation') return 0; // Automation lives at row 0 (top level, parallel to screen)
   const idx = EM_ROW_ORDER.indexOf(conceptType);
   return idx >= 0 ? idx : EM_ROW_ORDER.length; // unknown types go below
 }
@@ -145,20 +146,19 @@ export const eventModelingLayoutEngine: LayoutEngine = async (
 
   const positions: Array<{ conceptId: string; x: number; y: number }> = [];
 
-  for (const chapter of chapters) {
-    const chapterPos = chapterPositions.get(chapter.id);
-    const cx = chapterPos?.x ?? 0;
-    const cy = chapterPos?.y ?? 0;
-
-    // Get slices belonging to this chapter, topologically sorted by cross-slice links (with chronological fallback)
-    const chapterSlicesRaw = slices.filter((s) => s.parentId === chapter.id);
+  const layoutSliceGroup = (
+    groupSlicesRaw: LayoutNode[],
+    cx: number,
+    cy: number,
+    chapterId?: string
+  ) => {
+    if (groupSlicesRaw.length === 0) return;
 
     // Build slice dependency graph
-    // adj[sliceA] = Set of slices that depend on sliceA (i.e. sliceA -> sliceB)
     const adj = new Map<string, Set<string>>();
     const inDegree = new Map<string, number>();
 
-    chapterSlicesRaw.forEach(s => {
+    groupSlicesRaw.forEach(s => {
       adj.set(s.id, new Set());
       inDegree.set(s.id, 0);
     });
@@ -184,7 +184,7 @@ export const eventModelingLayoutEngine: LayoutEngine = async (
       }
     });
 
-    const zeroInDegree = chapterSlicesRaw
+    const zeroInDegree = groupSlicesRaw
       .filter(s => inDegree.get(s.id) === 0)
       .sort((a, b) => getCreatedAt(a) - getCreatedAt(b));
 
@@ -202,7 +202,7 @@ export const eventModelingLayoutEngine: LayoutEngine = async (
         const nextDegree = inDegree.get(targetId)! - 1;
         inDegree.set(targetId, nextDegree);
         if (nextDegree === 0) {
-          const targetSlice = chapterSlicesRaw.find(s => s.id === targetId);
+          const targetSlice = groupSlicesRaw.find(s => s.id === targetId);
           if (targetSlice) {
             zeroInDegree.push(targetSlice);
           }
@@ -210,20 +210,21 @@ export const eventModelingLayoutEngine: LayoutEngine = async (
       });
     }
 
-    const remaining = chapterSlicesRaw
+    const remaining = groupSlicesRaw
       .filter(s => !visited.has(s.id))
       .sort((a, b) => getCreatedAt(a) - getCreatedAt(b));
     sortedSlices.push(...remaining);
 
-    const chapterSlices = sortedSlices;
-    console.log(`[EM Layout] Chapter ${chapter.id} sorted slices:`, chapterSlices.map(s => s.id));
+    const groupSlices = sortedSlices;
 
-    // Position the chapter container itself
-    positions.push({ conceptId: chapter.id, x: cx, y: cy });
+    if (chapterId) {
+      // Position the chapter container itself
+      positions.push({ conceptId: chapterId, x: cx, y: cy });
+    }
 
-    // Layout slices left-to-right within the chapter
-    for (let si = 0; si < chapterSlices.length; si++) {
-      const slice = chapterSlices[si];
+    // Layout slices left-to-right within the group
+    for (let si = 0; si < groupSlices.length; si++) {
+      const slice = groupSlices[si];
       const sliceX = cx + CHAPTER_PADDING + si * (SLICE_WIDTH + SLICE_GAP);
       const sliceY = cy + CHAPTER_PADDING;
 
@@ -238,7 +239,6 @@ export const eventModelingLayoutEngine: LayoutEngine = async (
           if (rowDiff !== 0) return rowDiff;
           return getCreatedAt(a) - getCreatedAt(b);
         });
-      console.log(`[EM Layout] Slice ${slice.id} elements:`, sliceElements.map(e => e.id));
 
       for (const el of sliceElements) {
         const row = getRowIndex(getConceptType(el));
@@ -247,6 +247,47 @@ export const eventModelingLayoutEngine: LayoutEngine = async (
         positions.push({ conceptId: el.id, x: elX, y: elY });
       }
     }
+  };
+
+  // Run layout for each chapter
+  for (const chapter of chapters) {
+    const chapterPos = chapterPositions.get(chapter.id);
+    const cx = chapterPos?.x ?? 0;
+    const cy = chapterPos?.y ?? 0;
+    const chapterSlicesRaw = slices.filter((s) => s.parentId === chapter.id);
+    layoutSliceGroup(chapterSlicesRaw, cx, cy, chapter.id);
+  }
+
+  // Find slices that are not nested in any active chapter (orphaned slices)
+  const activeChapterIds = new Set(chapters.map((c) => c.id));
+  const orphanedSlices = slices.filter((s) => !s.parentId || !activeChapterIds.has(s.parentId));
+
+  if (orphanedSlices.length > 0) {
+    let orphanedCx = 80;
+    let orphanedCy = 80;
+    if (chapters.length > 0) {
+      let maxY = -Infinity;
+      for (const chapter of chapters) {
+        const pos = chapterPositions.get(chapter.id);
+        if (pos) {
+          const chapterSlices = slices.filter((s) => s.parentId === chapter.id);
+          let maxRow = 0;
+          for (const slice of chapterSlices) {
+            const sliceElements = elements.filter((e) => e.parentId === slice.id);
+            for (const el of sliceElements) {
+              const row = getRowIndex(getConceptType(el));
+              if (row > maxRow) maxRow = row;
+            }
+          }
+          const h = Math.max(300, 248 + maxRow * ROW_HEIGHT);
+          maxY = Math.max(maxY, pos.y + h);
+        }
+      }
+      orphanedCy = maxY + CHAPTER_RANKSEP;
+    }
+
+    // Lay out orphaned slices as a virtual chapter
+    layoutSliceGroup(orphanedSlices, orphanedCx, orphanedCy);
   }
 
   // Position elements that have no chapter/slice parent (free-floating)
@@ -315,7 +356,7 @@ async function runDagreOnChapters(
       }
 
       // Dynamic height matching KGS event modeling guidelines
-      const height = Math.max(300, 248 + maxRow * ROW_HEIGHT);
+      const height = Math.max(CHAPTER_MIN_HEIGHT, 248 + maxRow * ROW_HEIGHT);
 
       return {
         id: c.id,
@@ -333,20 +374,18 @@ async function runDagreOnChapters(
     });
 
     worker.onmessage = (event) => {
-      const { type, nodes: resultNodes } = event.data;
+      const { type } = event.data;
       if (type === 'end') {
         worker.terminate();
         const map = new Map<string, { x: number; y: number }>();
-        for (const n of resultNodes as Array<{ id: string; x: number; y: number }>) {
-          // Dagre returns center coordinates; convert to top-left
-          const sliceCount = sliceCountPerChapter.get(n.id) ?? 1;
-          const w =
-            CHAPTER_PADDING * 2 +
-            sliceCount * SLICE_WIDTH +
-            (sliceCount - 1) * SLICE_GAP;
-          const nodeConf = workerNodes.find((wn) => wn.id === n.id);
-          const h = nodeConf ? nodeConf.height : CHAPTER_MIN_HEIGHT;
-          map.set(n.id, { x: n.x - w / 2, y: n.y - h / 2 });
+        
+        // Sort chapters to maintain order and lay them out left-to-right horizontally
+        let currentX = 80;
+        for (const c of chapters) {
+          const nodeConf = workerNodes.find((wn) => wn.id === c.id);
+          const w = nodeConf ? nodeConf.width : 600;
+          map.set(c.id, { x: currentX, y: 80 });
+          currentX += w + 80;
         }
         resolve(map);
       }
@@ -354,14 +393,14 @@ async function runDagreOnChapters(
 
     worker.onerror = () => {
       worker.terminate();
-      // Fallback: simple vertical stacking
+      // Fallback: horizontal left-to-right stacking for chapters
       const map = new Map<string, { x: number; y: number }>();
-      let currentY = 80;
+      let currentX = 80;
       chapters.forEach((c) => {
         const nodeConf = workerNodes.find((wn) => wn.id === c.id);
-        const h = nodeConf ? nodeConf.height : CHAPTER_MIN_HEIGHT;
-        map.set(c.id, { x: 80, y: currentY });
-        currentY += h + CHAPTER_RANKSEP;
+        const w = nodeConf ? nodeConf.width : 600;
+        map.set(c.id, { x: currentX, y: 80 });
+        currentX += w + 80;
       });
       resolve(map);
     };

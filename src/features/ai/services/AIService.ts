@@ -1,7 +1,8 @@
-import type { ElementId, ConceptType, ConceptNode, ConceptRelation, View } from '../../../schema/graphSchema';
+import { GraphState, type ElementId, type ConceptType, type ConceptNode, type ConceptRelation, type View } from '../../../schema/graphSchema';
 import { useGraphStore } from '../../../store/useGraphStore';
 import { useAIStore, type ProposedCommandInput } from '../store/useAIStore';
 import { NotationRegistry } from '../../../notations/NotationRegistry';
+import { parseProposedCommands, normalizeIdForMatching, repairJson } from './AIParser';
 
 // ============================================================
 // Types
@@ -91,7 +92,15 @@ EKSEMPLER PÅ GYLDIGE RELATIONER:
 - { "action": "addRelation", "sourceConceptId": "event:A", "targetConceptId": "business_role:sagsbehandler", "name": "Has Role", "relationType": "has_role" }
 - { "action": "addRelation", "sourceConceptId": "business_role:sagsbehandler", "targetConceptId": "actor:medarbejder", "name": "Has Principal", "relationType": "has_principal" }
 - { "action": "addRelation", "sourceConceptId": "event:A", "targetConceptId": "bounded_context:sub-graph-1", "name": "Is Nested In", "relationType": "is_nested_in" }
-- Undgå løse/isolerede noder: Hver ny event eller rolle skal forbindes til det eksisterende procesnetværk via de relevante relationer (Condition, Response, Inclusion, Exclusion, Milestone eller Role), medmindre canvasset er helt tomt.`;
+- Undgå løse/isolerede noder: Hver ny event eller rolle skal forbindes til det eksisterende procesnetværk via de relevante relationer (Condition, Response, Inclusion, Exclusion, Milestone eller Role), medmindre canvasset er helt tomt.
+
+DCR EVENT INITIAL MARKINGS (PROPERTIES):
+An event node ('event') can have initial simulation state markings. You can set them using the \`addProperty\` action:
+- 'is_included': default is true. Set to "false" (as string) to initially exclude the event.
+- 'is_pending_response': default is false. Set to "true" (as string) to initially mark it pending.
+- 'is_executed': default is false. Set to "true" (as string) to initially mark it executed.
+Example:
+{ "action": "addProperty", "conceptId": "event:A", "propertyName": "is_included", "propertyType": "false" }`;
 
     case 'archimate':
       return `### VIDENSBASE: ARCHIMATE 3.2 REGELSÆT
@@ -138,7 +147,15 @@ KRAV TIL SPROGLIGE DEFINITIONER (Aristotelisk form):
 Ethvert begreb skal defineres ud fra den klassiske Aristoteliske form:
 "En [Klasse] er et [Overbegreb], der [Differentia/Specifik forskel]".
 Eksempel: "En sagsbehandler er en medarbejder, der er tildelt den formelle myndighed til at behandle en administrativ sag".
-- Undgå løse/isolerede begreber: Hver ny begrebsklasse (\`class\`) skal forbindes til det eksisterende begrebsnetværk via en relation (fx \`associates_with\`, \`generalizes\`, \`aggregates\` eller \`composed_of\`), medmindre canvasset er helt tomt.`;
+- Undgå løse/isolerede begreber: Hver ny begrebsklasse (\`class\`) skal forbindes til det eksisterende begrebsnetværk via en relation (fx \`associates_with\`, \`generalizes\`, \`aggregates\` eller \`composed_of\`), medmindre canvasset er helt tomt.
+
+SPROGLIGE METADATAFELTER PÅ BEGREBER (updateConcept):
+Du kan tilføje eller opdatere forretningsmetadata på en klasse ('class') ved at bruge \`updateConcept\` og angive følgende felter i \`updates\`:
+- 'preferredTerm': Foretrukken term (f.eks. "Ansøgning")
+- 'acceptedTerm': Accepteret term (f.eks. "Andragende")
+- 'deprecatedTerm': Frarådet term (f.eks. "Skema")
+- 'source': Kilde (f.eks. "Den Danske Ordbog")
+- 'legalSource': Juridisk kilde (f.eks. "Forvaltningslovens § 7")`;
 
     case 'information_model':
       return `### VIDENSBASE FOR INFORMATIONSMODEL (information_model)
@@ -148,6 +165,7 @@ TILLADTE ELEMENT-TYPER (conceptType):
 - \`class\` (Informationsklasse): Repræsenterer data struktureret om en enhed.
 - \`datatype\` (Datatype): Primitive datatyper (f.eks. heltal, tekst, dato, decimal).
 - \`enumeration\` (Enumeration / Kodeliste): Repræsenterer et lukket og kontrolleret udfaldsrum.
+- \`bounded_context\` (Gruppe / Container): Bruges udelukkende til at gruppere elementer visuelt og strukturelt på canvasset.
 
 TILLADTE RELATIONSTYPER (relationType):
 - UML-relationer (\`generalizes\`, \`associates_with\`, \`aggregates\`, \`composed_of\`): Anvendes KUN mellem \`class\` og \`class\`.
@@ -158,7 +176,51 @@ GUARDRAILS & RESTRIKTIONER:
 - UML-relationer må KUN forbinde \`class\` til \`class\`.
 - \`has_type\` må KUN gå fra \`class\` til \`datatype\` eller \`enumeration\`.
 - \`wasDerivedFrom\` må KUN gå fra en informationsklasse (\`class\`) til en begrebsklasse (\`class\`).
-- Undgå isolerede informationsklasser: Hver ny \`class\` skal forbindes til eksisterende klasser eller datatyper/enumerations via \`has_type\` eller UML-relationer, medmindre canvasset er helt tomt.`;
+- Undgå isolerede informationsklasser: Hver ny \`class\` skal forbindes til eksisterende klasser eller datatyper/enumerations via \`has_type\` eller UML-relationer, medmindre canvasset er helt tomt.
+- Visuel Gruppering: For at gruppere en klasse (\`class\`) eller enumeration (\`enumeration\`) inde i en gruppe (\`bounded_context\`), skal du bruge \`setParent\` action og sætte \`parentId\` på elementerne til den pågældende gruppes ID.
+
+SPORBARHED OG ENUMERATIONS (updateConcept):
+- 'wasDerivedFrom': For at spore en informationsklasse tilbage til dens forretningsbegreb, brug \`updateConcept\` og angiv begrebets ID under 'wasDerivedFrom' i 'updates'.
+- 'enumerators': For \`enumeration\` noder, kan du definere dens tilladte værdier som et array af strenge under 'enumerators' i 'updates' (f.eks. \`"updates": { "enumerators": ["PENDING", "APPROVED", "REJECTED"] }\`).`;
+
+    case 'event_modeling':
+      return `### KNOWLEDGE BASE: EVENT MODELING
+Event Modeling is a timeline-based methodology for mapping system behavior as a sequence of events, commands, and read models. The diagram is read from left to right chronologically.
+
+ALLOWED ELEMENT TYPES (conceptType) — use ONLY these six:
+- \`screen\`            → (Blue) A UI screen/view that the user interacts with. Triggers user intent.
+- \`command\`           → (Yellow) A user or system intent to change state. Named as an imperative: "CreateApplication".
+- \`event\`             → (Orange) A Domain Event — an immutable fact that has already happened. Named in the past tense: "ApplicationCreated".
+- \`read_model\`        → (Green) A read-optimized projection/view of data for the UI or automation. Named: "ApplicationOverview".
+- \`integration_event\` → (Purple) An event that crosses system boundaries (pub/sub, webhook, etc.).
+- \`automation\`        → (Red) A saga/policy that reacts automatically to events and emits commands.
+
+CONTAINER TYPES (only for grouping — not valid relation endpoints):
+- \`em_chapter\`        → Chapter container that groups related slices thematically.
+- \`em_slice\`          → A vertical slice that groups elements for a single user story/feature.
+
+ALLOWED CONNECTIONS (the valid EM alphabet):
+- \`screen\`            → \`command\`           (name: "invokes")
+- \`command\`           → \`event\`             (name: "triggers")
+- \`command\`           → \`integration_event\` (name: "emits")
+- \`event\`             → \`read_model\`        (name: "feeds")
+- \`event\`             → \`automation\`        (name: "triggers")
+- \`event\`             → \`event\`             (name: "precedes (derived)")
+- \`read_model\`        → \`screen\`            (name: "displays")
+- \`read_model\`        → \`automation\`        (name: "triggers")
+- \`integration_event\` → \`read_model\`        (name: "feeds")
+- \`integration_event\` → \`automation\`        (name: "triggers")
+- \`automation\`        → \`command\`           (name: "automates")
+
+VALIDATION RULES & NESTING (CRITICAL):
+- NEVER use \`other\`, \`entity\`, \`process\`, \`actor\`, \`bounded_context\` or any other types — they are invalid in event_modeling diagrams.
+- \`em_chapter\` and \`em_slice\` are ONLY visual containers. DO NOT use them as source/target in addRelation.
+- ID format MUST match the pattern \`<conceptType>:<kebab-case-name>\` — e.g., \`command:create-application\` or \`event:application-created\`.
+- A new \`screen\` must always be connected to at least one \`command\` via "invokes".
+- A new \`event\` must always be connected to at least one \`read_model\` or \`automation\` via "feeds"/"triggers".
+- Nesting & Encapsulation:
+  - An 'em_chapter' (chapter) is a container for 'em_slice' (slices). You MUST use \`setParent\` to place a new or existing 'em_slice' into the relevant chapter (e.g. { "action": "setParent", "conceptId": "em_slice:application-administration", "parentConceptId": "em_chapter:start-chapter" }).
+  - An 'em_slice' (slice) is a container for diagram elements (screen, command, event, read_model, automation, integration_event). You MUST use \`setParent\` to place elements into their respective slice (e.g. { "action": "setParent", "conceptId": "screen:application-interface", "parentConceptId": "em_slice:application-administration" }).`;
 
     default:
       return `### VIDENSBASE: GENERISK VIDENSGRAF (KNOWLEDGE GRAPH)
@@ -177,457 +239,151 @@ MODELLERINGSPRINCIPPER OG BEST PRACTICES:
   }
 }
 
-// ============================================================
-// JSON Command Parser
-// ============================================================
 
-// ============================================================
-// JSON Command Parser Helpers
-// ============================================================
 
-function extractJsonBlocks(text: string): string[] {
-  const regex = /```(?:json|JSON|javascript|js|text)?([\s\S]*?)```/g;
-  const blocks: string[] = [];
-  let match;
-  while ((match = regex.exec(text)) !== null) {
-    const block = match[1].trim();
-    if (block) {
-      blocks.push(block);
-    }
-  }
 
-  if (blocks.length === 0) {
-    const unclosedMatch = text.match(/```(?:json|JSON|javascript|js|text)?\s*([\s\S]*)$/i);
-    if (unclosedMatch) {
-      const block = unclosedMatch[1].trim();
-      if (block) {
-        blocks.push(block);
-      }
-    }
-  }
-
-  if (blocks.length === 0) {
-    blocks.push(text.trim());
-  }
-
-  return blocks;
-}
-
-export function repairJson(str: string): string {
-  let repaired = str.trim();
-  
-  // Remove block and line comments
-  repaired = repaired.replace(/\/\*[\s\S]*?\*\//g, '');
-  repaired = repaired.replace(/\/\/.*/g, '');
-  
-  // Replace single quotes with double quotes for keys and values
-  repaired = repaired.replace(/(?<=[{\s,])'([^'\\]*(?:\\.[^'\\]*)*)'(?=\s*:)/g, '"$1"');
-  repaired = repaired.replace(/(?<=:\s*)'([^'\\]*(?:\\.[^'\\]*)*)'(?=\s*[,}\]])/g, '"$1"');
-  repaired = repaired.replace(/(?<=[\[\s,])'([^'\\]*(?:\\.[^'\\]*)*)'(?=\s*[,\]])/g, '"$1"');
-
-  // Fix unquoted keys
-  repaired = repaired.replace(/(?<=[{,])\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '"$1":');
-
-  // Remove trailing commas
-  repaired = repaired.replace(/,\s*(?=[}\]])/g, '');
-
-  return repaired;
-}
-
-const VALID_CONCEPT_TYPES = [
-  'domain', 'capability', 'bounded_context', 'entity', 'process', 'event', 'system', 'actor', 'other',
-  'business_role', 'business_function', 'business_service', 'application_service', 'application_component',
-  'business_object', 'node', 'artifact', 'requirement', 'goal',
-  'resource', 'course_of_action', 'value_stream',
-  'business_collaboration', 'business_interface', 'business_interaction', 'contract', 'representation', 'product',
-  'application_collaboration', 'application_event', 'application_function', 'application_interaction', 'application_interface', 'application_process',
-  'device', 'system_software', 'technology_collaboration', 'technology_interface', 'technology_function', 'technology_process', 'technology_interaction', 'technology_event', 'technology_service', 'communication_network', 'path', 'equipment', 'facility', 'distribution_network', 'material',
-  'stakeholder', 'driver', 'assessment', 'outcome', 'principle', 'constraint', 'value', 'meaning',
-  'work_package', 'deliverable', 'plateau', 'gap', 'implementation_event',
-  'location', 'junction',
-  'class', 'datatype', 'enumeration'
-];
-
-function normalizeConceptType(typeStr: string): ConceptType {
-  if (typeof typeStr !== 'string') return 'other' as ConceptType;
-  const clean = typeStr.trim().toLowerCase().replace(/[\s-]+/g, '_');
-  
-  if (VALID_CONCEPT_TYPES.includes(clean)) {
-    return clean as ConceptType;
-  }
-  
-  const aliasMap: Record<string, string> = {
-    'person': 'actor',
-    'user': 'actor',
-    'component': 'application_component',
-    'software_system': 'system',
-    'boundary': 'bounded_context',
-    'grouping': 'bounded_context',
-    'class_model': 'class',
-    'data_type': 'datatype',
-  };
-  
-  if (aliasMap[clean] && VALID_CONCEPT_TYPES.includes(aliasMap[clean])) {
-    return aliasMap[clean] as ConceptType;
-  }
-  
-  return 'other' as ConceptType;
-}
-
-export function normalizeCommand(cmd: any): any {
-  if (!cmd || typeof cmd !== 'object') return cmd;
-
-  const normalized = { ...cmd };
-
-  // Action mapping
-  if (normalized.type && !normalized.action) {
-    normalized.action = normalized.type;
-  }
-  if (normalized.action === 'renameConcept' || normalized.action === 'editConcept') {
-    normalized.action = 'updateConcept';
-  }
-  if (normalized.action === 'deleteConcept' || normalized.action === 'deleteRelation' || 
-      normalized.action === 'removeConcept' || normalized.action === 'removeRelation' || 
-      normalized.action === 'removeElement') {
-    normalized.action = 'deleteElement';
-  }
-
-  // Guess action from properties if not set
-  if (!normalized.action) {
-    if (normalized.conceptType && normalized.name) {
-      normalized.action = 'addConcept';
-    } else if ((normalized.sourceConceptId || normalized.source || normalized.from) && 
-               (normalized.targetConceptId || normalized.target || normalized.to)) {
-      normalized.action = 'addRelation';
-    } else if ((normalized.conceptId || normalized.child) && (normalized.parentConceptId || normalized.parent)) {
-      normalized.action = 'setParent';
-    } else if (normalized.updates && (normalized.conceptId || normalized.id)) {
-      normalized.action = 'updateConcept';
-    } else if (normalized.elementId || normalized.deleteId) {
-      normalized.action = 'deleteElement';
-    } else if (normalized.propertyName && (normalized.conceptId || normalized.id)) {
-      normalized.action = 'addProperty';
-    }
-  }
-
-  // Property mapping per action
-  if (normalized.action === 'addConcept') {
-    if (normalized.type && !normalized.conceptType) {
-      normalized.conceptType = normalized.type;
-    }
-  }
-
-  if (normalized.action === 'addRelation') {
-    if (normalized.source && !normalized.sourceConceptId) {
-      normalized.sourceConceptId = normalized.source;
-    }
-    if (normalized.from && !normalized.sourceConceptId) {
-      normalized.sourceConceptId = normalized.from;
-    }
-    if (normalized.target && !normalized.targetConceptId) {
-      normalized.targetConceptId = normalized.target;
-    }
-    if (normalized.to && !normalized.targetConceptId) {
-      normalized.targetConceptId = normalized.to;
-    }
-    if (normalized.relation && !normalized.relationType) {
-      normalized.relationType = normalized.relation;
-    }
-    if (!normalized.name && normalized.relationType) {
-      normalized.name = normalized.relationType;
-    }
-  }
-
-  if (normalized.action === 'setParent') {
-    if (normalized.child && !normalized.conceptId) {
-      normalized.conceptId = normalized.child;
-    }
-    if (normalized.parent && !normalized.parentConceptId) {
-      normalized.parentConceptId = normalized.parent;
-    }
-  }
-
-  if (normalized.action === 'updateConcept') {
-    if (normalized.id && !normalized.conceptId) {
-      normalized.conceptId = normalized.id;
-    }
-    // If updates is flat at root level
-    if (!normalized.updates) {
-      normalized.updates = {};
-      if (normalized.name) normalized.updates.name = normalized.name;
-      if (normalized.conceptType) normalized.updates.conceptType = normalized.conceptType;
-      if (normalized.definition) normalized.updates.definition = normalized.definition;
-    }
-  }
-
-  if (normalized.action === 'deleteElement') {
-    if (normalized.deleteId && !normalized.elementId) {
-      normalized.elementId = normalized.deleteId;
-    }
-    if (normalized.id && !normalized.elementId) {
-      normalized.elementId = normalized.id;
-    }
-    if (normalized.type && !normalized.elementType) {
-      normalized.elementType = normalized.type;
-    }
-  }
-
-  if (normalized.action === 'addProperty') {
-    if (normalized.id && !normalized.conceptId) {
-      normalized.conceptId = normalized.id;
-    }
-    if (normalized.name && !normalized.propertyName) {
-      normalized.propertyName = normalized.name;
-    }
-    if (normalized.type && !normalized.propertyType) {
-      normalized.propertyType = normalized.type;
-    }
-  }
-
-  return normalized;
-}
-
-// ============================================================
-// JSON Command Parser
-// ============================================================
-
-export function parseProposedCommands(text: string): ProposedCommandInput[] {
-  const blocks = extractJsonBlocks(text);
-  const allProposals: ProposedCommandInput[] = [];
-
-  const parseItem = (cmd: any, index: number): ProposedCommandInput | null => {
-    if (!cmd || typeof cmd !== 'object') return null;
-
-    const normalized = normalizeCommand(cmd);
-    const id = `proposal-${Date.now()}-${index}-${Math.random().toString(36).substring(2, 9)}`;
-
-    let action = normalized.action;
-    if (!action) {
-      if (normalized.conceptType && normalized.name) {
-        action = 'addConcept';
-      } else if (normalized.sourceConceptId && normalized.targetConceptId && normalized.name) {
-        action = 'addRelation';
-      } else if (normalized.conceptId && normalized.parentConceptId) {
-        action = 'setParent';
-      }
-    }
-
-    if (action === 'addConcept' && normalized.conceptType && normalized.name) {
-      return {
-        id,
-        action: 'addConcept',
-        conceptType: normalizeConceptType(normalized.conceptType),
-        name: normalized.name,
-      };
-    } else if (action === 'addRelation' && normalized.sourceConceptId && normalized.targetConceptId && normalized.name) {
-      return {
-        id,
-        action: 'addRelation',
-        sourceConceptId: normalized.sourceConceptId as ElementId,
-        targetConceptId: normalized.targetConceptId as ElementId,
-        name: normalized.name,
-        relationType: normalized.relationType,
-      };
-    } else if (action === 'setParent' && normalized.conceptId && normalized.parentConceptId) {
-      return {
-        id,
-        action: 'setParent',
-        conceptId: normalized.conceptId as ElementId,
-        parentConceptId: normalized.parentConceptId as ElementId,
-      };
-    } else if (action === 'updateConcept' && normalized.conceptId && normalized.updates) {
-      const graphStore = useGraphStore.getState();
-      const resolveId = (aiId: string): string => {
-        const slugMatch = graphStore.concepts.find((c) => {
-          const slug = `${c.conceptType}:${c.name.trim().toLowerCase().replace(/\s+/g, '-')}`;
-          return slug === aiId;
-        });
-        if (slugMatch) return slugMatch.id;
-        return aiId;
-      };
-      const resolvedId = resolveId(normalized.conceptId);
-      const existing = graphStore.concepts.find((c) => c.id === resolvedId);
-      return {
-        id,
-        action: 'updateConcept',
-        conceptId: normalized.conceptId as ElementId,
-        updates: normalized.updates,
-        before: {
-          name: existing?.name || '',
-          conceptType: existing?.conceptType || 'other',
-          definition: existing?.definition,
-        },
-      };
-    } else if (action === 'deleteElement' && normalized.elementId) {
-      const elType = normalized.elementType || (normalized.elementId.includes('relation') ? 'relation' : 'concept');
-      const graphStore = useGraphStore.getState();
-      let elName = '';
-      if (elType === 'concept') {
-        const resolveId = (aiId: string): string => {
-          const slugMatch = graphStore.concepts.find((c) => {
-            const slug = `${c.conceptType}:${c.name.trim().toLowerCase().replace(/\s+/g, '-')}`;
-            return slug === aiId;
-          });
-          if (slugMatch) return slugMatch.id;
-          return aiId;
-        };
-        const existing = graphStore.concepts.find((c) => c.id === resolveId(normalized.elementId));
-        elName = existing?.name || normalized.elementName || normalized.elementId;
-      } else {
-        const existing = graphStore.relations.find((r) => r.id === normalized.elementId);
-        elName = existing?.name || normalized.elementName || 'Relation';
-      }
-      return {
-        id,
-        action: 'deleteElement',
-        elementId: normalized.elementId as ElementId,
-        elementType: elType,
-        elementName: elName,
-      };
-    } else if (action === 'addProperty' && normalized.conceptId && normalized.propertyName) {
-      return {
-        id,
-        action: 'addProperty',
-        conceptId: normalized.conceptId as ElementId,
-        propertyName: normalized.propertyName,
-        propertyType: normalized.propertyType || 'string',
-      };
-    }
-    return null;
-  };
-
-  const tryParseJson = (str: string): any => {
-    // 1. Try direct parse
-    try {
-      return JSON.parse(str);
-    } catch (e) {}
-
-    // 2. Try repaired direct parse
-    try {
-      return JSON.parse(repairJson(str));
-    } catch (e) {}
-
-    // 3. Try to extract and parse array
-    const startArr = str.indexOf('[');
-    const endArr = str.lastIndexOf(']');
-    if (startArr !== -1 && endArr !== -1 && endArr > startArr) {
-      const arrContent = str.substring(startArr, endArr + 1);
-      try {
-        return JSON.parse(arrContent);
-      } catch (e) {}
-      try {
-        return JSON.parse(repairJson(arrContent));
-      } catch (e) {}
-    }
-
-    // 4. Try to extract and parse object
-    const startObj = str.indexOf('{');
-    const endObj = str.lastIndexOf('}');
-    if (startObj !== -1 && endObj !== -1 && endObj > startObj) {
-      const objContent = str.substring(startObj, endObj + 1);
-      try {
-        return JSON.parse(objContent);
-      } catch (e) {}
-      try {
-        return JSON.parse(repairJson(objContent));
-      } catch (e) {}
-    }
-
-    throw new Error('Not parseable');
-  };
-
-  blocks.forEach((jsonStr, blockIdx) => {
-    try {
-      const parsed = tryParseJson(jsonStr);
-      if (parsed) {
-        const arr = Array.isArray(parsed) ? parsed : [parsed];
-        const parsedItems = arr
-          .map((item, itemIdx) => parseItem(item, blockIdx * 100 + itemIdx))
-          .filter((p): p is ProposedCommandInput => p !== null);
-        allProposals.push(...parsedItems);
-      }
-    } catch (e) {
-      // Ignore block parsing errors
-    }
-  });
-
-  return allProposals;
-}
-
-function buildOutputFormatBlock(_viewType: string, allowedTypes?: string[]): string {
-  const typesStr = allowedTypes ? allowedTypes.join(', ') : 'typisk entity, process, actor, event, bounded_context';
+function buildOutputFormatBlock(viewType: string, allowedTypes?: string[]): string {
+  const typesStr = allowedTypes ? allowedTypes.join(', ') : 'typically entity, process, actor, event, bounded_context';
   const firstType = allowedTypes && allowedTypes.length > 0 ? allowedTypes[0] : 'entity';
-  
-  return `### DIT OUTPUT FORMAT OG DIALOGSTRATEGI (KRITISKE KRAV)
 
-Du skal dynamisk tilpasse dit svar baseret på brugerens hensigt (IMPLICIT STYRING):
-1. **DIREKTE MODELLERING / KLARE ORDRE:** 
-   - Hvis brugeren beder om konkrete ændringer (fx "tilføj node X", "slet relation Y", "omdøb Z", "sæt definition på A"), skal du springe uddybende dialog over. 
-   - Svar ultrakort og præcist (fx "Udfører ændringer..."), og lever omgående de relevante JSON-kommandoer i kodeblokken. Stil IKKE modspørgsmål.
-2. **SPARRING / ÅBNE SPØRGSMÅL:** 
-   - Hvis brugeren stiller åbne spørgsmål, diskuterer designet eller beder om rådgivning (fx "hvordan tegner jeg X?", "hvad tænker du?"), skal du gå i sparringstilstand (Grill-Me).
-   - Redegør kort for dine overvejelser, foreslå en løsning, og stil **præcis ét fokuseret modspørgsmål**. Undlad helt at sende JSON-kommandoer, før brugeren giver grønt lys eller bekræfter et design.
+  const jsonFormatGuidance = `### OUTPUT FORMAT OPTIONS (JSON PAYLOAD OR TEXT COMMANDS)
 
-Uanset tilstand, skal du altid afslutte med 2-3 Hurtig-svar (Quick Replies) lige før JSON-blokken:
-* [Valg A]: <kort svarmulighed på dansk>
-* [Valg B]: <kort svarmulighed på dansk>
+You may emit commands using EITHER the structured JSON payload format OR text commands:
 
-REGLER FOR JSON-FORMAT (MÅ IKKE AFVIGES):
-- Returværdien SKAL være et gyldigt JSON-array pakket ind i \`\`\`json ... \`\`\`.
-- **addConcept**: Opretter et nyt element. MÅ KUN indeholde:
-  - "action": "addConcept"
-  - "conceptType": "${typesStr}"
-  - "name": "<Elementnavn i ental>"
-- **addRelation**: Opretter en relation mellem noder. MÅ KUN indeholde:
-  - "action": "addRelation"
-  - "sourceConceptId": "<source_concept_id>"
-  - "targetConceptId": "<target_concept_id>"
-  - "name": "<Kort aktivt/passivt verbum>"
-  - "relationType": "<valgfri type efter diagrammets regler>"
-- **setParent**: Nester et element i en subgraph (fx bounded_context). MÅ KUN indeholde:
-  - "action": "setParent"
-  - "conceptId": "<child_concept_id>"
-  - "parentConceptId": "<parent_concept_id>"
-- **updateConcept**: Opdaterer en eksisterende nodes egenskaber. MÅ KUN indeholde:
-  - "action": "updateConcept"
-  - "conceptId": "<eksisterende_concept_id>"
-  - "updates": et objekt med de ændringer der skal foretages. Gyldige nøgler er: "name", "conceptType", "definition".
-- **deleteElement**: Sletter en node eller en relation fra modellen. MÅ KUN indeholde:
-  - "action": "deleteElement"
-  - "elementId": "<eksisterende_id_på_node_eller_relation>"
-  - "elementType": enten "concept" eller "relation"
-  - "elementName": "<navnet på elementet til bekræftelse i UI>"
-- **addProperty**: Tilføjer en attribut/egenskab til en klasse (kun relevant i informationsmodeller). MÅ KUN indeholde:
-  - "action": "addProperty"
-  - "conceptId": "<eksisterende_klasse_id>"
-  - "propertyName": "<attributnavn>"
-  - "propertyType": "string", "number", "boolean", "date" eller et andet klasse-id
-
-ID GENERERING: Alle ID'er du refererer til i addRelation, setParent, updateConcept, deleteElement og addProperty SKAL altid overholde formatet "<conceptType>:<kebab-case-navn>" (f.eks. "class:ansoegning" eller "event:ordre-modtaget"). Brug de præcise ID'er fra den eksisterende graf, hvis elementet findes i forvejen.
-
-EKSEMPEL PÅ GYLDIGE JSON-KOMMANDOER:
+1. **STRUCTURED JSON COMMAND PAYLOAD FORMAT (RECOMMENDED):**
 \`\`\`json
-[
-  {
-    "action": "addConcept",
-    "conceptType": "${firstType}",
-    "name": "NytElement"
-  },
-  {
-    "action": "updateConcept",
-    "conceptId": "${firstType}:nytelement",
-    "updates": {
-      "definition": "En Aristotelisk definition af det nye element."
+{
+  "intent": "GRAPH_MUTATION",
+  "summary": "Brief summary of changes made",
+  "ambiguityCheckPassed": true,
+  "commands": [
+    {
+      "action": "CREATE_NODE",
+      "type": "${firstType}",
+      "id": "${firstType}_example_node",
+      "label": "Example Node",
+      "parentId": "optional_parent_id"
+    },
+    {
+      "action": "CREATE_RELATION",
+      "sourceId": "source_node_id",
+      "targetId": "target_node_id",
+      "type": "triggers"
     }
-  },
-  {
-    "action": "deleteElement",
-    "elementId": "${firstType}:gammel-node",
-    "elementType": "concept",
-    "elementName": "Gammel Node"
+  ]
+}
+\`\`\`
+Supported JSON actions:
+- \`CREATE_NODE\` (fields: \`type\`, \`id\`, \`label\`, optional \`parentId\`)
+- \`CREATE_RELATION\` (fields: \`sourceConceptId\` (sourceId), \`targetConceptId\` (targetId), \`relationType\` (type), optional \`label\`)
+- \`SET_PARENT\` (fields: \`childId\`, \`parentId\` or \`conceptId\`, \`parentConceptId\`)
+- \`DELETE_ELEMENT\` (fields: \`id\` or \`elementId\`, optional \`elementType\`)
+- \`UPDATE_CONCEPT\` (fields: \`id\` or \`conceptId\`, \`updates\`)
+- \`ADD_PROPERTY\` (fields: \`id\` or \`conceptId\`, \`propertyName\`, \`propertyType\`)`;
+
+  if (viewType === 'event_modeling') {
+    return `### YOUR OUTPUT FORMAT AND DIALOGUE STRATEGY (CRITICAL REQUIREMENTS)
+
+You must dynamically adapt your response based on the user's intent (IMPLICIT ROUTING):
+1. **DIRECT MODELING / CLEAR COMMANDS:** 
+   - If the user asks for concrete changes (e.g., "add slice X", "wire up automation Y"):
+     - If there is ambiguity (e.g., multiple chapters or slices exist, and it is unclear where to place the new elements, and none are selected/focused), you MUST ask a clarifying question first (e.g., "Which chapter should this be added to?").
+     - Otherwise, skip dialogue, reply ultra-briefly (e.g., "Performing changes..."), and immediately output the relevant commands in a code block.
+2. **SPARRING / OPEN QUESTIONS:** 
+   - If the user asks open questions, discusses design, or asks for advice:
+     - Enter sparring mode. Briefly explain your thoughts, propose a solution, and ask **exactly one focused counter-question**. Do NOT send any commands until the user gives the green light.
+
+Regardless of mode, you must always conclude your response text with 2-3 Quick Replies just before the commands block:
+* [Choice A]: <short response option matching the user's language>
+* [Choice B]: <short response option matching the user's language>
+
+${jsonFormatGuidance}
+
+2. **PATTERN COMMAND FORMAT (TEXT DSL):**
+- Written inside a \`\`\`text ... \`\`\` code block:
+
+1. **State Change Pattern**:
+   PATTERN: State Change
+   SCREEN: <Screen Name>
+   COMMAND: <Command Name>
+   EVENTS: <Event Name 1>, <Event Name 2>
+
+2. **State View Pattern**:
+   PATTERN: State View
+   EVENTS: <Event Name 1>, <Event Name 2>
+   READ_MODEL: <Read Model Name>
+   SCREEN: <Screen Name>
+
+3. **Automation Pattern**:
+   PATTERN: Automation
+   INPUT_EVENTS: <Input Event Name 1>, <Input Event Name 2>
+   READ_MODEL: <Read Model Name>
+   AUTOMATION: <Automation Name>
+   COMMAND: <Command Name>
+   OUTPUT_EVENTS: <Output Event Name 1>, <Output Event Name 2>
+
+4. **Translation Pattern**:
+   PATTERN: Translation
+   INPUT_EVENTS: <Input Integration Event Name>
+   AUTOMATION: <Automation Name>
+   COMMAND: <Command Name>
+   OUTPUT_EVENTS: <Output Integration Event Name>`;
   }
-]
-\`\`\``;
+
+  return `### YOUR OUTPUT FORMAT AND DIALOGUE STRATEGY (CRITICAL REQUIREMENTS)
+
+You must dynamically adapt your response based on the user's intent (IMPLICIT ROUTING):
+1. **DIRECT MODELING / CLEAR COMMANDS:** 
+   - If the user asks for concrete changes (e.g., "add node X", "delete relation Y", "rename Z", "set definition on A"):
+     - If there is ambiguity (e.g., multiple chapters or slices exist, and it is unclear where to place the new elements, and none are selected/focused), you MUST ask a clarifying question first (e.g., "Which chapter/slice should this be added to?").
+     - Otherwise, skip dialogue, reply ultra-briefly (e.g., "Performing changes..."), and immediately output the relevant commands in a code block. Do not ask counter-questions.
+2. **SPARRING / OPEN QUESTIONS:** 
+   - If the user asks open questions, discusses design, or asks for advice (e.g., "how do I model X?", "what do you think?"):
+     - Enter sparring mode. Briefly explain your thoughts, propose a solution, and ask **exactly one focused counter-question**. Do NOT send any commands until the user gives the green light or confirms a design.
+
+Regardless of mode, you must always conclude your response text with 2-3 Quick Replies just before any commands block:
+* [Choice A]: <short response option matching the user's language>
+* [Choice B]: <short response option matching the user's language>
+
+${jsonFormatGuidance}
+
+2. **TEXT COMMAND FORMAT (DSL):**
+- Written inside a \`\`\`text ... \`\`\` code block:
+
+1. **CREATE concept**:
+   CREATE <conceptType> "<name>"
+   (e.g., CREATE ${firstType} "NewElement")
+
+2. **CONNECT relation**:
+   CONNECT <source_id_or_slug> -> <target_id_or_slug> | type: <relationType> | name: <name>
+   (e.g., CONNECT ${firstType}:newelement -> ${firstType}:another-node | type: association | name: connects to)
+
+3. **NEST parent**:
+   NEST <child_id_or_slug> IN <parent_id_or_slug>
+   (e.g., NEST ${firstType}:newelement IN bounded_context:my-context)
+
+4. **DELETE element**:
+   DELETE <element_id_or_slug_or_relation_id>
+   (e.g., DELETE ${firstType}:old-node)
+
+5. **UPDATE properties**:
+   UPDATE <concept_id_or_slug> SET <property_key> = "<value>"
+   (e.g., UPDATE ${firstType}:newelement SET definition = "An Aristotelian definition of the new element.")
+
+6. **ADD property**:
+   PROPERTY <concept_id_or_slug> ADD <propertyName> AS <propertyType>
+   (e.g., PROPERTY class:user ADD sagsnummer AS string)
+
+7. **ADD Gherkin Policy (Multi-line block)**:
+   POLICY "<Policy Name>" ON <concept_id_or_slug>
+   GIVEN <step 1>
+   GIVEN <step 2>
+   WHEN <action step>
+   THEN <expected outcome step>
+
+ID FORMATTING: All IDs or slugs must comply with ElementId regex rules (\`/^[a-zA-Z0-9_-]+$/\`) or the format "<conceptType>:<kebab-case-name>" (e.g., "${firstType}:newelement").
+
+ALLOWED CONCEPT TYPES: ${typesStr}`;
 }
 
 // ============================================================
@@ -725,7 +481,8 @@ export class AIService {
   static generateSystemPrompt(
     view: View,
     concepts: ConceptNode[],
-    relations: ConceptRelation[]
+    relations: ConceptRelation[],
+    selectedConceptIds: ElementId[] = []
   ): string {
     const notation = NotationRegistry.forViewType(view.type);
     const allowedTypes = notation?.allowedConceptTypes;
@@ -747,8 +504,82 @@ export class AIService {
       .map((r) => `- ID: "${r.id}", Fra: "${r.sourceConceptId}", Til: "${r.targetConceptId}", Type/Navn: "${r.relationType || r.name}"`)
       .join('\n');
 
-    // Optional: If your View model has a 'description', inject it to maintain purpose across messages.
+    // Format selected concepts context
+    const activeSelectedConcepts = activeConcepts.filter((c) => selectedConceptIds.includes(c.id));
+    const selectionSummary = activeSelectedConcepts.length > 0
+      ? `The user has currently selected/focused the following elements in the UI:\n${activeSelectedConcepts.map((c) => `- ID: "${c.id}", Type: "${c.conceptType}", Name: "${c.name}"`).join('\n')}`
+      : 'No elements are currently selected/focused in the UI.';
+
     const viewContext = (view as any).description ? `\n### OVERORDNET FORMÅL MED GRAFEN\n${(view as any).description}\n` : '';
+
+    const baseSystemPromptHeader = `# KnowledgeGraph Studio — System Prompt & Execution Directive
+
+You are the **KnowledgeGraph Studio AI Architect**, an expert assistant specialized in Domain-Driven Design (DDD), Event Modeling, Knowledge Graphs, and Software Architecture.
+
+Your core mission is to help developers and domain experts model complex software systems with mathematical precision and clean semantics.
+
+---
+
+## 🧠 1. INTENT CLASSIFICATION FIRST
+Before executing any actions or generating graph mutations, analyze the user's request and classify it into one of three intent modes:
+
+1. 🔍 **QUERY & EXPLORATION (Read-Only)**
+   - **Trigger:** Conceptual questions, architecture reviews, or inquiries about the current graph state.
+   - **Behavior:** Inspect \`selectionSummary\` and current graph nodes. Explain concepts cleanly without emitting graph mutation commands.
+
+2. 📐 **GRAPH MUTATION & MODELING (Write Mode)**
+   - **Trigger:** Requests to add, modify, delete, or organize graph elements (events, commands, read models, slices, chapters, relations).
+   - **Behavior:** Enforce strict notation rules and generate valid, schema-validated command payloads.
+
+3. ⚠️ **AMBIGUITY / CLARIFICATION REQUIRED**
+   - **Trigger:** Multi-chapter graphs where the user's intent target is ambiguous or unselected.
+   - **Behavior:** Stop immediately. Present clear, numbered choices to the user before modifying graph state.
+
+---
+
+## 🛡️ 2. PROGRAMMATIC GRAPH VALIDATION & INTEGRITY RULES
+
+When emitting graph commands or modifying elements, you MUST adhere to the following deterministic rules:
+
+### A. ID & Schema Normalization
+- All generated element and relation IDs MUST comply with \`ElementId\` Zod regex rules (\`/^[a-zA-Z0-9_-]+$/\`).
+- IDs are dash- and space-insensitive (\`user-login-slice\` == \`user_login_slice\`). Normalize all IDs before referencing.
+- **NEVER** reference an element ID in a relation target that does not explicitly exist in the graph.
+
+### B. Visual Hierarchy & Parent Scoping (\`setParent\`)
+- **Chapters & Slices:** When creating Event Modeling elements (Events, Commands, Read Models), you MUST visually group them inside their designated \`bounded_context\` or \`slice\` using \`setParent(childId, parentId)\`.
+- If creating a new slice, always assign its parent chapter ID explicitly.
+
+### C. Aristotelian Dictionary Definition (\`CONTEXT.md\` Glossary)
+When adding or updating domain terms in \`CONTEXT.md\` or concept metadata, enforce Aristotle's formula (*definitio per genus et differentiam*):
+- **Formula:** **"A [Term] is a [Genus/Category] that [Differentia/Distinguishing Eigenschaft]."**
+- *Example:* "**Invoice**: A payment request (genus) sent to a customer following delivery (differentia)."
+- Definition must describe what the concept *IS*, never its implementation details.
+
+---
+
+## 🎨 3. EVENT MODELING PATTERNS & DIRECTIVES
+
+When building Event Models, follow the 4 Core Patterns:
+
+1. **State Change Pattern:** \`[Command]\` → \`[Aggregate/Service]\` → \`[Domain Event]\`
+2. **State Read Pattern:** \`[Domain Event]\` → \`[Read Model/View]\` → \`[UI Screen]\`
+3. **Automated Processor / Policy Pattern:** \`[Domain Event]\` → \`[Policy/Automation]\` → \`[Command]\`
+4. **External System Integration:** \`[Domain Event]\` → \`[Translation Policy]\` → \`[External Command]\`
+
+---
+
+## 🛑 4. CRITICAL AMBIGUITY CONSTRAINT
+
+> [!IMPORTANT]
+> If the current graph contains **multiple Chapters or Slices** and the user asks to add elements WITHOUT specifying or selecting a target Chapter/Slice:
+> 
+> **DO NOT GUESS.** 
+> Stop and respond with a quick reply choice:
+> *"I noticed multiple chapters in your graph. Which chapter should this work belong to?"*
+> - [Choice A] Chapter 1: Identity & Access
+> - [Choice B] Chapter 2: Billing & Subscriptions
+> - [Choice C] Create a new Chapter`;
 
     const formatBlock = buildOutputFormatBlock(view.type, allowedTypes);
 
@@ -756,7 +587,7 @@ export class AIService {
       if (view.type === 'c4') {
         return `Du er en ekspert i softwarearkitektur, der fungerer som en insisterende, men konstruktiv AI-arkitekt/sparringspartner. Du hjælper brugeren med at designe systemer ud fra C4-modellens principper, som i dette værktøj (KnowledgeGraphStudio) er mappet til en meget specifik ontologi.
 
-Din opgave er at bygge en gyldig model gennem en dialog på dansk og omsætte arkitekturvalgene til JSON-kommandoer. Du skal overholde systemets syntaks og valideringsregler 100 % præcist. Lokale parsere vil fejle, hvis du afviger fra nedenstående strenge regler.
+Din opgave er at bygge en gyldig model gennem en dialog på dansk og omsætte arkitekturvalgene til text-kommandoer. Du skal overholde systemets syntaks og valideringsregler 100 % præcist. Lokale parsere vil fejle, hvis du afviger fra nedenstående strenge regler.
 
 ---
 
@@ -848,7 +679,7 @@ ${relationsSummary || '(Ingen relationer oprettet endnu)'}
       }
 
       if (view.type === 'archimate') {
-        return `Du er en stærkt analytisk AI-arkitekt og ekspert i IT-arkitektur samt ArchiMate 3.2. Din opgave er at hjælpe brugeren med at kortlægge og modellere deres arkitektur gennem en interaktiv dialog på dansk, der munder ud i JSON-kommandoer til vores vidensgraf.
+        return `Du er en stærkt analytisk AI-arkitekt og ekspert i IT-arkitektur samt ArchiMate 3.2. Din opgave er at hjælpe brugeren med at kortlægge og modellere deres arkitektur gennem en interaktiv dialog på dansk, der munder ud i text-kommandoer til vores vidensgraf.
 
 ---
 
@@ -950,11 +781,92 @@ ${relationsSummary || '(Ingen relationer oprettet endnu)'}
 **Start samtalen nu ved at byde brugeren velkommen, slå fast at du vil sparre omkring informationsmodellen ud fra de fællesoffentlige regler (FDA), og stil det første spørgsmål. Husk dine Quick Replies!**`;
       }
 
+
+      if (view.type === 'event_modeling') {
+        return `You are an expert in Event Modeling and event-driven architecture. Your task is to help the user map system behavior as a timeline of events, commands, and read models. You MUST respond in the same language as the user.
+
+Event Modeling is read from left to right chronologically: User interacts with a screen → sends a command → system records an event → data is projected into a read model → displayed on a new screen or triggers automation.
+
+---
+
+### THE 4 EVENT MODELING PATTERNS (MUST BE USED AS BUILD BLOCKS):
+1. **State Change Pattern:** Triggered by user interaction.
+   - Flow: \`screen\` ➔ \`command\` ➔ \`event\` (one or multiple events)
+   - Rule: Represents a user intent causing a state change in the system.
+2. **State View Pattern:** Projecting system data to the user.
+   - Flow: \`event\` ➔ \`read_model\` ➔ \`screen\`
+   - Rule: Connects existing events to a read model, which is then rendered on a screen for user visualization.
+3. **Automation Pattern:** System reacting automatically to events.
+   - Flow: \`event\` ➔ \`read_model\` ➔ \`automation\` ➔ \`command\` ➔ \`event\`
+   - Rule: Use this when the system does something automatically without user interaction.
+4. **Translation Pattern (System Integration):** External integrations.
+   - Flow: \`integration_event\` ➔ \`automation\` ➔ \`command\` ➔ \`integration_event\`
+   - Rule: Transfers knowledge between system boundaries.
+
+---
+
+### PLAN-BEFORE-IMPLEMENT & INCREMENTAL STEPS (CRITICAL CONSTRAINT):
+- **Plan in Text First:** You MUST write a brief plan explaining what you are about to do, identifying which of the **4 Event Modeling Patterns** you are implementing, before you output the commands block.
+- **Incremental Proposals:** Only propose **one pattern increment at a time** (e.g. one State Change or one State View). Do NOT dump a massive block of unrelated screens, commands, and events at once. Keep changes small, focused, and reviewable.
+
+---
+
+### GHERKIN SPECIFICATIONS (Acceptance Criteria):
+Command nodes (\`command\`) support BDD (Behavior-Driven Development) Gherkin specifications.
+You can add or update Gherkin specifications on a Command node by using the \`POLICY\` DSL command.
+Example Gherkin specification structure:
+POLICY "Successful application submission" ON command:submit-application
+GIVEN the user is on the application page
+GIVEN the user has filled all required fields
+WHEN the user clicks submit
+THEN an ApplicationCreated event is emitted
+THEN the user is redirected to the confirmation screen
+
+---
+
+### CRITICAL CONSTRAINT ON AMBIGUITY (ALWAYS OVERRIDES ALL OTHER RULES):
+If the canvas contains multiple chapters (\`em_chapter\`) or slices (\`em_slice\`), and you are proposing/creating a new slice or new elements, but:
+1. No chapter or slice is listed under CURRENT SELECTION CONTEXT below (i.e. 'No elements are currently selected/focused in the UI.'), AND
+2. The user has not explicitly specified which chapter/slice to target in their message text,
+THEN you MUST NOT generate any commands or suggest modifications. Instead, you MUST ask the user for clarification (e.g. asking which chapter/slice they wish to target).
+
+---
+
+### METHOD AND DIALOGUE (Your Instructions)
+
+- **Focused interview (one question at a time):**
+  - Clarify the context first: If the canvas contains multiple chapters (\`em_chapter\`) or slices (\`em_slice\`), or if it is empty, you must initially ask the user which chapter and/or slice they wish to work on before proposing new nodes or relationships.
+  - Then explore one feature/slice at a time. Start with: who does what? What happens in the system? What do we show afterwards?
+- **Sharpen the terminology:** Commands = imperative present tense ("CreateApplication"). Events = past tense ("ApplicationCreated"). Challenge the user if they use incorrect forms.
+- **Maintain the EM alphabet:** NEVER allow elements outside the 6 valid types. If the user asks for something else, map it to the correct EM type.
+
+${viewContext}
+
+---
+
+${notationGuidelines}
+
+---
+
+### CURRENT GRAPH STATE (The visible view)
+
+Existing Nodes on the canvas:
+${conceptsSummary || '(No nodes created yet)'}
+
+Existing Relations on the canvas:
+${relationsSummary || '(No relations created yet)'}
+
+### CURRENT SELECTION CONTEXT
+${selectionSummary}
+
+**Start the conversation now by welcoming the user, stating that you want to spar around the event modeling process, and ask the first question. Remember your Quick Replies!**`;
+      }
+
       // Default/Generic View
       return `Du er en erfaren ontolog, videns-analytiker og AI-arkitekt for KnowledgeGraphStudio. Din opgave er at hjælpe brugeren med at bygge en logisk, semantisk konsistent og maskinlæsbar vidensgraf ud fra "best practices" (fx W3C RDF/OWL og Concept Mapping-teori).
 
 # DINE OPGAVER OG ADFÆRD:
-1. **Grill-Me adfærd:** Stil KUN ét klart, fokuseret spørgsmål ad gangen. Foreslå en konkret anbefaling til grafens struktur, og vent altid på brugerens svar, før du genererer JSON eller fortsætter.
+1. **Grill-Me adfærd:** Stil KUN ét klart, fokuseret spørgsmål ad gangen. Foreslå en konkret anbefaling til grafens struktur, og vent altid på brugerens svar, før du foreslår ændringer eller fortsætter.
 2. **Udfordr brugeren:** Spot aktivt ulogiske strukturer og bed brugeren om at rette dem.
    - Hvis brugeren foreslår flertalsnavne (fx "Kunder"), så ret det til ental ("Kunde").
    - Hvis brugeren foreslår svage relationer (fx "har forbindelse til"), så bed om et præcist, aktivt verbum.
@@ -981,7 +893,7 @@ ${relationsSummary || '(Ingen relationer oprettet endnu)'}
 **Start samtalen nu ved at byde brugeren velkommen, slå fast at du vil sparre omkring vidensgrafen ud fra bedste ontologiske praksis, og stil det første spørgsmål. Husk dine Quick Replies!**`;
     };
 
-    return `${formatBlock}\n\n---\n\n${getPromptBody()}`;
+    return `${baseSystemPromptHeader}\n\n---\n\n${formatBlock}\n\n---\n\n${getPromptBody()}`;
   }
 
   /**
@@ -995,44 +907,68 @@ ${relationsSummary || '(Ingen relationer oprettet endnu)'}
     const errors: string[] = [];
     const notation = NotationRegistry.forViewType(view.type);
     
+    // Map from AI expected slug/id to simulated ID
+    const aiIdToSimulatedIdMap = new Map<string, string>();
+    const makeSimulatedId = (type: string) => {
+      const hex = () => Math.random().toString(16).substring(2, 6);
+      return `${type}:${hex()}-${hex()}-${hex()}-${hex()}` as ElementId;
+    };
+
     // Build a map of concept types (including newly proposed ones in this batch)
-    const conceptTypeMap = new Map<string, string>(concepts.map((c) => [c.id, c.conceptType]));
+    const conceptTypeMap = new Map<string, string>();
     
-    // Also index existing concepts by their slug alias (type:kebab-name) so the AI can
-    // reference them by slug even though the store stores them with UUID-based IDs.
+    const addKey = (key: string, type: string) => {
+      if (!key) return;
+      conceptTypeMap.set(key, type);
+      conceptTypeMap.set(normalizeIdForMatching(key), type);
+    };
+
+    // Index existing concepts by their real ID and their slug alias
     concepts.forEach((c) => {
-      const slugAlias = `${c.conceptType}:${c.name.trim().toLowerCase().replace(/\s+/g, '-')}`;
-      if (!conceptTypeMap.has(slugAlias)) {
-        conceptTypeMap.set(slugAlias, c.conceptType);
-      }
+      addKey(c.id, c.conceptType);
+      const slugAlias = `${c.conceptType}:${c.name.trim().toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-')}`;
+      addKey(slugAlias, c.conceptType);
     });
     
     // Add proposed concepts to map so we can validate relations that reference them
     commands.forEach((cmd) => {
       if (cmd.action === 'addConcept') {
-        const expectedId = `${cmd.conceptType}:${cmd.name.trim().toLowerCase().replace(/\s+/g, '-')}`;
-        conceptTypeMap.set(expectedId, cmd.conceptType);
+        const expectedSlug = `${cmd.conceptType}:${cmd.name.trim().toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-')}`;
+        const simulatedId = makeSimulatedId(cmd.conceptType);
+        
+        aiIdToSimulatedIdMap.set(expectedSlug, simulatedId);
+        aiIdToSimulatedIdMap.set(normalizeIdForMatching(expectedSlug), simulatedId);
+        aiIdToSimulatedIdMap.set(cmd.name.trim(), simulatedId);
+        
+        addKey(simulatedId, cmd.conceptType);
       }
     });
+
+    const getConceptType = (id: string): string | undefined => {
+      if (!id) return undefined;
+      const resolved = aiIdToSimulatedIdMap.get(id) || aiIdToSimulatedIdMap.get(normalizeIdForMatching(id)) || id;
+      return conceptTypeMap.get(resolved) || conceptTypeMap.get(normalizeIdForMatching(resolved));
+    };
 
     commands.forEach((cmd) => {
       if (cmd.action === 'addConcept') {
         // Validate concept type is allowed
         if (notation?.allowedConceptTypes) {
           if (!notation.allowedConceptTypes.includes(cmd.conceptType)) {
-            errors.push(`Elementtypen "${cmd.conceptType}" er ikke tilladt i ${view.type}-diagrammer.`);
+            const allowed = notation.allowedConceptTypes.join(', ');
+            errors.push(`conceptType "${cmd.conceptType}" is not allowed in ${view.type} diagrams. Allowed types are: ${allowed}. NEVER use "other".`);
           }
         }
       } else if (cmd.action === 'addRelation') {
-        const sourceType = conceptTypeMap.get(cmd.sourceConceptId);
-        const targetType = conceptTypeMap.get(cmd.targetConceptId);
+        const sourceType = getConceptType(cmd.sourceConceptId);
+        const targetType = getConceptType(cmd.targetConceptId);
 
         if (!sourceType) {
-          errors.push(`Kildenode "${cmd.sourceConceptId}" findes ikke eller er ikke foreslået i denne omgang.`);
+          errors.push(`Source node "${cmd.sourceConceptId}" does not exist and was not proposed in this batch. Make sure to addConcept before referencing it in addRelation.`);
           return;
         }
         if (!targetType) {
-          errors.push(`Målnode "${cmd.targetConceptId}" findes ikke eller er ikke foreslået i denne omgang.`);
+          errors.push(`Target node "${cmd.targetConceptId}" does not exist and was not proposed in this batch. Make sure to addConcept before referencing it in addRelation.`);
           return;
         }
 
@@ -1054,45 +990,283 @@ ${relationsSummary || '(Ingen relationer oprettet endnu)'}
               );
               if (available.length > 0) {
                 const validIds = available.map((r) => `"${r.id}"`).join(', ');
-                hint = ` Gyldige relationstyper for ${sourceType}→${targetType} er: ${validIds}.`;
+                hint = ` Valid relation types for ${sourceType}→${targetType}: ${validIds}.`;
               } else {
-                hint = ` Der er ingen tilladte relationstyper mellem "${sourceType}" og "${targetType}" i denne notation.`;
+                hint = ` No relation is allowed between "${sourceType}" and "${targetType}" in this notation.`;
               }
             }
-            errors.push(`Relationen "${cmd.relationType || cmd.name}" er ikke tilladt fra en "${sourceType}" til en "${targetType}" under ${view.type}-spillereglerne.${hint}`);
+            errors.push(`Relation "${cmd.relationType || cmd.name}" is not allowed from "${sourceType}" to "${targetType}" in ${view.type}.${hint}`);
           }
         }
       } else if (cmd.action === 'updateConcept') {
-        const type = conceptTypeMap.get(cmd.conceptId);
+        const type = getConceptType(cmd.conceptId);
         if (!type) {
-          errors.push(`Elementet "${cmd.conceptId}" findes ikke og kan ikke opdateres.`);
+          errors.push(`Element "${cmd.conceptId}" does not exist and cannot be updated.`);
         } else if (cmd.updates?.conceptType) {
           const newType = cmd.updates.conceptType;
           if (notation?.allowedConceptTypes && !notation.allowedConceptTypes.includes(newType)) {
-            errors.push(`Elementtypen "${newType}" er ikke tilladt i ${view.type}-diagrammer.`);
+            const allowed = notation.allowedConceptTypes.join(', ');
+            errors.push(`conceptType "${newType}" is not allowed in ${view.type} diagrams. Allowed types: ${allowed}.`);
           }
         }
       } else if (cmd.action === 'deleteElement') {
         if (cmd.elementType === 'concept') {
-          if (!conceptTypeMap.has(cmd.elementId)) {
-            errors.push(`Elementet "${cmd.elementId}" findes ikke og kan ikke slettes.`);
+          if (!getConceptType(cmd.elementId)) {
+            errors.push(`Element "${cmd.elementId}" does not exist and cannot be deleted.`);
           }
         } else {
           const graphStore = useGraphStore.getState();
           const relationExists = graphStore.relations.some(r => r.id === cmd.elementId);
           if (!relationExists) {
-            errors.push(`Relationen "${cmd.elementId}" findes ikke og kan ikke slettes.`);
+            errors.push(`Relation "${cmd.elementId}" does not exist and cannot be deleted.`);
           }
         }
       } else if (cmd.action === 'addProperty') {
-        const type = conceptTypeMap.get(cmd.conceptId);
+        const type = getConceptType(cmd.conceptId);
         if (!type) {
-          errors.push(`Elementet "${cmd.conceptId}" findes ikke, så der kan ikke tilføjes egenskaber til det.`);
+          errors.push(`Element "${cmd.conceptId}" does not exist; cannot add properties to it.`);
         }
       }
     });
 
+    // Simulate the resulting graph state and validate it against the strict Zod schema
+    if (errors.length === 0) {
+      const allowedRelationTypes = [
+        'association', 'composition', 'aggregation', 'specialization', 'realization',
+        'has_condition', 'has_response', 'includes', 'excludes', 'has_milestone'
+      ];
+      const simulatedConcepts = JSON.parse(JSON.stringify(concepts)) as ConceptNode[];
+      const rawRelations = JSON.parse(JSON.stringify(useGraphStore.getState().relations)) as ConceptRelation[];
+      
+      // Normalize existing relations' relationType to satisfy Zod schema rules (matching how yamlParser sanitizes them)
+      const simulatedRelations = rawRelations.map((r) => ({
+        ...r,
+        relationType: r.relationType && allowedRelationTypes.includes(r.relationType)
+          ? r.relationType
+          : undefined,
+      }));
+      const now = Date.now();
+
+      commands.forEach((cmd) => {
+        try {
+          if (cmd.action === 'addConcept') {
+            const expectedSlug = `${cmd.conceptType}:${cmd.name.trim().toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-')}`;
+            const simulatedId = (aiIdToSimulatedIdMap.get(expectedSlug) || makeSimulatedId(cmd.conceptType)) as ElementId;
+            const conceptObj: ConceptNode = {
+              id: simulatedId,
+              name: cmd.name,
+              conceptType: cmd.conceptType as any,
+              createdAt: now,
+              updatedAt: now,
+              lifecycleState: 'active',
+              aliases: [],
+              policies: [],
+            } as any;
+            
+            if (cmd.conceptType === 'enumeration') {
+              (conceptObj as any).enumerators = [];
+            } else if (cmd.conceptType !== 'domain' && cmd.conceptType !== 'bounded_context') {
+              (conceptObj as any).properties = [];
+            }
+            
+            simulatedConcepts.push(conceptObj);
+          } else if (cmd.action === 'updateConcept') {
+            const resolvedConceptId = aiIdToSimulatedIdMap.get(cmd.conceptId) || aiIdToSimulatedIdMap.get(normalizeIdForMatching(cmd.conceptId)) || cmd.conceptId;
+            const target = simulatedConcepts.find(c => c.id === resolvedConceptId);
+            if (target) {
+              Object.assign(target, cmd.updates);
+              target.updatedAt = now;
+            }
+          } else if (cmd.action === 'addRelation') {
+            const sourceId = (aiIdToSimulatedIdMap.get(cmd.sourceConceptId) || aiIdToSimulatedIdMap.get(normalizeIdForMatching(cmd.sourceConceptId)) || cmd.sourceConceptId) as ElementId;
+            const targetId = (aiIdToSimulatedIdMap.get(cmd.targetConceptId) || aiIdToSimulatedIdMap.get(normalizeIdForMatching(cmd.targetConceptId)) || cmd.targetConceptId) as ElementId;
+            const relId = `other:rel-${Math.random().toString(36).substr(2, 9)}` as ElementId;
+            
+            let relType = cmd.relationType;
+            if (relType && !allowedRelationTypes.includes(relType)) {
+              relType = undefined;
+            }
+
+            simulatedRelations.push({
+              id: relId,
+              sourceConceptId: sourceId,
+              targetConceptId: targetId,
+              name: cmd.name || '',
+              category: 'semantic',
+              relationType: relType as any,
+              createdAt: now,
+              updatedAt: now,
+              lifecycleState: 'active',
+              policies: [],
+            });
+          } else if (cmd.action === 'deleteElement') {
+            const resolvedId = aiIdToSimulatedIdMap.get(cmd.elementId) || aiIdToSimulatedIdMap.get(normalizeIdForMatching(cmd.elementId)) || cmd.elementId;
+            if (cmd.elementType === 'concept') {
+              const idx = simulatedConcepts.findIndex(c => c.id === resolvedId);
+              if (idx !== -1) simulatedConcepts.splice(idx, 1);
+            } else {
+              const idx = simulatedRelations.findIndex(r => r.id === resolvedId);
+              if (idx !== -1) simulatedRelations.splice(idx, 1);
+            }
+          } else if (cmd.action === 'addProperty') {
+            const resolvedConceptId = aiIdToSimulatedIdMap.get(cmd.conceptId) || aiIdToSimulatedIdMap.get(normalizeIdForMatching(cmd.conceptId)) || cmd.conceptId;
+            const target = simulatedConcepts.find(c => c.id === resolvedConceptId);
+            if (target && (target as any).properties) {
+              const propId = `property:${cmd.propertyName}-${now}` as ElementId;
+              (target as any).properties.push({
+                id: propId,
+                name: cmd.propertyName,
+                type: cmd.propertyType as any,
+                createdAt: now,
+                updatedAt: now,
+                lifecycleState: 'active',
+              });
+            }
+          }
+        } catch (err: any) {
+          errors.push(`Error simulating command: ${err.message}`);
+        }
+      });
+
+      const schemaValidation = GraphState.safeParse({
+        domains: useGraphStore.getState().domains,
+        concepts: simulatedConcepts,
+        relations: simulatedRelations,
+        views: [],
+      });
+
+      if (!schemaValidation.success) {
+        schemaValidation.error.issues.forEach((issue) => {
+          const pathStr = issue.path.join('.');
+          errors.push(`Zod schema error at "${pathStr}": ${issue.message}`);
+        });
+      }
+    }
+
     return errors;
+  }
+
+  /**
+   * Auto-corrects and filters commands before applying them.
+   *
+   * Step 0 (type inference): If the model uses conceptType "other" (or any invalid
+   * type) for a concept but an addRelation references it with a valid type prefix
+   * (e.g. "screen:administrationoverview"), the concept type is silently corrected.
+   * This is the dominant LLM failure mode: the model knows the right type for the
+   * relation slug but uses "other" on the addConcept.
+   *
+   * Step 1 (strip invalid): Remove addConcept commands whose type is still not in
+   * the notation's allowed list after type inference.
+   *
+   * Step 2 (cascade strip): Remove addRelation / setParent whose endpoints are gone.
+   */
+  static filterValidCommands(
+    commands: ProposedCommandInput[],
+    view: View,
+    concepts: ConceptNode[]
+  ): { valid: ProposedCommandInput[]; stripped: string[] } {
+    const notation = NotationRegistry.forViewType(view.type);
+    const allowedTypes = notation?.allowedConceptTypes ?? [];
+    const stripped: string[] = [];
+
+    // ── Step 0: infer correct type from relation references ──
+    // Build map: normalised name-slug → type found in relation source/target IDs.
+    const inferredTypeBySlug = new Map<string, string>();
+    commands.forEach((cmd) => {
+      if (cmd.action !== 'addRelation') return;
+      for (const id of [cmd.sourceConceptId, cmd.targetConceptId]) {
+        const colon = id.indexOf(':');
+        if (colon === -1) continue;
+        const refType = id.substring(0, colon);
+        const refSlug = id.substring(colon + 1);
+        if (allowedTypes.includes(refType as ConceptType)) {
+          inferredTypeBySlug.set(refSlug, refType);
+          inferredTypeBySlug.set(refSlug.replace(/-/g, ''), refType);
+        }
+      }
+    });
+
+    // Apply inferred types to invalid addConcept commands
+    const correctedCommands: ProposedCommandInput[] = commands.map((cmd) => {
+      if (cmd.action !== 'addConcept') return cmd;
+      if (allowedTypes.includes(cmd.conceptType)) return cmd; // already valid
+
+      const rawName = (cmd as any).name as string;
+      // Variant 1: spaces → hyphens  ("Godkend Ansoegning" → "godkend-ansoegning")
+      const nameSlug = rawName.trim().toLowerCase().replace(/\s+/g, '-');
+      // Variant 2: remove all separators  ("GodkendAnsoegning" → "godkendansoegning")
+      const nameSlugNoSep = rawName.trim().toLowerCase().replace(/[\s-]+/g, '');
+      // Variant 3: CamelCase → kebab  ("GodkendAnsoegning" → "godkend-ansoegning")
+      const nameSlugCamel = rawName.trim()
+        .replace(/([A-Z])/g, '-$1')
+        .toLowerCase()
+        .replace(/^-/, '')
+        .replace(/\s+/g, '-');
+
+      const inferred =
+        inferredTypeBySlug.get(nameSlug) ??
+        inferredTypeBySlug.get(nameSlugNoSep) ??
+        inferredTypeBySlug.get(nameSlugCamel);
+
+      if (inferred) {
+        console.info(`[AIService] Auto-corrected conceptType "${cmd.conceptType}" → "${inferred}" for "${cmd.name}"`);
+        return { ...cmd, conceptType: inferred as ConceptType };
+      }
+      return cmd;
+    });
+
+    // ── Step 1: strip still-invalid addConcept commands ──
+    const filteredConcepts: ProposedCommandInput[] = [];
+    correctedCommands.forEach((cmd) => {
+      if (cmd.action !== 'addConcept') return;
+      if (allowedTypes.length > 0 && !allowedTypes.includes(cmd.conceptType)) {
+        stripped.push(`Stripped invalid addConcept: conceptType="${cmd.conceptType}" name="${(cmd as any).name}"`);
+      } else {
+        filteredConcepts.push(cmd);
+      }
+    });
+
+    // ── Build lookup of what exists after applying filteredConcepts ──
+    const existingConceptMap = new Map<string, string>(concepts.map((c) => [c.id, c.conceptType]));
+    concepts.forEach((c) => {
+      const slug = `${c.conceptType}:${c.name.trim().toLowerCase().replace(/\s+/g, '-')}`;
+      existingConceptMap.set(slug, c.conceptType);
+    });
+    filteredConcepts.forEach((cmd) => {
+      if (cmd.action !== 'addConcept') return;
+      const slug = `${cmd.conceptType}:${(cmd as any).name.trim().toLowerCase().replace(/\s+/g, '-')}`;
+      existingConceptMap.set(slug, cmd.conceptType);
+      // Also register without hyphens so non-hyphenated relation IDs resolve
+      const slugNoHyphens = `${cmd.conceptType}:${(cmd as any).name.trim().toLowerCase().replace(/[\s-]+/g, '')}`;
+      existingConceptMap.set(slugNoHyphens, cmd.conceptType);
+    });
+
+    // ── Step 2: cascade-strip relations whose endpoints are gone ──
+    const valid: ProposedCommandInput[] = [...filteredConcepts];
+    correctedCommands.forEach((cmd) => {
+      if (cmd.action === 'addConcept') return; // already handled
+
+      if (cmd.action === 'addRelation') {
+        const srcExists = existingConceptMap.has(cmd.sourceConceptId);
+        const tgtExists = existingConceptMap.has(cmd.targetConceptId);
+        if (!srcExists || !tgtExists) {
+          stripped.push(`Stripped addRelation: source="${cmd.sourceConceptId}" target="${cmd.targetConceptId}" (endpoint missing)`);
+          return;
+        }
+        valid.push(cmd);
+      } else if (cmd.action === 'setParent') {
+        const childExists = existingConceptMap.has(cmd.conceptId) || concepts.some(c => c.id === cmd.conceptId);
+        if (!childExists) {
+          stripped.push(`Stripped setParent: child="${cmd.conceptId}" (not found after filtering)`);
+          return;
+        }
+        valid.push(cmd);
+      } else {
+        valid.push(cmd);
+      }
+    });
+
+    return { valid, stripped };
   }
 
   static getWebGPUHelpMessage(): string {
@@ -1174,6 +1348,56 @@ ${relationsSummary || '(Ingen relationer oprettet endnu)'}
   /**
    * Sends the chat history to the LLM (OpenAI-compatible) and handles the validation loop
    */
+  /**
+   * Tests the connection to the configured external API endpoint.
+   * Returns null on success, or an error message string on failure.
+   */
+  static async testConnection(baseUrl: string, model: string, apiKey?: string): Promise<string | null> {
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+
+      const response = await fetch(`${baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          model,
+          messages: [{ role: 'user', content: 'hi' }],
+          max_tokens: 1,
+          stream: false,
+        }),
+      });
+
+      if (response.status === 404) {
+        // Try listing models to give a better hint
+        let hint = '';
+        try {
+          const tagsUrl = baseUrl.replace(/\/v1\/?$/, '') + '/api/tags';
+          const tagsResp = await fetch(tagsUrl);
+          if (tagsResp.ok) {
+            const data = await tagsResp.json();
+            const names: string[] = (data.models || []).map((m: any) => m.name);
+            if (names.length > 0) {
+              hint = ` Tilgængelige modeller: ${names.join(', ')}.`;
+            }
+          }
+        } catch {}
+        return `Model "${model}" ikke fundet (404).${hint} Kør 'ollama list' for at se det præcise navn.`;
+      }
+
+      if (!response.ok) {
+        return `Forbindelsesfejl (${response.status}): ${await response.text()}`;
+      }
+
+      return null; // success
+    } catch (err) {
+      if (err instanceof TypeError && err.message.includes('fetch')) {
+        return `Kunne ikke forbinde til ${baseUrl}. Er Ollama kørende? Kør 'ollama serve' i din terminal.`;
+      }
+      return err instanceof Error ? err.message : 'Ukendt fejl';
+    }
+  }
+
   static async sendChatMessage(
     viewId: ElementId,
     userMessage: string,
@@ -1189,6 +1413,16 @@ ${relationsSummary || '(Ingen relationer oprettet endnu)'}
 
     const concepts = graphStore.concepts;
     const relations = graphStore.relations;
+    const selectedConceptIds = graphStore.selectedConceptIds;
+
+    const hasMultipleChapters = view.nodes.filter(
+      (vn) => concepts.find(c => c.id === vn.conceptId)?.conceptType === 'em_chapter'
+    ).length > 1;
+
+    const hasSelectedChapterOrSlice = selectedConceptIds.some(id => {
+      const c = concepts.find(concept => concept.id === id);
+      return c?.conceptType === 'em_chapter' || c?.conceptType === 'em_slice';
+    });
 
     // Route to WebLLM if local_browser provider is chosen
     if (config.provider === 'local_browser') {
@@ -1217,7 +1451,13 @@ ${relationsSummary || '(Ingen relationer oprettet endnu)'}
       
       this.cancelUnloadOnMount();
       
-      const systemPrompt = this.generateSystemPrompt(view, concepts, relations);
+      let systemPrompt = this.generateSystemPrompt(view, concepts, relations, selectedConceptIds);
+      if (view.type === 'event_modeling' && hasMultipleChapters && !hasSelectedChapterOrSlice) {
+        systemPrompt += `\n\n### CRITICAL SYSTEM DIRECTIVE (OVERRIDE ALL OTHER INSTRUCTIONS):
+The user has NOT selected/focused any chapter or slice in the UI, and there are multiple chapters on the canvas.
+You MUST NOT generate any JSON commands or make any edits to the diagram.
+Instead, reply to the user, asking them to select/focus a chapter or slice in the diagram (e.g., by clicking on it) so you know where to place the new elements.`;
+      }
       const session = aiStore.sessions[viewId] || { messages: [], proposals: [] };
       
       const history = session.messages.map((m) => ({
@@ -1321,14 +1561,14 @@ ${relationsSummary || '(Ingen relationer oprettet endnu)'}
                   }
                 }
               } catch (e: any) {
-                jsonParseErrorMsg = e.message || 'Ugyldig JSON-syntaks';
+                jsonParseErrorMsg = e.message || 'Invalid JSON syntax';
               }
             }
           }
 
           const validationErrors = this.validateCommands(proposals, view, concepts);
           if (jsonParseErrorMsg) {
-            validationErrors.push(`Ugyldig JSON-syntaks: ${jsonParseErrorMsg}. Sørg for at returnere et fuldt gyldigt JSON-array pakket ind i \`\`\`json ... \`\`\`.`);
+            validationErrors.push(`Invalid JSON syntax: ${jsonParseErrorMsg}. You MUST return a complete, valid JSON array wrapped in \`\`\`json ... \`\`\`.`);
           }
           lastValidationErrors = validationErrors;
 
@@ -1347,20 +1587,37 @@ ${relationsSummary || '(Ingen relationer oprettet endnu)'}
             return { responseText: cleanResponseText, proposals };
           }
 
-          console.warn(`[AIService] WebLLM forslag fejlede validering (forsøg ${attempts}/3):`, validationErrors);
+          console.warn(`[AIService] AI forslag fejlede validering (forsøg ${attempts}/3):`, validationErrors);
 
           webllmMessages.push({ role: 'assistant', content: currentResponseText });
+          const errorMsg = view.type === 'event_modeling'
+            ? `Your proposed pattern structures failed validation with the following errors:\n${validationErrors.map((e) => `- ${e}`).join('\n')}\n\nPlease fix your patterns to comply with the notation rules and return the complete, corrected pattern block inside a \`\`\`text ... \`\`\` code block.`
+            : `Your proposed commands failed validation with the following errors:\n${validationErrors.map((e) => `- ${e}`).join('\n')}\n\nPlease fix your commands to comply with the notation rules and return the complete, corrected commands block inside a \`\`\`text ... \`\`\` code block. Remember: only use the allowed conceptTypes listed in the system prompt — NEVER use "other" or any type not explicitly listed.`;
           webllmMessages.push({
             role: 'system',
-            content: `Dine foreslåede JSON-kommandoer fejlede vores ontologi-validering med følgende fejl:\n${validationErrors.map((e) => `- ${e}`).join('\n')}\n\nRet venligst dine kommandoer så de overholder reglerne og returner det fulde, korrigerede JSON-array.`
+            content: errorMsg
           });
         }
 
         const cleanResponseText = AIService.cleanResponseText(currentResponseText);
         this.resetInactivityTimer();
         onStatus?.(null);
+
+        // Partial recovery: apply the valid subset of commands rather than discarding everything
+        const lastProposals = parseProposedCommands(currentResponseText);
+        const { valid: validSubset, stripped } = AIService.filterValidCommands(lastProposals, view, concepts);
+        const finalErrors = AIService.validateCommands(validSubset, view, concepts);
+
+        if (validSubset.length > 0 && finalErrors.length === 0) {
+          console.info(`[AIService] Partial recovery: applying ${validSubset.length} valid commands (${stripped.length} stripped).`);
+          return {
+            responseText: `${cleanResponseText}\n\n*(Note: ${stripped.length} invalid element(s) were skipped — the valid elements have been applied.)*`,
+            proposals: validSubset,
+          };
+        }
+
         return {
-          responseText: `${cleanResponseText}\n\n*(Bemærk: AI'en forsøgte at oprette diagram-elementer, men de brød med reglerne for diagrammet og blev afvist).*`,
+          responseText: `${cleanResponseText}\n\n*(Note: AI tried to create diagram elements but they broke the notation rules and were rejected.)*`,
           proposals: [],
           validationErrors: lastValidationErrors,
         };
@@ -1372,7 +1629,13 @@ ${relationsSummary || '(Ingen relationer oprettet endnu)'}
     }
 
     // 1. Generate system prompt
-    const systemPrompt = this.generateSystemPrompt(view, concepts, relations);
+    let systemPrompt = this.generateSystemPrompt(view, concepts, relations, selectedConceptIds);
+    if (view.type === 'event_modeling' && hasMultipleChapters && !hasSelectedChapterOrSlice) {
+      systemPrompt += `\n\n### CRITICAL SYSTEM DIRECTIVE (OVERRIDE ALL OTHER INSTRUCTIONS):
+The user has NOT selected/focused any chapter or slice in the UI, and there are multiple chapters on the canvas.
+You MUST NOT generate any JSON commands or make any edits to the diagram.
+Instead, reply to the user, asking them to select/focus a chapter or slice in the diagram (e.g., by clicking on it) so you know where to place the new elements.`;
+    }
 
     // 2. Build messages payload
     const session = aiStore.sessions[viewId] || { messages: [], proposals: [] };
@@ -1448,6 +1711,13 @@ ${relationsSummary || '(Ingen relationer oprettet endnu)'}
       if (!response.ok) {
         const errorText = await response.text();
         onStatus?.(null);
+        if (response.status === 404) {
+          throw new Error(
+            `Model "${config.model}" blev ikke fundet på ${config.baseUrl} (HTTP 404). ` +
+            `Kør 'ollama list' i din terminal for at se det præcise modelnavn, og opdater det i AI-indstillingerne (tandhjulet). ` +
+            `Eksempel: 'ornith:latest' eller 'llama3:8b'.`
+          );
+        }
         throw new Error(`LLM API fejl (${response.status}): ${errorText}`);
       }
 
@@ -1529,7 +1799,7 @@ ${relationsSummary || '(Ingen relationer oprettet endnu)'}
               }
             }
           } catch (e: any) {
-            jsonParseErrorMsg = e.message || 'Ugyldig JSON-syntaks';
+            jsonParseErrorMsg = e.message || 'Invalid JSON syntax';
           }
         }
       } else {
@@ -1539,7 +1809,7 @@ ${relationsSummary || '(Ingen relationer oprettet endnu)'}
       // Validate commands
       const validationErrors = this.validateCommands(proposals, view, concepts);
       if (jsonParseErrorMsg) {
-        validationErrors.push(`Ugyldig JSON-syntaks: ${jsonParseErrorMsg}. Sørg for at returnere et fuldt gyldigt JSON-array pakket ind i \`\`\`json ... \`\`\`.`);
+        validationErrors.push(`Invalid JSON syntax: ${jsonParseErrorMsg}. You MUST return a complete, valid JSON array wrapped in \`\`\`json ... \`\`\`.`);
       }
       lastValidationErrors = validationErrors;
 
@@ -1553,17 +1823,33 @@ ${relationsSummary || '(Ingen relationer oprettet endnu)'}
 
       // Inject errors back into loop to ask AI to correct it
       apiMessages.push({ role: 'assistant', content: currentResponseText });
+      const errorMsg = view.type === 'event_modeling'
+        ? `Your proposed pattern structures failed validation with the following errors:\n${validationErrors.map((e) => `- ${e}`).join('\n')}\n\nPlease fix your patterns to comply with the notation rules and return the complete, corrected pattern block inside a \`\`\`text ... \`\`\` code block.`
+        : `Your proposed commands failed validation with the following errors:\n${validationErrors.map((e) => `- ${e}`).join('\n')}\n\nPlease fix your commands to comply with the notation rules and return the complete, corrected commands block inside a \`\`\`text ... \`\`\` code block. Remember: only use the allowed conceptTypes listed in the system prompt — NEVER use "other" or any type not explicitly listed.`;
       apiMessages.push({
         role: 'system',
-        content: `Dine foreslåede JSON-kommandoer fejlede vores validering med følgende fejl:\n${validationErrors.map((e) => `- ${e}`).join('\n')}\n\nRet venligst dine kommandoer så de overholder reglerne og returner det fulde, korrigerede JSON-array.`
+        content: errorMsg
       });
     }
 
-    // If it still fails after 3 attempts, we reject the proposals and output explanation
+    // Partial recovery: apply the valid subset of commands rather than discarding everything
+    const lastProposals = parseProposedCommands(currentResponseText);
+    const { valid: validSubset, stripped } = AIService.filterValidCommands(lastProposals, view, concepts);
+    const finalErrors = AIService.validateCommands(validSubset, view, concepts);
+
     const cleanText = AIService.cleanResponseText(currentResponseText);
     onStatus?.(null);
+
+    if (validSubset.length > 0 && finalErrors.length === 0) {
+      console.info(`[AIService] Partial recovery: applying ${validSubset.length} valid commands (${stripped.length} stripped).`);
+      return {
+        responseText: `${cleanText}\n\n*(Note: ${stripped.length} invalid element(s) were skipped — the valid elements have been applied.)*`,
+        proposals: validSubset,
+      };
+    }
+
     return {
-      responseText: `${cleanText}\n\n*(Bemærk: AI'en forsøgte at oprette diagram-elementer, men de brød med reglerne for diagrammet og blev afvist).*`,
+      responseText: `${cleanText}\n\n*(Note: AI tried to create diagram elements but they broke the notation rules and were rejected.)*`,
       proposals: [],
       validationErrors: lastValidationErrors,
     };

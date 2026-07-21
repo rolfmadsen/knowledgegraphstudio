@@ -324,6 +324,17 @@ export class GraphService {
     const source = state.concepts.find(c => c.id === sourceId);
     const target = state.concepts.find(c => c.id === targetId);
 
+    // Reuse existing relation between sourceId and targetId if it already exists
+    const existing = state.relations.find(
+      r => r.sourceConceptId === sourceId && r.targetConceptId === targetId
+    );
+    if (existing) {
+      return {
+        relation: existing,
+        nextState: {},
+      };
+    }
+
     const activeView = state.views?.find(v => v.id === state.activeViewId);
     const notation = activeView ? NotationRegistry.forViewType(activeView.type) : undefined;
 
@@ -906,14 +917,15 @@ export class GraphService {
   /**
    * Ungroup a concept (remove parentId in the view).
    */
-  static ungroupConcept(state: GraphStateWithSelection, viewId: ElementId, conceptId: ElementId): Partial<GraphStateWithSelection> {
+  static ungroupConcept(state: GraphStateWithSelection, viewId: ElementId, targetInstanceIdOrConceptId: ElementId): Partial<GraphStateWithSelection> {
     const nextViews = state.views?.map((v) => {
       if (v.id !== viewId) return v;
       return {
         ...v,
-        nodes: v.nodes.map((n) =>
-          n.conceptId === conceptId ? { ...n, parentId: undefined } : n
-        ),
+        nodes: v.nodes.map((n) => {
+          const isMatch = n.instanceId ? n.instanceId === targetInstanceIdOrConceptId : n.conceptId === targetInstanceIdOrConceptId;
+          return isMatch ? { ...n, parentId: undefined } : n;
+        }),
       };
     });
     return { views: nextViews };
@@ -949,25 +961,19 @@ export class GraphService {
   /**
    * Update a ViewNode's parentId in the active view.
    */
-  static updateViewNodeParentId(state: GraphStateWithSelection, viewId: ElementId, conceptId: ElementId, parentId: ElementId | undefined): Partial<GraphStateWithSelection> {
+  static updateViewNodeParentId(state: GraphStateWithSelection, viewId: ElementId, targetInstanceIdOrConceptId: ElementId, parentId: ElementId | undefined): Partial<GraphStateWithSelection> {
     const nextViews = state.views?.map((v) => {
       if (v.id !== viewId) return v;
       return {
         ...v,
-        nodes: v.nodes.map((n) =>
-          n.conceptId === conceptId ? { ...n, parentId } : n
-        ),
+        nodes: v.nodes.map((n) => {
+          const isMatch = n.instanceId ? n.instanceId === targetInstanceIdOrConceptId : n.conceptId === targetInstanceIdOrConceptId;
+          return isMatch ? { ...n, parentId } : n;
+        }),
       };
     });
 
-    const nextConcepts = state.concepts?.map((c) => {
-      if (c.id === conceptId) {
-        return { ...c, parentId };
-      }
-      return c;
-    });
-
-    return { views: nextViews, concepts: nextConcepts };
+    return { views: nextViews };
   }
 
   /**

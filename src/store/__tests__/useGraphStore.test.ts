@@ -13,8 +13,8 @@ vi.hoisted(() => {
   vi.stubGlobal('localStorage', localStorageMock);
 });
 
-import { useGraphStore, getTemporalState } from '../useGraphStore';
-import { toElementId, type Domain, type ConceptNode, type View } from '../../schema/graphSchema';
+import { useGraphStore, getTemporalState, isEdgeVisibleForInstances } from '../useGraphStore';
+import { toElementId, type Domain, type ConceptNode, type View, type ElementId } from '../../schema/graphSchema';
 import { NotationRegistry } from '../../notations/NotationRegistry';
 import { knowledgeGraphNotation } from '../../notations/knowledge-graph';
 import { archimateNotation } from '../../notations/archimate';
@@ -1000,6 +1000,322 @@ describe('useGraphStore', () => {
       expect(currentView.nodes[0].x).toBe(500);
       expect(currentView.nodes[0].y).toBe(500);
       expect(currentView.nodes[0].manualX).toBe(500);
+    });
+  });
+
+  describe('Multi-Instance View Nodes & Instance Edges', () => {
+    it('supports multiple visual view node instances of the same concept in a view', () => {
+      const store = useGraphStore.getState();
+      const view = store.createView('Event Modeling View', 'event_modeling', 'manual', true);
+      useGraphStore.setState({ activeViewId: null });
+      const concept = store.addConcept('screen', 'Ordreoversigt');
+
+      // Add 1st instance (Slice 1)
+      store.addConceptToView(view.id, concept.id, 100, 100, toElementId('em_slice:slice-1'), 'inst_1');
+      // Add 2nd instance (Slice 2)
+      store.addConceptToView(view.id, concept.id, 400, 100, toElementId('em_slice:slice-2'), 'inst_2');
+
+      const currentView = useGraphStore.getState().views.find(v => v.id === view.id)!;
+      expect(currentView.nodes).toHaveLength(2);
+      expect(currentView.nodes[0].instanceId).toBe('inst_1');
+      expect(currentView.nodes[0].conceptId).toBe(concept.id);
+      expect(currentView.nodes[1].instanceId).toBe('inst_2');
+      expect(currentView.nodes[1].conceptId).toBe(concept.id);
+    });
+
+    it('stores sourceInstanceId and targetInstanceId on viewEdges for scoped relations', () => {
+      const store = useGraphStore.getState();
+      const view = store.createView('Event Modeling View', 'event_modeling', 'manual', true);
+      useGraphStore.setState({ activeViewId: null });
+      const screen = store.addConcept('screen', 'Checkout');
+      const command = store.addConcept('command', 'PlaceOrder');
+
+      store.addConceptToView(view.id, screen.id, 100, 100, undefined, 'inst_screen_1');
+      store.addConceptToView(view.id, command.id, 100, 250, undefined, 'inst_command_1');
+
+      const relation = store.addRelation(screen.id, command.id, 'invokes');
+
+      store.updateViewEdgeLayout(
+        view.id,
+        relation.id,
+        'bottom',
+        'top',
+        [],
+        'inst_screen_1',
+        'inst_command_1'
+      );
+
+      const currentView = useGraphStore.getState().views.find(v => v.id === view.id)!;
+      expect(currentView.viewEdges).toBeDefined();
+      const ve = currentView.viewEdges?.find(e => e.relationId === relation.id);
+      expect(ve?.sourceInstanceId).toBe('inst_screen_1');
+      expect(ve?.targetInstanceId).toBe('inst_command_1');
+    });
+
+    it('removes specific instance from view when removeConceptFromView is called with instanceId', () => {
+      const store = useGraphStore.getState();
+      const view = store.createView('Event Modeling View', 'event_modeling', 'manual', true);
+      useGraphStore.setState({ activeViewId: null });
+      const concept = store.addConcept('screen', 'Checkout');
+
+      store.addConceptToView(view.id, concept.id, 100, 100, undefined, 'inst_1');
+      store.addConceptToView(view.id, concept.id, 400, 100, undefined, 'inst_2');
+
+      store.removeConceptFromView(view.id, 'inst_1' as any);
+
+      const currentView = useGraphStore.getState().views.find(v => v.id === view.id)!;
+      expect(currentView.nodes).toHaveLength(1);
+      expect(currentView.nodes[0].instanceId).toBe('inst_2');
+    });
+
+    it('batchUpdateViewNodePositions independently updates position per instanceId', () => {
+      const store = useGraphStore.getState();
+      const view = store.createView('Event Modeling View', 'event_modeling', 'manual', true);
+      useGraphStore.setState({ activeViewId: null });
+      const concept = store.addConcept('screen', 'Checkout');
+
+      store.addConceptToView(view.id, concept.id, 0, 0, undefined, 'inst_1');
+      store.addConceptToView(view.id, concept.id, 0, 0, undefined, 'inst_2');
+
+      store.batchUpdateViewNodePositions(view.id, [
+        { instanceId: 'inst_1', x: 100, y: 150 },
+        { instanceId: 'inst_2', x: 500, y: 150 },
+      ]);
+
+      const currentView = useGraphStore.getState().views.find(v => v.id === view.id)!;
+      expect(currentView.nodes[0].x).toBe(100);
+      expect(currentView.nodes[1].x).toBe(500);
+    });
+    it('toggles ViewEdge on and off for specific instances', () => {
+      const store = useGraphStore.getState();
+      const view = store.createView('Event Modeling View', 'event_modeling', 'manual', true);
+      useGraphStore.setState({ activeViewId: null });
+      const conceptA = store.addConcept('screen', 'Screen A');
+      const conceptB = store.addConcept('command', 'Command B');
+      const rel = store.addRelation(conceptA.id, conceptB.id, 'invokes');
+
+      store.addConceptToView(view.id, conceptA.id, 100, 100, undefined, 'inst_a');
+      store.addConceptToView(view.id, conceptB.id, 400, 100, undefined, 'inst_b');
+
+      // Default state: isEdgeVisibleForInstances is true when viewEdges is empty
+      expect(isEdgeVisibleForInstances(view.nodes, view.viewEdges, rel, 'inst_a', 'inst_b')).toBe(true);
+
+      // Toggle OFF (hides inst_a -> inst_b)
+      useGraphStore.getState().toggleViewEdge(view.id, 'inst_a', 'inst_b', rel.id);
+      let currentView = useGraphStore.getState().views.find(v => v.id === view.id)!;
+      expect(isEdgeVisibleForInstances(currentView.nodes, currentView.viewEdges, rel, 'inst_a', 'inst_b')).toBe(false);
+
+      // Toggle ON
+      useGraphStore.getState().toggleViewEdge(view.id, 'inst_a', 'inst_b', rel.id);
+      currentView = useGraphStore.getState().views.find(v => v.id === view.id)!;
+      expect(isEdgeVisibleForInstances(currentView.nodes, currentView.viewEdges, rel, 'inst_a', 'inst_b')).toBe(true);
+    });
+
+    it('connectAllDomainRelationsForInstance automatically connects missing ViewEdges for nodes in view', () => {
+      const store = useGraphStore.getState();
+      const view = store.createView('Event Modeling View', 'event_modeling', 'manual', true);
+      useGraphStore.setState({ activeViewId: null });
+      const conceptA = store.addConcept('screen', 'Screen A');
+      const conceptB = store.addConcept('command', 'Command B');
+      const rel = store.addRelation(conceptA.id, conceptB.id, 'invokes');
+
+      store.addConceptToView(view.id, conceptA.id, 100, 100, undefined, 'inst_a');
+      store.addConceptToView(view.id, conceptB.id, 400, 100, undefined, 'inst_b');
+
+      useGraphStore.getState().connectAllDomainRelationsForInstance(view.id, 'inst_a');
+
+      const currentView = useGraphStore.getState().views.find(v => v.id === view.id)!;
+      expect(currentView.viewEdges).toHaveLength(1);
+      expect(currentView.viewEdges![0].relationId).toBe(rel.id);
+    });
+
+    it('addRelatedConceptAndConnect adds related concept to view and connects ViewEdge', () => {
+      const store = useGraphStore.getState();
+      const view = store.createView('Event Modeling View', 'event_modeling', 'manual', true);
+      useGraphStore.setState({ activeViewId: null });
+      const conceptA = store.addConcept('screen', 'Screen A');
+      const conceptB = store.addConcept('command', 'Command B');
+      const rel = store.addRelation(conceptA.id, conceptB.id, 'invokes');
+
+      store.addConceptToView(view.id, conceptA.id, 100, 100, undefined, 'inst_a');
+
+      useGraphStore.getState().addRelatedConceptAndConnect(view.id, 'inst_a', conceptB.id, rel.id);
+
+      const currentView = useGraphStore.getState().views.find(v => v.id === view.id)!;
+      expect(currentView.nodes).toHaveLength(2);
+      expect(currentView.viewEdges).toHaveLength(1);
+      expect(currentView.viewEdges![0].relationId).toBe(rel.id);
+    });
+
+    it('updateViewEdgeLayout maintains independent ViewEdges for multiple instances', () => {
+      const store = useGraphStore.getState();
+      const view = store.createView('Event Modeling View', 'event_modeling', 'manual', true);
+      useGraphStore.setState({ activeViewId: null });
+      const conceptA = store.addConcept('read_model', 'Read Model A');
+      const conceptB = store.addConcept('screen', 'Screen B');
+      const rel = store.addRelation(conceptA.id, conceptB.id, 'displays');
+
+      store.addConceptToView(view.id, conceptA.id, 100, 100, undefined, 'inst_rm');
+      store.addConceptToView(view.id, conceptB.id, 400, 100, undefined, 'inst_screen_1');
+      store.addConceptToView(view.id, conceptB.id, 700, 100, undefined, 'inst_screen_2');
+
+      store.updateViewEdgeLayout(view.id, rel.id, undefined, undefined, [], 'inst_rm', 'inst_screen_1');
+      store.updateViewEdgeLayout(view.id, rel.id, undefined, undefined, [], 'inst_rm', 'inst_screen_2');
+
+      const currentView = useGraphStore.getState().views.find(v => v.id === view.id)!;
+      expect(currentView.viewEdges).toHaveLength(2);
+      expect(currentView.viewEdges![0].targetInstanceId).toBe('inst_screen_1');
+      expect(currentView.viewEdges![1].targetInstanceId).toBe('inst_screen_2');
+    });
+
+    it('connectAllDomainRelationsForInstance connects all multiple relations between the same concept pair', () => {
+      const store = useGraphStore.getState();
+      const view = store.createView('Event Modeling View', 'event_modeling', 'manual', true);
+      useGraphStore.setState({ activeViewId: null });
+      const conceptA = store.addConcept('read_model', 'Read Model A');
+      const conceptB = store.addConcept('screen', 'Screen B');
+
+      // Add two separate relations between the same pair
+      const rel1 = store.addRelation(conceptA.id, conceptB.id, 'displays');
+      // Bypass reuse checks to force duplicate/multiple relations for test
+      const rel2Id = 'other:test-duplicate-relation' as ElementId;
+      useGraphStore.setState((s) => ({
+        relations: [
+          ...s.relations,
+          {
+            id: rel2Id,
+            name: '',
+            category: 'structural',
+            sourceConceptId: conceptA.id,
+            targetConceptId: conceptB.id,
+            relationType: 'displays' as any,
+            lifecycleState: 'active',
+            policies: [],
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          }
+        ]
+      }));
+
+      store.addConceptToView(view.id, conceptA.id, 100, 100, undefined, 'inst_rm');
+      store.addConceptToView(view.id, conceptB.id, 400, 100, undefined, 'inst_screen_1');
+
+      // Trigger connectAllDomainRelationsForInstance
+      useGraphStore.getState().connectAllDomainRelationsForInstance(view.id, 'inst_rm');
+
+      const currentView = useGraphStore.getState().views.find(v => v.id === view.id)!;
+      // Since it shouldn't deduplicate, both rel1 and rel2 should get ViewEdge entries
+      const rel1Edge = currentView.viewEdges?.find(e => e.relationId === rel1.id);
+      const rel2Edge = currentView.viewEdges?.find(e => e.relationId === rel2Id);
+      expect(rel1Edge).toBeDefined();
+      expect(rel2Edge).toBeDefined();
+    });
+
+    it('sanitizeRelations heals corrupted relations containing instance IDs and merges duplicates', () => {
+      const store = useGraphStore.getState();
+      const view = store.createView('Event Modeling View', 'event_modeling', 'manual', true);
+      useGraphStore.setState({ activeViewId: null });
+      const conceptA = store.addConcept('read_model', 'Read Model A');
+      const conceptB = store.addConcept('screen', 'Screen B');
+
+      // 1. Clean relation
+      const relClean = store.addRelation(conceptA.id, conceptB.id, 'displays');
+      // 2. Corrupted relation pointing to instance ID instead of concept ID
+      const relCorruptedId = 'other:corrupted-relation-id' as ElementId;
+      const targetInstanceId = `${conceptB.id}#inst_xxxx`;
+
+      // Hydrate a corrupted state
+      store.hydrate({
+        domains: [],
+        concepts: [conceptA, conceptB],
+        relations: [
+          relClean,
+          {
+            id: relCorruptedId,
+            name: '',
+            category: 'structural',
+            sourceConceptId: conceptA.id,
+            targetConceptId: targetInstanceId as ElementId, // instance ID instead of concept ID
+            relationType: 'displays' as any,
+            lifecycleState: 'active',
+            policies: [],
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          }
+        ],
+        views: [
+          {
+            ...view,
+            nodes: [
+              { conceptId: conceptA.id, x: 0, y: 0 },
+              { conceptId: conceptB.id, x: 100, y: 100, instanceId: targetInstanceId }
+            ],
+            viewEdges: [
+              // Edge pointing to corrupted relation ID
+              {
+                relationId: relCorruptedId,
+                waypoints: [],
+              }
+            ]
+          }
+        ]
+      });
+
+      const currentRelations = useGraphStore.getState().relations;
+      const currentViews = useGraphStore.getState().views;
+      const currentView = currentViews.find(v => v.id === view.id)!;
+
+      // Assert corrupted relation is cleaned/merged (only the clean one should remain)
+      expect(currentRelations).toHaveLength(1);
+      expect(currentRelations[0].id).toBe(relClean.id);
+
+      // Assert ViewEdge is remapped to point to clean relation ID and instance ID is correctly populated
+      expect(currentView.viewEdges).toHaveLength(1);
+      expect(currentView.viewEdges![0].relationId).toBe(relClean.id);
+      expect(currentView.viewEdges![0].targetInstanceId).toBe(targetInstanceId);
+    });
+
+    it('connectAllDomainRelationsForInstance unhides existing hidden edges', () => {
+      const store = useGraphStore.getState();
+      const view = store.createView('Event Modeling View', 'event_modeling', 'manual', true);
+      useGraphStore.setState({ activeViewId: null });
+      const conceptA = store.addConcept('read_model', 'Read Model A');
+      const conceptB = store.addConcept('screen', 'Screen B');
+      const rel = store.addRelation(conceptA.id, conceptB.id, 'displays');
+
+      // Hydrate a view state with a hidden edge
+      store.hydrate({
+        domains: [],
+        concepts: [conceptA, conceptB],
+        relations: [rel],
+        views: [
+          {
+            ...view,
+            nodes: [
+              { conceptId: conceptA.id, x: 0, y: 0 },
+              { conceptId: conceptB.id, x: 100, y: 100 }
+            ],
+            viewEdges: [
+              {
+                relationId: rel.id,
+                sourceInstanceId: conceptA.id,
+                targetInstanceId: conceptB.id,
+                isHidden: true,
+                waypoints: [],
+              } as any
+            ]
+          }
+        ]
+      });
+
+      // Call action to connect all domain relations for instance A (which should unhide the edge)
+      store.connectAllDomainRelationsForInstance(view.id, conceptA.id);
+
+      const currentViews = useGraphStore.getState().views;
+      const currentView = currentViews.find(v => v.id === view.id)!;
+
+      expect(currentView.viewEdges).toHaveLength(1);
+      expect((currentView.viewEdges![0] as any).isHidden).toBeFalsy();
     });
   });
 });

@@ -9,7 +9,7 @@ class FileSystemAccessDatabase extends Dexie {
   workspaceHandles!: Table<WorkspaceHandleRow, string>;
 
   constructor() {
-    super('typegraph_vfs_handles');
+    super('xarchi_vfs_handles');
     this.version(1).stores({
       workspaceHandles: 'workspacePath',
     });

@@ -102,8 +102,8 @@ export function parseQuickReplies(text: string): { cleanText: string; replies: s
   const cleanLines = lines.filter((line) => {
     const trimmed = line.trim();
     
-    // Pattern 1: * [Valg A]: Studerende OR 1. [Valg A]: Studerende
-    const matchValg = trimmed.match(/^(?:[*+-]|\d+\.)\s*\[Valg\s+[A-Z0-9]\]:\s*(.*)$/i);
+    // Pattern 1: * [Valg A]: Studerende OR 1. [Choice A]: Student
+    const matchValg = trimmed.match(/^(?:[*+-]|\d+\.)\s*\[(?:Valg|Choice)\s+[A-Z0-9]\]:\s*(.*)$/i);
     if (matchValg) {
       replies.push(matchValg[1].trim());
       return false;
@@ -716,33 +716,33 @@ export function AIChatPanel() {
                                   : p.action === 'setParent'
                                   ? `Nest i subgraph`
                                   : p.action === 'updateConcept'
-                                  ? (p.updates.name
-                                    ? `Omdøb "${p.before.name}" ➔ "${p.updates.name}"`
-                                    : p.updates.definition
-                                    ? `Opdater definition på "${p.before.name}"`
-                                    : `Opdater element "${p.before.name}"`)
+                                  ? (p.updates?.name
+                                    ? `Omdøb "${p.before?.name || 'element'}" ➔ "${p.updates.name}"`
+                                    : p.updates?.definition
+                                    ? `Opdater definition på "${p.before?.name || 'element'}"`
+                                    : `Opdater element "${p.before?.name || 'element'}"`)
                                   : p.action === 'deleteElement'
-                                  ? `Slet "${p.elementName}"`
+                                  ? `Slet "${p.elementName || ''}"`
                                   : p.action === 'addProperty'
-                                  ? `Tilføj attribut "${p.propertyName}"`
+                                  ? `Tilføj attribut "${p.propertyName || ''}"`
                                   : p.name || 'Relation'}
                               </span>
                               <span className="text-[9px] text-slate-400 uppercase font-bold tracking-wider">
                                 {p.action === 'addConcept'
-                                  ? p.conceptType.replace('_', ' ')
+                                  ? p.conceptType?.replace('_', ' ') || ''
                                   : p.action === 'setParent'
-                                  ? `${p.conceptId.split(':')[1] || p.conceptId} ⊂ ${p.parentConceptId.split(':')[1] || p.parentConceptId}`
+                                  ? `${p.conceptId?.split?.(':')?.[1] || p.conceptId || ''} ⊂ ${p.parentConceptId?.split?.(':')?.[1] || p.parentConceptId || ''}`
                                   : p.action === 'updateConcept'
-                                  ? (p.updates.conceptType
-                                    ? `${p.before.conceptType} ➔ ${p.updates.conceptType}`
-                                    : p.updates.definition
+                                  ? (p.updates?.conceptType
+                                    ? `${p.before?.conceptType || 'other'} ➔ ${p.updates.conceptType}`
+                                    : p.updates?.definition
                                     ? `FDA Definition`
                                     : `Navneændring`)
                                   : p.action === 'deleteElement'
                                   ? `Slet ${p.elementType === 'concept' ? 'element' : 'relation'}`
                                   : p.action === 'addProperty'
-                                  ? `Type: ${p.propertyType} på ${p.conceptId.split(':')[1] || p.conceptId}`
-                                  : `${p.sourceConceptId.split(':')[1] || p.sourceConceptId} ➔ ${p.targetConceptId.split(':')[1] || p.targetConceptId}`}
+                                  ? `Type: ${p.propertyType || ''} på ${p.conceptId?.split?.(':')?.[1] || p.conceptId || ''}`
+                                  : `${p.sourceConceptId?.split?.(':')?.[1] || p.sourceConceptId || ''} ➔ ${p.targetConceptId?.split?.(':')?.[1] || p.targetConceptId || ''}`}
                               </span>
                             </div>
 

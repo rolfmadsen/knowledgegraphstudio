@@ -11,11 +11,16 @@ import {
   writeViewsYaml,
   readModelYaml,
   readViewsYaml,
-  yamlExists,
   modelYamlExists,
   ensureWorkspaceDir,
   setRepoDir,
   REPO_DIR,
+  legacyModelYamlExists,
+  readLegacyModelYaml,
+  readLegacyViewsYaml,
+  legacyYamlExists,
+  readLegacyYaml,
+  deleteLegacyFiles,
 } from '../core/fileSystem';
 import { type GraphState, toElementId } from '../schema/graphSchema';
 import { GitService } from './GitService';
@@ -50,8 +55,8 @@ export class PersistenceService {
 
   /**
    * Load model + views from the new split-file format.
-   * model.typegraph.yaml → domains/concepts/relations
-   * views.typegraph.yaml → view node positions
+   * model.xarchi.yaml → domains/concepts/relations
+   * views.xarchi.yaml → view node positions
    */
   private static async loadSplitFiles(): Promise<GraphState | null> {
     const modelYaml = await readModelYaml();
@@ -68,29 +73,55 @@ export class PersistenceService {
   }
 
   /**
+   * Load from legacy split TypeGraph files and migrate to xArchi split format.
+   * After successful read, writes to the xarchi formats and unlinks old files.
+   */
+  private static async loadAndMigrateSplitTypeGraph(): Promise<GraphState | null> {
+    const modelYaml = await readLegacyModelYaml();
+    if (!modelYaml) return null;
+
+    console.log('[PersistenceService] 🔄 Migrating from legacy split TypeGraph files to xArchi split format...');
+    const modelState = yamlToState(modelYaml);
+    const viewsYaml = await readLegacyViewsYaml();
+    const views = viewsYaml ? yamlToViews(viewsYaml) : [];
+    const fullState: GraphState = { ...modelState, views };
+
+    // Write to the new xArchi split format
+    await writeModelYaml(stateToYaml(fullState));
+    await writeViewsYaml(viewsToYaml(views));
+
+    // Delete the legacy split files
+    await deleteLegacyFiles();
+    console.log('[PersistenceService] ✅ Migration complete. model.xarchi.yaml + views.xarchi.yaml written, old files deleted.');
+
+    return fullState;
+  }
+
+  /**
    * Load from legacy single .typegraph.yaml (migration path).
    * After successful read, we immediately write to the split format.
    */
   private static async loadAndMigrateLegacy(): Promise<GraphState | null> {
-    const legacyYaml = await readYaml();
+    const legacyYaml = await readLegacyYaml();
     if (!legacyYaml) return null;
 
-    console.log('[PersistenceService] 🔄 Migrating from legacy .typegraph.yaml to split format...');
+    console.log('[PersistenceService] 🔄 Migrating from legacy single .typegraph.yaml to split xArchi format...');
     const state = yamlToState(legacyYaml);
     const fullState: GraphState = { ...state, views: [] };
 
     // Write to the new split format immediately
     await writeModelYaml(stateToYaml(fullState));
     await writeViewsYaml(viewsToYaml([]));
-    console.log('[PersistenceService] ✅ Migration complete. model.typegraph.yaml + views.typegraph.yaml written.');
+
+    // Delete old files
+    await deleteLegacyFiles();
+    console.log('[PersistenceService] ✅ Migration complete. model.xarchi.yaml + views.xarchi.yaml written, old file deleted.');
 
     return fullState;
   }
 
   /**
    * Write both YAML files atomically.
-   * model.typegraph.yaml ← semantic data
-   * views.typegraph.yaml ← ViewNode positions
    */
   private static async writeSplitFiles(state: PersistableState): Promise<void> {
     await writeModelYaml(stateToYaml(state));
@@ -105,9 +136,10 @@ export class PersistenceService {
    * Bootstrap the application: ensure FS, Repo, and Load/Create YAML.
    *
    * File resolution order:
-   *  1. model.typegraph.yaml (new split format)
-   *  2. .typegraph.yaml (legacy → auto-migrated to split format)
-   *  3. First run: create default workspace
+   *  1. model.xarchi.yaml (new split format)
+   *  2. model.typegraph.yaml (legacy split format -> auto-migrated to xarchi split format)
+   *  3. .typegraph.yaml (legacy single file -> auto-migrated to xarchi split format)
+   *  4. First run: create default workspace
    */
   static async bootstrap(): Promise<BootstrapResult> {
     if (this.isBootstrapped) {
@@ -121,7 +153,7 @@ export class PersistenceService {
       await ensureWorkspaceDir();
       await GitService.ensureRepo();
 
-      // --- New split format ---
+      // --- 1. xArchi split format ---
       if (await modelYamlExists()) {
         try {
           const state = await this.loadSplitFiles();
@@ -138,9 +170,26 @@ export class PersistenceService {
         }
       }
 
-      // --- Legacy single-file (migration path) ---
-      if (await yamlExists()) {
-        const legacyYaml = await readYaml();
+      // --- 2. Legacy split TypeGraph format ---
+      if (await legacyModelYamlExists()) {
+        try {
+          const state = await this.loadAndMigrateSplitTypeGraph();
+          if (state) {
+            this.isBootstrapped = true;
+            return { isFirstRun: false, isConflict: false, state };
+          }
+        } catch (err) {
+          if (err instanceof YamlParseError) {
+            const raw = await readLegacyModelYaml();
+            return { isFirstRun: false, isConflict: true, rawYaml: raw ?? '', error: err.message };
+          }
+          throw err;
+        }
+      }
+
+      // --- 3. Legacy single-file TypeGraph format ---
+      if (await legacyYamlExists()) {
+        const legacyYaml = await readLegacyYaml();
         if (legacyYaml === null) {
           throw new Error(
             'YAML fil findes, men kunne ikke læses. Bootstrap afbrudt for at beskytte eksisterende data.',
@@ -208,7 +257,7 @@ export class PersistenceService {
 
   /**
    * Save the current graph state.
-   * Writes model.typegraph.yaml + views.typegraph.yaml.
+   * Writes model.xarchi.yaml + views.xarchi.yaml.
    *
    * Safety lock: if store is empty but model file has substantial data, blocks the write.
    */
@@ -227,7 +276,7 @@ export class PersistenceService {
 
       await this.writeSplitFiles(state);
       console.log(
-        `[PersistenceService] Saved: model.typegraph.yaml + views.typegraph.yaml (${state.views.length} views)`,
+        `[PersistenceService] Saved: model.xarchi.yaml + views.xarchi.yaml (${state.views.length} views)`,
       );
     } catch (error) {
       console.error('[PersistenceService] Failed to save workspace:', error);

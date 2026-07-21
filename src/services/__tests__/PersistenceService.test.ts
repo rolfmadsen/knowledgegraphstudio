@@ -22,6 +22,12 @@ vi.mock('../../core/fileSystem', () => ({
   readViewsYaml: vi.fn(),
   writeModelYaml: vi.fn(),
   writeViewsYaml: vi.fn(),
+  legacyModelYamlExists: vi.fn().mockResolvedValue(false),
+  readLegacyModelYaml: vi.fn(),
+  readLegacyViewsYaml: vi.fn(),
+  legacyYamlExists: vi.fn().mockResolvedValue(false),
+  readLegacyYaml: vi.fn(),
+  deleteLegacyFiles: vi.fn(),
   REPO_DIR: '/workspace',
 }));
 

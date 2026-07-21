@@ -2,7 +2,7 @@
  * FileSystem — Virtual file system operations via lightning-fs (Spec §4)
  *
  * Wraps lightning-fs to provide a simple read/write API for the
- * .typegraph.yaml file. All data lives in the browser's IndexedDB.
+ * .xarchi.yaml file. All data lives in the browser's IndexedDB.
  */
 import LightningFS from '@isomorphic-git/lightning-fs';
 import { FileSystemAccessService } from '../services/FileSystemAccessService';
@@ -11,14 +11,19 @@ import { FileSystemAccessService } from '../services/FileSystemAccessService';
 // Singleton FS Instance
 // ============================================================
 
-const REPO_NAME = 'typegraph';
-const STORAGE_KEY = 'tg_active_workspace';
+const REPO_NAME = 'xarchi';
+const STORAGE_KEY = 'xa_active_workspace';
 /** Legacy single-file name — kept for backward-compat migration reads. */
-const YAML_FILENAME = '.typegraph.yaml';
+const YAML_FILENAME = '.xarchi.yaml';
 /** Semantic model: domains, concepts, relations. */
-export const MODEL_FILENAME = 'model.typegraph.yaml';
+export const MODEL_FILENAME = 'model.xarchi.yaml';
 /** View definitions: ViewNode coordinates per View. */
-export const VIEWS_FILENAME = 'views.typegraph.yaml';
+export const VIEWS_FILENAME = 'views.xarchi.yaml';
+
+// Legacy configurations for migration fallback
+export const LEGACY_YAML_FILENAME = '.typegraph.yaml';
+export const LEGACY_MODEL_FILENAME = 'model.typegraph.yaml';
+export const LEGACY_VIEWS_FILENAME = 'views.typegraph.yaml';
 
 // Initialize REPO_DIR from localStorage or default to '/workspace'
 export let REPO_DIR = localStorage.getItem(STORAGE_KEY) || '/workspace';
@@ -144,7 +149,7 @@ export async function writeYaml(content: string): Promise<void> {
 }
 
 /**
- * Write semantic model YAML (domains, concepts, relations) to model.typegraph.yaml.
+ * Write semantic model YAML (domains, concepts, relations) to model.xarchi.yaml.
  */
 export async function writeModelYaml(content: string): Promise<void> {
   const handle = FileSystemAccessService.getActiveHandle();
@@ -158,7 +163,7 @@ export async function writeModelYaml(content: string): Promise<void> {
 }
 
 /**
- * Write views YAML (ViewNode coordinates) to views.typegraph.yaml.
+ * Write views YAML (ViewNode coordinates) to views.xarchi.yaml.
  */
 export async function writeViewsYaml(content: string): Promise<void> {
   const handle = FileSystemAccessService.getActiveHandle();
@@ -190,7 +195,7 @@ export async function readYaml(): Promise<string | null> {
 }
 
 /**
- * Read model.typegraph.yaml — returns null if not present.
+ * Read model.xarchi.yaml — returns null if not present.
  */
 export async function readModelYaml(): Promise<string | null> {
   const handle = FileSystemAccessService.getActiveHandle();
@@ -207,7 +212,7 @@ export async function readModelYaml(): Promise<string | null> {
 }
 
 /**
- * Read views.typegraph.yaml — returns null if not present (views default to []).
+ * Read views.xarchi.yaml — returns null if not present (views default to []).
  */
 export async function readViewsYaml(): Promise<string | null> {
   const handle = FileSystemAccessService.getActiveHandle();
@@ -317,6 +322,116 @@ export async function renameWorkspace(oldDir: string, newName: string): Promise<
 
   await pfs.rename(oldDir, newDir);
   return newDir;
+}
+
+// ============================================================
+// Legacy File Migration Helpers
+// ============================================================
+
+export async function legacyModelYamlExists(): Promise<boolean> {
+  const handle = FileSystemAccessService.getActiveHandle();
+  if (handle) {
+    try {
+      await handle.getFileHandle(LEGACY_MODEL_FILENAME, { create: false });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  const pfs = getFSPromises();
+  try {
+    await pfs.stat(`${REPO_DIR}/${LEGACY_MODEL_FILENAME}`);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function readLegacyModelYaml(): Promise<string | null> {
+  const handle = FileSystemAccessService.getActiveHandle();
+  if (handle) {
+    return await FileSystemAccessService.readFile(handle, LEGACY_MODEL_FILENAME);
+  }
+  const pfs = getFSPromises();
+  try {
+    const content = await pfs.readFile(`${REPO_DIR}/${LEGACY_MODEL_FILENAME}`, { encoding: 'utf8' });
+    return content as string;
+  } catch {
+    return null;
+  }
+}
+
+export async function readLegacyViewsYaml(): Promise<string | null> {
+  const handle = FileSystemAccessService.getActiveHandle();
+  if (handle) {
+    return await FileSystemAccessService.readFile(handle, LEGACY_VIEWS_FILENAME);
+  }
+  const pfs = getFSPromises();
+  try {
+    const content = await pfs.readFile(`${REPO_DIR}/${LEGACY_VIEWS_FILENAME}`, { encoding: 'utf8' });
+    return content as string;
+  } catch {
+    return null;
+  }
+}
+
+export async function legacyYamlExists(): Promise<boolean> {
+  const handle = FileSystemAccessService.getActiveHandle();
+  if (handle) {
+    try {
+      await handle.getFileHandle(LEGACY_YAML_FILENAME, { create: false });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  const pfs = getFSPromises();
+  try {
+    await pfs.stat(`${REPO_DIR}/${LEGACY_YAML_FILENAME}`);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function readLegacyYaml(): Promise<string | null> {
+  const handle = FileSystemAccessService.getActiveHandle();
+  if (handle) {
+    return await FileSystemAccessService.readFile(handle, LEGACY_YAML_FILENAME);
+  }
+  const pfs = getFSPromises();
+  try {
+    const content = await pfs.readFile(`${REPO_DIR}/${LEGACY_YAML_FILENAME}`, { encoding: 'utf8' });
+    return content as string;
+  } catch {
+    return null;
+  }
+}
+
+export async function deleteLegacyFiles(): Promise<void> {
+  const handle = FileSystemAccessService.getActiveHandle();
+  if (handle) {
+    try {
+      await handle.removeEntry(LEGACY_MODEL_FILENAME);
+    } catch {}
+    try {
+      await handle.removeEntry(LEGACY_VIEWS_FILENAME);
+    } catch {}
+    try {
+      await handle.removeEntry(LEGACY_YAML_FILENAME);
+    } catch {}
+  } else {
+    const pfs = getFSPromises();
+    try {
+      await pfs.unlink(`${REPO_DIR}/${LEGACY_MODEL_FILENAME}`);
+    } catch {}
+    try {
+      await pfs.unlink(`${REPO_DIR}/${LEGACY_VIEWS_FILENAME}`);
+    } catch {}
+    try {
+      await pfs.unlink(`${REPO_DIR}/${LEGACY_YAML_FILENAME}`);
+    } catch {}
+  }
 }
 
 // ============================================================

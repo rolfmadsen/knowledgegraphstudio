@@ -10,7 +10,7 @@
     owl:versionInfo "1.0" ;
     rdfs:label "Event Modeling Metamodel OWL Ontology"@en , "Event Modeling Metamodel OWL-ontologi"@da ;
     dct:title "Event Modeling Specification OWL Ontology" ;
-    dct:creator "TypeGraph Knowledge Graph Studio Agent" ;
+    dct:creator "xArchi Knowledge Graph Studio Agent" ;
     dct:created "2026-06-21"^^xsd:date .
 
 ### classes

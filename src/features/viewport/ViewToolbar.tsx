@@ -131,7 +131,7 @@ export function ViewToolbar() {
 
         {/* Layout algorithm buttons */}
         <div className="flex items-center gap-0.5">
-          {LAYOUT_OPTIONS.map(({ algo, label, icon, description }) => {
+          {LAYOUT_OPTIONS.filter(opt => !(activeView.type === 'event_modeling' && opt.algo === 'hierarchical')).map(({ algo, label, icon, description }) => {
             const isActive = currentAlgo === algo;
             return (
               <button

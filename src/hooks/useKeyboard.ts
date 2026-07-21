@@ -8,6 +8,7 @@
  */
 import { useEffect, useCallback } from 'react';
 import { useGraphStore } from '../store/useGraphStore';
+import type { ElementId } from '../schema/graphSchema';
 
 interface KeyboardConfig {
   onToggleProperties: () => void;
@@ -125,16 +126,17 @@ export function useKeyboard(config: KeyboardConfig) {
 
           const conceptIds = state.selectedConceptIds;
           const activeViewId = state.activeViewId;
+          const selectedInstanceId = state.selectedInstanceId;
           if (conceptIds.length > 0) {
             e.preventDefault();
             e.stopPropagation(); // ← kill the event; no other handler should see it
             const views = state.views;
 
             const hasLastOccurrence = conceptIds.some((cid) => {
-              const viewsContaining = views.filter((v) =>
-                v.nodes.some((vn) => vn.conceptId === cid),
-              );
-              return viewsContaining.length <= 1;
+              const totalInstances = views.reduce((acc, v) => {
+                return acc + v.nodes.filter((vn) => vn.conceptId === cid).length;
+              }, 0);
+              return totalInstances <= 1;
             });
 
             if (hasLastOccurrence) {
@@ -147,8 +149,9 @@ export function useKeyboard(config: KeyboardConfig) {
                 state.requestDeleteConceptConfirm(conceptIds, names, activeViewId);
               }
             } else if (activeViewId) {
-              // Silently remove all from active view only
-              state.removeConceptsFromView(activeViewId, conceptIds);
+              // Silently remove the selected instance from active view only
+              const targetId = (selectedInstanceId || conceptIds[0]) as ElementId;
+              state.removeConceptFromView(activeViewId, targetId);
             }
           } else if (state.selectedRelationId) {
             e.preventDefault();

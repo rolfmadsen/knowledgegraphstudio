@@ -25,9 +25,9 @@ import { Trash2, ArrowUpRight, Plus, X, Tv, Zap, GitCommit, Database, Share2, Cp
 import '@xyflow/react/dist/style.css';
 import type { NotationCanvasProps } from '../../../notations/types';
 import { NotationRegistry } from '../../../notations/NotationRegistry';
-import { useGraphStore } from '../../../store/useGraphStore';
+import { useGraphStore, isEdgeVisibleForInstances, normalizeViewNodes } from '../../../store/useGraphStore';
 import { useShallow } from 'zustand/react/shallow';
-import { type ConceptNode, type ElementId, toElementId, type ViewType, type ConceptType } from '../../../schema/graphSchema';
+import { type ConceptNode, type ElementId, toElementId, type ViewType, type ConceptType, type ViewNode } from '../../../schema/graphSchema';
 import { getDynamicConnection, getClosestPosition } from '../../../utils/edgeRouting';
 
 // --- Padding for Grouping Containers ---
@@ -60,19 +60,19 @@ function getGroupBounds(
         chapterSlices.forEach(sliceVn => {
           const sliceElements = viewNodes.filter(e => e.parentId === sliceVn.conceptId);
           sliceElements.forEach(el => {
-            const h = el.height ?? 80;
+            const h = el.height ?? 100;
             maxElementBottom = Math.max(maxElementBottom, el.y + h);
           });
         });
       } else {
         children.forEach(child => {
-          let childH = child.height ?? 80;
+          let childH = child.height ?? 100;
           maxElementBottom = Math.max(maxElementBottom, child.y + childH);
         });
       }
 
       const sliceY = vn.y;
-      const h = maxElementBottom !== -Infinity ? Math.max(200, (maxElementBottom + (viewType === 'event_modeling' ? 48 : PADDING_BOTTOM)) - sliceY) : 500;
+      const h = maxElementBottom !== -Infinity ? Math.max(280, (maxElementBottom + 64) - sliceY) : 350;
       return {
         x: vn.x,
         y: sliceY,
@@ -82,6 +82,7 @@ function getGroupBounds(
     } else if (conceptType === 'em_chapter') {
       let minX = Infinity;
       let maxX = -Infinity;
+      let minY = Infinity;
       let maxY = -Infinity;
       children.forEach(child => {
         const childConcept = conceptMap?.get(child.conceptId);
@@ -90,16 +91,18 @@ function getGroupBounds(
           if (sb) {
             minX = Math.min(minX, sb.x);
             maxX = Math.max(maxX, sb.x + sb.w);
+            minY = Math.min(minY, sb.y);
             maxY = Math.max(maxY, sb.y + sb.h);
           }
         }
       });
       const CHAPTER_PADDING = 48;
-      const chapterY = vn.y;
+      const chapterX = minX !== Infinity ? minX - CHAPTER_PADDING : vn.x;
+      const chapterY = minY !== Infinity ? minY - CHAPTER_PADDING : vn.y;
       const w = minX !== Infinity ? (maxX - minX) + CHAPTER_PADDING * 2 : 600;
-      const h = maxY !== -Infinity ? Math.max(300, (maxY - chapterY) + CHAPTER_PADDING) : 600;
+      const h = minY !== Infinity && maxY !== -Infinity ? (maxY - minY) + CHAPTER_PADDING * 2 : 600;
       return {
-        x: vn.x,
+        x: chapterX,
         y: chapterY,
         w,
         h,
@@ -1445,7 +1448,15 @@ function FloatingEdge({ id, source, target, style, label, labelStyle, selected, 
 
   const layoutAlgorithm = data?.layoutAlgorithm as string | undefined;
   const viewEdges = data?.viewEdges as any[] | undefined;
-  const customLayout = layoutAlgorithm === 'manual' ? viewEdges?.find((ve) => ve.relationId === id) : undefined;
+  const relationId = (data?.relationId as ElementId) || toElementId(id.split('__')[0]);
+  const customLayout = layoutAlgorithm === 'manual'
+    ? viewEdges?.find((ve) => {
+        if (ve.relationId !== relationId) return false;
+        const matchSrc = ve.sourceInstanceId ? ve.sourceInstanceId === source : true;
+        const matchTgt = ve.targetInstanceId ? ve.targetInstanceId === target : true;
+        return matchSrc && matchTgt;
+      })
+    : undefined;
   const isDragging = draggedSegment !== null;
 
   if (isOrthogonal) {
@@ -1974,16 +1985,59 @@ export function ReactFlowCanvas({
     requestDeleteConceptConfirm,
     removeConceptFromView,
     addConcept,
+    addConceptToView,
     addRelation,
+    updateViewEdgeLayout,
     selectConcept,
     triggerLayout,
     views,
     focusedToolbarButtonId,
     setFocusedToolbarButtonId,
     updateConcept,
+    connectAllDomainRelationsForInstance,
   } = useGraphStore();
 
+  const activeNotation = useMemo(() => NotationRegistry.forViewType(view.type), [view.type]);
+
   const [connectingSourceId, setConnectingSourceId] = useState<ElementId | null>(null);
+  const [connectSearchQuery, setConnectSearchQuery] = useState('');
+  const [selectedInstanceId, setSelectedInstanceId] = useState<string | null>(null);
+
+  const connectCandidateConcepts = useMemo(() => {
+    if (!connectingSourceId) return [];
+    const sourceVn = (view.nodes ?? []).find(vn => (vn.instanceId || vn.conceptId) === connectingSourceId);
+    const sourceConceptId = sourceVn?.conceptId || toElementId(connectingSourceId);
+    const sourceConcept = concepts.find(c => c.id === sourceConceptId);
+    if (!sourceConcept) return [];
+
+    const query = connectSearchQuery.toLowerCase().trim();
+    return concepts.filter(c => {
+      if (c.id === sourceConceptId) return false;
+      if (query && !c.name.toLowerCase().includes(query) && !c.conceptType.toLowerCase().includes(query)) return false;
+      if (activeNotation?.getAvailableRelations) {
+        const rels = activeNotation.getAvailableRelations(sourceConcept.conceptType, c.conceptType);
+        return rels.length > 0;
+      }
+      return true;
+    });
+  }, [connectingSourceId, view.nodes, concepts, connectSearchQuery, activeNotation]);
+
+  const handleSelectConnectTargetConcept = useCallback((targetConcept: ConceptNode) => {
+    if (!connectingSourceId) return;
+    const sourceVn = (view.nodes ?? []).find(vn => (vn.instanceId || vn.conceptId) === connectingSourceId);
+    const sourceConceptId = sourceVn?.conceptId || toElementId(connectingSourceId);
+
+    const targetInstanceId = `${targetConcept.id}#inst_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 6)}`;
+    const newX = (sourceVn?.x ?? 100) + 280;
+    const newY = sourceVn?.y ?? 100;
+
+    addConceptToView(view.id, targetConcept.id, newX, newY, sourceVn?.parentId, targetInstanceId);
+    const relation = addRelation(sourceConceptId, targetConcept.id, undefined, { createdBy: 'user' });
+    updateViewEdgeLayout(view.id, relation.id, undefined, undefined, [], connectingSourceId, targetInstanceId);
+
+    setConnectingSourceId(null);
+    setConnectSearchQuery('');
+  }, [connectingSourceId, view.id, view.nodes, addConceptToView, addRelation, updateViewEdgeLayout]);
 
   const selectedConceptIdsRef = useRef(selectedConceptIds);
 
@@ -1996,15 +2050,16 @@ export function ReactFlowCanvas({
 
   const computedNodes: Node[] = useMemo(() => {
     const activeNotation = NotationRegistry.forViewType(view.type);
-    const viewNodes = view.nodes ?? [];
-    const nodesMap = new Map(viewNodes.map((vn) => [vn.conceptId, vn]));
+    const viewNodes = normalizeViewNodes(view.nodes ?? []);
+    const nodesMap = new Map(viewNodes.map((vn) => [vn.instanceId || vn.conceptId, vn]));
     const conceptMap = new Map(concepts.map((c) => [c.id, c]));
 
     const groupChildrenMap = new Map<ElementId, ElementId[]>();
     viewNodes.forEach((vn) => {
       if (vn.parentId) {
+        const vnInstId = (vn.instanceId || vn.conceptId) as ElementId;
         const children = groupChildrenMap.get(vn.parentId) || [];
-        children.push(vn.conceptId);
+        children.push(vnInstId);
         groupChildrenMap.set(vn.parentId, children);
       }
     });
@@ -2022,25 +2077,28 @@ export function ReactFlowCanvas({
       });
 
       chapters.forEach(chapterVn => {
-        const chapterSlices = slices.filter(s => s.parentId === chapterVn.conceptId);
+        const chapterInstId = chapterVn.instanceId || chapterVn.conceptId;
+        const chapterSlices = slices.filter(s => s.parentId === chapterInstId || s.parentId === chapterVn.conceptId);
         let maxElementBottom = -Infinity;
         chapterSlices.forEach(sliceVn => {
-          const sliceElements = elements.filter(e => e.parentId === sliceVn.conceptId);
+          const sliceInstId = sliceVn.instanceId || sliceVn.conceptId;
+          const sliceElements = elements.filter(e => e.parentId === sliceInstId || e.parentId === sliceVn.conceptId);
           sliceElements.forEach(el => {
-            const h = el.height ?? 80;
+            const h = el.height ?? 100;
             maxElementBottom = Math.max(maxElementBottom, el.y + h);
           });
         });
 
         const sliceY = chapterVn.y + 48; // CHAPTER_PADDING
         const hSlice = maxElementBottom !== -Infinity
-          ? Math.max(200, (maxElementBottom + (view.type === 'event_modeling' ? 48 : PADDING_BOTTOM)) - sliceY)
-          : 500;
+          ? Math.max(280, (maxElementBottom + 64) - sliceY)
+          : 350;
         const hChapter = hSlice + 96; // 48 padding top + 48 padding bottom
 
-        emChapterHeights.set(chapterVn.conceptId, hChapter);
+        emChapterHeights.set(chapterInstId, hChapter);
         chapterSlices.forEach(sliceVn => {
-          emSliceHeights.set(sliceVn.conceptId, hSlice);
+          const sliceInstId = sliceVn.instanceId || sliceVn.conceptId;
+          emSliceHeights.set(sliceInstId, hSlice);
         });
       });
     }
@@ -2058,7 +2116,7 @@ export function ReactFlowCanvas({
     const getGroupDepth = (id: string, visited = new Set<string>()): number => {
       if (groupDepthMap.has(id)) return groupDepthMap.get(id)!;
       if (visited.has(id)) return 0;
-      const vn = viewNodes.find((n) => n.conceptId === id);
+      const vn = viewNodes.find((n) => (n.instanceId || n.conceptId) === id);
       if (!vn || !vn.parentId) return 0;
       visited.add(id);
       const d = 1 + getGroupDepth(vn.parentId, visited);
@@ -2066,13 +2124,14 @@ export function ReactFlowCanvas({
       groupDepthMap.set(id, d);
       return d;
     };
-    const sortedGroupNodes = [...groupNodes].sort((a, b) => getGroupDepth(b.conceptId) - getGroupDepth(a.conceptId));
+    const sortedGroupNodes = [...groupNodes].sort((a, b) => getGroupDepth((b.instanceId || b.conceptId)) - getGroupDepth((a.instanceId || a.conceptId)));
 
     sortedGroupNodes.forEach((vn) => {
+      const vnInstId = (vn.instanceId || vn.conceptId) as ElementId;
       const c = conceptMap.get(vn.conceptId);
       if (!c) return;
 
-      const childIds = groupChildrenMap.get(vn.conceptId) || [];
+      const childIds = groupChildrenMap.get(vnInstId) || groupChildrenMap.get(vn.conceptId) || [];
 
       let defaultW = view.type === 'c4' ? 240 : view.type === 'archimate' ? 210 : 200;
       let defaultH = view.type === 'c4' ? 96 : view.type === 'archimate' ? 76 : 80;
@@ -2093,15 +2152,15 @@ export function ReactFlowCanvas({
 
         if (view.type === 'event_modeling') {
           if (c.conceptType === 'em_slice') {
-            h = emSliceHeights.get(vn.conceptId) ?? 500;
+            h = emSliceHeights.get(vnInstId) ?? 500;
             w = 320;
           } else if (c.conceptType === 'em_chapter') {
-            h = emChapterHeights.get(vn.conceptId) ?? 600;
+            h = emChapterHeights.get(vnInstId) ?? 600;
             w = 600;
           }
         }
 
-        groupBounds.set(vn.conceptId, {
+        groupBounds.set(vnInstId, {
           x: vn.x,
           y: vn.y,
           w,
@@ -2126,7 +2185,7 @@ export function ReactFlowCanvas({
 
           const childVn = nodesMap.get(cid);
           if (!childVn) return;
-          const childConcept = conceptMap.get(cid);
+          const childConcept = conceptMap.get(childVn.conceptId);
           let w = childVn.width ?? defaultW;
           let h = childVn.height ?? defaultH;
           if (view.type === 'event_modeling') {
@@ -2143,8 +2202,8 @@ export function ReactFlowCanvas({
 
         if (view.type === 'event_modeling') {
           if (c.conceptType === 'em_slice') {
-            const h = emSliceHeights.get(vn.conceptId) ?? 500;
-            groupBounds.set(vn.conceptId, {
+            const h = emSliceHeights.get(vnInstId) ?? 500;
+            groupBounds.set(vnInstId, {
               x: vn.x,
               y: vn.y,
               w: 320,
@@ -2152,11 +2211,13 @@ export function ReactFlowCanvas({
             });
           } else if (c.conceptType === 'em_chapter') {
             const CHAPTER_PADDING = 48;
-            const h = emChapterHeights.get(vn.conceptId) ?? 600;
+            const chapterX = minX !== Infinity ? minX - CHAPTER_PADDING : vn.x;
+            const chapterY = minY !== Infinity ? minY - CHAPTER_PADDING : vn.y;
             const w = minX !== Infinity ? (maxX - minX) + CHAPTER_PADDING * 2 : 600;
-            groupBounds.set(vn.conceptId, {
-              x: vn.x,
-              y: vn.y,
+            const h = minY !== Infinity && maxY !== -Infinity ? (maxY - minY) + CHAPTER_PADDING * 2 : (emChapterHeights.get(vnInstId) ?? 600);
+            groupBounds.set(vnInstId, {
+              x: chapterX,
+              y: chapterY,
               w,
               h,
             });
@@ -2167,7 +2228,7 @@ export function ReactFlowCanvas({
           const gw = maxX - minX + PADDING_LEFT + PADDING_RIGHT;
           const gh = maxY - minY + PADDING_TOP + PADDING_BOTTOM;
 
-          groupBounds.set(vn.conceptId, {
+          groupBounds.set(vnInstId, {
             x: gx,
             y: gy,
             w: gw,
@@ -2177,6 +2238,26 @@ export function ReactFlowCanvas({
       }
     });
 
+    // Calculate node depths for correct z-index layering and ReactFlow render order
+    const depthMap = new Map<string, number>();
+    const getDepth = (id: string, visited = new Set<string>()): number => {
+      if (depthMap.has(id)) return depthMap.get(id)!;
+      if (visited.has(id)) {
+        depthMap.set(id, 0);
+        return 0;
+      }
+      const vn = nodesMap.get(id as ElementId);
+      if (!vn || !vn.parentId) {
+        depthMap.set(id, 0);
+        return 0;
+      }
+      visited.add(id);
+      const d = 1 + getDepth(vn.parentId, visited);
+      visited.delete(id);
+      depthMap.set(id, d);
+      return d;
+    };
+
     const mappedNodes = viewNodes.flatMap((vn) => {
       const c = conceptMap.get(vn.conceptId);
       if (!c) return [];
@@ -2185,12 +2266,14 @@ export function ReactFlowCanvas({
       const parentConcept = vn.parentId ? conceptMap.get(vn.parentId) : undefined;
       const parentId = vn.parentId && nodesMap.has(vn.parentId) && parentConcept && (parentConcept.conceptType === 'bounded_context' || parentConcept.conceptType === 'em_chapter' || parentConcept.conceptType === 'em_slice') ? vn.parentId : undefined;
 
+      const nodeInstId = (vn.instanceId || vn.conceptId) as ElementId;
+
       // Calculate position
       let position = { x: vn.x, y: vn.y };
       let style: React.CSSProperties | undefined = undefined;
 
       if (isGroup) {
-        const bounds = groupBounds.get(c.id);
+        const bounds = groupBounds.get(nodeInstId) || groupBounds.get(c.id);
         if (bounds) {
           if (parentId) {
             const pBounds = groupBounds.get(parentId);
@@ -2207,7 +2290,8 @@ export function ReactFlowCanvas({
       } else if (parentId) {
         const pBounds = groupBounds.get(parentId);
         if (pBounds) {
-          const parentConcept = conceptMap.get(parentId);
+          const parentVn = nodesMap.get(parentId);
+          const parentConcept = parentVn ? conceptMap.get(parentVn.conceptId) : conceptMap.get(parentId);
           if (view.type === 'event_modeling' && parentConcept?.conceptType === 'em_slice') {
             const childW = vn.width ?? 260;
             position = { x: (320 - childW) / 2, y: vn.y - pBounds.y };
@@ -2255,115 +2339,120 @@ export function ReactFlowCanvas({
         }
       }
 
+      const nodeInstanceId = vn.instanceId || vn.conceptId;
+      const depth = getDepth(nodeInstanceId);
+      const calculatedZIndex = isGroup
+        ? (c.conceptType === 'em_chapter' ? 0 : 1)
+        : (100 + depth * 10);
+
+      const nodeStyle: React.CSSProperties = {
+        ...style,
+        zIndex: calculatedZIndex,
+      };
+
+      const isInstanceSelected = selectedInstanceId
+        ? nodeInstanceId === selectedInstanceId
+        : (selectedConceptIds.includes(c.id) &&
+           nodeInstanceId === (viewNodes.find(vn => vn.conceptId === c.id)?.instanceId || c.id));
+
       return [{
-        id: c.id,
+        id: nodeInstanceId,
         type: 'conceptNode',
         position,
         parentId,
-        selected: selectedConceptIds.includes(c.id),
+        selected: isInstanceSelected,
         draggable: currentAlgo === 'manual' && !isProposed,
         className: classNames.length > 0 ? classNames.join(' ') : undefined,
-        style,
+        style: nodeStyle,
         data: {
+          instanceId: nodeInstanceId,
+          conceptId: c.id,
           name: c.name,
           type: c.conceptType.replace('_', ' '),
           lifecycle: c.lifecycleState,
           concept: c,
           isConnectingActive,
           isValidConnectionTarget,
-          isConnectingSource: c.id === connectingSourceId,
+          isConnectingSource: nodeInstanceId === connectingSourceId || c.id === connectingSourceId,
         },
       }];
     });
 
-    // Sort nodes by nesting depth so parent nodes are processed before child nodes
-    const depthMap = new Map<string, number>();
-    const getDepth = (id: string, visited = new Set<string>()): number => {
-      if (depthMap.has(id)) return depthMap.get(id)!;
-      if (visited.has(id)) {
-        depthMap.set(id, 0);
-        return 0;
-      }
-      const vn = nodesMap.get(id as ElementId);
-      if (!vn || !vn.parentId) {
-        depthMap.set(id, 0);
-        return 0;
-      }
-      visited.add(id);
-      const d = 1 + getDepth(vn.parentId, visited);
-      visited.delete(id);
-      depthMap.set(id, d);
-      return d;
-    };
-
     return mappedNodes.sort((a, b) => getDepth(a.id) - getDepth(b.id));
-  }, [concepts, selectedConceptIds, view, currentAlgo, connectingSourceId]);
+  }, [concepts, selectedConceptIds, selectedInstanceId, view, currentAlgo, connectingSourceId]);
 
   const initialEdges: Edge[] = useMemo(() => {
     const activeNotation = NotationRegistry.forViewType(view.type);
+    const viewNodes = normalizeViewNodes(view.nodes ?? []);
+    const resultEdges: Edge[] = [];
 
-    // Group relations by unordered node pairs to calculate index and total parallel edges
-    const pairGroups: Record<string, string[]> = {};
     relations.forEach((r) => {
-      const key = [r.sourceConceptId, r.targetConceptId].sort().join('---');
-      if (!pairGroups[key]) {
-        pairGroups[key] = [];
-      }
-      pairGroups[key].push(r.id);
+      const sourceNodes = viewNodes.filter((vn) => vn.conceptId === r.sourceConceptId);
+      const targetNodes = viewNodes.filter((vn) => vn.conceptId === r.targetConceptId);
+
+      if (sourceNodes.length === 0 || targetNodes.length === 0) return;
+
+      sourceNodes.forEach((sNode) => {
+        const srcInst = sNode.instanceId || sNode.conceptId;
+
+        targetNodes.forEach((tNode) => {
+          const tgtInst = tNode.instanceId || tNode.conceptId;
+
+          const isVisible = isEdgeVisibleForInstances(viewNodes, view.viewEdges, r, srcInst, tgtInst);
+          if (!isVisible) return;
+
+          const isSelected = r.id === selectedRelationId;
+          let markerEndStr: string | undefined;
+          let markerStartStr: string | undefined;
+          let strokeDash: string;
+          let edgeStyle: React.CSSProperties | undefined = undefined;
+
+          if (activeNotation?.getEdgeStyle) {
+            const style = activeNotation.getEdgeStyle(r, isSelected);
+            strokeDash = style.strokeDasharray ?? 'none';
+            markerEndStr = style.markerEnd;
+            markerStartStr = style.markerStart;
+            if (style.stroke) {
+              edgeStyle = { stroke: style.stroke };
+            }
+          } else {
+            markerEndStr = isSelected ? 'url(#arrow-closed-selected)' : 'url(#arrow-closed)';
+            markerStartStr = undefined;
+            strokeDash = 'none';
+          }
+
+          const isProposed = (r as any).isProposed;
+
+          resultEdges.push({
+            id: `${r.id}__${srcInst}__${tgtInst}`,
+            source: srcInst,
+            target: tgtInst,
+            type: 'floating',
+            label: r.name,
+            selected: isSelected,
+            className: isProposed ? 'ai-proposed-edge' : undefined,
+            style: edgeStyle,
+            data: {
+              relationId: r.id,
+              selectRelation: onRelationSelect,
+              strokeDasharray: strokeDash,
+              markerEnd: markerEndStr,
+              markerStart: markerStartStr,
+              multiplicity: r.multiplicity,
+              edgeIndex: 0,
+              totalEdges: 1,
+              viewType: view.type,
+              layoutAlgorithm: view.layoutAlgorithm,
+              viewEdges: view.viewEdges,
+            },
+          });
+        });
+      });
     });
 
-    return relations.map((r) => {
-      const key = [r.sourceConceptId, r.targetConceptId].sort().join('---');
-      const group = pairGroups[key] || [];
-      const totalEdges = group.length;
-      const edgeIndex = group.indexOf(r.id);
-
-      const isSelected = r.id === selectedRelationId;
-      let markerEndStr: string | undefined;
-      let markerStartStr: string | undefined;
-      let strokeDash: string;
-      let edgeStyle: React.CSSProperties | undefined = undefined;
-
-      if (activeNotation?.getEdgeStyle) {
-        const style = activeNotation.getEdgeStyle(r, isSelected);
-        strokeDash = style.strokeDasharray ?? 'none';
-        markerEndStr = style.markerEnd;
-        markerStartStr = style.markerStart;
-        if (style.stroke) {
-          edgeStyle = { stroke: style.stroke };
-        }
-      } else {
-        // default triggered / flow / other
-        markerEndStr = isSelected ? 'url(#arrow-closed-selected)' : 'url(#arrow-closed)';
-        markerStartStr = undefined;
-        strokeDash = 'none';
-      }
-
-      const isProposed = (r as any).isProposed;
-      return {
-        id: r.id,
-        source: r.sourceConceptId,
-        target: r.targetConceptId,
-        type: 'floating',
-        label: r.name,
-        selected: isSelected,
-        className: isProposed ? 'ai-proposed-edge' : undefined,
-        style: edgeStyle,
-        data: {
-          selectRelation: onRelationSelect,
-          strokeDasharray: strokeDash,
-          markerEnd: markerEndStr,
-          markerStart: markerStartStr,
-          multiplicity: r.multiplicity,
-          edgeIndex,
-          totalEdges,
-          viewType: view.type,
-          layoutAlgorithm: view.layoutAlgorithm,
-          viewEdges: view.viewEdges,
-        },
-      };
-    });
-  }, [relations, selectedRelationId, onRelationSelect, view.type, view.layoutAlgorithm, view.viewEdges]);
+    console.log('[initialEdges generated]', resultEdges.map((e) => ({ id: e.id, source: e.source, target: e.target })));
+    return resultEdges;
+  }, [relations, selectedRelationId, onRelationSelect, view.type, view.layoutAlgorithm, view.viewEdges, view.nodes]);
 
   const [nodes, setNodes] = useNodesState(computedNodes);
   const [edges, setEdges] = useEdgesState(initialEdges);
@@ -2555,9 +2644,11 @@ export function ReactFlowCanvas({
             (conceptA.aliases ?? []).join(',') !== (conceptB.aliases ?? []).join(',') ||
             propsFingerprint(conceptA) !== propsFingerprint(conceptB);
 
-          // Use the live store value for selection — not n.selected from the
-          // potentially stale computedNodes closure.
-          const freshSelected = freshSelectedIds.includes(n.id as ElementId);
+          // Use the live store value and selectedInstanceId for selection
+          const conceptIdOfNode = (n.data?.conceptId as ElementId) || toElementId(n.id);
+          const freshSelected = selectedInstanceId
+            ? n.id === selectedInstanceId
+            : freshSelectedIds.includes(conceptIdOfNode) && n.id === ((view.nodes ?? []).find(vn => vn.conceptId === conceptIdOfNode)?.instanceId || conceptIdOfNode);
 
           const changed =
             Math.abs(existingNode.position.x - n.position.x) > 0.1 ||
@@ -2599,58 +2690,38 @@ export function ReactFlowCanvas({
 
       return hasChanges ? nextNodes : currentNodes;
     });
-    setEdges((currentEdges) => {
-      let hasChanges = false;
-      const nextEdges = initialEdges.map((e) => {
-        const existingEdge = currentEdges.find((ce) => ce.id === e.id);
-        if (existingEdge) {
-          const changed =
-            existingEdge.source !== e.source ||
-            existingEdge.target !== e.target ||
-            existingEdge.label !== e.label ||
-            existingEdge.selected !== e.selected ||
-            existingEdge.className !== e.className ||
-            existingEdge.style?.stroke !== e.style?.stroke ||
-            existingEdge.data?.strokeDasharray !== e.data?.strokeDasharray ||
-            existingEdge.data?.markerEnd !== e.data?.markerEnd ||
-            existingEdge.data?.markerStart !== e.data?.markerStart ||
-            existingEdge.data?.multiplicity !== e.data?.multiplicity ||
-            existingEdge.data?.edgeIndex !== e.data?.edgeIndex ||
-            existingEdge.data?.totalEdges !== e.data?.totalEdges ||
-            existingEdge.data?.layoutAlgorithm !== e.data?.layoutAlgorithm ||
-            JSON.stringify(existingEdge.data?.viewEdges) !== JSON.stringify(e.data?.viewEdges);
-          if (!changed) return existingEdge;
-          hasChanges = true;
-          return {
-            ...existingEdge,
-            source: e.source,
-            target: e.target,
-            label: e.label,
-            selected: e.selected,
-            className: e.className,
-            style: e.style,
-            data: e.data,
-          };
-        }
-        hasChanges = true;
-        return e;
-      });
-
-      const orderChanged =
-        currentEdges.length !== nextEdges.length ||
-        currentEdges.some((ce, idx) => nextEdges[idx] && ce.id !== nextEdges[idx].id);
-      if (orderChanged) hasChanges = true;
-
-      return hasChanges ? nextEdges : currentEdges;
-    });
+    console.log('[setEdges called]', initialEdges.map((e) => e.id));
+    setEdges(initialEdges);
   }, [computedNodes, initialEdges, setNodes, setEdges]);
 
   const onConnectHandler: OnConnect = useCallback((connection) => {
     if (connection.source && connection.target) {
-      onConnect(toElementId(connection.source), toElementId(connection.target));
+      const sourceNode = view.nodes.find((vn) => (vn.instanceId || vn.conceptId) === connection.source);
+      const targetNode = view.nodes.find((vn) => (vn.instanceId || vn.conceptId) === connection.target);
+      const sourceConceptId = sourceNode?.conceptId || toElementId(connection.source);
+      const targetConceptId = targetNode?.conceptId || toElementId(connection.target);
+
+      onConnect(sourceConceptId, targetConceptId);
+
+      const relations = useGraphStore.getState().relations;
+      const relation = relations.find(
+        (r) => r.sourceConceptId === sourceConceptId && r.targetConceptId === targetConceptId
+      );
+
+      if (relation) {
+        useGraphStore.getState().updateViewEdgeLayout(
+          view.id,
+          relation.id,
+          undefined,
+          undefined,
+          [],
+          connection.source,
+          connection.target
+        );
+      }
       setConnectingSourceId(null);
     }
-  }, [onConnect]);
+  }, [onConnect, view.nodes, view.id]);
 
   const isValidConnection = useCallback((connection: { source: string; target: string }) => {
     if (connection.source === connection.target) return false;
@@ -2678,17 +2749,30 @@ export function ReactFlowCanvas({
   }, [concepts, view.type]);
 
   const onSelectionChange = useCallback(({ nodes: selectedNodes }: { nodes: Node[] }) => {
-    const ids = selectedNodes.map((n) => toElementId(n.id));
+    if (selectedNodes.length === 0) {
+      setSelectedInstanceId(null);
+      setSelectedConceptIds([]);
+      return;
+    }
 
-    // Compare ids with selectedConceptIdsRef.current to avoid redundant state updates
-    const currentIds = selectedConceptIdsRef.current;
-    const isSame =
-      ids.length === currentIds.length &&
-      ids.every((id) => currentIds.includes(id));
+    if (selectedNodes.length === 1) {
+      const clickedNode = selectedNodes[0];
+      const instanceId = clickedNode.id;
+      const conceptId = (clickedNode.data?.conceptId as ElementId) || toElementId(clickedNode.id);
 
-    if (isSame) return;
+      setSelectedInstanceId(instanceId);
+      const currentIds = selectedConceptIdsRef.current;
+      if (currentIds.length !== 1 || currentIds[0] !== conceptId) {
+        setSelectedConceptIds([conceptId]);
+      }
+      return;
+    }
 
-    setSelectedConceptIds(ids);
+    const conceptIds = Array.from(new Set(selectedNodes.map((n) => (n.data?.conceptId as ElementId) || toElementId(n.id))));
+    const lastInstanceId = selectedNodes[selectedNodes.length - 1]?.id ?? null;
+
+    setSelectedInstanceId(lastInstanceId);
+    setSelectedConceptIds(conceptIds);
   }, [setSelectedConceptIds]);
 
   const onNodeDragStart = useCallback((_: React.MouseEvent, node: Node) => {
@@ -3190,19 +3274,21 @@ export function ReactFlowCanvas({
     e.stopPropagation();
     if (!selectedConceptId) return;
 
-    const viewsContaining = views.filter((v) =>
-      v.nodes.some((vn) => vn.conceptId === selectedConceptId),
-    );
-    const hasLastOccurrence = viewsContaining.length <= 1;
+    const totalInstances = views.reduce((acc, v) => {
+      return acc + v.nodes.filter((vn) => vn.conceptId === selectedConceptId).length;
+    }, 0);
+    const isOnlySingleInstanceLeftGlobally = totalInstances <= 1;
 
-    if (hasLastOccurrence) {
+    const targetId = (selectedInstanceId || selectedConceptId) as ElementId;
+
+    if (isOnlySingleInstanceLeftGlobally) {
       const concept = concepts.find((c) => c.id === selectedConceptId);
       const name = concept?.name ?? selectedConceptId;
       requestDeleteConceptConfirm([selectedConceptId], [name], view.id);
     } else {
-      removeConceptFromView(view.id, selectedConceptId);
+      removeConceptFromView(view.id, targetId);
     }
-  }, [selectedConceptId, views, concepts, requestDeleteConceptConfirm, removeConceptFromView, view.id]);
+  }, [selectedConceptId, selectedInstanceId, views, concepts, requestDeleteConceptConfirm, removeConceptFromView, view.id]);
 
   const handleArrowClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -3210,6 +3296,51 @@ export function ReactFlowCanvas({
       setConnectingSourceId((prev) => (prev === selectedConceptId ? null : selectedConceptId));
     }
   }, [selectedConceptId]);
+
+  const unconnectedRelationsCount = useMemo(() => {
+    if (!selectedConceptId || !view) return 0;
+    const targetInstId = selectedInstanceId || selectedConceptId;
+    const rawDomainRels = relations.filter(
+      (r) => r.sourceConceptId === selectedConceptId || r.targetConceptId === selectedConceptId
+    );
+    if (rawDomainRels.length === 0) return 0;
+
+    const seenPairs = new Set<string>();
+    const domainRels = rawDomainRels.filter((r) => {
+      const key = `${r.sourceConceptId}->${r.targetConceptId}`;
+      if (seenPairs.has(key)) return false;
+      seenPairs.add(key);
+      return true;
+    });
+
+    const viewNodes = normalizeViewNodes(view.nodes ?? []);
+    let count = 0;
+
+    domainRels.forEach((rel) => {
+      const isSource = rel.sourceConceptId === selectedConceptId;
+      const otherConceptId = isSource ? rel.targetConceptId : rel.sourceConceptId;
+      const otherNodesInView = viewNodes.filter((vn) => vn.conceptId === otherConceptId);
+
+      otherNodesInView.forEach((otherVn) => {
+        const otherInstId = otherVn.instanceId || otherVn.conceptId;
+        const srcInst = isSource ? targetInstId : otherInstId;
+        const tgtInst = isSource ? otherInstId : targetInstId;
+
+        const hasEdge = isEdgeVisibleForInstances(viewNodes, view.viewEdges, rel, srcInst, tgtInst);
+        if (!hasEdge) count++;
+      });
+    });
+
+    return count;
+  }, [selectedConceptId, selectedInstanceId, view, relations]);
+
+  const handleConnectAllClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    const targetInstId = selectedInstanceId || selectedConceptId;
+    if (targetInstId && view?.id) {
+      connectAllDomainRelationsForInstance(view.id, targetInstId);
+    }
+  }, [selectedConceptId, selectedInstanceId, view?.id, connectAllDomainRelationsForInstance]);
 
   const handleCreateTargetNodeClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -3617,22 +3748,39 @@ export function ReactFlowCanvas({
   }, [connectingSourceId]);
 
   const onNodeClick: NodeMouseHandler = useCallback((e, node) => {
+    const targetInstanceId = node.id;
+    const targetConceptId = (node.data as any).conceptId || toElementId(node.id);
+
     if (connectingSourceId) {
       e.stopPropagation();
-      const targetId = toElementId(node.id);
-      if (connectingSourceId !== targetId) {
-        addRelation(connectingSourceId, targetId, undefined, { createdBy: 'user' });
+      const sourceVn = view.nodes.find(vn => (vn.instanceId || vn.conceptId) === connectingSourceId);
+      const sourceConceptId = sourceVn?.conceptId || toElementId(connectingSourceId);
+
+      if (connectingSourceId !== targetInstanceId && sourceConceptId !== targetConceptId) {
+        const relation = addRelation(sourceConceptId, targetConceptId, undefined, { createdBy: 'user' });
+        useGraphStore.getState().updateViewEdgeLayout(
+          view.id,
+          relation.id,
+          undefined,
+          undefined,
+          [],
+          connectingSourceId,
+          targetInstanceId
+        );
       }
       setConnectingSourceId(null);
     } else {
-      onNodeSelect(toElementId(node.id));
+      setSelectedInstanceId(targetInstanceId);
+      selectConcept(targetConceptId, targetInstanceId);
     }
-  }, [connectingSourceId, addRelation, onNodeSelect]);
+  }, [connectingSourceId, addRelation, selectConcept, view.id, view.nodes]);
 
   const onNodeDoubleClick: NodeMouseHandler = useCallback((_, node) => {
-    onNodeSelect(toElementId(node.id));
+    const conceptId = (node.data?.conceptId as ElementId) || toElementId(node.id);
+    setSelectedInstanceId(node.id);
+    selectConcept(conceptId, node.id);
     document.dispatchEvent(new CustomEvent('focus-inspector'));
-  }, [onNodeSelect]);
+  }, [selectConcept]);
 
   const onKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Escape' && connectingSourceId) {
@@ -3645,12 +3793,88 @@ export function ReactFlowCanvas({
     if (isDelete) {
       e.preventDefault();
       e.stopPropagation();
+      handleDeleteClick(e as any);
     }
-  }, [connectingSourceId]);
+  }, [connectingSourceId, handleDeleteClick]);
 
   const hintsWidth = footerHintsWidth || hintsRef.current?.getBoundingClientRect().width || 380;
   const layoutWidth = footerLayoutWidth || 270;
   const shouldStack = canvasWidth > 0 && canvasWidth < layoutWidth + hintsWidth + 220;
+
+  const onDragOverCanvas = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  }, []);
+
+  const onDropCanvas = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const conceptIdStr = e.dataTransfer.getData('text/plain');
+    if (!conceptIdStr) return;
+
+    const conceptId = toElementId(conceptIdStr);
+    const concept = concepts.find((c) => c.id === conceptId);
+    if (!concept) return;
+
+    const flowPos = reactFlow.screenToFlowPosition({ x: e.clientX, y: e.clientY });
+
+    const viewNodes = view.nodes ?? [];
+    const conceptMap = new Map(concepts.map((c) => [c.id, c]));
+
+    let targetParentId: ElementId | undefined = undefined;
+    let targetSliceVn: ViewNode | undefined = undefined;
+
+    // Search for a slice or chapter container under the drop coordinates
+    for (const vn of viewNodes) {
+      const c = conceptMap.get(vn.conceptId);
+      if (!c || (c.conceptType !== 'em_slice' && c.conceptType !== 'em_chapter' && c.conceptType !== 'bounded_context')) continue;
+
+      const bounds = getGroupBounds(vn.conceptId, viewNodes, view.type, conceptMap);
+      if (bounds) {
+        if (
+          flowPos.x >= bounds.x &&
+          flowPos.x <= bounds.x + bounds.w &&
+          flowPos.y >= bounds.y &&
+          flowPos.y <= bounds.y + bounds.h
+        ) {
+          targetParentId = vn.instanceId ? toElementId(vn.instanceId) : vn.conceptId;
+          targetSliceVn = vn;
+          // Prefer em_slice if nested inside em_chapter
+          if (c.conceptType === 'em_slice') {
+            break;
+          }
+        }
+      }
+    }
+
+    // Default to selected container if drop was near or selected
+    if (!targetParentId && selectedConceptId) {
+      const selVn = viewNodes.find(vn => (vn.instanceId || vn.conceptId) === selectedInstanceId || vn.conceptId === selectedConceptId);
+      if (selVn) {
+        const selC = conceptMap.get(selVn.conceptId);
+        if (selC && (selC.conceptType === 'em_slice' || selC.conceptType === 'em_chapter')) {
+          targetParentId = selVn.instanceId ? toElementId(selVn.instanceId) : selVn.conceptId;
+          targetSliceVn = selVn;
+        }
+      }
+    }
+
+    let dropX = flowPos.x;
+    let dropY = flowPos.y;
+
+    if (targetSliceVn && view.type === 'event_modeling') {
+      const targetC = conceptMap.get(targetSliceVn.conceptId);
+      if (targetC?.conceptType === 'em_slice') {
+        const sliceBounds = getGroupBounds(targetSliceVn.conceptId, viewNodes, view.type, conceptMap);
+        const childW = 260;
+        if (sliceBounds) {
+          dropX = sliceBounds.x + (320 - childW) / 2;
+        }
+      }
+    }
+
+    addConceptToView(view.id, conceptId, dropX, dropY, targetParentId);
+  }, [reactFlow, concepts, view, getGroupBounds, addConceptToView, selectedConceptId, selectedInstanceId]);
 
   const showToolbar = selectedConceptIds.length === 1 && selectedConceptId;
 
@@ -3691,20 +3915,54 @@ export function ReactFlowCanvas({
         </defs>
       </svg>
 
-      {/* Click-to-connect Mode Indicator Banner */}
+      {/* Click-to-connect Mode Indicator Banner with Target Concept Search */}
       {connectingSourceId && (
-        <div className="absolute top-6 left-1/2 -translate-x-1/2 z-[200] flex items-center gap-3 px-5 py-3 bg-emerald-600/90 backdrop-blur-md border border-emerald-500/30 rounded-2xl shadow-xl text-white font-sans text-[12px] font-bold animate-bounce select-none pointer-events-auto">
-          <span>🔗 Klik på en anden node for at oprette relation</span>
-          <button
-            onClick={() => setConnectingSourceId(null)}
-            className="p-1 hover:bg-white/20 rounded-lg transition-colors text-white/80 hover:text-white cursor-pointer"
-          >
-            <X size={14} />
-          </button>
+        <div className="absolute top-6 left-1/2 -translate-x-1/2 z-[200] flex flex-col gap-2 p-3 bg-emerald-700/95 backdrop-blur-md border border-emerald-500/40 rounded-2xl shadow-2xl text-white font-sans text-[12px] select-none pointer-events-auto min-w-[340px] max-w-[440px]">
+          <div className="flex items-center justify-between gap-2 px-1">
+            <span className="font-bold flex items-center gap-1.5 text-emerald-100">
+              <span>🔗 Opret relation</span>
+              <span className="text-[10px] bg-emerald-800/80 px-2 py-0.5 rounded-full text-emerald-200 font-normal">
+                Klik på lærred ELLER søg i model
+              </span>
+            </span>
+            <button
+              onClick={() => { setConnectingSourceId(null); setConnectSearchQuery(''); }}
+              className="p-1 hover:bg-white/20 rounded-lg transition-colors text-white/80 hover:text-white cursor-pointer"
+              title="Annuller (Esc)"
+            >
+              <X size={14} />
+            </button>
+          </div>
+
+          <input
+            type="text"
+            value={connectSearchQuery}
+            onChange={(e) => setConnectSearchQuery(e.target.value)}
+            placeholder="Søg eksisterende begreb at forbinde til..."
+            className="w-full px-3 py-1.5 bg-emerald-900/60 border border-emerald-500/50 rounded-xl text-white placeholder-emerald-300/60 text-[11px] focus:outline-none focus:ring-2 focus:ring-emerald-300"
+            autoFocus
+          />
+
+          {connectCandidateConcepts.length > 0 && (
+            <div className="max-h-48 overflow-y-auto custom-scrollbar flex flex-col gap-1 mt-1 bg-emerald-900/40 p-1.5 rounded-xl border border-emerald-600/30">
+              {connectCandidateConcepts.slice(0, 8).map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => handleSelectConnectTargetConcept(c)}
+                  className="flex items-center justify-between px-2.5 py-1.5 rounded-lg hover:bg-emerald-600/60 text-left text-white text-[11px] transition-colors cursor-pointer group"
+                >
+                  <span className="font-medium truncate mr-2">{c.name}</span>
+                  <span className="text-[9px] uppercase tracking-wider font-bold bg-emerald-950/60 text-emerald-300 px-1.5 py-0.5 rounded shrink-0">
+                    {c.conceptType.replace('_', ' ')}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
-      <div className="absolute inset-0">
+      <div className="absolute inset-0" onDragOver={onDragOverCanvas} onDrop={onDropCanvas}>
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -3720,7 +3978,7 @@ export function ReactFlowCanvas({
           onNodeDragStop={onNodeDragStop}
           onEdgeClick={(_e, edge) => onRelationSelect(toElementId(edge.id))}
           onEdgeDoubleClick={(_e, edge) => useGraphStore.getState().resetViewEdgeLayout(view.id, toElementId(edge.id))}
-          onPaneClick={() => { onNodeSelect(null); onRelationSelect(null); }}
+          onPaneClick={() => { setSelectedInstanceId(null); onNodeSelect(null); onRelationSelect(null); }}
           onSelectionChange={onSelectionChange}
           edgeTypes={edgeTypes}
           deleteKeyCode={null}
@@ -3738,7 +3996,7 @@ export function ReactFlowCanvas({
           {/* Top Quick Actions Toolbar */}
           {showToolbar && topActions.length > 0 && (
             <NodeToolbar
-              nodeId={selectedConceptId}
+              nodeId={selectedInstanceId || selectedConceptId}
               position={Position.Top}
               align="center"
               offset={12}
@@ -3768,7 +4026,7 @@ export function ReactFlowCanvas({
           {/* Right Quick Actions Toolbar */}
           {showToolbar && rightActions.length > 0 && (
             <NodeToolbar
-              nodeId={selectedConceptId}
+              nodeId={selectedInstanceId || selectedConceptId}
               position={Position.Right}
               align="center"
               offset={12}
@@ -3798,7 +4056,7 @@ export function ReactFlowCanvas({
           {/* Left Quick Actions Toolbar */}
           {showToolbar && leftActions.length > 0 && (
             <NodeToolbar
-              nodeId={selectedConceptId}
+              nodeId={selectedInstanceId || selectedConceptId}
               position={Position.Left}
               align="center"
               offset={12}
@@ -3828,7 +4086,7 @@ export function ReactFlowCanvas({
           {/* Premium Mouse-based Interactive Selected Node Overlay Toolbar (Bottom) */}
           {showToolbar && (
             <NodeToolbar
-              nodeId={selectedConceptId}
+              nodeId={selectedInstanceId || selectedConceptId}
               position={Position.Bottom}
               align="center"
               offset={12}
@@ -3863,6 +4121,18 @@ export function ReactFlowCanvas({
                 >
                   <ArrowUpRight size={15} strokeWidth={2.5} />
                 </button>
+
+                {/* Auto-Connect Un-connected Domain Relations Quick Action Button */}
+                {unconnectedRelationsCount > 0 && (
+                  <button
+                    onClick={handleConnectAllClick}
+                    title={`Auto-forbind ${unconnectedRelationsCount} relaterede noder i dette view`}
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-200 transition-all font-bold text-[10px] uppercase tracking-wider active:scale-95 cursor-pointer ml-1"
+                  >
+                    <Zap size={13} className="text-emerald-600" />
+                    Forbind ({unconnectedRelationsCount})
+                  </button>
+                )}
 
                 {/* Create Linked Target Concept Button (Alt+N counterpart with auto-connect) */}
                 <button

@@ -96,7 +96,7 @@ def main():
                 label = "Visual Notations Registry"
         elif "src/core" in folder_str:
             label = "Core File & Git Systems"
-        elif ".agent/wiki" in folder_str or ".agent/wiki" in file_str:
+        elif "wiki" in folder_str or "wiki" in file_str:
             label = "Ontology Documentation Wiki"
         elif folder_str:
             # Clean up the folder name

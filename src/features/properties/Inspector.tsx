@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { useGraphStore } from '../../store/useGraphStore';
+import { useGraphStore, isEdgeVisibleForInstances, normalizeViewNodes } from '../../store/useGraphStore';
 import { useShallow } from 'zustand/react/shallow';
 import { LifecycleState, ConceptType, type ConceptProperty, type ConceptNode, type ElementId } from '../../schema/graphSchema';
 import { NotationRegistry } from '../../notations/NotationRegistry';
@@ -13,14 +13,16 @@ import {
   ArrowUpDown,
   Eye,
   Layers,
-  Sliders
+  Sliders,
+  Zap
 } from 'lucide-react';
 
 export function Inspector() {
   const { 
     concepts, 
     relations, 
-    selectedConceptId, 
+    selectedConceptId,
+    selectedInstanceId,
     selectedRelationId,
     deleteConcept,
     updateConcept,
@@ -45,6 +47,7 @@ export function Inspector() {
       concepts: s?.concepts || [],
       relations: s?.relations || [],
       selectedConceptId: s?.selectedConceptId,
+      selectedInstanceId: s?.selectedInstanceId,
       selectedRelationId: s?.selectedRelationId,
       deleteConcept: s?.deleteConcept,
       updateConcept: s?.updateConcept,
@@ -75,7 +78,9 @@ export function Inspector() {
   const activeView = views.find((v) => v.id === activeViewId);
   const activeNotation = activeView ? NotationRegistry.forViewType(activeView.type) : undefined;
 
-  const viewNode = activeView?.nodes.find((n) => n.conceptId === concept?.id);
+  const viewNode = activeView?.nodes.find((n) =>
+    selectedInstanceId ? (n.instanceId || n.conceptId) === selectedInstanceId : n.conceptId === concept?.id
+  );
   const parentId = viewNode?.parentId;
 
   // Inspector Micro-Navigation: Cmd + ArrowUp/Down to jump sections
@@ -401,10 +406,11 @@ export function Inspector() {
                           value={parentId ?? ""}
                           onChange={(e) => {
                             const groupId = e.target.value;
+                            const targetId = (viewNode?.instanceId || concept.id) as ElementId;
                             if (groupId) {
-                              updateViewNodeParentId(activeViewId, concept.id, groupId as ElementId);
+                              updateViewNodeParentId(activeViewId, targetId, groupId as ElementId);
                             } else {
-                              ungroupConcept(activeViewId, concept.id);
+                              ungroupConcept(activeViewId, targetId);
                             }
                           }}
                           className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[12px] font-semibold text-slate-700 hover:border-slate-300 focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/5 outline-none appearance-none cursor-pointer transition-all"
@@ -413,7 +419,9 @@ export function Inspector() {
                           {activeView?.nodes
                             .filter((vn) => {
                               const c = concepts.find((comp) => comp.id === vn.conceptId);
-                              if (!c || c.id === concept.id) return false;
+                              const targetInstId = viewNode?.instanceId || concept.id;
+                              const vnInstId = vn.instanceId || vn.conceptId;
+                              if (!c || vnInstId === targetInstId || c.id === concept.id) return false;
                               if (activeView?.type === 'event_modeling') {
                                 if (concept.conceptType === 'em_slice') {
                                   return c.conceptType === 'em_chapter';
@@ -426,8 +434,9 @@ export function Inspector() {
                             })
                             .map((vn) => {
                               const c = concepts.find((comp) => comp.id === vn.conceptId);
+                              const val = vn.instanceId || vn.conceptId;
                               return (
-                                <option key={vn.conceptId} value={vn.conceptId}>
+                                <option key={val} value={val}>
                                   {c?.name || 'Navnløs gruppe'}
                                 </option>
                               );
@@ -499,6 +508,190 @@ export function Inspector() {
                     concepts={concepts}
                   />
                 )}
+
+                {/* Relationer & Forbindelser section */}
+                {activeView && concept && (() => {
+                  const currentInstanceId = selectedInstanceId || viewNode?.instanceId || concept.id;
+                  const rawDomainRelations = relations.filter(
+                    (r) => r.sourceConceptId === concept.id || r.targetConceptId === concept.id
+                  );
+
+                  const domainRelations = rawDomainRelations;
+
+                  if (domainRelations.length === 0) return null;
+
+                  const viewNodes = normalizeViewNodes(activeView.nodes ?? []);
+                  const viewEdges = activeView.viewEdges ?? [];
+
+                  const inViewItems: Array<{
+                    relation: typeof relations[0];
+                    isSource: boolean;
+                    relatedConcept: typeof concepts[0];
+                    relatedNodeInstance: typeof viewNodes[0];
+                    hasEdge: boolean;
+                  }> = [];
+
+                  const notInViewItems: Array<{
+                    relation: typeof relations[0];
+                    isSource: boolean;
+                    relatedConcept: typeof concepts[0];
+                  }> = [];
+
+                  domainRelations.forEach((rel) => {
+                    const isSource = rel.sourceConceptId === concept.id;
+                    const otherConceptId = isSource ? rel.targetConceptId : rel.sourceConceptId;
+                    const otherConcept = concepts.find((c) => c.id === otherConceptId);
+                    if (!otherConcept) return;
+
+                    const otherNodesInView = viewNodes.filter((vn) => vn.conceptId === otherConceptId);
+
+                    if (otherNodesInView.length > 0) {
+                      otherNodesInView.forEach((otherVn) => {
+                        const otherInstId = otherVn.instanceId || otherVn.conceptId;
+                        const srcInst = isSource ? currentInstanceId : otherInstId;
+                        const tgtInst = isSource ? otherInstId : currentInstanceId;
+
+                        const hasEdge = isEdgeVisibleForInstances(viewNodes, viewEdges, rel, srcInst, tgtInst);
+
+                        inViewItems.push({
+                          relation: rel,
+                          isSource,
+                          relatedConcept: otherConcept,
+                          relatedNodeInstance: otherVn,
+                          hasEdge,
+                        });
+                      });
+                    } else {
+                      notInViewItems.push({
+                        relation: rel,
+                        isSource,
+                        relatedConcept: otherConcept,
+                      });
+                    }
+                  });
+
+                  const hasUnconnectedInView = inViewItems.some((item) => !item.hasEdge);
+
+                  return (
+                    <InspectorSection
+                      title="Relationer & Forbindelser"
+                      rightAction={
+                        hasUnconnectedInView ? (
+                          <button
+                            type="button"
+                            onClick={() => useGraphStore.getState().connectAllDomainRelationsForInstance(activeView.id, currentInstanceId)}
+                            className="flex items-center gap-1 text-[9px] font-black px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-200 transition-all uppercase tracking-wider active:scale-95"
+                            title="Forbind alle relaterede noder i dette view"
+                          >
+                            <Zap size={10} />
+                            Forbind alle
+                          </button>
+                        ) : (
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-400">
+                            {domainRelations.length}
+                          </span>
+                        )
+                      }
+                    >
+                      <div className="flex flex-col gap-4">
+                        {inViewItems.length > 0 && (
+                          <div className="flex flex-col gap-2">
+                            <span className="text-[9px] font-extrabold uppercase tracking-widest text-slate-400">
+                              I dette view
+                            </span>
+                            {inViewItems.map((item, idx) => {
+                              const otherInstId = item.relatedNodeInstance.instanceId || item.relatedNodeInstance.conceptId;
+                              const srcInst = item.isSource ? currentInstanceId : otherInstId;
+                              const tgtInst = item.isSource ? otherInstId : currentInstanceId;
+
+                              return (
+                                <div
+                                  key={`${item.relation.id}-${otherInstId}-${idx}`}
+                                  className="flex items-center justify-between p-2.5 bg-white border border-slate-100 rounded-xl shadow-sm hover:border-slate-200 transition-all"
+                                >
+                                  <div className="flex flex-col min-w-0 pr-2">
+                                    <span className="text-[11px] font-bold text-slate-700 truncate">
+                                      {item.isSource ? '→ ' : '← '} {item.relatedConcept.name}
+                                    </span>
+                                    <span className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider">
+                                      {item.relation.name || item.relation.relationType || 'relateret'}
+                                    </span>
+                                  </div>
+                                  <label className="flex items-center gap-1.5 cursor-pointer shrink-0">
+                                    <input
+                                      type="checkbox"
+                                      checked={item.hasEdge}
+                                      onChange={() => {
+                                        console.log('[Inspector Toggle Click]', {
+                                          activeViewId: activeView.id,
+                                          selectedConceptId: concept.id,
+                                          selectedInstanceId,
+                                          currentInstanceId,
+                                          otherInstId,
+                                          srcInst,
+                                          tgtInst,
+                                          relationId: item.relation.id,
+                                          currentlyHasEdge: item.hasEdge,
+                                        });
+                                        useGraphStore
+                                          .getState()
+                                          .toggleViewEdge(activeView.id, srcInst, tgtInst, item.relation.id);
+                                      }}
+                                      className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 cursor-pointer"
+                                    />
+                                    <span className="text-[10px] font-bold text-slate-500">
+                                      {item.hasEdge ? 'Vises' : 'Skjult'}
+                                    </span>
+                                  </label>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {notInViewItems.length > 0 && (
+                          <div className="flex flex-col gap-2 pt-1 border-t border-slate-100">
+                            <span className="text-[9px] font-extrabold uppercase tracking-widest text-slate-400">
+                              Ikke i dette view endnu
+                            </span>
+                            {notInViewItems.map((item, idx) => (
+                              <div
+                                key={`${item.relation.id}-${item.relatedConcept.id}-${idx}`}
+                                className="flex items-center justify-between p-2.5 bg-slate-50/70 border border-slate-100 rounded-xl"
+                              >
+                                <div className="flex flex-col min-w-0 pr-2">
+                                  <span className="text-[11px] font-bold text-slate-600 truncate">
+                                    {item.isSource ? '→ ' : '← '} {item.relatedConcept.name}
+                                  </span>
+                                  <span className="text-[9px] font-medium text-slate-400 uppercase tracking-wider">
+                                    {item.relation.name || item.relation.relationType || 'relateret'}
+                                  </span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    useGraphStore
+                                      .getState()
+                                      .addRelatedConceptAndConnect(
+                                        activeView.id,
+                                        currentInstanceId,
+                                        item.relatedConcept.id,
+                                        item.relation.id
+                                      )
+                                  }
+                                  className="flex items-center gap-1 px-2 py-1 text-[9px] font-black uppercase tracking-wider text-emerald-700 hover:text-white bg-emerald-50 hover:bg-emerald-600 border border-emerald-200 rounded-lg transition-all active:scale-95 shrink-0"
+                                >
+                                  <Plus size={10} />
+                                  Tilføj & Forbind
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </InspectorSection>
+                  );
+                })()}
 
                 {/* Views membership section (Shared across non-conceptual views) */}
                 {!activeNotation?.hideViewsSection && (() => {

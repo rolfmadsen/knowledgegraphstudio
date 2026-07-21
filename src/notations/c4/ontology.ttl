@@ -11,7 +11,7 @@
     rdfs:label "C4 Model Advanced OWL Ontology"@en , "C4 Model Avanceret OWL-ontologi"@da ;
     rdfs:comment "A strict formal OWL ontology representing the C4 model with enforced domain/range mapping, boundaries, and element attributes (technology, description)."@en , "En streng formel OWL-ontologi for C4-modellen med tvungen domain/range-kortlægning, grænser (boundaries) og elementattributter (teknologi, beskrivelse)."@da ;
     dct:title "C4 Model Specification OWL Ontology" ;
-    dct:creator "TypeGraph Knowledge Graph Studio Agent" ;
+    dct:creator "xArchi Knowledge Graph Studio Agent" ;
     dct:created "2026-05-31"^^xsd:date .
 
 ### =========================================================================

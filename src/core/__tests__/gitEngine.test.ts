@@ -33,12 +33,12 @@ vi.mock('../fileSystem', () => ({
   getFS: vi.fn(),
   getFSPromises: vi.fn(() => mockPfs),
   REPO_DIR: '/workspace',
-  YAML_FILENAME: '.typegraph.yaml',
-  YAML_PATH: '/workspace/.typegraph.yaml',
-  MODEL_FILENAME: 'model.typegraph.yaml',
-  MODEL_PATH: '/workspace/model.typegraph.yaml',
-  VIEWS_FILENAME: 'views.typegraph.yaml',
-  VIEWS_PATH: '/workspace/views.typegraph.yaml',
+  YAML_FILENAME: '.xarchi.yaml',
+  YAML_PATH: '/workspace/.xarchi.yaml',
+  MODEL_FILENAME: 'model.xarchi.yaml',
+  MODEL_PATH: '/workspace/model.xarchi.yaml',
+  VIEWS_FILENAME: 'views.xarchi.yaml',
+  VIEWS_PATH: '/workspace/views.xarchi.yaml',
 }));
 
 describe('GitEngine', () => {

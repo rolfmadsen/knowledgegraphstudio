@@ -10,7 +10,8 @@ vi.hoisted(() => {
   vi.stubGlobal('localStorage', localStorageMock);
 });
 
-import { AIService, parseProposedCommands, repairJson, normalizeCommand } from '../services/AIService';
+import { AIService } from '../services/AIService';
+import { parseProposedCommands, repairJson, normalizeCommand } from '../services/AIParser';
 import { parseQuickReplies } from '../components/AIChatPanel';
 import { useAIStore } from '../store/useAIStore';
 import { useGraphStore } from '../../../store/useGraphStore';
@@ -279,6 +280,47 @@ Hurtige valg...
   });
 
   describe('generateSystemPrompt', () => {
+    it('parses structured GRAPH_MUTATION JSON command envelopes with CREATE_NODE and CREATE_RELATION', () => {
+      const envelope = `
+\`\`\`json
+{
+  "intent": "GRAPH_MUTATION",
+  "summary": "Created registration event and trigger relation",
+  "ambiguityCheckPassed": true,
+  "commands": [
+    {
+      "action": "CREATE_NODE",
+      "type": "event",
+      "id": "event_user_registered",
+      "label": "User Registered",
+      "parentId": "slice_user_onboarding"
+    },
+    {
+      "action": "CREATE_RELATION",
+      "sourceId": "cmd_register_user",
+      "targetId": "event_user_registered",
+      "type": "triggers"
+    }
+  ]
+}
+\`\`\`
+      `;
+      const result = parseProposedCommands(envelope);
+      expect(result.length).toBeGreaterThanOrEqual(2);
+      expect(result[0].action).toBe('addConcept');
+      expect((result[0] as any).conceptType).toBe('event');
+      expect((result[0] as any).name).toBe('User Registered');
+
+      expect(result[1].action).toBe('setParent');
+      expect((result[1] as any).conceptId).toBe('event_user_registered');
+      expect((result[1] as any).parentConceptId).toBe('slice_user_onboarding');
+
+      expect(result[2].action).toBe('addRelation');
+      expect((result[2] as any).sourceConceptId).toBe('cmd_register_user');
+      expect((result[2] as any).targetConceptId).toBe('event_user_registered');
+      expect((result[2] as any).name).toBe('triggers');
+    });
+
     it('creates system prompt including notation guidelines and current graph state', () => {
       const view: View = {
         id: toElementId('view:1'),
@@ -307,10 +349,11 @@ Hurtige valg...
       };
 
       const prompt = AIService.generateSystemPrompt(view, [concept], []);
+      expect(prompt).toContain('KnowledgeGraph Studio AI Architect');
+      expect(prompt).toContain('INTENT CLASSIFICATION FIRST');
+      expect(prompt).toContain('PROGRAMMATIC GRAPH VALIDATION & INTEGRITY RULES');
       expect(prompt).toContain('C4 SOFTWARE-ARKITEKTUR DIAGRAM');
       expect(prompt).toContain('ID: "actor:kunde", Type: "actor", Navn: "Kunde"');
-      expect(prompt).toContain('AI-arkitekt/sparringspartner');
-      expect(prompt).toContain('Fokuseret interview (ét spørgsmål af gangen)');
     });
 
     it('creates DCR specific system prompt when view type is dcr', () => {
@@ -330,7 +373,7 @@ Hurtige valg...
       expect(prompt).toContain('Du er en ekspert i forretningsprocesmodellering med speciale i Dynamic Condition Response');
       expect(prompt).toContain('### METODE OG DIALOG (Dine Instruktioner)');
       expect(prompt).toContain('### VIDENSBASE: DCR (Dynamic Condition Response) GRAFER');
-      expect(prompt).toContain('DIT OUTPUT FORMAT OG DIALOGSTRATEGI');
+      expect(prompt).toContain('YOUR OUTPUT FORMAT AND DIALOGUE STRATEGY');
     });
 
     it('creates ArchiMate specific system prompt when view type is archimate', () => {
@@ -455,7 +498,7 @@ Hurtige valg...
 
       const errors = AIService.validateCommands(commands, view, []);
       expect(errors).toHaveLength(1);
-      expect(errors[0]).toContain('ikke tilladt i c4-diagrammer');
+      expect(errors[0]).toContain('is not allowed in c4 diagrams');
     });
 
     it('rejects invalid relations based on ontology validator rules', () => {
@@ -644,7 +687,7 @@ Hurtige valg...
 
       expect(fetchMock).toHaveBeenCalledTimes(3); // Attempted 3 times and then rejected
       expect(result.proposals).toHaveLength(0);
-      expect(result.responseText).toContain("afvist");
+      expect(result.responseText).toContain("rejected");
     });
   });
 
@@ -781,8 +824,8 @@ Hurtige valg...
         );
 
         expect(result).toHaveLength(2);
-        expect(result[0]).toContain('findes ikke og kan ikke opdateres');
-        expect(result[1]).toContain('findes ikke, så der kan ikke tilføjes egenskaber');
+        expect(result[0]).toContain('does not exist and cannot be updated');
+        expect(result[1]).toContain('does not exist; cannot add properties to it');
       });
 
       it('accepts updateConcept and addProperty if concept exists', () => {

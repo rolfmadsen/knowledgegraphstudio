@@ -1,7 +1,9 @@
-- [x] Task 1: Update `src/core/gitEngine.ts` to import `MODEL_FILENAME`, `MODEL_PATH`, `VIEWS_FILENAME`, and `VIEWS_PATH` from `fileSystem.ts`.
-- [x] Task 2: Modify `getHeadYaml` and `gitStatus` in `gitEngine.ts` to target `MODEL_FILENAME`.
-- [x] Task 3: Modify `gitCommit` in `gitEngine.ts` to stage both `MODEL_FILENAME` and `VIEWS_FILENAME`.
-- [x] Task 4: Modify `gitDiffHead` and `gitMergeFastForward` in `gitEngine.ts` to point to `MODEL_PATH`/`MODEL_FILENAME`.
-- [x] Task 5: Update `GitService.push` signature in `src/services/GitService.ts` to accept `PersistableState` instead of the picked picked-state.
-- [/] Task 6: Refactor unit tests in `src/core/__tests__/gitEngine.test.ts` to expect split files.
-- [ ] Task 7: Run vitest automated tests and run build compilation check to verify correctness.
+# Tasks: Domain Relation Visual Connection Sync & Quick-Add
+
+- [x] `src/store/useGraphStore.ts` & `src/services/GraphService.ts`: Add store actions for `toggleViewEdge`, `connectAllDomainRelations`, and `addRelatedConceptAndConnect`
+- [x] `src/features/properties/Inspector.tsx`: Build "Relationer & Forbindelser" inspector section with View Edge toggles, "Forbind alle i view", and "Tilføj node & edge til view"
+- [x] `src/features/viewport/graph/ReactFlowCanvas.tsx`: Add canvas node quick-action badge to "Forbind alle" un-connected domain relations in 1-click
+- [x] Fix node toolbar "Forbind" button action (`connectAllDomainRelationsForInstance`) to unhide existing hidden edges.
+- [x] Hide `Tree (T-D)` layout option for Event Modeling views in `ViewToolbar.tsx`.
+- [x] `src/store/__tests__/useGraphStore.test.ts`: Write unit tests for `toggleViewEdge`, `connectAllDomainRelations`, and `addRelatedConceptAndConnect`
+- [x] Manual & automated verification: Verify toggling edges, auto-connecting, and adding related nodes from Inspector and Canvas

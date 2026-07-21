@@ -12,10 +12,10 @@
 
 <http://www.semanticweb.org/v0cn037/ontologies/2026/05/global> rdf:type owl:Ontology ;
     owl:versionInfo "1.0" ;
-    rdfs:label "TypeGraph Federated Over-Ontology"@en , "TypeGraph Fødereret Over-ontologi"@da ;
+    rdfs:label "xArchi Federated Over-Ontology"@en , "xArchi Fødereret Over-ontologi"@da ;
     rdfs:comment "A global ontology importing and connecting all notation-specific ontologies (ArchiMate, C4, DCR, Conceptual Model, and Information Model)."@en ;
-    dct:title "TypeGraph Federated Over-Ontology" ;
-    dct:creator "TypeGraph Agent" ;
+    dct:title "xArchi Federated Over-Ontology" ;
+    dct:creator "xArchi Agent" ;
     dct:created "2026-05-31"^^xsd:date .
 
 ### =========================================================================

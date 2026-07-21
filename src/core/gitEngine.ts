@@ -3,7 +3,7 @@
  *
  * Provides Git operations on the virtual file system:
  * - init: Initialize a new Git repository
- * - commit: Stage and commit .typegraph.yaml
+ * - commit: Stage and commit .xarchi.yaml
  * - status: Get file status
  * - diffHead: Get diff of current YAML vs last commit
  * - clone: Clone a remote repository via CORS proxy
@@ -23,8 +23,8 @@ const httpWithNoCache = http;
 // ============================================================
 
 const DEFAULT_AUTHOR = {
-  name: 'TypeGraph User',
-  email: 'user@typegraph.io'
+  name: 'xArchi User',
+  email: 'user@xarchi.io'
 };
 
 // Helper to ensure tokens are correctly prefixed for GitLab
@@ -92,7 +92,7 @@ export async function isGitRepo(): Promise<boolean> {
 }
 
 /**
- * Stage and commit the .typegraph.yaml file.
+ * Stage and commit the .xarchi.yaml file.
  *
  * @param message - Commit message
  * @param parents - Optional parent commit SHAs (used for merge commits)
@@ -131,7 +131,7 @@ export async function gitCommit(
         filepath: VIEWS_FILENAME,
       });
     } catch {
-      // Ignore if views.typegraph.yaml does not exist
+      // Ignore if views.xarchi.yaml does not exist
     }
 
     // 2. Commit (explicitly updating the main branch ref)
@@ -176,7 +176,7 @@ export async function gitReset(ref: string): Promise<void> {
 }
 
 /**
- * Get the status of .typegraph.yaml.
+ * Get the status of .xarchi.yaml.
  *
  * Returns one of: 'absent', 'unmodified', 'modified', 'added', 'deleted'
  */

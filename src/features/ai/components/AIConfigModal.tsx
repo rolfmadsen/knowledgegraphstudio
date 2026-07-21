@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Cpu, Link, Key, X } from 'lucide-react';
+import { Cpu, Link, Key, X, Wifi } from 'lucide-react';
 import { useAIStore } from '../store/useAIStore';
+import { AIService } from '../services/AIService';
 import { useShallow } from 'zustand/react/shallow';
 
 interface AIConfigModalProps {
@@ -22,6 +23,8 @@ export function AIConfigModal({ onClose }: AIConfigModalProps) {
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   // Load active config on mount
   useEffect(() => {
@@ -61,6 +64,18 @@ export function AIConfigModal({ onClose }: AIConfigModalProps) {
       setError(err instanceof Error ? err.message : 'Kunne ikke gemme konfiguration');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleTestConnection = async () => {
+    setTestResult(null);
+    setTesting(true);
+    const err = await AIService.testConnection(baseUrl.trim(), model.trim(), apiKey.trim() || undefined);
+    setTesting(false);
+    if (err) {
+      setTestResult({ ok: false, message: err });
+    } else {
+      setTestResult({ ok: true, message: `Connection to "${model.trim()}" succeeded! ✓` });
     }
   };
 
@@ -230,6 +245,13 @@ export function AIConfigModal({ onClose }: AIConfigModalProps) {
           )}
         </div>
 
+        {/* Test Result */}
+        {testResult && (
+          <div className={`mx-8 mb-2 px-4 py-3 border rounded-2xl text-xs ${testResult.ok ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-red-50 border-red-100 text-red-600'}`}>
+            {testResult.message}
+          </div>
+        )}
+
         {/* Error Notification */}
         {error && (
           <div className="mx-8 mb-2 px-4 py-3 bg-red-50 border border-red-100 rounded-2xl text-xs text-red-600">
@@ -246,6 +268,21 @@ export function AIConfigModal({ onClose }: AIConfigModalProps) {
           >
             Annuller
           </button>
+          {provider === 'api' && (
+            <button
+              type="button"
+              onClick={handleTestConnection}
+              disabled={testing || !baseUrl.trim() || !model.trim()}
+              className="px-5 py-2.5 text-xs font-bold text-slate-600 border border-slate-200 rounded-full hover:bg-slate-50 transition-colors disabled:opacity-40 flex items-center gap-1.5"
+            >
+              {testing ? (
+                <div className="w-3 h-3 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin" />
+              ) : (
+                <Wifi size={12} />
+              )}
+              {testing ? 'Tester...' : 'Test forbindelse'}
+            </button>
+          )}
           <button
             type="submit"
             disabled={saving || success}

@@ -233,7 +233,7 @@ export function CommandOverlay({ open, onClose, onGitPush, onGitPull, onOpenRemo
             <span>↵: VÆLG</span>
           </div>
           <div className="text-[9px] font-black text-slate-300 uppercase tracking-[0.2em]">
-            TypeGraph Find
+            xArchi Search
           </div>
         </div>
       </div>

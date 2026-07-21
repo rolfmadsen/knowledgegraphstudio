@@ -12,7 +12,7 @@
     rdfs:label "Information Model (Informationsmodel) OWL Ontology"@en , "Informationsmodel OWL-ontologi"@da ;
     rdfs:comment "A formal OWL ontology representing the Information Model notation with UML relationships, type references, and conceptual traceability."@en ;
     dct:title "Information Model OWL Ontology" ;
-    dct:creator "TypeGraph Knowledge Graph Studio Agent" ;
+    dct:creator "xArchi Knowledge Graph Studio Agent" ;
     dct:created "2026-05-31"^^xsd:date .
 
 ### =========================================================================

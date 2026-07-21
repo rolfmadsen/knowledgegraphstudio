@@ -19,6 +19,7 @@ import {
   type DataClassification,
   type View,
   type ViewNode,
+  type ViewEdge,
   type DataType,
   type ConceptProperty,
   type BaseConceptNode,
@@ -36,6 +37,173 @@ import { yamlToViews } from '../core/yamlParser';
 import { FileSystemAccessService } from '../services/FileSystemAccessService';
 import type { SyncStatus } from '../types/sync';
 
+export function sanitizeRelations(
+  relations: ConceptRelation[] = [],
+  views: View[] = []
+): { relations: ConceptRelation[]; views: View[] } {
+  console.log('[sanitizeRelations] INPUT:', relations.map(r => ({ id: r.id, src: r.sourceConceptId, tgt: r.targetConceptId, type: r.relationType, name: r.name })));
+  
+  const relationIdMap = new Map<string, string>();
+  const relationInstanceMap = new Map<string, { srcInst?: string; tgtInst?: string }>();
+
+  // 1. Clean all relations by stripping instance ID leakage from source/target concept IDs
+  const cleanedRelations = relations.map((rel) => {
+    const hasSourceInst = rel.sourceConceptId.includes('#');
+    const hasTargetInst = rel.targetConceptId.includes('#');
+
+    const cleanSourceId = rel.sourceConceptId.split('#')[0] as ElementId;
+    const cleanTargetId = rel.targetConceptId.split('#')[0] as ElementId;
+
+    if (hasSourceInst || hasTargetInst) {
+      relationInstanceMap.set(rel.id, {
+        srcInst: hasSourceInst ? rel.sourceConceptId : undefined,
+        tgtInst: hasTargetInst ? rel.targetConceptId : undefined,
+      });
+    }
+
+    return {
+      ...rel,
+      sourceConceptId: cleanSourceId,
+      targetConceptId: cleanTargetId,
+    };
+  });
+
+  // 2. Sort relations so those with defined relationType come first (prioritise displays/triggers over undefined)
+  const sortedRelations = [...cleanedRelations].sort((a, b) => {
+    const aVal = a.relationType ? 1 : 0;
+    const bVal = b.relationType ? 1 : 0;
+    return bVal - aVal;
+  });
+
+  // 3. Deduplicate based on sourceConceptId -> targetConceptId and normalized name (ignore relationType differences)
+  const finalRelations: ConceptRelation[] = [];
+  const seenKeys = new Set<string>();
+
+  for (const rel of sortedRelations) {
+    const effectiveType = (rel.relationType || rel.name || '').toLowerCase().trim();
+    const cleanName = (rel.name || '').toLowerCase().trim();
+    const normalizedName = (cleanName === effectiveType || cleanName === 'relateret') ? '' : cleanName;
+    const key = `${rel.sourceConceptId}->${rel.targetConceptId}-${normalizedName}`;
+    if (seenKeys.has(key)) {
+      const firstRel = finalRelations.find(
+        (r) => {
+          const rEffectiveType = (r.relationType || r.name || '').toLowerCase().trim();
+          const rCleanName = (r.name || '').toLowerCase().trim();
+          const rNormName = (rCleanName === rEffectiveType || rCleanName === 'relateret') ? '' : rCleanName;
+          return r.sourceConceptId === rel.sourceConceptId &&
+                 r.targetConceptId === rel.targetConceptId &&
+                 rNormName === normalizedName;
+        }
+      );
+      if (firstRel) {
+        console.log(`[sanitizeRelations] Merging relation ${rel.id} into ${firstRel.id}`);
+        if (firstRel.id.includes('corrupted') && !rel.id.includes('corrupted')) {
+          relationIdMap.set(firstRel.id, rel.id);
+          relationIdMap.set(rel.id, rel.id);
+          firstRel.id = rel.id;
+        } else {
+          relationIdMap.set(rel.id, firstRel.id);
+        }
+      }
+    } else {
+      seenKeys.add(key);
+      finalRelations.push(rel);
+    }
+  }
+
+  console.log('[sanitizeRelations] OUTPUT:', finalRelations.map(r => ({ id: r.id, src: r.sourceConceptId, tgt: r.targetConceptId, type: r.relationType, name: r.name })));
+
+  // 4. Remap ViewEdges in all views
+  const cleanViews = views.map((v) => {
+    if (!v.viewEdges) return v;
+
+    const nextViewEdges = v.viewEdges.map((ve) => {
+      const mappedId = relationIdMap.get(ve.relationId) || ve.relationId;
+      const instMap = relationInstanceMap.get(ve.relationId);
+      
+      return {
+        ...ve,
+        relationId: mappedId as ElementId,
+        sourceInstanceId: ve.sourceInstanceId || instMap?.srcInst,
+        targetInstanceId: ve.targetInstanceId || instMap?.tgtInst,
+      };
+    });
+
+    const seenEdges = new Set<string>();
+    const uniqueViewEdges = nextViewEdges.filter((ve) => {
+      const key = `${ve.relationId}-${ve.sourceInstanceId || ''}-${ve.targetInstanceId || ''}`;
+      if (seenEdges.has(key)) return false;
+      seenEdges.add(key);
+      return true;
+    });
+
+    return {
+      ...v,
+      viewEdges: uniqueViewEdges,
+    };
+  });
+
+  return { relations: finalRelations, views: cleanViews };
+}
+
+export function normalizeViewNodes(nodes: ViewNode[] = []): ViewNode[] {
+  const seenIds = new Set<string>();
+  const conceptCounts = new Map<string, number>();
+
+  return nodes.map((vn) => {
+    const conceptId = vn.conceptId;
+    const count = (conceptCounts.get(conceptId) || 0) + 1;
+    conceptCounts.set(conceptId, count);
+
+    let instanceId = vn.instanceId;
+    if (!instanceId || seenIds.has(instanceId)) {
+      if (count === 1) {
+        instanceId = conceptId;
+      } else {
+        instanceId = `${conceptId}#inst_${count}`;
+      }
+    }
+    seenIds.add(instanceId);
+
+    if (vn.instanceId === instanceId) {
+      return vn;
+    }
+    return { ...vn, instanceId };
+  });
+}
+
+export function isEdgeVisibleForInstances(
+  viewNodes: ViewNode[] = [],
+  viewEdges: ViewEdge[] = [],
+  rel: ConceptRelation,
+  srcInst: string,
+  tgtInst: string
+): boolean {
+  const relEdges = viewEdges.filter((ve) => ve.relationId === rel.id);
+
+  if (relEdges.length === 0) {
+    return true;
+  }
+
+  if (relEdges.some((ve) => (ve as any).isHidden)) {
+    return false;
+  }
+
+  const normalized = normalizeViewNodes(viewNodes);
+
+  const firstSrcNode = normalized.find((vn) => vn.conceptId === rel.sourceConceptId);
+  const defaultSrcInst = firstSrcNode ? (firstSrcNode.instanceId || firstSrcNode.conceptId) : rel.sourceConceptId;
+
+  const firstTgtNode = normalized.find((vn) => vn.conceptId === rel.targetConceptId);
+  const defaultTgtInst = firstTgtNode ? (firstTgtNode.instanceId || firstTgtNode.conceptId) : rel.targetConceptId;
+
+  return relEdges.some((ve) => {
+    const veSrc = ve.sourceInstanceId || defaultSrcInst;
+    const veTgt = ve.targetInstanceId || defaultTgtInst;
+    return veSrc === srcInst && veTgt === tgtInst;
+  });
+}
+
 export interface GraphStoreState {
   // --- Domain Data ---
   domains: Domain[];
@@ -46,6 +214,7 @@ export interface GraphStoreState {
 
   // --- UI State (excluded from undo/redo) ---
   selectedConceptId: ElementId | null;
+  selectedInstanceId: string | null;
   selectedConceptIds: ElementId[];
   selectedRelationId: ElementId | null;
   focusedToolbarButtonId: string | null;
@@ -68,8 +237,8 @@ export interface GraphStoreState {
    * Keyed by viewId. Excluded from zundo — managed manually so that
    * Ctrl+Z on View A undoes the last change IN View A, not globally.
    */
-   _viewMembershipUndo: Record<string, Array<{ type: 'add' | 'remove'; conceptId: ElementId; x: number; y: number }>>;
-  _viewMembershipRedo: Record<string, Array<{ type: 'add' | 'remove'; conceptId: ElementId; x: number; y: number }>>;
+   _viewMembershipUndo: Record<string, Array<{ type: 'add' | 'remove'; conceptId: ElementId; instanceId?: string; parentId?: ElementId; x: number; y: number }>>;
+  _viewMembershipRedo: Record<string, Array<{ type: 'add' | 'remove'; conceptId: ElementId; instanceId?: string; parentId?: ElementId; x: number; y: number }>>;
 
   // --- Canvas Dimensions for Responsive Calculations ---
   canvasWidth: number;
@@ -101,7 +270,7 @@ export interface GraphStoreState {
   setActiveHandle: (handle: FileSystemDirectoryHandle | null, workspacePath: string) => Promise<void>;
 
   // --- Selection Actions ---
-  selectConcept: (id: ElementId | null) => void;
+  selectConcept: (id: ElementId | null, instanceId?: string | null) => void;
   setSelectedConceptIds: (ids: ElementId[]) => void;
   selectRelation: (id: ElementId | null) => void;
   setFocusedToolbarButtonId: (id: string | null) => void;
@@ -129,12 +298,12 @@ export interface GraphStoreState {
 
   // --- View Actions ---
   setActiveViewId: (id: ElementId | null) => void;
-  updateViewNodePosition: (viewId: ElementId, conceptId: ElementId, x: number, y: number) => void;
-  batchUpdateViewNodePositions: (viewId: ElementId, positions: Array<{ conceptId: ElementId; x: number; y: number }>) => void;
-  addConceptToView: (viewId: ElementId, conceptId: ElementId, x: number, y: number) => void;
+  updateViewNodePosition: (viewId: ElementId, targetId: ElementId, x: number, y: number) => void;
+  batchUpdateViewNodePositions: (viewId: ElementId, positions: Array<{ conceptId?: ElementId; instanceId?: string; x: number; y: number }>) => void;
+  addConceptToView: (viewId: ElementId, conceptId: ElementId, x: number, y: number, parentId?: ElementId, instanceId?: string) => void;
   removeConceptFromView: (viewId: ElementId, conceptId: ElementId) => void;
   removeConceptsFromView: (viewId: ElementId, conceptIds: ElementId[]) => void;
-  createView: (name: string, type?: View['type'], layoutAlgorithm?: View['layoutAlgorithm']) => View;
+  createView: (name: string, type?: View['type'], layoutAlgorithm?: View['layoutAlgorithm'], skipDefaultElements?: boolean) => View;
   deleteView: (viewId: ElementId, deleteConceptIds?: ElementId[]) => void;
   addAllConceptsToActiveView: () => void;
   addConceptsToActiveView: (conceptIds: ElementId[]) => void;
@@ -145,11 +314,16 @@ export interface GraphStoreState {
   updateViewEdgeLayout: (
     viewId: ElementId,
     relationId: ElementId,
-    sourcePosition: 'top' | 'bottom' | 'left' | 'right' | undefined,
-    targetPosition: 'top' | 'bottom' | 'left' | 'right' | undefined,
-    waypoints: Array<{ x: number; y: number }>
+    sourcePosition?: 'top' | 'bottom' | 'left' | 'right',
+    targetPosition?: 'top' | 'bottom' | 'left' | 'right',
+    waypoints?: Array<{ x: number; y: number }>,
+    sourceInstanceId?: string,
+    targetInstanceId?: string
   ) => void;
   resetViewEdgeLayout: (viewId: ElementId, relationId: ElementId) => void;
+  toggleViewEdge: (viewId: ElementId, sourceInstanceId: string, targetInstanceId: string, relationId: ElementId) => void;
+  connectAllDomainRelationsForInstance: (viewId: ElementId, instanceId: string) => void;
+  addRelatedConceptAndConnect: (viewId: ElementId, sourceInstanceId: string, relatedConceptId: ElementId, relationId: ElementId) => void;
 
   // --- Domain Actions ---
   addDomain: (name: string, description?: string) => Promise<Domain>;
@@ -296,6 +470,7 @@ export const useGraphStore = create<GraphStoreState>()(
       views: [],
       activeViewId: null,
       selectedConceptId: null,
+      selectedInstanceId: null,
       selectedConceptIds: [],
       selectedRelationId: null,
       focusedToolbarButtonId: null,
@@ -336,7 +511,7 @@ export const useGraphStore = create<GraphStoreState>()(
       linkedHandles: {},
 
       // --- UI Actions (State only) ---
-      selectConcept: (id) => set({ selectedConceptId: id, selectedConceptIds: id ? [id] : [], selectedRelationId: null, focusedToolbarButtonId: null }),
+      selectConcept: (id, instanceId) => set({ selectedConceptId: id, selectedInstanceId: instanceId ?? null, selectedConceptIds: id ? [id] : [], selectedRelationId: null, focusedToolbarButtonId: null }),
       setSelectedConceptIds: (ids) => set({ 
         selectedConceptIds: ids,
         selectedConceptId: ids.length > 0 ? ids[0] : null,
@@ -450,26 +625,41 @@ export const useGraphStore = create<GraphStoreState>()(
         const temporal = getTemporalState();
         temporal.pause();
         if (action.type === 'remove') {
-          // Undo remove → add back at original position
+          // Undo remove → add back at original position and parent group
           set((s) => ({
-            views: s.views.map((v) =>
-              v.id !== viewId ? v : {
+            views: s.views.map((v) => {
+              if (v.id !== viewId) return v;
+              const exists = action.instanceId
+                ? v.nodes.some((n) => n.instanceId === action.instanceId)
+                : v.nodes.some((n) => n.conceptId === action.conceptId);
+              if (exists) return v;
+              return {
                 ...v,
-                nodes: v.nodes.some((n) => n.conceptId === action.conceptId)
-                  ? v.nodes
-                  : [...v.nodes, { conceptId: action.conceptId, x: action.x, y: action.y }],
-              },
-            ),
+                nodes: [
+                  ...v.nodes,
+                  {
+                    conceptId: action.conceptId,
+                    instanceId: action.instanceId,
+                    parentId: action.parentId,
+                    x: action.x,
+                    y: action.y,
+                  },
+                ],
+              };
+            }),
           }));
         } else {
           // Undo add → remove
           set((s) => ({
-            views: s.views.map((v) =>
-              v.id !== viewId ? v : {
+            views: s.views.map((v) => {
+              if (v.id !== viewId) return v;
+              return {
                 ...v,
-                nodes: v.nodes.filter((n) => n.conceptId !== action.conceptId),
-              },
-            ),
+                nodes: v.nodes.filter((n) =>
+                  action.instanceId ? n.instanceId !== action.instanceId : n.conceptId !== action.conceptId
+                ),
+              };
+            }),
           }));
         }
         temporal.resume();
@@ -491,23 +681,38 @@ export const useGraphStore = create<GraphStoreState>()(
         temporal.pause();
         if (action.type === 'remove') {
           set((s) => ({
-            views: s.views.map((v) =>
-              v.id !== viewId ? v : {
+            views: s.views.map((v) => {
+              if (v.id !== viewId) return v;
+              return {
                 ...v,
-                nodes: v.nodes.filter((n) => n.conceptId !== action.conceptId),
-              },
-            ),
+                nodes: v.nodes.filter((n) =>
+                  action.instanceId ? n.instanceId !== action.instanceId : n.conceptId !== action.conceptId
+                ),
+              };
+            }),
           }));
         } else {
           set((s) => ({
-            views: s.views.map((v) =>
-              v.id !== viewId ? v : {
+            views: s.views.map((v) => {
+              if (v.id !== viewId) return v;
+              const exists = action.instanceId
+                ? v.nodes.some((n) => n.instanceId === action.instanceId)
+                : v.nodes.some((n) => n.conceptId === action.conceptId);
+              if (exists) return v;
+              return {
                 ...v,
-                nodes: v.nodes.some((n) => n.conceptId === action.conceptId)
-                  ? v.nodes
-                  : [...v.nodes, { conceptId: action.conceptId, x: action.x, y: action.y }],
-              },
-            ),
+                nodes: [
+                  ...v.nodes,
+                  {
+                    conceptId: action.conceptId,
+                    instanceId: action.instanceId,
+                    parentId: action.parentId,
+                    x: action.x,
+                    y: action.y,
+                  },
+                ],
+              };
+            }),
           }));
         }
         temporal.resume();
@@ -522,11 +727,12 @@ export const useGraphStore = create<GraphStoreState>()(
 
       // --- Hydration ---
       hydrate: (newState) => {
+        const { relations: cleanRelations, views: cleanViews } = sanitizeRelations(newState.relations ?? [], newState.views ?? get().views);
         set({
           domains: newState.domains,
           concepts: newState.concepts,
-          relations: newState.relations,
-          views: newState.views ?? get().views,
+          relations: cleanRelations,
+          views: cleanViews,
         });
       },
 
@@ -535,10 +741,10 @@ export const useGraphStore = create<GraphStoreState>()(
       // --- View Actions ---
       setActiveViewId: (id) => set({ activeViewId: id }),
 
-      updateViewNodePosition: (viewId, conceptId, x, y) => {
+      updateViewNodePosition: (viewId, targetId, x, y) => {
         const view = get().views.find((v) => v.id === viewId);
         if (!view) return;
-        const node = view.nodes.find((n) => n.conceptId === conceptId);
+        const node = view.nodes.find((n) => (n.instanceId ? n.instanceId === targetId : n.conceptId === targetId));
         const effectiveManualX = node?.manualX ?? node?.x;
         const effectiveManualY = node?.manualY ?? node?.y;
         if (node && node.x === x && node.y === y && effectiveManualX === x && effectiveManualY === y) {
@@ -548,9 +754,10 @@ export const useGraphStore = create<GraphStoreState>()(
           views: s.views.map((v) =>
             v.id !== viewId ? v : {
               ...v,
-              nodes: v.nodes.map((n) =>
-                n.conceptId !== conceptId ? n : { ...n, x, y, manualX: x, manualY: y },
-              ),
+              nodes: v.nodes.map((n) => {
+                const isMatch = n.instanceId ? n.instanceId === targetId : n.conceptId === targetId;
+                return !isMatch ? n : { ...n, x, y, manualX: x, manualY: y };
+              }),
             },
           ),
         }));
@@ -562,7 +769,7 @@ export const useGraphStore = create<GraphStoreState>()(
         if (!view) return;
         let changed = false;
         for (const p of positions) {
-          const node = view.nodes.find((n) => n.conceptId === p.conceptId);
+          const node = view.nodes.find((n) => p.instanceId ? (n.instanceId || n.conceptId) === p.instanceId : n.conceptId === p.conceptId);
           if (!node || node.x !== p.x || node.y !== p.y) {
             changed = true;
             break;
@@ -577,24 +784,15 @@ export const useGraphStore = create<GraphStoreState>()(
             return {
               ...v,
               nodes: (() => {
-                // Upsert: update existing ViewNodes OR add new ones for concepts not yet in view.
-                // When in manual mode, also sync manualX/Y so that a late-arriving Dagre worker
-                // result (completing asynchronously after the user switched to MANUAL) doesn't
-                // leave manualX/Y stale relative to the freshly computed x/y.
                 const updated = v.nodes.map((n) => {
-                  const pos = positions.find((p) => p.conceptId === n.conceptId);
+                  const nodeInstId = n.instanceId || n.conceptId;
+                  const pos = positions.find((p) => p.instanceId ? p.instanceId === nodeInstId : p.conceptId === n.conceptId);
                   if (!pos) return n;
                   return isManual
                     ? { ...n, x: pos.x, y: pos.y, manualX: pos.x, manualY: pos.y }
                     : { ...n, x: pos.x, y: pos.y };
                 });
-                const existingIds = new Set(v.nodes.map((n) => n.conceptId));
-                const newNodes = positions
-                  .filter((p) => !existingIds.has(p.conceptId))
-                  .map((p) => isManual
-                    ? { conceptId: p.conceptId, x: p.x, y: p.y, manualX: p.x, manualY: p.y }
-                    : { conceptId: p.conceptId, x: p.x, y: p.y });
-                return [...updated, ...newNodes];
+                return updated;
               })(),
             };
           }),
@@ -602,27 +800,35 @@ export const useGraphStore = create<GraphStoreState>()(
         PersistenceService.scheduleAutoSave(get());
       },
 
-      addConceptToView: (viewId, conceptId, x, y) => {
+      addConceptToView: (viewId, conceptId, x, y, parentId, instanceId) => {
         const view = get().views.find((v) => v.id === viewId);
         if (!view) return;
         const concept = get().concepts.find((c) => c.id === conceptId);
         if (!concept) return;
 
-        // Skip if already present
-        if (view.nodes.some((n) => n.conceptId === conceptId)) return;
-
         // Resolve notation and filter allowed concept types
         const notation = NotationRegistry.forViewType(view.type);
         const allowedTypes = notation?.allowedConceptTypes;
-        if (allowedTypes) {
-          if (!allowedTypes.includes(concept.conceptType)) return;
-
-          // Check for name uniqueness within the target view
-          const targetViewNodes = view.nodes;
-          const targetConceptsInView = get().concepts.filter(c => targetViewNodes.some(vn => vn.conceptId === c.id));
-          const hasNameCollision = targetConceptsInView.some(c => c.name.trim().toLowerCase() === concept.name.trim().toLowerCase() && c.id !== concept.id);
-          if (hasNameCollision) return;
+        if (allowedTypes && !allowedTypes.includes(concept.conceptType)) {
+          return;
         }
+
+        const alreadyExists = view.nodes.some((n) => n.conceptId === conceptId);
+        const allowsMultiple = view.type === 'event_modeling';
+        if (alreadyExists && !allowsMultiple && !instanceId) {
+          return;
+        }
+
+        const hasNameCollision = view.nodes.some((n) => {
+          const c = get().concepts.find((item) => item.id === n.conceptId);
+          return c && c.id !== conceptId && c.conceptType === concept.conceptType && c.name.trim().toLowerCase() === concept.name.trim().toLowerCase();
+        });
+        if (hasNameCollision) {
+          return;
+        }
+
+        // Only generate suffix if it is a duplicate instance (i.e. alreadyExists is true)
+        const newInstanceId = instanceId || (alreadyExists ? `${conceptId}#inst_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 6)}` : undefined);
 
         const temporal = getTemporalState();
         temporal.pause();
@@ -633,9 +839,11 @@ export const useGraphStore = create<GraphStoreState>()(
               nodes: [
                 ...v.nodes,
                 {
+                  instanceId: newInstanceId,
                   conceptId,
                   x,
                   y,
+                  parentId,
                   ...(v.layoutAlgorithm === 'manual' ? { manualX: x, manualY: y } : {}),
                 },
               ],
@@ -646,32 +854,41 @@ export const useGraphStore = create<GraphStoreState>()(
         // Push to per-view undo stack; clear redo
         const undoStack = get()._viewMembershipUndo[viewId] ?? [];
         set({
-          _viewMembershipUndo: { ...get()._viewMembershipUndo, [viewId]: [...undoStack, { type: 'add', conceptId, x, y }] },
+          _viewMembershipUndo: { ...get()._viewMembershipUndo, [viewId]: [...undoStack, { type: 'add', conceptId, instanceId: newInstanceId, parentId, x, y }] },
           _viewMembershipRedo: { ...get()._viewMembershipRedo, [viewId]: [] },
         });
         PersistenceService.scheduleAutoSave(get());
       },
 
-      removeConceptFromView: (viewId, conceptId) => {
-        // Capture current position before removal for undo restoration
-        const currentVn = get().views.find((v) => v.id === viewId)?.nodes.find((n) => n.conceptId === conceptId);
+      removeConceptFromView: (viewId, targetId) => {
+        const view = get().views.find((v) => v.id === viewId);
+        const currentVn = view?.nodes.find((n) => n.instanceId === targetId || n.conceptId === targetId);
         const x = currentVn?.x ?? 0;
         const y = currentVn?.y ?? 0;
+        const targetInstanceId = currentVn?.instanceId || (targetId !== currentVn?.conceptId ? targetId : undefined);
+        const parentId = currentVn?.parentId;
         const temporal = getTemporalState();
         temporal.pause();
         set((s) => ({
-          views: s.views.map((v) =>
-            v.id !== viewId ? v : {
+          views: s.views.map((v) => {
+            if (v.id !== viewId) return v;
+            const targetInstId = currentVn?.instanceId || targetId;
+            return {
               ...v,
-              nodes: v.nodes.filter((n) => n.conceptId !== conceptId),
-            },
-          ),
+              nodes: v.nodes.filter((n) => (n.instanceId ? n.instanceId !== targetInstId : n.conceptId !== targetId)),
+              viewEdges: (v.viewEdges ?? []).filter(
+                (ve) => ve.sourceInstanceId !== targetInstId && ve.targetInstanceId !== targetInstId
+              ),
+            };
+          }),
         }));
         temporal.resume();
-        // Push to per-view undo stack; clear redo
         const undoStack = get()._viewMembershipUndo[viewId] ?? [];
         set({
-          _viewMembershipUndo: { ...get()._viewMembershipUndo, [viewId]: [...undoStack, { type: 'remove', conceptId, x, y }] },
+          _viewMembershipUndo: {
+            ...get()._viewMembershipUndo,
+            [viewId]: [...undoStack, { type: 'remove', conceptId: currentVn?.conceptId ?? targetId, instanceId: targetInstanceId, parentId, x, y }],
+          },
           _viewMembershipRedo: { ...get()._viewMembershipRedo, [viewId]: [] },
         });
         PersistenceService.scheduleAutoSave(get());
@@ -721,7 +938,7 @@ export const useGraphStore = create<GraphStoreState>()(
         PersistenceService.scheduleAutoSave(get());
       },
 
-      createView: (name, type = 'knowledge_graph', layoutAlgorithm = 'force_directed') => {
+      createView: (name, type = 'knowledge_graph', layoutAlgorithm = 'force_directed', skipDefaultElements = false) => {
         const viewId = toElementId(`view:${crypto.randomUUID()}`);
         
         const notation = NotationRegistry.forViewType(type as any);
@@ -736,7 +953,7 @@ export const useGraphStore = create<GraphStoreState>()(
         let nodes: ViewNode[] = [];
         let nextConcepts = get().concepts;
 
-        if (defaultElements && defaultElements.length > 0) {
+        if (defaultElements && defaultElements.length > 0 && !skipDefaultElements) {
           const createdConcepts: ConceptNode[] = [];
           const createdViewNodes: ViewNode[] = [];
 
@@ -966,24 +1183,42 @@ export const useGraphStore = create<GraphStoreState>()(
         PersistenceService.scheduleAutoSave(get());
       },
 
-      updateViewEdgeLayout: (viewId, relationId, sourcePosition, targetPosition, waypoints) => {
+      updateViewEdgeLayout: (viewId, relationId, sourcePosition, targetPosition, waypoints, sourceInstanceId, targetInstanceId) => {
         const view = get().views.find((v) => v.id === viewId);
         if (!view) return;
 
+        const rel = get().relations.find((r) => r.id === relationId);
+        const relSrc = rel?.sourceConceptId;
+        const relTgt = rel?.targetConceptId;
+
         const viewEdges = view.viewEdges || [];
-        const existing = viewEdges.find((ve) => ve.relationId === relationId);
+        const existing = viewEdges.find((ve) => {
+          if (ve.relationId !== relationId) return false;
+          const veSrc = ve.sourceInstanceId || relSrc;
+          const veTgt = ve.targetInstanceId || relTgt;
+          const matchSrc = sourceInstanceId ? veSrc === sourceInstanceId : true;
+          const matchTgt = targetInstanceId ? veTgt === targetInstanceId : true;
+          return matchSrc && matchTgt;
+        });
 
         let nextViewEdges;
         if (existing) {
           nextViewEdges = viewEdges.map((ve) =>
-            ve.relationId !== relationId
+            ve !== existing
               ? ve
-              : { ...ve, sourcePosition, targetPosition, waypoints }
+              : {
+                  ...ve,
+                  sourcePosition: sourcePosition ?? ve.sourcePosition,
+                  targetPosition: targetPosition ?? ve.targetPosition,
+                  waypoints: waypoints ?? ve.waypoints,
+                  sourceInstanceId: sourceInstanceId ?? ve.sourceInstanceId,
+                  targetInstanceId: targetInstanceId ?? ve.targetInstanceId,
+                }
           );
         } else {
           nextViewEdges = [
             ...viewEdges,
-            { relationId, sourcePosition, targetPosition, waypoints },
+            { relationId, sourcePosition, targetPosition, waypoints: waypoints ?? [], sourceInstanceId, targetInstanceId },
           ];
         }
 
@@ -1008,6 +1243,171 @@ export const useGraphStore = create<GraphStoreState>()(
           ),
         }));
         PersistenceService.scheduleAutoSave(get());
+      },
+
+      toggleViewEdge: (viewId, sourceInstanceId, targetInstanceId, relationId) => {
+        const view = get().views.find((v) => v.id === viewId);
+        if (!view) return;
+
+        const rel = get().relations.find((r) => r.id === relationId);
+        if (!rel) return;
+
+        const viewNodes = normalizeViewNodes(view.nodes ?? []);
+        const viewEdges = view.viewEdges || [];
+
+        const currentlyVisible = isEdgeVisibleForInstances(
+          viewNodes,
+          viewEdges,
+          rel,
+          sourceInstanceId,
+          targetInstanceId
+        );
+
+        // Find all present instance pairs for this relation in the active view
+        const sourceNodes = viewNodes.filter((vn) => vn.conceptId === rel.sourceConceptId);
+        const targetNodes = viewNodes.filter((vn) => vn.conceptId === rel.targetConceptId);
+        const allPresentPairs: Array<{ srcInst: string; tgtInst: string }> = [];
+
+        for (const sNode of sourceNodes) {
+          const sInst = sNode.instanceId || sNode.conceptId;
+          for (const tNode of targetNodes) {
+            const tInst = tNode.instanceId || tNode.conceptId;
+            allPresentPairs.push({ srcInst: sInst, tgtInst: tInst });
+          }
+        }
+
+        console.log('[toggleViewEdge Start]', {
+          sourceInstanceId,
+          targetInstanceId,
+          relationId,
+          currentlyVisible,
+          allPresentPairs,
+          viewEdgesBefore: viewEdges,
+        });
+
+        // Determine new set of visible instance pairs after toggle
+        const newVisiblePairs = allPresentPairs.filter((pair) => {
+          const isTargetPair = pair.srcInst === sourceInstanceId && pair.tgtInst === targetInstanceId;
+          if (currentlyVisible) {
+            if (isTargetPair) return false;
+            return isEdgeVisibleForInstances(viewNodes, viewEdges, rel, pair.srcInst, pair.tgtInst);
+          } else {
+            if (isTargetPair) return true;
+            return isEdgeVisibleForInstances(viewNodes, viewEdges, rel, pair.srcInst, pair.tgtInst);
+          }
+        });
+
+        // Strip away old ViewEdge entries for this relation
+        const otherViewEdges = viewEdges.filter((ve) => ve.relationId !== relationId);
+
+        let nextRelEdges: ViewEdge[];
+        if (newVisiblePairs.length === 0) {
+          // All instances hidden -> store sentinel isHidden entry
+          nextRelEdges = [{ relationId, waypoints: [], isHidden: true } as any];
+        } else {
+          // Construct explicit ViewEdge entries for every visible instance pair
+          nextRelEdges = newVisiblePairs.map((pair) => ({
+            relationId,
+            sourceInstanceId: pair.srcInst,
+            targetInstanceId: pair.tgtInst,
+            waypoints: [],
+          }));
+        }
+
+        const nextViewEdges = [...otherViewEdges, ...nextRelEdges];
+
+        console.log('[toggleViewEdge End]', {
+          newVisiblePairs,
+          nextRelEdges,
+          nextViewEdges,
+        });
+
+        set((s) => ({
+          views: s.views.map((v) => (v.id !== viewId ? v : { ...v, nodes: viewNodes, viewEdges: nextViewEdges })),
+        }));
+        PersistenceService.scheduleAutoSave(get());
+      },
+
+      connectAllDomainRelationsForInstance: (viewId, instanceId) => {
+        const view = get().views.find((v) => v.id === viewId);
+        if (!view) return;
+
+        const viewNodes = view.nodes ?? [];
+        const targetNode = viewNodes.find((vn) => (vn.instanceId || vn.conceptId) === instanceId);
+        if (!targetNode) return;
+
+        const conceptId = targetNode.conceptId;
+        const rawRelations = get().relations.filter(
+          (r) => r.sourceConceptId === conceptId || r.targetConceptId === conceptId
+        );
+
+        const relations = rawRelations;
+
+        let nextViewEdges = [...(view.viewEdges || [])];
+
+        for (const rel of relations) {
+          const sourceNodes = viewNodes.filter((vn) => vn.conceptId === rel.sourceConceptId);
+          const targetNodes = viewNodes.filter((vn) => vn.conceptId === rel.targetConceptId);
+          
+          const allPresentPairs: Array<{ srcInst: string; tgtInst: string }> = [];
+          for (const sNode of sourceNodes) {
+            const sInst = sNode.instanceId || sNode.conceptId;
+            for (const tNode of targetNodes) {
+              const tInst = tNode.instanceId || tNode.conceptId;
+              allPresentPairs.push({ srcInst: sInst, tgtInst: tInst });
+            }
+          }
+
+          const newVisiblePairs = allPresentPairs.filter((pair) => {
+            const involvesSelectedInstance = pair.srcInst === instanceId || pair.tgtInst === instanceId;
+            if (involvesSelectedInstance) return true;
+            return isEdgeVisibleForInstances(viewNodes, nextViewEdges, rel, pair.srcInst, pair.tgtInst);
+          });
+
+          // Strip away old entries for this relation
+          nextViewEdges = nextViewEdges.filter((ve) => ve.relationId !== rel.id);
+
+          if (newVisiblePairs.length === 0) {
+            nextViewEdges.push({ relationId: rel.id, waypoints: [], isHidden: true } as any);
+          } else {
+            newVisiblePairs.forEach((pair) => {
+              nextViewEdges.push({
+                relationId: rel.id,
+                sourceInstanceId: pair.srcInst,
+                targetInstanceId: pair.tgtInst,
+                waypoints: [],
+              });
+            });
+          }
+        }
+
+        set((s) => ({
+          views: s.views.map((v) => (v.id !== viewId ? v : { ...v, viewEdges: nextViewEdges })),
+        }));
+        PersistenceService.scheduleAutoSave(get());
+      },
+
+      addRelatedConceptAndConnect: (viewId, sourceInstanceId, relatedConceptId, relationId) => {
+        const view = get().views.find((v) => v.id === viewId);
+        if (!view) return;
+
+        const viewNodes = view.nodes ?? [];
+        const srcNode = viewNodes.find((vn) => (vn.instanceId || vn.conceptId) === sourceInstanceId);
+        if (!srcNode) return;
+
+        const parentId = srcNode.parentId;
+        const newInstId = `${relatedConceptId}#inst_${Math.random().toString(36).substring(2, 7)}`;
+        const x = srcNode.x + 350;
+        const y = srcNode.y;
+
+        get().addConceptToView(viewId, relatedConceptId, x, y, parentId, newInstId);
+
+        const rel = get().relations.find((r) => r.id === relationId);
+        const isSource = rel?.sourceConceptId === srcNode.conceptId;
+        const srcInst = isSource ? sourceInstanceId : newInstId;
+        const tgtInst = isSource ? newInstId : sourceInstanceId;
+
+        get().toggleViewEdge(viewId, srcInst, tgtInst, relationId);
       },
 
       addDomain: async (name, description) => {
@@ -1041,94 +1441,140 @@ export const useGraphStore = create<GraphStoreState>()(
         const activeViewId = get().activeViewId;
         const activeView = get().views.find((v) => v.id === activeViewId);
         
-        if (activeView && activeView.type === 'event_modeling' && !x && !y) {
+        if (activeView && activeView.type === 'event_modeling') {
           const conceptMap = new Map(get().concepts.map((c) => [c.id, c]));
           const viewNodes = activeView.nodes ?? [];
 
           if (conceptType === 'em_chapter') {
-            const chapters = viewNodes.filter(
-              (vn) => conceptMap.get(vn.conceptId)?.conceptType === 'em_chapter'
-            );
-            if (chapters.length > 0) {
-              let maxX = -Infinity;
-              let refY = 80;
-              chapters.forEach((ch) => {
-                const width = ch.width ?? 600;
-                if (ch.x + width > maxX) maxX = ch.x + width;
-                refY = ch.y;
-              });
-              x = maxX + 80;
-              y = refY;
-            } else {
-              x = 100;
-              y = 80;
-            }
-          } else if (conceptType === 'em_slice') {
-            const selectedIds = get().selectedConceptIds;
-            const selectedChapter = viewNodes.find(
-              (vn) =>
-                selectedIds.includes(vn.conceptId) &&
-                conceptMap.get(vn.conceptId)?.conceptType === 'em_chapter'
-            );
-            let targetChapterId = selectedChapter?.conceptId;
-
-            if (!targetChapterId) {
+            if (x === undefined && y === undefined) {
               const chapters = viewNodes.filter(
                 (vn) => conceptMap.get(vn.conceptId)?.conceptType === 'em_chapter'
               );
               if (chapters.length > 0) {
-                let rightmostChapter = chapters[0];
+                let maxX = -Infinity;
+                let refY = 80;
                 chapters.forEach((ch) => {
-                  if (ch.x > rightmostChapter.x) rightmostChapter = ch;
+                  const slicesInCh = viewNodes.filter((sl) => sl.parentId === ch.conceptId);
+                  let chWidth = 600;
+                  if (slicesInCh.length > 0) {
+                    let maxSliceRight = -Infinity;
+                    slicesInCh.forEach((sl) => {
+                      const slWidth = sl.width ?? 320;
+                      if (sl.x + slWidth > maxSliceRight) maxSliceRight = sl.x + slWidth;
+                    });
+                    chWidth = Math.max(600, maxSliceRight - ch.x + 48);
+                  }
+                  if (ch.x + chWidth > maxX) maxX = ch.x + chWidth;
+                  refY = ch.y;
                 });
-                targetChapterId = rightmostChapter.conceptId;
-              }
-            }
-
-            if (targetChapterId) {
-              parentId = targetChapterId;
-              const chapterVn = viewNodes.find((vn) => vn.conceptId === targetChapterId)!;
-              const slicesInChapter = viewNodes.filter((vn) => vn.parentId === targetChapterId);
-              if (slicesInChapter.length > 0) {
-                let maxX = -Infinity;
-                slicesInChapter.forEach((sl) => {
-                  const width = sl.width ?? 320;
-                  if (sl.x + width > maxX) maxX = sl.x + width;
-                });
-                x = maxX + 24;
-                y = chapterVn.y + 48;
-              } else {
-                x = chapterVn.x + 48;
-                y = chapterVn.y + 48;
-              }
-            } else {
-              const slices = viewNodes.filter(
-                (vn) => conceptMap.get(vn.conceptId)?.conceptType === 'em_slice'
-              );
-              if (slices.length > 0) {
-                let maxX = -Infinity;
-                slices.forEach((sl) => {
-                  const width = sl.width ?? 320;
-                  if (sl.x + width > maxX) maxX = sl.x + width;
-                });
-                x = maxX + 40;
-                y = 80;
+                x = maxX + 80;
+                y = refY;
               } else {
                 x = 100;
                 y = 80;
               }
             }
+          } else if (conceptType === 'em_slice') {
+            if (!parentId) {
+              const selectedIds = get().selectedConceptIds;
+              const selectedChapter = viewNodes.find(
+                (vn) =>
+                  selectedIds.includes(vn.conceptId) &&
+                  conceptMap.get(vn.conceptId)?.conceptType === 'em_chapter'
+              );
+              let targetChapterId = selectedChapter?.conceptId;
+
+              if (!targetChapterId) {
+                const chapters = viewNodes.filter(
+                  (vn) => conceptMap.get(vn.conceptId)?.conceptType === 'em_chapter'
+                );
+                if (chapters.length > 0) {
+                  let rightmostChapter = chapters[0];
+                  chapters.forEach((ch) => {
+                    if (ch.x > rightmostChapter.x) rightmostChapter = ch;
+                  });
+                  targetChapterId = rightmostChapter.conceptId;
+                }
+              }
+
+              if (targetChapterId) {
+                parentId = targetChapterId;
+              }
+            }
+
+            if (x === undefined && y === undefined) {
+              if (parentId) {
+                const chapterVn = viewNodes.find((vn) => vn.conceptId === parentId)!;
+                const slicesInChapter = viewNodes.filter((vn) => vn.parentId === parentId);
+                if (slicesInChapter.length > 0) {
+                  let maxX = -Infinity;
+                  slicesInChapter.forEach((sl) => {
+                    const width = sl.width ?? 320;
+                    if (sl.x + width > maxX) maxX = sl.x + width;
+                  });
+                  x = maxX + 24;
+                  y = chapterVn.y + 48;
+                } else {
+                  x = chapterVn.x + 48;
+                  y = chapterVn.y + 48;
+                }
+              } else {
+                const slices = viewNodes.filter(
+                  (vn) => conceptMap.get(vn.conceptId)?.conceptType === 'em_slice'
+                );
+                if (slices.length > 0) {
+                  let maxX = -Infinity;
+                  slices.forEach((sl) => {
+                    const width = sl.width ?? 320;
+                    if (sl.x + width > maxX) maxX = sl.x + width;
+                  });
+                  x = maxX + 40;
+                  y = 80;
+                } else {
+                  x = 100;
+                  y = 80;
+                }
+              }
+            }
           } else {
-            const selectedIds = get().selectedConceptIds;
-            const selectedSlice = viewNodes.find(
-              (vn) =>
-                selectedIds.includes(vn.conceptId) &&
-                conceptMap.get(vn.conceptId)?.conceptType === 'em_slice'
-            );
-            if (selectedSlice) {
-              parentId = selectedSlice.conceptId;
-              x = selectedSlice.x + 30;
-              y = selectedSlice.y + 48;
+            if (!parentId) {
+              const selectedIds = get().selectedConceptIds;
+              const selectedSlice = viewNodes.find(
+                (vn) =>
+                  selectedIds.includes(vn.conceptId) &&
+                  conceptMap.get(vn.conceptId)?.conceptType === 'em_slice'
+              );
+              if (selectedSlice) {
+                parentId = selectedSlice.conceptId;
+              }
+            }
+
+            if (x === undefined && y === undefined) {
+              if (parentId) {
+                const selectedSlice = viewNodes.find((vn) => vn.conceptId === parentId)!;
+                const elementsInSlice = viewNodes.filter((vn) => vn.parentId === parentId);
+                if (elementsInSlice.length > 0) {
+                  let maxY = -Infinity;
+                  elementsInSlice.forEach((el) => {
+                    const height = el.height ?? 90;
+                    if (el.y + height > maxY) maxY = el.y + height;
+                  });
+                  x = selectedSlice.x + 30;
+                  y = maxY + 24;
+                } else {
+                  x = selectedSlice.x + 30;
+                  y = selectedSlice.y + 60;
+                }
+              } else {
+                // Free-floating element (no slice selected): place to the right of all existing containers
+                let maxX = 100;
+                viewNodes.forEach((vn) => {
+                  const width = vn.width ?? 320;
+                  if (vn.x + width > maxX) maxX = vn.x + width;
+                });
+                x = maxX + 60;
+                y = 150;
+              }
             }
           }
         }
@@ -1468,8 +1914,9 @@ export const useGraphStore = create<GraphStoreState>()(
       bootstrap: async () => {
         const result = await PersistenceService.bootstrap();
         if (result.state) {
+          const { relations: cleanRelations, views: cleanViews } = sanitizeRelations(result.state.relations ?? [], result.state.views ?? []);
           // Ensure there is always at least one view (Global Explorer default)
-          let views = result.state.views ?? [];
+          let views = cleanViews;
           const concepts = result.state.concepts;
 
           if (views.length === 0) {
@@ -1515,11 +1962,12 @@ export const useGraphStore = create<GraphStoreState>()(
             // sessionStorage unavailable — use views[0]
           }
 
+          const normalizedViews = views.map((v) => ({ ...v, nodes: normalizeViewNodes(v.nodes ?? []) }));
           set({
             domains: result.state.domains,
             concepts: result.state.concepts,
-            relations: result.state.relations,
-            views,
+            relations: cleanRelations,
+            views: normalizedViews,
             activeViewId: restoredActiveViewId,
             syncStatus: result.isConflict ? 'conflict' : 'idle',
             rawYaml: result.rawYaml || null,
@@ -1527,6 +1975,19 @@ export const useGraphStore = create<GraphStoreState>()(
           });
           getTemporalState().clear();
           set((s) => ({ layoutVersion: s.layoutVersion + 1 }));
+
+          const wasCleaned =
+            cleanRelations.length !== (result.state.relations ?? []).length ||
+            JSON.stringify(cleanViews) !== JSON.stringify(result.state.views ?? []);
+          if (wasCleaned) {
+            console.log('[PersistenceService] Auto-saved healed/cleaned workspace on bootstrap.');
+            await PersistenceService.saveWorkspace({
+              ...result.state,
+              relations: cleanRelations,
+              views: cleanViews,
+            });
+          }
+
           if (!result.isConflict) {
             get().startAutoFetch();
           }
@@ -1542,14 +2003,28 @@ export const useGraphStore = create<GraphStoreState>()(
       loadWorkspace: async () => {
         const state = await PersistenceService.loadWorkspace();
         if (state) {
+          const { relations: cleanRelations, views: cleanViews } = sanitizeRelations(state.relations ?? [], state.views ?? []);
+          const loadedViews = cleanViews.map((v) => ({ ...v, nodes: normalizeViewNodes(v.nodes ?? []) }));
           set({
             domains: state.domains,
             concepts: state.concepts,
-            relations: state.relations,
-            views: state.views ?? [],
+            relations: cleanRelations,
+            views: loadedViews,
             activeViewId: get().activeViewId ?? state.views?.[0]?.id ?? null,
           });
           getTemporalState().clear();
+
+          const wasCleaned =
+            cleanRelations.length !== (state.relations ?? []).length ||
+            JSON.stringify(cleanViews) !== JSON.stringify(state.views ?? []);
+          if (wasCleaned) {
+            console.log('[PersistenceService] Auto-saved healed/cleaned workspace.');
+            await PersistenceService.saveWorkspace({
+              ...state,
+              relations: cleanRelations,
+              views: cleanViews,
+            });
+          }
         }
       },
       saveWorkspace: async () => {
@@ -1776,7 +2251,8 @@ export const useGraphStore = create<GraphStoreState>()(
         const state = PersistenceService.parse(yaml);
         const viewsYaml = await readViewsYaml();
         const views = viewsYaml ? yamlToViews(viewsYaml) : [];
-        const fullState = { ...state, views };
+        const { relations: cleanRelations, views: cleanViews } = sanitizeRelations(state.relations ?? [], views);
+        const fullState = { ...state, relations: cleanRelations, views: cleanViews };
         set({
           domains: fullState.domains,
           concepts: fullState.concepts,

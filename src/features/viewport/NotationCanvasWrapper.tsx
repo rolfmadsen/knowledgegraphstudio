@@ -234,12 +234,13 @@ const HIDE_EDGES_IN_NOTATION: Record<string, Set<string>> = {
     const layoutNodes = viewNodes
       .filter((vn) => visibleConceptIds.has(vn.conceptId))
       .map((vn) => {
-        const rfNode = rfNodes.find((n) => n.id === vn.conceptId);
+        const nodeInstId = vn.instanceId || vn.conceptId;
+        const rfNode = rfNodes.find((n) => n.id === nodeInstId || n.id === vn.conceptId);
         const w = rfNode?.measured?.width ?? 200;
         const h = rfNode?.measured?.height ?? 80;
         const c = conceptMap.get(vn.conceptId);
         return { 
-          id: vn.conceptId, 
+          id: nodeInstId, 
           x: vn.x, 
           y: vn.y, 
           width: w, 
@@ -251,12 +252,21 @@ const HIDE_EDGES_IN_NOTATION: Record<string, Set<string>> = {
       });
 
     const layoutLinks = currentRelations
-      .filter(
-        (r) =>
-          viewNodes.some((vn) => vn.conceptId === r.sourceConceptId) &&
-          viewNodes.some((vn) => vn.conceptId === r.targetConceptId),
-      )
-      .map((r) => ({ id: r.id, source: r.sourceConceptId, target: r.targetConceptId }));
+      .filter((r) => {
+        const ve = currentView.viewEdges?.find(e => e.relationId === r.id);
+        const sId = ve?.sourceInstanceId || r.sourceConceptId;
+        const tId = ve?.targetInstanceId || r.targetConceptId;
+        return viewNodes.some(vn => (vn.instanceId || vn.conceptId) === sId) &&
+               viewNodes.some(vn => (vn.instanceId || vn.conceptId) === tId);
+      })
+      .map((r) => {
+        const ve = currentView.viewEdges?.find(e => e.relationId === r.id);
+        return {
+          id: r.id,
+          source: ve?.sourceInstanceId || r.sourceConceptId,
+          target: ve?.targetInstanceId || r.targetConceptId,
+        };
+      });
 
     try {
       const result = await currentNotation.layoutEngine({
@@ -267,7 +277,8 @@ const HIDE_EDGES_IN_NOTATION: Record<string, Set<string>> = {
       if (result.positions.length > 0) {
         // Normalize group node positions based on children bounds in result.positions
         const normalizedPositions = result.positions.map(p => ({
-          conceptId: toElementId(p.conceptId),
+          instanceId: p.conceptId,
+          conceptId: toElementId(p.conceptId.split('#')[0]),
           x: p.x,
           y: p.y,
         }));

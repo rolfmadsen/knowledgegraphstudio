@@ -28,8 +28,8 @@ async function run() {
   if (filesTable) {
     const files = await filesTable.toArray();
     console.log(`Found ${files.length} records in files table.`);
-    // Log any file paths ending with typegraph.yaml
-    const yamlFiles = files.filter(f => f.filepath?.includes('typegraph.yaml'));
+    // Log any file paths ending with xarchi.yaml
+    const yamlFiles = files.filter(f => f.filepath?.includes('xarchi.yaml'));
     yamlFiles.forEach(f => {
       console.log('Filepath:', f.filepath);
       // If we have content

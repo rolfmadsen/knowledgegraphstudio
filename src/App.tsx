@@ -407,10 +407,10 @@ function App() {
       <div className="flex w-full h-full items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-10">
           <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center text-white text-3xl font-black shadow-lg shadow-primary/20">
-            TG
+            XA
           </div>
           <div className="flex flex-col items-center gap-3">
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">TypeGraph Studio</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900">xArchi Studio</h1>
             <p className="text-[11px] font-medium text-slate-400 uppercase tracking-widest animate-pulse">Initializing Workspace...</p>
           </div>
         </div>

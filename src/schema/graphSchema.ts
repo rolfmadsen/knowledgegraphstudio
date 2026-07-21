@@ -6,7 +6,7 @@
  *
  * Architecture Note (1:N View Model):
  *   - ConceptNode is now PURELY semantic (no layout fields).
- *   - All visual coordinates live in ViewNode → View → views.typegraph.yaml.
+ *   - All visual coordinates live in ViewNode → View → views.xarchi.yaml.
  *   - GraphState is the single hydrated object held in Zustand; it contains
  *     both the semantic model and the views array.
  */
@@ -157,7 +157,7 @@ export type ViewType = z.infer<typeof ViewType>;
 /**
  * LayoutAlgorithm — Determines how node positions are managed.
  * - 'force_directed': Ephemeral; coordinates computed by D3 worker, NOT saved.
- * - 'manual': User-dragged; coordinates saved to views.typegraph.yaml.
+ * - 'manual': User-dragged; coordinates saved to views.xarchi.yaml.
  * - 'hierarchical' / 'orthogonal': Reserved for future layout libraries (Dagre/ELK).
  */
 export const LayoutAlgorithm = z.enum([
@@ -391,6 +391,7 @@ export type ConceptRelation = z.infer<typeof ConceptRelation>;
  * data is looked up via conceptId → store.concepts.
  */
 export const ViewNode = z.object({
+  instanceId: z.string().optional(),
   conceptId: ElementId,
   x: z.number(),
   y: z.number(),
@@ -413,6 +414,8 @@ export type ViewEdgeWaypoint = z.infer<typeof ViewEdgeWaypoint>;
 
 export const ViewEdge = z.object({
   relationId: ElementId,
+  sourceInstanceId: z.string().optional(),
+  targetInstanceId: z.string().optional(),
   sourcePosition: z.enum(['top', 'bottom', 'left', 'right']).optional(),
   targetPosition: z.enum(['top', 'bottom', 'left', 'right']).optional(),
   waypoints: z.array(ViewEdgeWaypoint),
@@ -444,7 +447,7 @@ export type GraphState = z.infer<typeof GraphState>;
 /** Export-safe version of GraphState.
  *  Since ConceptNode is now fully semantic, this is identical to GraphState.
  *  The 'views' array is intentionally included here because it is exported
- *  to views.typegraph.yaml (handled separately by PersistenceService).
+ *  to views.xarchi.yaml (handled separately by PersistenceService).
  */
 export const GraphStateExport = GraphState;
 export type GraphStateExport = GraphState;

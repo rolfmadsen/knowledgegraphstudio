@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { ElementId, ConceptType } from '../../../schema/graphSchema';
 import { CredentialService, type AIConfig } from '../../../services/CredentialService';
 import { useGraphStore } from '../../../store/useGraphStore';
+import { normalizeIdForMatching } from '../services/AIParser';
 
 // ============================================================
 // Types
@@ -407,17 +408,27 @@ export const useAIStore = create<AIStoreState>((set, get) => ({
 
     try {
       const resolveId = (aiId: string): string => {
+        if (!aiId) return aiId;
         if (currentIdMap[aiId]) return currentIdMap[aiId];
+
+        // Try matching normalized map keys
+        const normalizedAiId = normalizeIdForMatching(aiId);
+        for (const [key, val] of Object.entries(currentIdMap)) {
+          if (normalizeIdForMatching(key) === normalizedAiId) {
+            return val;
+          }
+        }
+        // Try matching concept slug casing/dash insensitively
         const slugMatch = graphStore.concepts.find((c) => {
-          const slug = `${c.conceptType}:${c.name.trim().toLowerCase().replace(/\s+/g, '-')}`;
-          return slug === aiId;
+          const slug = `${c.conceptType}:${c.name.trim().toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-')}`;
+          return normalizeIdForMatching(slug) === normalizedAiId || normalizeIdForMatching(c.id) === normalizedAiId;
         });
         if (slugMatch) return slugMatch.id;
         return aiId;
       };
 
+      // 1. Perform graph mutation
       if (proposal.action === 'addConcept') {
-        // Calculate center of view for default coordinates
         const activeView = graphStore.views.find((v) => v.id === viewId);
         const defaultW = activeView?.type === 'c4' ? 240 : (activeView?.type === 'archimate' || activeView?.type === 'dcr') ? 210 : 200;
         const defaultH = activeView?.type === 'c4' ? 96 : (activeView?.type === 'archimate' || activeView?.type === 'dcr') ? 76 : 80;
@@ -434,7 +445,7 @@ export const useAIStore = create<AIStoreState>((set, get) => ({
         });
 
         // Record the mapping: AI expected slug → real UUID assigned by generateId()
-        const aiExpectedSlug = `${proposal.conceptType}:${proposal.name.trim().toLowerCase().replace(/\s+/g, '-')}`;
+        const aiExpectedSlug = `${proposal.conceptType}:${proposal.name.trim().toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-')}`;
         if (createdConcept && createdConcept.id !== aiExpectedSlug) {
           currentIdMap[aiExpectedSlug] = createdConcept.id;
         }
@@ -545,7 +556,7 @@ export const useAIStore = create<AIStoreState>((set, get) => ({
     const resolveId = (aiId: string): string => {
       if (currentIdMap[aiId]) return currentIdMap[aiId];
       const slugMatch = graphStore.concepts.find((c) => {
-        const slug = `${c.conceptType}:${c.name.trim().toLowerCase().replace(/\s+/g, '-')}`;
+        const slug = `${c.conceptType}:${c.name.trim().toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-')}`;
         return slug === aiId;
       });
       if (slugMatch) return slugMatch.id;
@@ -574,7 +585,7 @@ export const useAIStore = create<AIStoreState>((set, get) => ({
             y,
           });
 
-          const aiExpectedSlug = `${proposal.conceptType}:${proposal.name.trim().toLowerCase().replace(/\s+/g, '-')}`;
+          const aiExpectedSlug = `${proposal.conceptType}:${proposal.name.trim().toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-')}`;
           if (createdConcept && createdConcept.id !== aiExpectedSlug) {
             currentIdMap[aiExpectedSlug] = createdConcept.id;
           }
