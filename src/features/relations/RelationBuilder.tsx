@@ -234,7 +234,7 @@ export function RelationBuilder() {
       threshold: 0.4,
     });
 
-    const results = q ? fuse.search(q).map(r => r.item) : notationFiltered.slice(0, 10);
+    const results = q ? fuse.search(q).map(r => r.item) : [];
 
     const finalOptions: RelationOption[] = results.map(c => ({
       id: c.id,
@@ -553,280 +553,297 @@ export function RelationBuilder() {
   const showRulesPanel = !!activeNotation?.getAvailableRelations;
 
   return (
-    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 sm:p-12">
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-slate-900/20 backdrop-blur-sm transition-opacity"
-        onClick={() => setOpen(false)}
-      />
-
-      {/* Palette Container (Modern Pro) */}
+    <div
+      className="fixed inset-0 z-[1000] flex items-center justify-center p-4 sm:p-6 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200"
+      onClick={(e) => { if (e.target === e.currentTarget) setOpen(false); }}
+    >
+      {/* Palette Container */}
       <div
         ref={containerRef}
-        className={`relative w-full ${showRulesPanel ? 'max-w-[980px]' : 'max-w-[700px]'} h-[720px] max-h-[85vh] bg-slate-50/95 backdrop-blur-2xl rounded-[2.5rem] border border-white shadow-2xl flex flex-col md:flex-row overflow-hidden animate-in fade-in zoom-in duration-300 transition-all duration-500`}
+        className={`bg-white/95 backdrop-blur-2xl w-full ${showRulesPanel ? 'max-w-4xl' : 'max-w-xl'} ${step === 'target' && !query.trim() ? 'h-auto' : 'h-[580px]'} max-h-[85vh] rounded-[28px] shadow-[0_32px_96px_-16px_rgba(0,0,0,0.25)] border border-white/60 flex flex-col md:flex-row overflow-hidden transition-all duration-300 animate-in zoom-in-95`}
       >
         <div className="flex-1 flex flex-col min-w-0">
 
           {/* Header Section */}
-          <div className="px-10 pt-10 pb-6 border-b border-slate-200/50">
-            <div className="flex items-center justify-between mb-8">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-emerald-600 flex items-center justify-center text-white shadow-lg shadow-emerald-200">
-                  <Workflow size={24} strokeWidth={2.5} />
+          <div className="px-8 pt-8 pb-5 flex items-start justify-between border-b border-slate-100">
+            <div className="flex items-center gap-4">
+              <div className="w-11 h-11 bg-slate-100 text-slate-700 rounded-2xl flex items-center justify-center shadow-sm shrink-0">
+                <Workflow size={20} strokeWidth={2} />
+              </div>
+              <div>
+                <h2 className="text-[16px] font-black text-slate-900 tracking-tight leading-tight">Opret relation</h2>
+                <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400 mt-0.5">
+                  Forbind noder i grafen
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setOpen(false)}
+              className="w-8 h-8 flex items-center justify-center text-slate-300 hover:text-slate-500 hover:bg-slate-100 rounded-full transition-all active:scale-90 shrink-0"
+              title="Cancel"
+            >
+              <X size={16} />
+            </button>
+          </div>
+
+          {/* Stepper Indicator */}
+          <div className="px-8 py-3 bg-slate-50/50 border-b border-slate-100 flex gap-2">
+            {[
+              { id: 'target' as const, label: '01 Mål-node' },
+              { id: 'type' as const, label: '02 Type' },
+              { id: 'label' as const, label: '03 Relation' }
+            ].map((s) => {
+              const isActive = step === s.id;
+              const isPast = (step === 'type' && s.id === 'target') || (step === 'label' && s.id !== 'label');
+              const canGoTo = (s.id === 'target') ||
+                (s.id === 'type' && isNewTarget && baseAllowedTypes.length > 1) ||
+                (s.id === 'label' && targetIdOrName);
+
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => canGoTo && setStep(s.id)}
+                  disabled={!canGoTo}
+                  className={`flex-1 h-1.5 rounded-full transition-all duration-300 outline-none ${
+                    isActive ? 'bg-slate-900 shadow-sm' :
+                    isPast ? 'bg-slate-300 hover:bg-slate-400' : 'bg-slate-200'
+                  } ${canGoTo ? 'cursor-pointer' : 'cursor-not-allowed'}`}
+                  title={s.label}
+                />
+              );
+            })}
+          </div>
+
+          {/* Context Bridge Visualizer */}
+          <div className="px-8 py-4 bg-slate-50/80 border-b border-slate-100">
+            <div className="flex items-center justify-between gap-3">
+              {/* Source Side */}
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-7 h-7 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-500 shrink-0 shadow-sm">
+                  {sourceNode.conceptType === 'actor' ? <User size={13} /> :
+                    sourceNode.conceptType === 'process' ? <Activity size={13} /> :
+                      <Box size={13} />}
                 </div>
-                <div className="flex flex-col">
-                  <h2 className="text-xl font-black text-slate-800 tracking-tight">Relation Builder</h2>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Global Graph</span>
-                    <div className="w-1 h-1 bg-slate-300 rounded-full" />
-                    <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest italic">New Relation</span>
+                <div className="flex flex-col min-w-0 text-left">
+                  <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Kilde</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[12px] font-bold text-slate-800 truncate uppercase">{sourceNode.name}</span>
+                    <span className="px-1.5 py-0.5 bg-slate-200/60 text-slate-600 text-[8px] font-bold rounded uppercase tracking-tight">{sourceNode.conceptType}</span>
                   </div>
                 </div>
               </div>
-              <button
-                onClick={() => setOpen(false)}
-                className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white text-slate-400 hover:text-slate-900 transition-all border border-transparent hover:border-slate-200 shadow-sm outline-none focus:ring-2 focus:ring-slate-200"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            {/* Stepper Indicator */}
-            <div className="flex gap-2">
-              {[
-                { id: 'target' as const, label: '01 Target' },
-                { id: 'type' as const, label: '02 Archetype' },
-                { id: 'label' as const, label: '03 Relation' }
-              ].map((s) => {
-                const isActive = step === s.id;
-                const isPast = (step === 'type' && s.id === 'target') || (step === 'label' && s.id !== 'label');
-                const canGoTo = (s.id === 'target') ||
-                  (s.id === 'type' && isNewTarget && baseAllowedTypes.length > 1) ||
-                  (s.id === 'label' && targetIdOrName);
-
-                return (
-                  <button
-                    key={s.id}
-                    onClick={() => canGoTo && setStep(s.id)}
-                    disabled={!canGoTo}
-                    className={`flex-1 h-1.5 rounded-full transition-all duration-500 outline-none ${isActive ? 'bg-emerald-600 shadow-[0_0_8px_rgba(5,150,105,0.4)]' :
-                      isPast ? 'bg-emerald-200 hover:bg-emerald-300' : 'bg-slate-200'
-                      } ${canGoTo ? 'cursor-pointer' : 'cursor-not-allowed'}`}
-                  />
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Context Bridge (Modern Pro Visualizer) */}
-          <div className="px-10 py-6 bg-slate-100/50 border-b border-slate-200/30">
-            <div className="flex items-center justify-between gap-4">
-              {/* Source Side */}
-              <button
-                onClick={() => setOpen(false)}
-                className="flex items-center gap-3 min-w-0 hover:bg-white/50 p-1 rounded-lg transition-colors group"
-              >
-                <div className="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-400 shrink-0 shadow-sm group-hover:border-emerald-200 group-hover:text-emerald-500 transition-all">
-                  {sourceNode.conceptType === 'actor' ? <User size={14} /> :
-                    sourceNode.conceptType === 'process' ? <Activity size={14} /> :
-                      <Box size={14} />}
-                </div>
-                <div className="flex flex-col min-w-0 text-left">
-                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Source</span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[13px] font-bold text-slate-700 truncate uppercase">{sourceNode.name}</span>
-                    <span className="px-1.5 py-0.5 bg-slate-200/50 text-slate-500 text-[8px] font-black rounded uppercase tracking-tighter border border-slate-200/30">{sourceNode.conceptType}</span>
-                  </div>
-                </div>
-              </button>
 
               {/* Connecting Line / Label */}
-              <div className="flex-1 flex flex-col items-center justify-center relative min-w-[120px]">
-                <div className="w-full h-px bg-slate-300 relative">
-                  <div className="absolute -top-1.5 -right-1.5 text-slate-300">
-                    <ChevronRight size={14} />
+              <div className="flex-1 flex flex-col items-center justify-center relative min-w-[100px]">
+                <div className="w-full h-px bg-slate-200 relative">
+                  <div className="absolute -top-1.5 -right-1 text-slate-300">
+                    <ChevronRight size={13} />
                   </div>
                 </div>
                 <button
                   onClick={() => targetIdOrName && setStep('label')}
                   disabled={!targetIdOrName}
-                  className={`mt-2 px-3 py-1 rounded-full border text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${label ? 'bg-emerald-600 text-white border-emerald-500 shadow-md scale-110' :
-                    targetIdOrName ? 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100' : 'bg-white text-slate-400 border-slate-200'
-                    }`}>
-                  {label || (step === 'label' ? 'Defining...' : '...')}
+                  className={`mt-1.5 px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider transition-all ${
+                    label
+                      ? 'bg-slate-900 text-white shadow-sm'
+                      : targetIdOrName
+                      ? 'bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200'
+                      : 'bg-white text-slate-400 border border-slate-200'
+                  }`}
+                >
+                  {label || (step === 'label' ? 'Vælg...' : '...')}
                 </button>
               </div>
 
               {/* Target Side */}
               <button
                 onClick={() => setStep('target')}
-                className={`flex items-center gap-3 min-w-0 transition-all duration-500 hover:bg-white/50 p-1 rounded-lg group ${step === 'target' ? 'opacity-40' : 'opacity-100'}`}
+                className={`flex items-center gap-2.5 min-w-0 text-right transition-opacity ${step === 'target' ? 'opacity-50' : 'opacity-100'}`}
               >
-                <div className="flex flex-col items-end min-w-0 text-right">
-                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Target</span>
-                  <div className="flex items-center gap-2">
+                <div className="flex flex-col items-end min-w-0">
+                  <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Mål</span>
+                  <div className="flex items-center gap-1.5">
                     {displayTargetType && (
-                      <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-600 text-[8px] font-black rounded uppercase tracking-tighter border border-emerald-200/30">{displayTargetType}</span>
+                      <span className="px-1.5 py-0.5 bg-slate-100 text-slate-700 border border-slate-200 text-[8px] font-bold rounded uppercase tracking-tight">{displayTargetType}</span>
                     )}
-                    <span className="text-[13px] font-bold text-slate-700 truncate uppercase">
+                    <span className="text-[12px] font-bold text-slate-800 truncate uppercase">
                       {displayTarget}
                     </span>
                   </div>
                 </div>
-                <div className={`w-8 h-8 rounded-lg border flex items-center justify-center shrink-0 shadow-sm transition-all group-hover:scale-110 ${targetIdOrName ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'bg-white border-slate-100 text-slate-200'
-                  }`}>
-                  {isNewTarget ? <Plus size={14} /> : targetNode ? <Box size={14} /> : <Search size={14} />}
+                <div className={`w-7 h-7 rounded-lg border flex items-center justify-center shrink-0 shadow-sm ${
+                  targetIdOrName ? 'bg-slate-100 border-slate-300 text-slate-700' : 'bg-white border-slate-200 text-slate-300'
+                }`}>
+                  {isNewTarget ? <Plus size={13} /> : targetNode ? <Box size={13} /> : <Search size={13} />}
                 </div>
               </button>
             </div>
           </div>
 
           {/* Search / Input Area */}
-          <div className="px-10 py-8">
+          <div className="px-8 py-5">
             {step === 'target' ? (
-              <div className="group relative flex items-center gap-4 bg-white border border-slate-200 rounded-2xl px-5 py-4 focus-within:border-emerald-500 focus-within:ring-4 focus-within:ring-emerald-500/5 transition-all shadow-sm">
-                <Search className="w-5 h-5 text-slate-400 group-focus-within:text-emerald-500 transition-colors" />
+              <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 focus-within:bg-white focus-within:border-slate-400 focus-within:ring-2 focus-within:ring-slate-100 transition-all shadow-sm">
+                <Search size={14} className="text-slate-400 mr-2 shrink-0" />
                 <input
                   ref={inputRef}
                   type="text"
+                  role="combobox"
+                  aria-expanded={options.length > 0}
+                  aria-autocomplete="list"
+                  aria-controls="relation-combobox-list"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder="Find or propose target concept..."
-                  className="flex-1 bg-transparent text-[15px] font-bold text-slate-800 outline-none placeholder:text-slate-300"
+                  placeholder="Søg eller opret mål-node..."
+                  className="w-full bg-transparent border-none text-[13px] font-semibold text-slate-800 outline-none placeholder:text-slate-300"
                 />
               </div>
             ) : step === 'type' ? (
               baseAllowedTypes.length === 1 ? (
-                <div className="group relative flex items-center gap-4 bg-emerald-50/50 border border-emerald-100 rounded-2xl px-5 py-4 transition-all">
-                  <div className="text-emerald-500"><Shield size={20} /></div>
-                  <div className="text-[13px] font-bold text-emerald-700 uppercase tracking-wider">
+                <div className="flex items-center gap-3 bg-slate-100 border border-slate-200 rounded-xl px-4 py-2.5">
+                  <Shield size={16} className="text-slate-600 shrink-0" />
+                  <div className="text-[12px] font-bold text-slate-800 uppercase tracking-wider">
                     Type er fastsat til {baseAllowedTypes[0].label} under denne notation
                   </div>
                 </div>
               ) : (
-                <div className="group relative flex items-center gap-4 bg-white border border-slate-200 rounded-2xl px-5 py-4 focus-within:border-emerald-500 focus-within:ring-4 focus-within:ring-emerald-500/5 transition-all shadow-sm">
-                  <div className="text-emerald-500 pr-1"><Plus size={20} strokeWidth={3} /></div>
+                <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 focus-within:bg-white focus-within:border-slate-400 focus-within:ring-2 focus-within:ring-slate-100 transition-all shadow-sm">
+                  <Plus size={14} className="text-slate-400 mr-2 shrink-0" />
                   <input
                     ref={inputRef}
                     type="text"
                     value={typeSearch}
                     onChange={(e) => setTypeSearch(e.target.value)}
                     onKeyDown={handleKeyDown}
-                    placeholder={`What archetype is "${targetIdOrName}"?`}
-                    className="flex-1 bg-transparent text-[15px] font-bold text-slate-800 outline-none placeholder:text-slate-300"
+                    placeholder={`Hvilken archetype er "${targetIdOrName}"?`}
+                    className="w-full bg-transparent border-none text-[13px] font-semibold text-slate-800 outline-none placeholder:text-slate-300"
                   />
                 </div>
               )
             ) : (
-              <div className="group relative flex items-center gap-4 bg-white border border-slate-200 rounded-2xl px-5 py-4 focus-within:border-emerald-500 focus-within:ring-4 focus-within:ring-emerald-500/5 transition-all shadow-sm">
-                <ArrowRight className="w-5 h-5 text-emerald-500" />
+              <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 focus-within:bg-white focus-within:border-slate-400 focus-within:ring-2 focus-within:ring-slate-100 transition-all shadow-sm">
+                <ArrowRight size={14} className="text-slate-400 mr-2 shrink-0" />
                 <input
                   ref={inputRef}
                   type="text"
                   value={label}
                   onChange={(e) => setLabel(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder="Nature of relation? (Enter for 'relateret til')"
-                  className="flex-1 bg-transparent text-[15px] font-bold text-slate-800 outline-none placeholder:text-slate-300"
+                  placeholder="Relationstype? (Tryk Enter for 'relateret til')"
+                  className="w-full bg-transparent border-none text-[13px] font-semibold text-slate-800 outline-none placeholder:text-slate-300"
                 />
               </div>
             )}
           </div>
 
           {/* Content Area */}
-          <div className="flex-1 flex flex-col overflow-hidden px-10 pb-10">
+          <div className="flex-1 flex flex-col overflow-hidden px-8 pb-6">
             <div className="flex-1 min-h-0">
               {step === 'target' ? (
-                <div ref={listRef} className="h-full relative overflow-y-auto custom-scrollbar pr-2 pt-2 pb-6 flex flex-col gap-2">
-                  {options.map((opt, idx) => (
-                    <button
-                      key={opt.id === 'new' ? `new-${query}` : opt.id}
-                      onClick={() => {
-                        setTargetIdOrName(opt.isNew ? query.trim() : opt.id);
-                        setIsNewTarget(opt.isNew);
-                        if (opt.isNew) {
-                          if (baseAllowedTypes.length === 1) {
-                            setSelectedType(baseAllowedTypes[0].type);
-                            setStep('label');
+                !query.trim() ? (
+                  <div className="py-4 px-2 flex flex-col items-center justify-center text-center gap-1.5 text-slate-400">
+                    <Search size={18} className="text-slate-300 mb-0.5" />
+                    <span className="text-[12px] font-bold text-slate-600">Søg eller opret en mål-node</span>
+                    <span className="text-[10px] text-slate-400 max-w-xs leading-normal">
+                      Begynd at skrive i søgefeltet ovenfor for at vælge eksisterende noder eller oprette en ny.
+                    </span>
+                  </div>
+                ) : (
+                  <div ref={listRef} role="listbox" id="relation-combobox-list" className="h-full relative overflow-y-auto custom-scrollbar pr-1 pt-1 pb-4 flex flex-col gap-2">
+                    {options.map((opt, idx) => (
+                      <button
+                        key={opt.id === 'new' ? `new-${query}` : opt.id}
+                        role="option"
+                        aria-selected={idx === selectedIndex}
+                        onClick={() => {
+                          setTargetIdOrName(opt.isNew ? query.trim() : opt.id);
+                          setIsNewTarget(opt.isNew);
+                          if (opt.isNew) {
+                            if (baseAllowedTypes.length === 1) {
+                              setSelectedType(baseAllowedTypes[0].type);
+                              setStep('label');
+                            } else {
+                              setStep('type');
+                            }
                           } else {
-                            setStep('type');
+                            setStep('label');
                           }
-                        } else {
-                          setStep('label');
-                        }
-                      }}
-                      onMouseEnter={() => setSelectedIndex(idx)}
-                      className={`
-                      w-full flex items-center justify-between p-4 rounded-[1.25rem] border transition-transform duration-200 group outline-none
-                      ${idx === selectedIndex
-                          ? 'bg-white border-emerald-500 shadow-lg shadow-emerald-200/20 translate-x-1 ring-1 ring-emerald-500/10'
-                          : 'bg-transparent border-transparent hover:bg-white/50 hover:border-slate-200'}
-                    `}
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${idx === selectedIndex ? 'bg-emerald-600 text-white shadow-md' : 'bg-white border border-slate-200 text-slate-300'}`}>
-                          {opt.isNew ? <Plus size={18} strokeWidth={2.5} /> : <Box size={18} />}
-                        </div>
-                        <div className="flex flex-col text-left">
-                          <span className={`text-[13px] font-bold ${idx === selectedIndex ? 'text-slate-900' : 'text-slate-600'}`}>{opt.label}</span>
-                          <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                            <span className={`text-[10px] font-bold uppercase tracking-widest ${idx === selectedIndex ? 'text-emerald-600' : 'text-slate-400'}`}>
-                              {opt.isNew ? 'PROPOSE NEW' : getDisplayLabelForType(opt.virtualType || opt.description, activeNotation)}
+                        }}
+                        onMouseEnter={() => setSelectedIndex(idx)}
+                        className={`w-full flex items-center justify-between p-3.5 rounded-2xl border-2 text-left transition-all duration-150 active:scale-[0.98] outline-none ${
+                          idx === selectedIndex
+                            ? 'border-slate-300 bg-slate-100/90 shadow-sm'
+                            : 'border-slate-100 bg-white hover:border-slate-200 hover:bg-slate-50/60'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                            idx === selectedIndex ? 'bg-slate-800 text-white shadow-sm' : 'bg-slate-100 text-slate-400'
+                          }`}>
+                            {opt.isNew ? <Plus size={16} strokeWidth={2.5} /> : <Box size={16} />}
+                          </div>
+                          <div className="flex flex-col text-left">
+                            <span className={`text-[13px] font-bold ${idx === selectedIndex ? 'text-slate-900' : 'text-slate-800'}`}>
+                              {opt.label}
                             </span>
-                            {!opt.isNew && activeNotation?.getAvailableRelations && (
-                              <>
-                                <span className="text-[10px] text-slate-300">•</span>
-                                <div className="flex flex-wrap gap-1">
-                                  {activeNotation.getAvailableRelations(sourceNode.conceptType, opt.description as ConceptType).slice(0, 3).map(r => (
-                                    <span key={r.id} className="px-1.5 py-0.5 bg-slate-100 border border-slate-200/50 text-slate-500 rounded text-[8px] font-black uppercase tracking-tight">
-                                      {r.label}
-                                    </span>
-                                  ))}
-                                  {activeNotation.getAvailableRelations(sourceNode.conceptType, opt.description as ConceptType).length > 3 && (
-                                    <span className="px-1.5 py-0.5 bg-slate-100 border border-slate-200/50 text-slate-400 rounded text-[8px] font-black uppercase tracking-tight">
-                                      +{activeNotation.getAvailableRelations(sourceNode.conceptType, opt.description as ConceptType).length - 3} More
-                                    </span>
-                                  )}
-                                </div>
-                              </>
-                            )}
+                            <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                              <span className={`text-[10px] font-bold uppercase tracking-widest ${idx === selectedIndex ? 'text-slate-600' : 'text-slate-400'}`}>
+                                {opt.isNew ? 'PROPOSER NY' : getDisplayLabelForType(opt.virtualType || opt.description, activeNotation)}
+                              </span>
+                              {!opt.isNew && activeNotation?.getAvailableRelations && (
+                                <>
+                                  <span className="text-[10px] text-slate-300">•</span>
+                                  <div className="flex flex-wrap gap-1">
+                                    {activeNotation.getAvailableRelations(sourceNode.conceptType, opt.description as ConceptType).slice(0, 3).map(r => (
+                                      <span key={r.id} className="px-1.5 py-0.5 bg-slate-100 border border-slate-200/50 text-slate-500 rounded text-[8px] font-bold uppercase tracking-tight">
+                                        {r.label}
+                                      </span>
+                                    ))}
+                                    {activeNotation.getAvailableRelations(sourceNode.conceptType, opt.description as ConceptType).length > 3 && (
+                                      <span className="px-1.5 py-0.5 bg-slate-100 border border-slate-200/50 text-slate-400 rounded text-[8px] font-bold uppercase tracking-tight">
+                                        +{activeNotation.getAvailableRelations(sourceNode.conceptType, opt.description as ConceptType).length - 3} Mere
+                                      </span>
+                                    )}
+                                  </div>
+                                </>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                      {idx === selectedIndex && (
-                        <div className="flex items-center gap-2 pr-2">
-                          <span className="text-[10px] font-black text-emerald-600/50 uppercase tracking-widest">Select</span>
-                          <ChevronRight size={14} className="text-emerald-500" />
-                        </div>
-                      )}
-                    </button>
-                  ))}
-                  {options.length > 0 && <div className="h-4 shrink-0" />}
-                </div>
+                        {idx === selectedIndex && (
+                          <div className="shrink-0 ml-auto w-5 h-5 rounded-full bg-slate-800 flex items-center justify-center">
+                            <ChevronRight size={12} strokeWidth={3} className="text-white" />
+                          </div>
+                        )}
+                      </button>
+                    ))}
+                    {options.length > 0 && <div className="h-2 shrink-0" />}
+                  </div>
+                )
               ) : step === 'type' ? (
                 baseAllowedTypes.length === 1 ? (
                   /* Single type fallback view */
                   <div className="h-full flex flex-col items-center justify-center gap-4 text-center">
-                    <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-600 shadow-md">
+                    <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-700 shadow-sm">
                       {baseAllowedTypes[0].icon}
                     </div>
                     <div>
-                      <h3 className="text-lg font-bold text-slate-800 uppercase tracking-wider">{baseAllowedTypes[0].label}</h3>
-                      <p className="text-[11px] font-medium text-slate-500 uppercase tracking-widest mt-1">Automatisk valgt type</p>
+                      <h3 className="text-base font-bold text-slate-800 uppercase tracking-wider">{baseAllowedTypes[0].label}</h3>
+                      <p className="text-[10px] font-medium text-slate-400 uppercase tracking-widest mt-0.5">Automatisk valgt type</p>
                     </div>
                     <button
                       onClick={() => {
                         setSelectedType(baseAllowedTypes[0].type);
                         setStep('label');
                       }}
-                      className="mt-4 px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-[12px] font-bold uppercase tracking-widest transition-all"
+                      className="mt-2 px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-[12px] font-bold uppercase tracking-widest transition-all"
                     >
                       Fortsæt til relation
                     </button>
                   </div>
                 ) : (
-                  <div ref={listRef} className="h-full relative grid grid-cols-1 sm:grid-cols-2 content-start gap-3 overflow-y-auto custom-scrollbar pr-2 pt-2 pb-6">
+                  <div ref={listRef} className="h-full relative grid grid-cols-1 sm:grid-cols-2 content-start gap-2.5 overflow-y-auto custom-scrollbar pr-1 pt-1 pb-4">
                     {filteredTypes.map((ct, idx) => {
                       const allowedRels = activeNotation?.getAvailableRelations
                         ? activeNotation.getAvailableRelations(sourceNode.conceptType, ct.type)
@@ -842,185 +859,146 @@ export function RelationBuilder() {
                             setStep('label');
                           }}
                           onMouseEnter={() => setSelectedIndex(idx)}
-                          className={`
-                          flex flex-col gap-4 p-5 rounded-[1.25rem] border transition-transform duration-300 group outline-none
-                          ${idx === selectedIndex
-                              ? 'bg-white border-emerald-500 shadow-lg shadow-emerald-200/20 -translate-y-1 ring-1 ring-emerald-500/10'
-                              : 'bg-white/40 border-slate-100 hover:bg-white hover:border-slate-200'}
-                          ${!isCompatible ? 'opacity-40 cursor-not-allowed border-dashed' : ''}
-                        `}
+                          className={`flex flex-col gap-3 p-4 rounded-2xl border-2 text-left transition-all duration-150 outline-none ${
+                            idx === selectedIndex
+                              ? 'border-slate-300 bg-slate-100/90 shadow-sm'
+                              : 'border-slate-100 bg-white hover:border-slate-200 hover:bg-slate-50/60'
+                          } ${!isCompatible ? 'opacity-40 cursor-not-allowed border-dashed' : ''}`}
                         >
                           <div className="flex items-start justify-between w-full">
-                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${idx === selectedIndex ? 'bg-emerald-600 text-white shadow-md' : 'bg-white border border-slate-200 text-slate-300'}`}>
+                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${idx === selectedIndex ? 'bg-slate-800 text-white shadow-sm' : 'bg-slate-100 text-slate-400'}`}>
                               {ct.icon}
                             </div>
                             {isCompatible && allowedRels.length > 0 && (
-                              <span className="text-[9px] font-black uppercase tracking-wider text-emerald-600 bg-emerald-50 border border-emerald-100 rounded px-1.5 py-0.5">
-                                {allowedRels.length} {allowedRels.length === 1 ? 'Rule' : 'Rules'}
+                              <span className="text-[9px] font-bold uppercase tracking-wider text-slate-600 bg-slate-100 border border-slate-200 rounded px-1.5 py-0.5">
+                                {allowedRels.length} {allowedRels.length === 1 ? 'Regel' : 'Regler'}
                               </span>
                             )}
                           </div>
                           <div className="flex flex-col text-left w-full">
-                            <span className={`text-[10px] uppercase font-black tracking-widest ${idx === selectedIndex ? 'text-emerald-600' : 'text-slate-400'}`}>
+                            <span className={`text-[9px] uppercase font-bold tracking-widest ${idx === selectedIndex ? 'text-slate-600' : 'text-slate-400'}`}>
                               {ct.type.replace('_', ' ')}
                             </span>
-                            <span className="text-[13px] font-black text-slate-800 mt-0.5">{ct.label}</span>
-                            {activeNotation?.getAvailableRelations && (
-                              <div className="flex flex-wrap items-center gap-1 mt-2.5">
-                                {allowedRels.length > 0 ? (
-                                  allowedRels.slice(0, 3).map(r => (
-                                    <span key={r.id} className="px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded text-[8px] font-black uppercase tracking-tight">
-                                      {r.label}
-                                    </span>
-                                  ))
-                                ) : (
-                                  <span className="text-[9px] font-bold text-rose-500 uppercase">
-                                    No Valid Connections
-                                  </span>
-                                )}
-                                {allowedRels.length > 3 && (
-                                  <span className="px-1.5 py-0.5 bg-slate-100 text-slate-400 rounded text-[8px] font-black uppercase tracking-tight">
-                                    +{allowedRels.length - 3} More
-                                  </span>
-                                )}
-                              </div>
-                            )}
+                            <span className="text-[13px] font-bold text-slate-800 mt-0.5">{ct.label}</span>
                           </div>
                         </button>
                       );
                     })}
-                    {filteredTypes.length > 0 && <div className="col-span-1 sm:col-span-2 h-4" />}
+                    {filteredTypes.length > 0 && <div className="col-span-1 sm:col-span-2 h-2" />}
                   </div>
                 )
               ) : (
-                <div className="h-full flex flex-col gap-6">
-                  <div ref={listRef} className="flex-1 relative overflow-y-auto custom-scrollbar pr-2 pt-2 pb-6 flex flex-col gap-2">
-                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1 mb-1">Common Relations</div>
+                <div className="h-full flex flex-col gap-4">
+                  <div ref={listRef} className="flex-1 relative overflow-y-auto custom-scrollbar pr-1 pt-1 pb-4 flex flex-col gap-2">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1 mb-1">Almindelige relationer</div>
                     {filteredRelations.map((rel, idx) => (
                       <button
                         key={rel.id}
                         onClick={() => handleFinish(rel.label)}
                         onMouseEnter={() => setSelectedIndex(idx)}
-                        className={`
-                        w-full flex items-center justify-between p-4 rounded-[1.25rem] border transition-transform duration-200 group outline-none
-                        ${idx === selectedIndex
-                            ? 'bg-white border-emerald-500 shadow-lg shadow-emerald-200/20 translate-x-1 ring-1 ring-emerald-500/10'
-                            : 'bg-transparent border-transparent hover:bg-white/50 hover:border-slate-200'}
-                      `}
+                        className={`w-full flex items-center justify-between p-3.5 rounded-2xl border-2 text-left transition-all duration-150 outline-none ${
+                          idx === selectedIndex
+                            ? 'border-slate-300 bg-slate-100/90 shadow-sm'
+                            : 'border-slate-100 bg-white hover:border-slate-200 hover:bg-slate-50/60'
+                        }`}
                       >
-                        <div className="flex items-center gap-4">
-                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${idx === selectedIndex ? 'bg-emerald-600 text-white shadow-md' : 'bg-white border border-slate-200 text-slate-300'}`}>
+                        <div className="flex items-center gap-3">
+                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${idx === selectedIndex ? 'bg-slate-800 text-white shadow-sm' : 'bg-slate-100 text-slate-400'}`}>
                             {rel.icon}
                           </div>
-                          <div className="flex flex-col text-left">
-                            <span className={`text-[13px] font-bold ${idx === selectedIndex ? 'text-slate-900' : 'text-slate-600'}`}>{rel.label}</span>
-                          </div>
+                          <span className={`text-[13px] font-bold ${idx === selectedIndex ? 'text-slate-900' : 'text-slate-800'}`}>{rel.label}</span>
                         </div>
                         {idx === selectedIndex && (
-                          <div className="flex items-center gap-2 pr-2">
-                            <span className="text-[10px] font-black text-emerald-600/50 uppercase tracking-widest">Use</span>
-                            <ChevronRight size={14} className="text-emerald-500" />
+                          <div className="shrink-0 ml-auto w-5 h-5 rounded-full bg-slate-800 flex items-center justify-center">
+                            <ChevronRight size={12} strokeWidth={3} className="text-white" />
                           </div>
                         )}
                       </button>
                     ))}
-                    {filteredRelations.length > 0 && <div className="h-4 shrink-0" />}
+                    {filteredRelations.length > 0 && <div className="h-2 shrink-0" />}
                     {filteredRelations.length === 0 && (
                       <div className="text-center py-8 text-slate-400 font-bold uppercase tracking-widest text-[11px]">
                         Ingen tilladte relationer under denne notation
                       </div>
                     )}
                   </div>
-
-                  <div className="flex flex-col items-center gap-6 pt-4 border-t border-slate-100">
-                    <div className="text-center">
-                      <p className="text-[12px] font-medium text-slate-500 leading-relaxed">
-                        Connecting <span className="px-1.5 py-0.5 bg-slate-100 text-slate-700 rounded-md font-bold uppercase text-[10px]">{sourceNode.name}</span>
-                        <span className="mx-2 text-slate-300">→</span>
-                        <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 rounded-md font-bold uppercase text-[10px]">{isNewTarget ? targetIdOrName : concepts.find(c => c.id === targetIdOrName)?.name}</span>
-                      </p>
-                    </div>
-                    <button
-                      ref={createBtnRef}
-                      onClick={() => handleFinish()}
-                      className="w-full bg-slate-900 hover:bg-slate-800 text-white rounded-2xl py-4 font-bold text-[14px] shadow-xl shadow-slate-900/20 focus:ring-[6px] focus:ring-emerald-500 focus:scale-[1.01] outline-none transition-all flex items-center justify-center gap-2"
-                    >
-                      {label ? `Confirm "${label}"` : 'Confirm "relateret til"'}
-                      <div className="w-5 h-5 bg-slate-700 rounded-lg flex items-center justify-center text-[10px] font-black">↵</div>
-                    </button>
-                  </div>
                 </div>
               )}
             </div>
           </div>
 
-          {/* Footer / Shortcuts */}
-          <div className="px-10 py-6 bg-white/50 border-t border-slate-200/50 flex items-center justify-between">
-            <div className="flex gap-8 items-center text-[10px] font-black text-slate-400 uppercase tracking-widest">
-              <div className="flex items-center gap-2">
-                <kbd className="px-1.5 py-0.5 bg-white border border-slate-200 rounded-lg text-slate-500 shadow-sm">ESC</kbd>
-                <span>Cancel</span>
+          {/* Footer */}
+          <div className="px-8 py-4 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between">
+            <div className="flex gap-6 items-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+              <div className="flex items-center gap-1.5">
+                <kbd className="px-1.5 py-0.5 bg-white border border-slate-200 rounded-md text-slate-500 shadow-sm">ESC</kbd>
+                <span>Annuller</span>
               </div>
-              <div className="flex items-center gap-2">
-                <kbd className="px-1.5 py-0.5 bg-white border border-slate-200 rounded-lg text-slate-500 shadow-sm">↑↓</kbd>
-                <span>Navigate</span>
+              <div className="flex items-center gap-1.5">
+                <kbd className="px-1.5 py-0.5 bg-white border border-slate-200 rounded-md text-slate-500 shadow-sm">↑↓</kbd>
+                <span>Naviger</span>
               </div>
-              <div className="flex items-center gap-2">
-                <kbd className="px-1.5 py-0.5 bg-white border border-slate-200 rounded-lg text-slate-500 shadow-sm">↵</kbd>
-                <span>Connect</span>
+              <div className="flex items-center gap-1.5">
+                <kbd className="px-1.5 py-0.5 bg-white border border-slate-200 rounded-md text-slate-500 shadow-sm">↵</kbd>
+                <span>Vælg</span>
               </div>
             </div>
-            <div className="flex items-center gap-2 text-[10px] font-black text-emerald-600 uppercase tracking-widest">
-              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-              Active Session
-            </div>
+
+            <button
+              ref={createBtnRef}
+              onClick={() => handleFinish()}
+              className="px-5 py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl font-bold text-[13px] transition-all active:scale-[0.98] shadow-lg shadow-slate-900/10 flex items-center justify-center gap-2"
+            >
+              <Workflow size={15} />
+              {label ? `Befæst "${label}"` : 'Bekræft relation'}
+            </button>
           </div>
         </div>
 
         {showRulesPanel && (
-          <div className="w-full md:w-[350px] shrink-0 border-t md:border-t-0 md:border-l border-slate-200/60 bg-white/60 backdrop-blur-sm p-8 flex flex-col overflow-y-auto">
-            <div className="flex items-center gap-2 mb-6">
-              <span className="text-[18px]">🏛️</span>
+          <div className="w-full md:w-[320px] shrink-0 border-t md:border-t-0 md:border-l border-slate-100 bg-slate-50/50 backdrop-blur-sm p-6 flex flex-col overflow-y-auto">
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-[16px]">🏛️</span>
               <div>
-                <h3 className="text-[13px] font-black text-slate-800 uppercase tracking-wider">ArchiMate Rules</h3>
-                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Specification §12.2</p>
+                <h3 className="text-[12px] font-black text-slate-800 uppercase tracking-wider">ArchiMate Regler</h3>
+                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Specifikation §12.2</p>
               </div>
             </div>
 
-            <div className="flex-1 flex flex-col gap-5">
+            <div className="flex-1 flex flex-col gap-4">
               {/* Context Summary */}
-              <div className="bg-slate-100/70 rounded-2xl p-4 border border-slate-200/30">
-                <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2.5">Active Context</div>
-                <div className="flex flex-col gap-2">
-                  <div className="flex items-center gap-2 text-[12px] font-bold text-slate-700">
-                    <span className="w-4 h-4 rounded bg-amber-500/10 text-amber-600 flex items-center justify-center text-[10px] font-black shrink-0">S</span>
-                    <span className="truncate max-w-[120px]">{sourceNode.name}</span>
-                    <span className="text-[9px] px-1.5 py-0.5 bg-slate-200 text-slate-500 rounded uppercase font-black tracking-tighter shrink-0">{activeNotation?.conceptTypeLabels?.[sourceNode.conceptType] || sourceNode.conceptType}</span>
+              <div className="bg-white rounded-xl p-3.5 border border-slate-200/60 shadow-sm">
+                <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-2">Aktiv Kontekst</div>
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex items-center gap-2 text-[11px] font-bold text-slate-700">
+                    <span className="w-4 h-4 rounded bg-amber-500/10 text-amber-600 flex items-center justify-center text-[9px] font-black shrink-0">S</span>
+                    <span className="truncate max-w-[110px]">{sourceNode.name}</span>
+                    <span className="text-[8px] px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded uppercase font-bold shrink-0">{activeNotation?.conceptTypeLabels?.[sourceNode.conceptType] || sourceNode.conceptType}</span>
                   </div>
                   {targetNode || targetIdOrName ? (
-                    <div className="flex items-center gap-2 text-[12px] font-bold text-slate-700">
-                      <span className="w-4 h-4 rounded bg-emerald-500/10 text-emerald-600 flex items-center justify-center text-[10px] font-black shrink-0">T</span>
-                      <span className="truncate max-w-[120px]">{targetNode?.name || targetIdOrName}</span>
+                    <div className="flex items-center gap-2 text-[11px] font-bold text-slate-700">
+                      <span className="w-4 h-4 rounded bg-slate-100 text-slate-700 flex items-center justify-center text-[9px] font-black shrink-0">T</span>
+                      <span className="truncate max-w-[110px]">{targetNode?.name || targetIdOrName}</span>
                       {activeTargetType ? (
-                        <span className="text-[9px] px-1.5 py-0.5 bg-emerald-100 text-emerald-600 rounded uppercase font-black tracking-tighter shrink-0">
+                        <span className="text-[8px] px-1.5 py-0.5 bg-slate-100 text-slate-700 border border-slate-200 rounded uppercase font-bold shrink-0">
                           {activeNotation?.conceptTypeLabels?.[activeTargetType] || activeTargetType}
                         </span>
                       ) : (
-                        <span className="text-[9px] px-1.5 py-0.5 bg-slate-100 text-slate-400 rounded uppercase font-black tracking-tighter shrink-0">
-                          Not Selected
+                        <span className="text-[8px] px-1.5 py-0.5 bg-slate-100 text-slate-400 rounded uppercase font-bold shrink-0">
+                          Ikke valgt
                         </span>
                       )}
                     </div>
                   ) : (
-                    <div className="text-[11px] italic text-slate-400">Select target node to view active rules...</div>
+                    <div className="text-[10px] italic text-slate-400">Vælg mål-node for at se aktive regler...</div>
                   )}
                 </div>
               </div>
 
               {/* Rules List */}
-              <div className="flex-1 flex flex-col gap-3">
-                <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">
-                  {activeTargetType ? 'Allowed Relationships' : `Relationships from ${activeNotation?.conceptTypeLabels?.[sourceNode.conceptType] || sourceNode.conceptType}`}
+              <div className="flex-1 flex flex-col gap-2.5">
+                <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">
+                  {activeTargetType ? 'Tilladte Relationer' : `Relationer fra ${activeNotation?.conceptTypeLabels?.[sourceNode.conceptType] || sourceNode.conceptType}`}
                 </div>
 
                 {(() => {
@@ -1029,10 +1007,10 @@ export function RelationBuilder() {
                     const allowedRels = activeNotation.getAvailableRelations?.(sourceNode.conceptType, targetT) || [];
                     if (allowedRels.length === 0) {
                       return (
-                        <div className="text-center py-6 bg-rose-50/50 border border-dashed border-rose-200 rounded-2xl p-4">
-                          <span className="text-[13px] font-bold text-rose-600 block mb-1">No Valid Relations</span>
+                        <div className="text-center py-4 bg-rose-50/50 border border-dashed border-rose-200 rounded-xl p-3">
+                          <span className="text-[12px] font-bold text-rose-600 block mb-0.5">Ingen gyldige relationer</span>
                           <span className="text-[10px] text-rose-500/80 leading-relaxed block">
-                            ArchiMate specifications do not permit connections between these concept archetypes.
+                            ArchiMate specifikationerne tillader ikke forbindelser mellem disse archetyper.
                           </span>
                         </div>
                       );
@@ -1040,12 +1018,12 @@ export function RelationBuilder() {
                     return allowedRels.map(r => {
                       const desc = RELATIONSHIP_DESCRIPTIONS[r.id] || { label: r.label, symbol: '—', desc: 'Relation' };
                       return (
-                        <div key={r.id} className="bg-white border border-slate-100 rounded-2xl p-3.5 hover:border-emerald-200 transition-all shadow-sm">
-                          <div className="flex items-center justify-between gap-2 mb-1.5">
-                            <span className="text-[12px] font-black text-slate-800">{desc.label}</span>
-                            <span className="text-[10px] font-black font-mono text-emerald-600 px-1.5 py-0.5 bg-emerald-50 rounded border border-emerald-100/50 shrink-0">{desc.symbol}</span>
+                        <div key={r.id} className="bg-white border border-slate-200/60 rounded-xl p-3 hover:border-slate-300 transition-all shadow-sm">
+                          <div className="flex items-center justify-between gap-2 mb-1">
+                            <span className="text-[11px] font-bold text-slate-800">{desc.label}</span>
+                            <span className="text-[9px] font-bold font-mono text-slate-600 px-1.5 py-0.5 bg-slate-100 rounded border border-slate-200 shrink-0">{desc.symbol}</span>
                           </div>
-                          <p className="text-[10.5px] text-slate-500 leading-relaxed">{desc.desc}</p>
+                          <p className="text-[10px] text-slate-500 leading-relaxed">{desc.desc}</p>
                         </div>
                       );
                     });
@@ -1062,20 +1040,20 @@ export function RelationBuilder() {
 
                   if (optionsWithRules.length === 0) {
                     return (
-                      <div className="text-[11px] text-slate-400 italic">No outgoing connections allowed for this archetype.</div>
+                      <div className="text-[10px] text-slate-400 italic">Ingen udgående forbindelser tilladt for denne archetype.</div>
                     );
                   }
 
                   return (
-                    <div className="flex flex-col gap-2">
+                    <div className="flex flex-col gap-1.5">
                       {optionsWithRules.map(o => (
-                        <div key={o.type} className="flex items-start justify-between gap-3 text-[11px] py-2 border-b border-slate-100">
+                        <div key={o.type} className="flex items-start justify-between gap-2 text-[10px] py-1.5 border-b border-slate-100">
                           <span className="font-bold text-slate-600 uppercase tracking-tight shrink-0">
                             {activeNotation?.conceptTypeLabels?.[o.type] || o.type}
                           </span>
                           <div className="flex flex-wrap gap-1 justify-end max-w-[60%]">
                             {o.rels.map(r => (
-                              <span key={r.id} className="px-1 py-0.5 bg-slate-100 text-slate-500 rounded-[4px] text-[8px] font-bold uppercase tracking-tighter">
+                              <span key={r.id} className="px-1 py-0.5 bg-slate-100 text-slate-500 rounded text-[8px] font-bold uppercase tracking-tighter">
                                 {r.label}
                               </span>
                             ))}

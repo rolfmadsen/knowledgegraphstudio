@@ -28,7 +28,10 @@ export interface GraphStateWithSelection {
   views?: View[];
   activeViewId?: ElementId | null;
   selectedConceptId?: ElementId | null;
+  selectedConceptIds?: ElementId[];
+  selectedInstanceId?: string | null;
   selectedRelationId?: ElementId | null;
+  focusedToolbarButtonId?: string | null;
 }
 
 export class GraphService {
@@ -690,19 +693,28 @@ export class GraphService {
   static selectNearestNode(state: GraphStateWithSelection, direction: 'up' | 'down' | 'left' | 'right'): Partial<GraphStateWithSelection> {
     const currentId = state.selectedConceptId;
     const activeView = state.views?.find(v => v.id === state.activeViewId);
-    if (!activeView) return { selectedConceptId: currentId ?? null };
+    if (!activeView) return { selectedConceptId: currentId ?? null, selectedConceptIds: currentId ? [currentId] : [], selectedInstanceId: null };
 
     const posOf = (id: ElementId) => activeView.nodes.find(n => n.conceptId === id);
 
     if (!currentId) {
       if (activeView.nodes.length > 0) {
-        return { selectedConceptId: activeView.nodes[0].conceptId, selectedRelationId: null };
+        const firstNode = activeView.nodes[0];
+        const newId = firstNode.conceptId;
+        const instId = firstNode.instanceId || firstNode.conceptId;
+        return {
+          selectedConceptId: newId,
+          selectedConceptIds: [newId],
+          selectedInstanceId: instId,
+          selectedRelationId: null,
+          focusedToolbarButtonId: null,
+        };
       }
-      return { selectedConceptId: null };
+      return { selectedConceptId: null, selectedConceptIds: [], selectedInstanceId: null };
     }
 
     const currentPos = posOf(currentId);
-    if (!currentPos) return { selectedConceptId: null };
+    if (!currentPos) return { selectedConceptId: null, selectedConceptIds: [], selectedInstanceId: null };
 
     let candidates = activeView.nodes.filter(n => n.conceptId !== currentId);
     if (direction === 'up') candidates = candidates.filter(n => n.y < currentPos.y);
@@ -710,7 +722,14 @@ export class GraphService {
     if (direction === 'left') candidates = candidates.filter(n => n.x < currentPos.x);
     if (direction === 'right') candidates = candidates.filter(n => n.x > currentPos.x);
 
-    if (candidates.length === 0) return { selectedConceptId: currentId };
+    if (candidates.length === 0) {
+      const instId = currentPos.instanceId || currentPos.conceptId;
+      return {
+        selectedConceptId: currentId,
+        selectedConceptIds: [currentId],
+        selectedInstanceId: instId,
+      };
+    }
 
     const scored = candidates.map(n => {
       const dx = n.x - currentPos.x;
@@ -722,10 +741,21 @@ export class GraphService {
       } else {
         penalty = 1 + (Math.abs(dx) / (Math.abs(dy) || 1));
       }
-      return { id: n.conceptId, score: dist * penalty };
+      return { node: n, score: dist * penalty };
     });
     scored.sort((a, b) => a.score - b.score);
-    return { selectedConceptId: scored[0].id, selectedRelationId: null };
+
+    const targetNode = scored[0].node;
+    const targetId = targetNode.conceptId;
+    const targetInstId = targetNode.instanceId || targetNode.conceptId;
+
+    return {
+      selectedConceptId: targetId,
+      selectedConceptIds: [targetId],
+      selectedInstanceId: targetInstId,
+      selectedRelationId: null,
+      focusedToolbarButtonId: null,
+    };
   }
 
   /**
@@ -779,7 +809,7 @@ export class GraphService {
       return { edgeId: d.edge.id, score: dist * penalty };
     });
     scored.sort((a, b) => a.score - b.score);
-    return { selectedRelationId: scored[0].edgeId, selectedConceptId: null };
+    return { selectedRelationId: scored[0].edgeId, selectedConceptId: null, selectedConceptIds: [], selectedInstanceId: null };
   }
 
   /**

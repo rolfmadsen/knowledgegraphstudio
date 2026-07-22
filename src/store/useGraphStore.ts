@@ -271,7 +271,7 @@ export interface GraphStoreState {
 
   // --- Selection Actions ---
   selectConcept: (id: ElementId | null, instanceId?: string | null) => void;
-  setSelectedConceptIds: (ids: ElementId[]) => void;
+  setSelectedConceptIds: (ids: ElementId[], instanceId?: string | null) => void;
   selectRelation: (id: ElementId | null) => void;
   setFocusedToolbarButtonId: (id: string | null) => void;
   navigateToolbarFocus: (direction: 'up' | 'down' | 'left' | 'right') => void;
@@ -441,22 +441,34 @@ export const useGraphStore = create<GraphStoreState>()(
         if (typeof partial === 'function') {
           const wrappedFunction = (state: GraphStoreState) => {
             const nextState = (partial as any)(state);
-            if (nextState && 'selectedConceptId' in nextState && !('selectedConceptIds' in nextState)) {
-              return {
-                ...nextState,
-                selectedConceptIds: nextState.selectedConceptId ? [nextState.selectedConceptId] : []
-              };
+            if (nextState && 'selectedConceptId' in nextState) {
+              const updates: any = {};
+              if (!('selectedConceptIds' in nextState)) {
+                updates.selectedConceptIds = nextState.selectedConceptId ? [nextState.selectedConceptId] : [];
+              }
+              if (!('selectedInstanceId' in nextState)) {
+                updates.selectedInstanceId = nextState.selectedConceptId ? nextState.selectedConceptId : null;
+              }
+              if (Object.keys(updates).length > 0) {
+                return { ...nextState, ...updates };
+              }
             }
             return nextState;
           };
           (originalSet as any)(wrappedFunction, replace);
         } else {
           let finalState = partial;
-          if (partial && 'selectedConceptId' in partial && !('selectedConceptIds' in partial)) {
-            finalState = {
-              ...partial,
-              selectedConceptIds: (partial as any).selectedConceptId ? [(partial as any).selectedConceptId] : []
-            };
+          if (partial && 'selectedConceptId' in partial) {
+            const updates: any = {};
+            if (!('selectedConceptIds' in partial)) {
+              updates.selectedConceptIds = (partial as any).selectedConceptId ? [(partial as any).selectedConceptId] : [];
+            }
+            if (!('selectedInstanceId' in partial)) {
+              updates.selectedInstanceId = (partial as any).selectedConceptId ? (partial as any).selectedConceptId : null;
+            }
+            if (Object.keys(updates).length > 0) {
+              finalState = { ...partial, ...updates };
+            }
           }
           (originalSet as any)(finalState, replace);
         }

@@ -22,6 +22,7 @@ import {
   NodeToolbar,
 } from '@xyflow/react';
 import { Trash2, ArrowUpRight, Plus, X, Tv, Zap, GitCommit, Database, Share2, Cpu } from 'lucide-react';
+import Fuse from 'fuse.js';
 import '@xyflow/react/dist/style.css';
 import type { NotationCanvasProps } from '../../../notations/types';
 import { NotationRegistry } from '../../../notations/NotationRegistry';
@@ -1611,6 +1612,10 @@ function FloatingEdge({ id, source, target, style, label, labelStyle, selected, 
     e.stopPropagation();
     e.preventDefault();
 
+    if (selectRelation) {
+      selectRelation(relationId);
+    }
+
     if (!activeViewId) return;
 
     // Get current rendered points of the edge and current waypoints
@@ -1805,15 +1810,33 @@ function FloatingEdge({ id, source, target, style, label, labelStyle, selected, 
   return (
     <>
       <path
+        d={path}
+        fill="none"
+        stroke="transparent"
+        strokeWidth={20}
+        className="react-flow__edge-interaction"
+        style={{ pointerEvents: 'all', cursor: 'pointer' }}
+        onClick={(e) => {
+          e.stopPropagation();
+          if (selectRelation) selectRelation(relationId);
+        }}
+      />
+      <path
         id={id}
         className={`react-flow__edge-path ${className || ''}`}
         d={path}
         markerEnd={markerEnd}
         markerStart={markerStart}
+        onClick={(e) => {
+          e.stopPropagation();
+          if (selectRelation) selectRelation(relationId);
+        }}
         style={{
           strokeWidth: selected ? 2.5 : 1.5,
           transition: draggedSegment !== null ? 'none' : 'stroke 0.2s ease, stroke-width 0.2s ease',
           strokeDasharray: strokeDasharray,
+          pointerEvents: 'all',
+          cursor: 'pointer',
           ...style,
           stroke: selected ? (style?.stroke || '#10b981') : (style?.stroke || '#64748b'),
         }}
@@ -1873,7 +1896,7 @@ function FloatingEdge({ id, source, target, style, label, labelStyle, selected, 
           className="nodrag nopan"
           onClick={(e) => {
             e.stopPropagation();
-            if (selectRelation) selectRelation(id);
+            if (selectRelation) selectRelation(relationId);
           }}
           style={{ cursor: 'pointer' }}
         >
@@ -1982,6 +2005,7 @@ export function ReactFlowCanvas({
     updateViewNodeParentId,
     setSelectedConceptIds,
     selectedConceptIds,
+    selectedInstanceId,
     requestDeleteConceptConfirm,
     removeConceptFromView,
     addConcept,
@@ -2001,7 +2025,11 @@ export function ReactFlowCanvas({
 
   const [connectingSourceId, setConnectingSourceId] = useState<ElementId | null>(null);
   const [connectSearchQuery, setConnectSearchQuery] = useState('');
-  const [selectedInstanceId, setSelectedInstanceId] = useState<string | null>(null);
+  const [comboboxSelectedIndex, setComboboxSelectedIndex] = useState<number>(0);
+
+  useEffect(() => {
+    setComboboxSelectedIndex(0);
+  }, [connectSearchQuery]);
 
   const connectCandidateConcepts = useMemo(() => {
     if (!connectingSourceId) return [];
@@ -2010,16 +2038,25 @@ export function ReactFlowCanvas({
     const sourceConcept = concepts.find(c => c.id === sourceConceptId);
     if (!sourceConcept) return [];
 
-    const query = connectSearchQuery.toLowerCase().trim();
-    return concepts.filter(c => {
+    const allowedCandidates = concepts.filter(c => {
       if (c.id === sourceConceptId) return false;
-      if (query && !c.name.toLowerCase().includes(query) && !c.conceptType.toLowerCase().includes(query)) return false;
       if (activeNotation?.getAvailableRelations) {
         const rels = activeNotation.getAvailableRelations(sourceConcept.conceptType, c.conceptType);
         return rels.length > 0;
       }
       return true;
     });
+
+    const q = connectSearchQuery.trim();
+    if (!q) return allowedCandidates;
+
+    const fuse = new Fuse(allowedCandidates, {
+      keys: ['name', 'conceptType'],
+      threshold: 0.4,
+      ignoreLocation: true,
+    });
+
+    return fuse.search(q).map(r => r.item);
   }, [connectingSourceId, view.nodes, concepts, connectSearchQuery, activeNotation]);
 
   const handleSelectConnectTargetConcept = useCallback((targetConcept: ConceptNode) => {
@@ -2038,6 +2075,30 @@ export function ReactFlowCanvas({
     setConnectingSourceId(null);
     setConnectSearchQuery('');
   }, [connectingSourceId, view.id, view.nodes, addConceptToView, addRelation, updateViewEdgeLayout]);
+
+  const handleConnectInputKeyDown = (e: React.KeyboardEvent) => {
+    const candidates = connectCandidateConcepts.slice(0, 8);
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (candidates.length > 0) {
+        setComboboxSelectedIndex((prev) => (prev + 1) % candidates.length);
+      }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (candidates.length > 0) {
+        setComboboxSelectedIndex((prev) => (prev - 1 + candidates.length) % candidates.length);
+      }
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (candidates.length > 0 && candidates[comboboxSelectedIndex]) {
+        handleSelectConnectTargetConcept(candidates[comboboxSelectedIndex]);
+      }
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      setConnectingSourceId(null);
+      setConnectSearchQuery('');
+    }
+  };
 
   const selectedConceptIdsRef = useRef(selectedConceptIds);
 
@@ -2460,14 +2521,52 @@ export function ReactFlowCanvas({
   // Smoothly center the canvas viewport on the selected node when centerSelectionCount changes (Model Explorer, Command, Tab cycle)
   useEffect(() => {
     if (!selectedConceptId) return;
-    const selectedNode = nodes.find((n) => n.id === selectedConceptId);
-    if (selectedNode) {
-      const nodeWidth = selectedNode.measured?.width ?? 200;
-      const nodeHeight = selectedNode.measured?.height ?? 80;
-      const x = selectedNode.position.x + nodeWidth / 2;
-      const y = selectedNode.position.y + nodeHeight / 2;
+
+    // Find the ViewNode to obtain absolute canvas coordinates (vn.x, vn.y)
+    const viewNodes = view.nodes ?? [];
+    const targetVn = viewNodes.find(
+      (vn) => vn.conceptId === selectedConceptId || vn.instanceId === selectedConceptId
+    );
+
+    // Find the corresponding ReactFlow node for measured size
+    const selectedNode = nodes.find(
+      (n) => n.id === selectedConceptId || n.data?.conceptId === selectedConceptId
+    );
+
+    if (targetVn) {
+      const nodeWidth = selectedNode?.measured?.width ?? (selectedNode?.style?.width as number) ?? targetVn.width ?? 200;
+      const nodeHeight = selectedNode?.measured?.height ?? (selectedNode?.style?.height as number) ?? targetVn.height ?? 80;
+      const x = targetVn.x + nodeWidth / 2;
+      const y = targetVn.y + nodeHeight / 2;
 
       // Smoothly pan to the center of the node
+      reactFlow.setCenter(x, y, {
+        zoom: Math.min(reactFlow.getZoom(), 1.0),
+        duration: 200,
+      });
+    } else if (selectedNode) {
+      // Fallback if targetVn not found directly in view.nodes
+      let absX = selectedNode.position.x;
+      let absY = selectedNode.position.y;
+      if (selectedNode.parentId) {
+        let currParentId: string = selectedNode.parentId;
+        while (currParentId) {
+          const pNode = nodes.find((n) => n.id === currParentId);
+          if (pNode) {
+            absX += pNode.position.x;
+            absY += pNode.position.y;
+            currParentId = pNode.parentId ?? '';
+          } else {
+            break;
+          }
+        }
+      }
+
+      const nodeWidth = selectedNode.measured?.width ?? (selectedNode.style?.width as number) ?? 200;
+      const nodeHeight = selectedNode.measured?.height ?? (selectedNode.style?.height as number) ?? 80;
+      const x = absX + nodeWidth / 2;
+      const y = absY + nodeHeight / 2;
+
       reactFlow.setCenter(x, y, {
         zoom: Math.min(reactFlow.getZoom(), 1.0),
         duration: 200,
@@ -2750,8 +2849,6 @@ export function ReactFlowCanvas({
 
   const onSelectionChange = useCallback(({ nodes: selectedNodes }: { nodes: Node[] }) => {
     if (selectedNodes.length === 0) {
-      setSelectedInstanceId(null);
-      setSelectedConceptIds([]);
       return;
     }
 
@@ -2760,10 +2857,9 @@ export function ReactFlowCanvas({
       const instanceId = clickedNode.id;
       const conceptId = (clickedNode.data?.conceptId as ElementId) || toElementId(clickedNode.id);
 
-      setSelectedInstanceId(instanceId);
       const currentIds = selectedConceptIdsRef.current;
       if (currentIds.length !== 1 || currentIds[0] !== conceptId) {
-        setSelectedConceptIds([conceptId]);
+        selectConcept(conceptId, instanceId);
       }
       return;
     }
@@ -2771,9 +2867,8 @@ export function ReactFlowCanvas({
     const conceptIds = Array.from(new Set(selectedNodes.map((n) => (n.data?.conceptId as ElementId) || toElementId(n.id))));
     const lastInstanceId = selectedNodes[selectedNodes.length - 1]?.id ?? null;
 
-    setSelectedInstanceId(lastInstanceId);
-    setSelectedConceptIds(conceptIds);
-  }, [setSelectedConceptIds]);
+    setSelectedConceptIds(conceptIds, lastInstanceId);
+  }, [selectConcept, setSelectedConceptIds]);
 
   const onNodeDragStart = useCallback((_: React.MouseEvent, node: Node) => {
     activeDraggingNode.current = toElementId(node.id);
@@ -3292,10 +3387,12 @@ export function ReactFlowCanvas({
 
   const handleArrowClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
-    if (selectedConceptId) {
-      setConnectingSourceId((prev) => (prev === selectedConceptId ? null : selectedConceptId));
+    const rawId = selectedInstanceId || selectedConceptId;
+    if (rawId) {
+      const activeId = toElementId(rawId);
+      setConnectingSourceId((prev) => (prev === activeId ? null : activeId));
     }
-  }, [selectedConceptId]);
+  }, [selectedConceptId, selectedInstanceId]);
 
   const unconnectedRelationsCount = useMemo(() => {
     if (!selectedConceptId || !view) return 0;
@@ -3349,7 +3446,8 @@ export function ReactFlowCanvas({
     const sourceConcept = concepts.find((c) => c.id === selectedConceptId);
     if (!sourceConcept) return;
 
-    const currentViewNode = view.nodes.find((vn) => vn.conceptId === selectedConceptId);
+    const activeInstanceId = selectedInstanceId || selectedConceptId;
+    const currentViewNode = view.nodes.find((vn) => (vn.instanceId || vn.conceptId) === activeInstanceId) || view.nodes.find((vn) => vn.conceptId === selectedConceptId);
     if (!currentViewNode) return;
 
     let targetType: ConceptType = sourceConcept.conceptType;
@@ -3451,7 +3549,7 @@ export function ReactFlowCanvas({
           (sourceConcept.conceptType === 'automation' && targetType === 'command') ||
           (sourceConcept.conceptType === 'integration_event' && targetType === 'read_model')
         ) {
-          const sliceVn = view.nodes.find((vn) => vn.conceptId === currentViewNode.parentId);
+          const sliceVn = view.nodes.find((vn) => (vn.instanceId || vn.conceptId) === currentViewNode.parentId);
           const chapterId = sliceVn?.parentId;
           const sliceA = sliceVn ? concepts.find((c) => c.id === sliceVn.conceptId) : undefined;
           if (sliceA && chapterId) {
@@ -3504,7 +3602,9 @@ export function ReactFlowCanvas({
     });
 
     if (shouldAddRelation) {
-      addRelation(relationSourceId, newConcept.id, undefined, { createdBy: 'user' });
+      const rel = addRelation(relationSourceId, newConcept.id, undefined, { createdBy: 'user' });
+      const activeSrcInst = selectedInstanceId || selectedConceptId;
+      updateViewEdgeLayout(view.id, rel.id, undefined, undefined, [], activeSrcInst, newConcept.id);
     }
     selectConcept(newConcept.id);
 
@@ -3535,7 +3635,8 @@ export function ReactFlowCanvas({
     const sourceConcept = concepts.find((c) => c.id === selectedConceptId);
     if (!sourceConcept) return;
 
-    const currentViewNode = view.nodes.find((vn) => vn.conceptId === selectedConceptId);
+    const activeInstanceId = selectedInstanceId || selectedConceptId;
+    const currentViewNode = view.nodes.find((vn) => (vn.instanceId || vn.conceptId) === activeInstanceId) || view.nodes.find((vn) => vn.conceptId === selectedConceptId);
     if (!currentViewNode) return;
 
     const targetType = action.conceptType;
@@ -3573,7 +3674,7 @@ export function ReactFlowCanvas({
     const SLICE_GAP = 24;
 
     if (action.createNewParent === 'sibling-slice' || action.createNewParent === 'sibling-slice-left') {
-      const sliceVn = view.nodes.find((vn) => vn.conceptId === currentViewNode.parentId);
+      const sliceVn = view.nodes.find((vn) => (vn.instanceId || vn.conceptId) === currentViewNode.parentId);
       const chapterId = sliceVn?.parentId;
       const sliceA = sliceVn ? concepts.find((c) => c.id === sliceVn.conceptId) : undefined;
 
@@ -3651,9 +3752,13 @@ export function ReactFlowCanvas({
     });
 
     if (action.direction === 'source-to-target') {
-      addRelation(selectedConceptId, newConcept.id, undefined, { createdBy: 'user' });
+      const rel = addRelation(selectedConceptId, newConcept.id, undefined, { createdBy: 'user' });
+      const activeSrcInst = selectedInstanceId || selectedConceptId;
+      updateViewEdgeLayout(view.id, rel.id, undefined, undefined, [], activeSrcInst, newConcept.id);
     } else {
-      addRelation(newConcept.id, selectedConceptId, undefined, { createdBy: 'user' });
+      const rel = addRelation(newConcept.id, selectedConceptId, undefined, { createdBy: 'user' });
+      const activeTgtInst = selectedInstanceId || selectedConceptId;
+      updateViewEdgeLayout(view.id, rel.id, undefined, undefined, [], newConcept.id, activeTgtInst);
     }
 
     selectConcept(newConcept.id);
@@ -3770,14 +3875,12 @@ export function ReactFlowCanvas({
       }
       setConnectingSourceId(null);
     } else {
-      setSelectedInstanceId(targetInstanceId);
       selectConcept(targetConceptId, targetInstanceId);
     }
   }, [connectingSourceId, addRelation, selectConcept, view.id, view.nodes]);
 
   const onNodeDoubleClick: NodeMouseHandler = useCallback((_, node) => {
     const conceptId = (node.data?.conceptId as ElementId) || toElementId(node.id);
-    setSelectedInstanceId(node.id);
     selectConcept(conceptId, node.id);
     document.dispatchEvent(new CustomEvent('focus-inspector'));
   }, [selectConcept]);
@@ -3789,8 +3892,14 @@ export function ReactFlowCanvas({
       setConnectingSourceId(null);
       return;
     }
+    const target = e.target as HTMLElement;
+    const isInput = target && (
+      target.tagName === 'INPUT' ||
+      target.tagName === 'TEXTAREA' ||
+      target.isContentEditable
+    );
     const isDelete = e.key === 'Delete' || e.key === 'Backspace';
-    if (isDelete) {
+    if (isDelete && !isInput) {
       e.preventDefault();
       e.stopPropagation();
       handleDeleteClick(e as any);
@@ -3917,17 +4026,17 @@ export function ReactFlowCanvas({
 
       {/* Click-to-connect Mode Indicator Banner with Target Concept Search */}
       {connectingSourceId && (
-        <div className="absolute top-6 left-1/2 -translate-x-1/2 z-[200] flex flex-col gap-2 p-3 bg-emerald-700/95 backdrop-blur-md border border-emerald-500/40 rounded-2xl shadow-2xl text-white font-sans text-[12px] select-none pointer-events-auto min-w-[340px] max-w-[440px]">
+        <div className="absolute top-6 left-1/2 -translate-x-1/2 z-[200] flex flex-col gap-2 p-3.5 bg-white/95 backdrop-blur-2xl border border-slate-200 rounded-2xl shadow-xl text-slate-800 font-sans text-[12px] select-none pointer-events-auto min-w-[340px] max-w-[440px]">
           <div className="flex items-center justify-between gap-2 px-1">
-            <span className="font-bold flex items-center gap-1.5 text-emerald-100">
+            <span className="font-bold flex items-center gap-1.5 text-slate-800">
               <span>🔗 Opret relation</span>
-              <span className="text-[10px] bg-emerald-800/80 px-2 py-0.5 rounded-full text-emerald-200 font-normal">
+              <span className="text-[10px] bg-slate-100 text-slate-500 border border-slate-200 px-2 py-0.5 rounded-full font-semibold">
                 Klik på lærred ELLER søg i model
               </span>
             </span>
             <button
               onClick={() => { setConnectingSourceId(null); setConnectSearchQuery(''); }}
-              className="p-1 hover:bg-white/20 rounded-lg transition-colors text-white/80 hover:text-white cursor-pointer"
+              className="p-1 hover:bg-slate-100 rounded-lg transition-colors text-slate-400 hover:text-slate-600 cursor-pointer"
               title="Annuller (Esc)"
             >
               <X size={14} />
@@ -3936,23 +4045,41 @@ export function ReactFlowCanvas({
 
           <input
             type="text"
+            role="combobox"
+            aria-expanded={connectSearchQuery.trim() !== '' && connectCandidateConcepts.length > 0}
+            aria-autocomplete="list"
+            aria-controls="connect-combobox-list"
             value={connectSearchQuery}
             onChange={(e) => setConnectSearchQuery(e.target.value)}
+            onKeyDown={handleConnectInputKeyDown}
             placeholder="Søg eksisterende begreb at forbinde til..."
-            className="w-full px-3 py-1.5 bg-emerald-900/60 border border-emerald-500/50 rounded-xl text-white placeholder-emerald-300/60 text-[11px] focus:outline-none focus:ring-2 focus:ring-emerald-300"
+            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 text-[11px] focus:outline-none focus:ring-2 focus:ring-slate-300 focus:bg-white transition-all shadow-sm"
             autoFocus
           />
 
-          {connectCandidateConcepts.length > 0 && (
-            <div className="max-h-48 overflow-y-auto custom-scrollbar flex flex-col gap-1 mt-1 bg-emerald-900/40 p-1.5 rounded-xl border border-emerald-600/30">
-              {connectCandidateConcepts.slice(0, 8).map((c) => (
+          {connectSearchQuery.trim() !== '' && connectCandidateConcepts.length > 0 && (
+            <div
+              role="listbox"
+              id="connect-combobox-list"
+              className="max-h-48 overflow-y-auto custom-scrollbar flex flex-col gap-1 mt-1 bg-white/95 backdrop-blur-2xl p-1.5 rounded-2xl border border-slate-200 shadow-2xl animate-in fade-in duration-150"
+            >
+              {connectCandidateConcepts.slice(0, 8).map((c, idx) => (
                 <button
                   key={c.id}
+                  role="option"
+                  aria-selected={idx === comboboxSelectedIndex}
                   onClick={() => handleSelectConnectTargetConcept(c)}
-                  className="flex items-center justify-between px-2.5 py-1.5 rounded-lg hover:bg-emerald-600/60 text-left text-white text-[11px] transition-colors cursor-pointer group"
+                  onMouseEnter={() => setComboboxSelectedIndex(idx)}
+                  className={`flex items-center justify-between px-3 py-2 rounded-xl text-left text-[11px] transition-all cursor-pointer outline-none ${
+                    idx === comboboxSelectedIndex
+                      ? 'bg-slate-100/90 border border-slate-300/80 shadow-sm text-slate-900 font-bold'
+                      : 'border border-transparent hover:bg-slate-50 text-slate-700 font-medium'
+                  }`}
                 >
-                  <span className="font-medium truncate mr-2">{c.name}</span>
-                  <span className="text-[9px] uppercase tracking-wider font-bold bg-emerald-950/60 text-emerald-300 px-1.5 py-0.5 rounded shrink-0">
+                  <span className="truncate mr-2">{c.name}</span>
+                  <span className={`text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded shrink-0 ${
+                    idx === comboboxSelectedIndex ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-500 border border-slate-200'
+                  }`}>
                     {c.conceptType.replace('_', ' ')}
                   </span>
                 </button>
@@ -3976,9 +4103,15 @@ export function ReactFlowCanvas({
           onNodeDragStart={onNodeDragStart}
           onNodeDrag={onNodeDrag}
           onNodeDragStop={onNodeDragStop}
-          onEdgeClick={(_e, edge) => onRelationSelect(toElementId(edge.id))}
-          onEdgeDoubleClick={(_e, edge) => useGraphStore.getState().resetViewEdgeLayout(view.id, toElementId(edge.id))}
-          onPaneClick={() => { setSelectedInstanceId(null); onNodeSelect(null); onRelationSelect(null); }}
+          onEdgeClick={(_e, edge) => {
+            const relId = (edge.data?.relationId as ElementId) || toElementId(edge.id.split('__')[0]);
+            onRelationSelect(relId);
+          }}
+          onEdgeDoubleClick={(_e, edge) => {
+            const relId = (edge.data?.relationId as ElementId) || toElementId(edge.id.split('__')[0]);
+            useGraphStore.getState().resetViewEdgeLayout(view.id, relId);
+          }}
+          onPaneClick={() => { selectConcept(null); onNodeSelect(null); onRelationSelect(null); }}
           onSelectionChange={onSelectionChange}
           edgeTypes={edgeTypes}
           deleteKeyCode={null}
@@ -4112,7 +4245,7 @@ export function ReactFlowCanvas({
                   onClick={handleArrowClick}
                   title="Opret relation (Klik her, og klik derefter på modtager-noden)"
                   className={`p-2.5 rounded-xl transition-all duration-200 cursor-pointer active:scale-90 flex items-center justify-center
-                    ${connectingSourceId === selectedConceptId
+                    ${(connectingSourceId === selectedConceptId || connectingSourceId === selectedInstanceId)
                       ? 'text-emerald-500 bg-emerald-50'
                       : focusedToolbarButtonId === 'bottom-connect'
                       ? 'ring-2 ring-emerald-400 scale-[1.08] shadow-md text-emerald-500 bg-emerald-50'
@@ -4127,9 +4260,9 @@ export function ReactFlowCanvas({
                   <button
                     onClick={handleConnectAllClick}
                     title={`Auto-forbind ${unconnectedRelationsCount} relaterede noder i dette view`}
-                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-200 transition-all font-bold text-[10px] uppercase tracking-wider active:scale-95 cursor-pointer ml-1"
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-800 text-slate-700 hover:text-white border border-slate-200 transition-all font-bold text-[10px] uppercase tracking-wider active:scale-95 cursor-pointer ml-1"
                   >
-                    <Zap size={13} className="text-emerald-600" />
+                    <Zap size={13} />
                     Forbind ({unconnectedRelationsCount})
                   </button>
                 )}
