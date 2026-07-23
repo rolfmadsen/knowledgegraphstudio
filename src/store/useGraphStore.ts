@@ -299,7 +299,7 @@ export interface GraphStoreState {
   // --- View Actions ---
   setActiveViewId: (id: ElementId | null) => void;
   updateViewNodePosition: (viewId: ElementId, targetId: ElementId, x: number, y: number) => void;
-  batchUpdateViewNodePositions: (viewId: ElementId, positions: Array<{ conceptId?: ElementId; instanceId?: string; x: number; y: number }>) => void;
+  batchUpdateViewNodePositions: (viewId: ElementId, positions: Array<{ conceptId?: ElementId; instanceId?: string; x: number; y: number; order?: number }>) => void;
   addConceptToView: (viewId: ElementId, conceptId: ElementId, x: number, y: number, parentId?: ElementId, instanceId?: string) => void;
   removeConceptFromView: (viewId: ElementId, conceptId: ElementId) => void;
   removeConceptsFromView: (viewId: ElementId, conceptIds: ElementId[]) => void;
@@ -311,6 +311,8 @@ export interface GraphStoreState {
   ungroupConcept: (viewId: ElementId, conceptId: ElementId) => void;
   dissolveGroup: (viewId: ElementId, groupId: ElementId) => void;
   updateViewNodeParentId: (viewId: ElementId, conceptId: ElementId, parentId: ElementId | undefined) => void;
+  setConceptOrder: (viewId: ElementId, conceptId: ElementId, newOrder: number) => void;
+  moveConceptOrder: (viewId: ElementId, conceptId: ElementId, direction: 'left' | 'right' | 'first' | 'last') => void;
   updateViewEdgeLayout: (
     viewId: ElementId,
     relationId: ElementId,
@@ -750,8 +752,14 @@ export const useGraphStore = create<GraphStoreState>()(
 
       triggerLayout: () => set((s) => ({ layoutVersion: s.layoutVersion + 1 })),
 
-      // --- View Actions ---
-      setActiveViewId: (id) => set({ activeViewId: id }),
+      setActiveViewId: (id) =>
+        set({
+          activeViewId: id,
+          selectedConceptId: null,
+          selectedInstanceId: null,
+          selectedRelationId: null,
+          selectedConceptIds: [],
+        }),
 
       updateViewNodePosition: (viewId, targetId, x, y) => {
         const view = get().views.find((v) => v.id === viewId);
@@ -782,7 +790,7 @@ export const useGraphStore = create<GraphStoreState>()(
         let changed = false;
         for (const p of positions) {
           const node = view.nodes.find((n) => p.instanceId ? (n.instanceId || n.conceptId) === p.instanceId : n.conceptId === p.conceptId);
-          if (!node || node.x !== p.x || node.y !== p.y) {
+          if (!node || node.x !== p.x || node.y !== p.y || (p.order !== undefined && node.order !== p.order)) {
             changed = true;
             break;
           }
@@ -800,9 +808,10 @@ export const useGraphStore = create<GraphStoreState>()(
                   const nodeInstId = n.instanceId || n.conceptId;
                   const pos = positions.find((p) => p.instanceId ? p.instanceId === nodeInstId : p.conceptId === n.conceptId);
                   if (!pos) return n;
+                  const newOrder = pos.order !== undefined ? pos.order : n.order;
                   return isManual
-                    ? { ...n, x: pos.x, y: pos.y, manualX: pos.x, manualY: pos.y }
-                    : { ...n, x: pos.x, y: pos.y };
+                    ? { ...n, x: pos.x, y: pos.y, manualX: pos.x, manualY: pos.y, ...(newOrder !== undefined ? { order: newOrder } : {}) }
+                    : { ...n, x: pos.x, y: pos.y, ...(newOrder !== undefined ? { order: newOrder } : {}) };
                 });
                 return updated;
               })(),
@@ -842,6 +851,20 @@ export const useGraphStore = create<GraphStoreState>()(
         // Only generate suffix if it is a duplicate instance (i.e. alreadyExists is true)
         const newInstanceId = instanceId || (alreadyExists ? `${conceptId}#inst_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 6)}` : undefined);
 
+        let defaultOrder: number | undefined = undefined;
+        if (concept.conceptType === 'em_chapter') {
+          const existingChapters = view.nodes.filter(
+            (n) => get().concepts.find((c) => c.id === n.conceptId)?.conceptType === 'em_chapter'
+          );
+          defaultOrder = existingChapters.length + 1;
+        } else if (concept.conceptType === 'em_slice') {
+          const existingSlices = view.nodes.filter((n) => {
+            const c = get().concepts.find((item) => item.id === n.conceptId);
+            return c?.conceptType === 'em_slice' && n.parentId === parentId;
+          });
+          defaultOrder = existingSlices.length + 1;
+        }
+
         const temporal = getTemporalState();
         temporal.pause();
         set((s) => ({
@@ -856,6 +879,7 @@ export const useGraphStore = create<GraphStoreState>()(
                   x,
                   y,
                   parentId,
+                  ...(defaultOrder !== undefined ? { order: defaultOrder } : {}),
                   ...(v.layoutAlgorithm === 'manual' ? { manualX: x, manualY: y } : {}),
                 },
               ],
@@ -1193,6 +1217,91 @@ export const useGraphStore = create<GraphStoreState>()(
         const nextState = GraphService.updateViewNodeParentId(get(), viewId, conceptId, parentId);
         set(nextState);
         PersistenceService.scheduleAutoSave(get());
+      },
+
+      setConceptOrder: (viewId, conceptId, newOrder) => {
+        const view = get().views.find((v) => v.id === viewId);
+        if (!view) return;
+        const targetNode = view.nodes.find((n) => n.conceptId === conceptId);
+        if (!targetNode) return;
+        const conceptMap = new Map(get().concepts.map((c) => [c.id, c]));
+        const targetConcept = conceptMap.get(conceptId);
+        if (!targetConcept) return;
+
+        const conceptType = targetConcept.conceptType;
+        if (conceptType !== 'em_chapter' && conceptType !== 'em_slice') return;
+
+        const isChapter = conceptType === 'em_chapter';
+        const siblings = view.nodes.filter((n) => {
+          const c = conceptMap.get(n.conceptId);
+          if (!c || c.conceptType !== conceptType) return false;
+          if (!isChapter) {
+            return n.parentId === targetNode.parentId;
+          }
+          return true;
+        });
+
+        if (siblings.length <= 1) return;
+
+        siblings.sort((a, b) => (a.order ?? a.x) - (b.order ?? b.x));
+        const otherSiblings = siblings.filter((n) => n.conceptId !== conceptId);
+        const clampedOrder = Math.max(1, Math.min(newOrder, siblings.length));
+        otherSiblings.splice(clampedOrder - 1, 0, targetNode);
+
+        const orderMap = new Map<string, number>();
+        otherSiblings.forEach((n, idx) => {
+          orderMap.set(n.conceptId, idx + 1);
+        });
+
+        const temporal = getTemporalState();
+        temporal.pause();
+        set((s) => ({
+          views: s.views.map((v) =>
+            v.id !== viewId ? v : {
+              ...v,
+              nodes: v.nodes.map((n) =>
+                orderMap.has(n.conceptId)
+                  ? { ...n, order: orderMap.get(n.conceptId)! }
+                  : n
+              ),
+            }
+          ),
+        }));
+        temporal.resume();
+        get().triggerLayout();
+        PersistenceService.scheduleAutoSave(get());
+      },
+
+      moveConceptOrder: (viewId, conceptId, direction) => {
+        const view = get().views.find((v) => v.id === viewId);
+        if (!view) return;
+        const targetNode = view.nodes.find((n) => n.conceptId === conceptId);
+        if (!targetNode) return;
+
+        const conceptMap = new Map(get().concepts.map((c) => [c.id, c]));
+        const targetConcept = conceptMap.get(conceptId);
+        if (!targetConcept) return;
+
+        const conceptType = targetConcept.conceptType;
+        const isChapter = conceptType === 'em_chapter';
+        const siblings = view.nodes.filter((n) => {
+          const c = conceptMap.get(n.conceptId);
+          if (!c || c.conceptType !== conceptType) return false;
+          if (!isChapter) return n.parentId === targetNode.parentId;
+          return true;
+        });
+
+        siblings.sort((a, b) => (a.order ?? a.x) - (b.order ?? b.x));
+        const currentIdx = siblings.findIndex((n) => n.conceptId === conceptId);
+        if (currentIdx === -1) return;
+
+        let targetOrder = targetNode.order ?? currentIdx + 1;
+        if (direction === 'left') targetOrder = currentIdx;
+        else if (direction === 'right') targetOrder = currentIdx + 2;
+        else if (direction === 'first') targetOrder = 1;
+        else if (direction === 'last') targetOrder = siblings.length;
+
+        get().setConceptOrder(viewId, conceptId, targetOrder);
       },
 
       updateViewEdgeLayout: (viewId, relationId, sourcePosition, targetPosition, waypoints, sourceInstanceId, targetInstanceId) => {
@@ -1601,10 +1710,27 @@ export const useGraphStore = create<GraphStoreState>()(
         if (activeView) {
           const finalX = x ?? options?.x ?? 150;
           const finalY = y ?? options?.y ?? 150;
+
+          let defaultOrder: number | undefined = undefined;
+          const conceptMap = new Map(get().concepts.map((c) => [c.id, c]));
+          if (concept.conceptType === 'em_chapter') {
+            const existingChapters = activeView.nodes.filter(
+              (n) => conceptMap.get(n.conceptId)?.conceptType === 'em_chapter'
+            );
+            defaultOrder = existingChapters.length + 1;
+          } else if (concept.conceptType === 'em_slice') {
+            const existingSlices = activeView.nodes.filter((n) => {
+              const c = conceptMap.get(n.conceptId);
+              return c?.conceptType === 'em_slice' && n.parentId === parentId;
+            });
+            defaultOrder = existingSlices.length + 1;
+          }
+
           const viewNode: ViewNode = {
             conceptId: concept.id,
             x: finalX,
             y: finalY,
+            ...(defaultOrder !== undefined ? { order: defaultOrder } : {}),
             ...(activeView.layoutAlgorithm === 'manual' ? { manualX: finalX, manualY: finalY } : {}),
             parentId,
           };

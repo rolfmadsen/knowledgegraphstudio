@@ -1,34 +1,30 @@
-# Specification: Domain Relation Visual Connection Sync & Quick-Add
+# Specification: Event Modeling Chapter & Slide Storytelling Sequence Control
 
 ## Overview
-When a concept node (or node instance) is added to or selected in a view, it may already have domain relations (`ConceptRelation`) defined in the workspace model with other concepts. This feature allows users to easily view, toggle, and auto-instantiate visual connections (`ViewEdge`) and related concepts directly from the Inspector panel and Canvas.
+This feature introduces explicit storytelling sequence ordering (`order`) for Event Modeling chapters (`em_chapter`) and slides/slices (`em_slice`). It allows users to control the exact left-to-right narrative sequence of chapters and slides across Event Modeling views.
 
----
+## Architecture & Schema Changes
 
-## Requirements
+1. **ViewNode Schema (`src/schema/graphSchema.ts`)**:
+   - Add optional `order?: z.number()` property to `ViewNode`.
+   - `order` is 1-indexed ($1, 2, 3, \dots$) and scoped per View (supporting the 1:N view model).
 
-### 1. Inspector Panel "Relationer & Forbindelser" Section (`src/features/properties/Inspector.tsx`)
-When a node instance is selected in the Inspector:
-1. **Query Model Domain Relations**:
-   - Retrieve all relations in `store.relations` where `relation.sourceConceptId === concept.id` or `relation.targetConceptId === concept.id`.
-2. **Group 1: Forbindelser i dette View** (Nodes already present on canvas):
-   - List each related node instance present in `activeView.nodes`.
-   - Show relation direction, relation label/type, and target node name.
-   - Render a toggle / checkbox (`Vis Edge`) indicating if a `ViewEdge` currently exists connecting `selectedInstanceId` and the related node's `instanceId`.
-   - Toggling ON creates a `ViewEdge` in `activeView.viewEdges`.
-   - Toggling OFF removes the `ViewEdge` from `activeView.viewEdges` without deleting the underlying domain `ConceptRelation`.
-   - Display a **"Forbind alle i view"** button at the top of the section when one or more related nodes in the active view do not yet have a `ViewEdge`.
-3. **Group 2: Tilgængelige Domæne-relationer** (Nodes not yet in this View):
-   - List concepts related in domain model that have no `ViewNode` in `activeView`.
-   - Render a **`[+] Tilføj node & edge til view`** button.
-   - Clicking this places a new `ViewNode` instance for the related concept onto the canvas (in the active/same slice or adjacent) and automatically creates the connecting `ViewEdge`.
+2. **Layout Engine (`src/notations/event-modeling/layout.ts`)**:
+   - **Chapter Ordering (Pass 1)**: Sort chapters by `viewNode.order ?? createdAt` before placing them horizontally left-to-right.
+   - **Slice Ordering (Pass 2)**: Sort slices within each chapter by `viewNode.order ?? createdAt`.
+   - **Hydration / Auto-numbering**: When `order` is undefined (e.g. legacy graphs), layout automatically initializes `order` ($1, 2, 3, \dots$) based on current left-to-right $X$ positions.
 
-### 2. Canvas Node Quick Action / Banner (`src/features/viewport/graph/ReactFlowCanvas.tsx`)
-- When a node instance is selected on the canvas:
-  - If there are domain relations to other nodes currently on the active view that are NOT yet visually connected, display a quick action badge / action: `⚡ X eksisterende forbindelser [Forbind alle]`.
-  - Clicking this instantly connects all missing `ViewEdge`s for the selected node instance in one action.
+3. **Graph Store Actions (`src/store/useGraphStore.ts`)**:
+   - `setConceptOrder(viewId, conceptId, newOrder: number)`: Updates `order` for `conceptId` and re-indexes all sibling chapters/slices to maintain a contiguous $1 \dots K$ sequence.
+   - `moveConceptOrder(viewId, conceptId, direction: 'left' | 'right' | 'first' | 'last')`: Helper for step/jump reordering.
+   - `addConceptToView` / creation logic: Automatically assigns `order = siblingCount + 1` (appends at end) or inserts at `insertAfterConceptId` position.
 
-### 3. Zustand Store Actions (`src/store/useGraphStore.ts` / `src/services/GraphService.ts`)
-- `toggleViewEdge(viewId, sourceInstanceId, targetInstanceId, relationId)`: Add or remove a visual edge between two node instances.
-- `connectAllDomainRelations(viewId, instanceId)`: Automatically detect all related nodes present in `viewId` and create missing `ViewEdge` entries.
-- `addRelatedConceptAndConnect(viewId, sourceInstanceId, relatedConceptId, relationId)`: Add `relatedConceptId` to `viewId` and connect it to `sourceInstanceId`.
+4. **Canvas Component Header Badges (`src/notations/event-modeling/index.tsx`)**:
+   - `EmChapterNode`: Renders a subtle sequence badge on the chapter header (e.g., `[1] Chapter Name`).
+   - `EmSliceNode`: Renders a subtle sequence badge on the slice header (e.g., `1.2 Slice Name` or `[2] Slice Name`).
+
+5. **Inspector Controls (`src/features/properties/Inspector.tsx`)**:
+   - When an `em_chapter` or `em_slice` node is selected:
+     - **Sequence Position Dropdown / Select**: `Position: [ N ▼ ] of Total`. Direct selection instantly jumps the element to position $N$.
+     - **Jump & Step Buttons**: `⏮ First`, `◄ Left`, `► Right`, `⏭ Last`.
+     - **Contextual Creation Button**: `+ Add Slice After` (or `+ Add Chapter After`) creates a new container directly at position $N+1$.

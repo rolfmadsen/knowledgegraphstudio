@@ -246,6 +246,7 @@ const HIDE_EDGES_IN_NOTATION: Record<string, Set<string>> = {
           width: w, 
           height: h, 
           parentId: vn.parentId,
+          order: vn.order,
           conceptType: c?.conceptType,
           createdAt: c?.createdAt
         };
@@ -281,6 +282,7 @@ const HIDE_EDGES_IN_NOTATION: Record<string, Set<string>> = {
           conceptId: toElementId(p.conceptId.split('#')[0]),
           x: p.x,
           y: p.y,
+          order: (p as any).order,
         }));
         // already defined conceptMap above
         const groupNodes = viewNodes.filter(vn => {
@@ -298,48 +300,39 @@ const HIDE_EDGES_IN_NOTATION: Record<string, Set<string>> = {
         // so that child group positions are normalized before parent groups recalculate their bounds.
         const depthMap = new Map<string, number>();
         const getDepth = (id: string, visited = new Set<string>()): number => {
-          if (depthMap.has(id)) return depthMap.get(id)!;
           if (visited.has(id)) return 0;
-          const vn = viewNodes.find((n) => n.conceptId === id);
-          if (!vn || !vn.parentId) return 0;
           visited.add(id);
-          const d = 1 + getDepth(vn.parentId, visited);
-          visited.delete(id);
-          depthMap.set(id, d);
-          return d;
+          const vn = viewNodes.find(n => (n.instanceId || n.conceptId) === id);
+          if (!vn || !vn.parentId) return 0;
+          return 1 + getDepth(vn.parentId, visited);
         };
-        const sortedGroupNodes = [...groupNodes].sort((a, b) => getDepth(b.conceptId) - getDepth(a.conceptId));
+        groupNodes.forEach(gn => {
+          depthMap.set(gn.instanceId || gn.conceptId, getDepth(gn.instanceId || gn.conceptId));
+        });
 
-        sortedGroupNodes.forEach(groupNode => {
-          const childrenIds = viewNodes
-            .filter(vn => vn.parentId === groupNode.conceptId)
-            .map(vn => vn.conceptId);
+        const sortedGroupNodes = [...groupNodes].sort((a, b) => {
+          const depthA = depthMap.get(a.instanceId || a.conceptId) || 0;
+          const depthB = depthMap.get(b.instanceId || b.conceptId) || 0;
+          return depthB - depthA;
+        });
 
-          if (childrenIds.length > 0) {
+        sortedGroupNodes.forEach((groupNode) => {
+          const children = viewNodes.filter((vn) => vn.parentId === (groupNode.instanceId || groupNode.conceptId));
+          if (children.length > 0) {
             let minX = Infinity;
             let minY = Infinity;
             let maxX = -Infinity;
             let maxY = -Infinity;
 
-            let defaultW = currentView.type === 'c4' ? 240 : currentView.type === 'archimate' ? 210 : 200;
-            let defaultH = currentView.type === 'c4' ? 96 : currentView.type === 'archimate' ? 76 : 80;
+            const defaultW = currentView.type === 'c4' ? 280 : 240;
+            const defaultH = currentView.type === 'c4' ? 160 : 140;
 
-            if (currentView.type === 'event_modeling') {
-              const groupConcept = conceptMap.get(groupNode.conceptId);
-              if (groupConcept?.conceptType === 'em_chapter') {
-                defaultW = 600;
-                defaultH = 600;
-              } else if (groupConcept?.conceptType === 'em_slice') {
-                defaultW = 320;
-                defaultH = 500;
-              }
-            }
-
-            childrenIds.forEach(cid => {
-              const pos = normalizedPositions.find(p => p.conceptId === cid);
+            children.forEach((child) => {
+              const cid = child.instanceId || child.conceptId;
+              const pos = normalizedPositions.find((p) => p.conceptId === cid);
               if (pos) {
                 const rfNode = rfNodes.find(n => n.id === cid);
-                const childConcept = conceptMap.get(cid);
+                const childConcept = conceptMap.get(child.conceptId);
                 let w = rfNode?.measured?.width;
                 let h = rfNode?.measured?.height;
                 if (!w || !h) {
@@ -366,7 +359,7 @@ const HIDE_EDGES_IN_NOTATION: Record<string, Set<string>> = {
               const gx = minX - PADDING_LEFT;
               const gy = minY - PADDING_TOP;
 
-              const groupPos = normalizedPositions.find(p => p.conceptId === groupNode.conceptId);
+              const groupPos = normalizedPositions.find(p => p.conceptId === (groupNode.instanceId || groupNode.conceptId));
               if (groupPos) {
                 groupPos.x = gx;
                 groupPos.y = gy;
@@ -397,7 +390,11 @@ const HIDE_EDGES_IN_NOTATION: Record<string, Set<string>> = {
     ? activeView.nodes.map((n) => `${n.conceptId}:${n.parentId || ''}`).join(',')
     : '';
 
-  // Trigger layout when model size, active view, algorithm, group memberships, or manual version changes
+  const ordersHash = activeView
+    ? activeView.nodes.map((n) => `${n.conceptId}:${n.order ?? ''}`).join(',')
+    : '';
+
+  // Trigger layout when model size, active view, algorithm, group memberships, orders, or manual version changes
   useEffect(() => {
     if (filteredConcepts.length > 0 && activeView && activeView.layoutAlgorithm !== 'manual') {
       const timer = setTimeout(() => {
@@ -412,6 +409,7 @@ const HIDE_EDGES_IN_NOTATION: Record<string, Set<string>> = {
     activeView?.id,
     activeView?.layoutAlgorithm,
     parentIdsHash,
+    ordersHash,
     layoutVersion,
     runLayout,
   ]);

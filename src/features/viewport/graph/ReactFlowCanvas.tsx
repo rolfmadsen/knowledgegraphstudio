@@ -32,16 +32,19 @@ import { type ConceptNode, type ElementId, toElementId, type ViewType, type Conc
 import { getDynamicConnection, getClosestPosition } from '../../../utils/edgeRouting';
 
 // --- Padding for Grouping Containers ---
-export const PADDING_TOP = 72;
-export const PADDING_BOTTOM = 24;
-export const PADDING_LEFT = 24;
-export const PADDING_RIGHT = 24;
+// Header label occupies ~48px. With PADDING_TOP = 84 (48 + 36), the separation between
+// the header text and the top node is 36px, perfectly matching left, right, and bottom margins.
+export const PADDING_TOP = 84;
+export const PADDING_BOTTOM = 36;
+export const PADDING_LEFT = 36;
+export const PADDING_RIGHT = 36;
 
 function getGroupBounds(
   groupId: string,
-  viewNodes: Array<{ conceptId: string; x: number; y: number; width?: number; height?: number; parentId?: string }>,
+  viewNodes: Array<{ conceptId: string; x: number; y: number; width?: number; height?: number; parentId?: string; instanceId?: string }>,
   viewType?: string,
-  conceptMap?: Map<string, any>
+  conceptMap?: Map<string, any>,
+  rfNodesMap?: Map<string, any>
 ) {
   const vn = viewNodes.find(n => n.conceptId === groupId);
   if (!vn) return null;
@@ -61,19 +64,21 @@ function getGroupBounds(
         chapterSlices.forEach(sliceVn => {
           const sliceElements = viewNodes.filter(e => e.parentId === sliceVn.conceptId);
           sliceElements.forEach(el => {
-            const h = el.height ?? 100;
+            const rfNode = rfNodesMap?.get(el.conceptId) || rfNodesMap?.get((el as any).instanceId);
+            const h = (rfNode?.measured?.height as number) ?? (rfNode?.style?.height as number) ?? el.height ?? 80;
             maxElementBottom = Math.max(maxElementBottom, el.y + h);
           });
         });
       } else {
         children.forEach(child => {
-          let childH = child.height ?? 100;
+          const rfNode = rfNodesMap?.get(child.conceptId) || rfNodesMap?.get((child as any).instanceId);
+          let childH = (rfNode?.measured?.height as number) ?? (rfNode?.style?.height as number) ?? child.height ?? 80;
           maxElementBottom = Math.max(maxElementBottom, child.y + childH);
         });
       }
 
       const sliceY = vn.y;
-      const h = maxElementBottom !== -Infinity ? Math.max(280, (maxElementBottom + 64) - sliceY) : 350;
+      const h = maxElementBottom !== -Infinity ? Math.max(280, (maxElementBottom + 48) - sliceY) : 350;
       return {
         x: vn.x,
         y: sliceY,
@@ -88,7 +93,7 @@ function getGroupBounds(
       children.forEach(child => {
         const childConcept = conceptMap?.get(child.conceptId);
         if (childConcept?.conceptType === 'em_slice') {
-          const sb = getGroupBounds(child.conceptId, viewNodes, viewType, conceptMap);
+          const sb = getGroupBounds(child.conceptId, viewNodes, viewType, conceptMap, rfNodesMap);
           if (sb) {
             minX = Math.min(minX, sb.x);
             maxX = Math.max(maxX, sb.x + sb.w);
@@ -111,7 +116,7 @@ function getGroupBounds(
     }
   }
 
-  let defaultW = viewType === 'c4' ? 240 : viewType === 'archimate' ? 210 : 200;
+  let defaultW = viewType === 'c4' ? 240 : viewType === 'archimate' ? 220 : 240;
   let defaultH = viewType === 'c4' ? 96 : viewType === 'archimate' ? 76 : 80;
 
   if (children.length === 0) {
@@ -133,7 +138,7 @@ function getGroupBounds(
     const childConcept = conceptMap?.get(child.conceptId);
     const isChildGroup = childConcept && (childConcept.conceptType === 'bounded_context' || childConcept.conceptType === 'em_chapter' || childConcept.conceptType === 'em_slice');
     if (isChildGroup) {
-      const cb = getGroupBounds(child.conceptId, viewNodes, viewType, conceptMap);
+      const cb = getGroupBounds(child.conceptId, viewNodes, viewType, conceptMap, rfNodesMap);
       if (cb) {
         minX = Math.min(minX, cb.x);
         minY = Math.min(minY, cb.y);
@@ -143,8 +148,9 @@ function getGroupBounds(
       }
     }
 
-    let w = child.width ?? defaultW;
-    let h = child.height ?? defaultH;
+    const rfNode = rfNodesMap?.get(child.conceptId) || rfNodesMap?.get((child as any).instanceId);
+    let w = (rfNode?.measured?.width as number) ?? (rfNode?.style?.width as number) ?? child.width ?? defaultW;
+    let h = (rfNode?.measured?.height as number) ?? (rfNode?.style?.height as number) ?? child.height ?? defaultH;
     minX = Math.min(minX, child.x);
     minY = Math.min(minY, child.y);
     maxX = Math.max(maxX, child.x + w);
@@ -2145,14 +2151,15 @@ export function ReactFlowCanvas({
           const sliceInstId = sliceVn.instanceId || sliceVn.conceptId;
           const sliceElements = elements.filter(e => e.parentId === sliceInstId || e.parentId === sliceVn.conceptId);
           sliceElements.forEach(el => {
-            const h = el.height ?? 100;
+            const rfNode = reactFlow.getNode(el.instanceId || el.conceptId);
+            const h = (rfNode?.measured?.height as number) ?? (rfNode?.style?.height as number) ?? el.height ?? 80;
             maxElementBottom = Math.max(maxElementBottom, el.y + h);
           });
         });
 
         const sliceY = chapterVn.y + 48; // CHAPTER_PADDING
         const hSlice = maxElementBottom !== -Infinity
-          ? Math.max(280, (maxElementBottom + 64) - sliceY)
+          ? Math.max(280, (maxElementBottom + 48) - sliceY)
           : 350;
         const hChapter = hSlice + 96; // 48 padding top + 48 padding bottom
 
@@ -2194,7 +2201,7 @@ export function ReactFlowCanvas({
 
       const childIds = groupChildrenMap.get(vnInstId) || groupChildrenMap.get(vn.conceptId) || [];
 
-      let defaultW = view.type === 'c4' ? 240 : view.type === 'archimate' ? 210 : 200;
+      let defaultW = view.type === 'c4' ? 240 : view.type === 'archimate' ? 220 : 240;
       let defaultH = view.type === 'c4' ? 96 : view.type === 'archimate' ? 76 : 80;
 
       if (view.type === 'event_modeling') {
@@ -2247,8 +2254,9 @@ export function ReactFlowCanvas({
           const childVn = nodesMap.get(cid);
           if (!childVn) return;
           const childConcept = conceptMap.get(childVn.conceptId);
-          let w = childVn.width ?? defaultW;
-          let h = childVn.height ?? defaultH;
+          const rfNode = reactFlow.getNode(cid) || (childVn.instanceId ? reactFlow.getNode(childVn.instanceId) : undefined);
+          let w = (rfNode?.measured?.width as number) ?? (rfNode?.style?.width as number) ?? childVn.width ?? defaultW;
+          let h = (rfNode?.measured?.height as number) ?? (rfNode?.style?.height as number) ?? childVn.height ?? defaultH;
           if (view.type === 'event_modeling') {
             if (childConcept?.conceptType === 'em_slice') {
               w = childVn.width ?? 320;
@@ -2432,6 +2440,7 @@ export function ReactFlowCanvas({
           type: c.conceptType.replace('_', ' '),
           lifecycle: c.lifecycleState,
           concept: c,
+          order: vn.order,
           isConnectingActive,
           isValidConnectionTarget,
           isConnectingSource: nodeInstanceId === connectingSourceId || c.id === connectingSourceId,
@@ -2440,7 +2449,7 @@ export function ReactFlowCanvas({
     });
 
     return mappedNodes.sort((a, b) => getDepth(a.id) - getDepth(b.id));
-  }, [concepts, selectedConceptIds, selectedInstanceId, view, currentAlgo, connectingSourceId]);
+  }, [concepts, selectedConceptIds, selectedInstanceId, view, currentAlgo, connectingSourceId, reactFlow]);
 
   const initialEdges: Edge[] = useMemo(() => {
     const activeNotation = NotationRegistry.forViewType(view.type);

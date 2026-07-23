@@ -114,6 +114,8 @@ const EM_TYPE_LABELS: Record<string, string> = {
 // ============================================================
 
 function EmChapterNode({ data, selected }: NodeProps<EmNodeType>) {
+  const order = (data as any).order;
+
   return (
     <div
       className={`
@@ -129,7 +131,7 @@ function EmChapterNode({ data, selected }: NodeProps<EmNodeType>) {
       {/* Chapter header — sits at top-left corner */}
       <div className="absolute -top-3 left-4 flex items-center gap-1.5 pointer-events-none select-none">
         <span className="px-3 py-0.5 bg-white border border-slate-300 rounded-full text-[9px] font-black uppercase tracking-widest text-slate-500 shadow-sm">
-          Chapter
+          {order !== undefined ? `[${order}] Chapter` : 'Chapter'}
         </span>
         <span className="px-3 py-0.5 bg-slate-900 text-white rounded-full text-[10px] font-bold tracking-tight shadow-sm">
           {data.concept?.name || 'Untitled'}
@@ -146,6 +148,7 @@ function EmChapterNode({ data, selected }: NodeProps<EmNodeType>) {
 function EmSliceNode({ data, selected }: NodeProps<EmNodeType>) {
   // Actor is stored in the `definition` field of the concept
   const actor = data.concept?.definition || null;
+  const order = (data as any).order;
 
   return (
     <div
@@ -162,11 +165,18 @@ function EmSliceNode({ data, selected }: NodeProps<EmNodeType>) {
 
       {/* Slice label + actor — sits at top of slice */}
       <div className="flex flex-col gap-0.5 px-3 pt-2 pointer-events-none select-none">
-        {actor && (
-          <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">
-            👤 {actor}
-          </span>
-        )}
+        <div className="flex items-center justify-between gap-1">
+          {actor ? (
+            <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 truncate">
+              👤 {actor}
+            </span>
+          ) : <span />}
+          {order !== undefined && (
+            <span className="px-1.5 py-0.5 bg-slate-200 text-slate-700 rounded text-[9px] font-bold font-mono">
+              #{order}
+            </span>
+          )}
+        </div>
         <span
           className={`text-[11px] font-bold tracking-tight truncate ${selected ? 'text-slate-900' : 'text-slate-600'}`}
         >

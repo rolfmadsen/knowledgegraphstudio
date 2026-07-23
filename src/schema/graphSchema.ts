@@ -400,6 +400,7 @@ export const ViewNode = z.object({
   manualX: z.number().optional(),
   manualY: z.number().optional(),
   parentId: ElementId.optional(),
+  order: z.number().optional(),
 });
 export type ViewNode = z.infer<typeof ViewNode>;
 

@@ -1,7 +1,7 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useGraphStore, isEdgeVisibleForInstances, normalizeViewNodes } from '../../store/useGraphStore';
 import { useShallow } from 'zustand/react/shallow';
-import { LifecycleState, ConceptType, type ConceptProperty, type ConceptNode, type ElementId } from '../../schema/graphSchema';
+import { LifecycleState, ConceptType, DataType, type ConceptProperty, type ConceptNode, type ElementId } from '../../schema/graphSchema';
 import { NotationRegistry } from '../../notations/NotationRegistry';
 import { useValidationWarnings } from '../validation/useValidation';
 import { 
@@ -38,6 +38,8 @@ export function Inspector() {
     ungroupConcept,
     dissolveGroup,
     updateViewNodeParentId,
+    setConceptOrder,
+    moveConceptOrder,
     setSelectedConceptIds,
     setActiveViewId,
     selectConcept,
@@ -63,6 +65,8 @@ export function Inspector() {
       ungroupConcept: s?.ungroupConcept,
       dissolveGroup: s?.dissolveGroup,
       updateViewNodeParentId: s?.updateViewNodeParentId,
+      setConceptOrder: s?.setConceptOrder,
+      moveConceptOrder: s?.moveConceptOrder,
       setSelectedConceptIds: s?.setSelectedConceptIds,
       setActiveViewId: s?.setActiveViewId,
       selectConcept: s?.selectConcept,
@@ -70,18 +74,42 @@ export function Inspector() {
     }))
   );
 
-  const concept = concepts.find(c => c.id === selectedConceptId);
-  const relation = relations.find(r => r.id === selectedRelationId);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const warnings = useValidationWarnings();
-
   const activeView = views.find((v) => v.id === activeViewId);
   const activeNotation = activeView ? NotationRegistry.forViewType(activeView.type) : undefined;
+
+  const concept = useMemo(() => {
+    if (!selectedConceptId || !activeView) return undefined;
+    const isPresent = activeView.nodes?.some((n) => n.conceptId === selectedConceptId);
+    return isPresent ? concepts.find((c) => c.id === selectedConceptId) : undefined;
+  }, [selectedConceptId, activeView, concepts]);
+
+  const relation = useMemo(() => {
+    if (!selectedRelationId || !activeView) return undefined;
+    const isPresent = activeView.viewEdges?.some((e) => e.relationId === selectedRelationId) ||
+      relations.some((r) => r.id === selectedRelationId && activeView.nodes.some(n => n.conceptId === r.sourceConceptId) && activeView.nodes.some(n => n.conceptId === r.targetConceptId));
+    return isPresent ? relations.find((r) => r.id === selectedRelationId) : undefined;
+  }, [selectedRelationId, activeView, relations]);
 
   const viewNode = activeView?.nodes.find((n) =>
     selectedInstanceId ? (n.instanceId || n.conceptId) === selectedInstanceId : n.conceptId === concept?.id
   );
   const parentId = viewNode?.parentId;
+
+  const siblings = useMemo(() => {
+    if (!activeView || !concept) return [];
+    const conceptType = concept.conceptType;
+    const isChapter = conceptType === 'em_chapter';
+    const targetParentId = viewNode?.parentId;
+
+    return (activeView.nodes ?? []).filter((vn) => {
+      const c = concepts.find((item) => item.id === vn.conceptId);
+      if (!c || c.conceptType !== conceptType) return false;
+      if (!isChapter) return vn.parentId === targetParentId;
+      return true;
+    });
+  }, [activeView, concept, concepts, viewNode]);
 
   // Inspector Micro-Navigation: Cmd + ArrowUp/Down to jump sections
   useEffect(() => {
@@ -448,28 +476,138 @@ export function Inspector() {
                   </InspectorSection>
                 )}
 
+                {activeView?.type === 'event_modeling' && (concept.conceptType === 'em_chapter' || concept.conceptType === 'em_slice') && (
+                  <InspectorSection title="Fortællingsrækkefølge">
+                    <div className="flex flex-col gap-3">
+                      {/* Sequence position dropdown */}
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] font-semibold text-slate-500 whitespace-nowrap">Placering:</span>
+                        <div className="relative flex-1">
+                          <select
+                            className="w-full h-8 pl-3 pr-8 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 appearance-none focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            value={viewNode?.order ?? 1}
+                            onChange={(e) => {
+                              const newPos = parseInt(e.target.value, 10);
+                              if (!isNaN(newPos) && activeView && setConceptOrder) {
+                                setConceptOrder(activeView.id, concept.id, newPos);
+                              }
+                            }}
+                          >
+                            {siblings.map((_, idx) => (
+                              <option key={idx + 1} value={idx + 1}>
+                                Position {idx + 1} af {siblings.length}
+                              </option>
+                            ))}
+                          </select>
+                          <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400" />
+                        </div>
+                      </div>
+
+                      {/* Step & Jump buttons */}
+                      <div className="flex items-center gap-1 justify-between">
+                        <button
+                          type="button"
+                          title="Første position"
+                          onClick={() => activeView && moveConceptOrder && moveConceptOrder(activeView.id, concept.id, 'first')}
+                          className="flex-1 h-7 px-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[11px] font-bold flex items-center justify-center transition-colors"
+                        >
+                          ⏮ Først
+                        </button>
+                        <button
+                          type="button"
+                          title="Flyt venstre"
+                          onClick={() => activeView && moveConceptOrder && moveConceptOrder(activeView.id, concept.id, 'left')}
+                          className="flex-1 h-7 px-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[11px] font-bold flex items-center justify-center transition-colors"
+                        >
+                          ◄ Venstre
+                        </button>
+                        <button
+                          type="button"
+                          title="Flyt højre"
+                          onClick={() => activeView && moveConceptOrder && moveConceptOrder(activeView.id, concept.id, 'right')}
+                          className="flex-1 h-7 px-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[11px] font-bold flex items-center justify-center transition-colors"
+                        >
+                          Højre ►
+                        </button>
+                        <button
+                          type="button"
+                          title="Sidste position"
+                          onClick={() => activeView && moveConceptOrder && moveConceptOrder(activeView.id, concept.id, 'last')}
+                          className="flex-1 h-7 px-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[11px] font-bold flex items-center justify-center transition-colors"
+                        >
+                          Sidst ⏭
+                        </button>
+                      </div>
+
+                      {/* Contextual creation button ("+ Tilføj Slice efter denne") */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!activeView) return;
+                          const store = useGraphStore.getState();
+                          const targetType = concept.conceptType === 'em_chapter' ? 'em_chapter' : 'em_slice';
+                          const typeName = targetType === 'em_chapter' ? 'Nyt Kapitel' : 'Ny Slice';
+                          const targetParentId = targetType === 'em_slice' ? viewNode?.parentId : undefined;
+                          
+                          const newConcept = store.addConcept(targetType, typeName);
+                          store.addConceptToView(activeView.id, newConcept.id, (viewNode?.x ?? 0) + 340, viewNode?.y ?? 0, targetParentId);
+                          
+                          const targetOrder = (viewNode?.order ?? 1) + 1;
+                          store.setConceptOrder(activeView.id, newConcept.id, targetOrder);
+                          store.selectConcept(newConcept.id);
+                        }}
+                        className="w-full h-8 mt-1 px-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-colors"
+                      >
+                        + Tilføj {concept.conceptType === 'em_chapter' ? 'Kapitel' : 'Slice'} efter denne
+                      </button>
+                    </div>
+                  </InspectorSection>
+                )}
+
                 {concept.conceptType !== 'bounded_context' && 'properties' in concept && !activeNotation?.InspectorComponent && (
                   <InspectorSection title="Attributter">
                       <div className="flex flex-col gap-3">
                           {concept.properties?.map((p: ConceptProperty) => (
-                              <div key={p.id} className="flex gap-2 group">
-                                  <div className="flex-1">
+                              <div key={p.id} className="p-3 bg-white border border-slate-200/80 rounded-2xl flex flex-col gap-3 group relative shadow-sm hover:shadow-md transition-all">
+                                  <div className="flex justify-between items-center">
+                                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider ml-1">Attribut</span>
+                                      <button 
+                                          onClick={() => deleteProperty(concept.id, p.id)}
+                                          className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                                          title="Slet attribut"
+                                      >
+                                          <Trash2 size={14} />
+                                      </button>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-3">
                                       <PropertyField 
-                                          label={p.name} 
-                                          value={String(p.type)} 
+                                          label="Navn" 
+                                          value={p.name} 
                                           onChange={(v) => updateProperty(concept.id, p.id, { name: v })} 
                                       />
+                                      <div className="flex flex-col gap-2">
+                                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">Datatype</label>
+                                          <div className="relative">
+                                              <select
+                                                  value={String(p.type)}
+                                                  onChange={(e) => updateProperty(concept.id, p.id, { type: e.target.value as DataType })}
+                                                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-[12px] font-semibold text-slate-700 hover:border-slate-300 focus:bg-white focus:border-emerald-500 outline-none appearance-none cursor-pointer transition-all"
+                                              >
+                                                  <option value="string">string</option>
+                                                  <option value="number">number</option>
+                                                  <option value="boolean">boolean</option>
+                                                  <option value="date">date</option>
+                                                  <option value="object">object</option>
+                                                  <option value="array">array</option>
+                                              </select>
+                                              <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400" />
+                                          </div>
+                                      </div>
                                   </div>
-                                  <button 
-                                      onClick={() => deleteProperty(concept.id, p.id)}
-                                      className="mt-6 p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                                  >
-                                      <Trash2 size={14} />
-                                  </button>
                               </div>
                           ))}
                           <button 
-                              onClick={() => addProperty(concept.id, 'Ny egenskab', 'string')}
+                              onClick={() => addProperty(concept.id, 'nyAttribut', 'string')}
                               className="flex items-center justify-center gap-2 p-3 text-[10px] font-black text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all border border-dashed border-emerald-200 mt-2 tracking-widest uppercase"
                           >
                               <Plus size={14} strokeWidth={3} />

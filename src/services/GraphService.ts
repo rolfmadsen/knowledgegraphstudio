@@ -875,7 +875,7 @@ export class GraphService {
     let maxX = -Infinity;
     let maxY = -Infinity;
 
-    let defaultW = view.type === 'c4' ? 240 : (view.type === 'archimate' || view.type === 'dcr') ? 210 : 200;
+    let defaultW = view.type === 'c4' ? 240 : (view.type === 'archimate' || view.type === 'dcr') ? 220 : 240;
     let defaultH = view.type === 'c4' ? 96 : (view.type === 'archimate' || view.type === 'dcr') ? 76 : 80;
 
     if (view.type === 'event_modeling') {
@@ -897,11 +897,12 @@ export class GraphService {
       maxY = Math.max(maxY, vn.y + h);
     });
 
-    const padding = 40;
-    const groupX = minX === Infinity ? 100 : minX - padding;
-    const groupY = minY === Infinity ? 100 : minY - padding;
-    const groupW = minX === Infinity ? 240 : (maxX - minX) + padding * 2;
-    const groupH = minY === Infinity ? 140 : (maxY - minY) + padding * 2 + 30;
+    const sideMargin = 36;
+    const headerHeight = 48;
+    const groupX = minX === Infinity ? 100 : minX - sideMargin;
+    const groupY = minY === Infinity ? 100 : minY - (headerHeight + sideMargin);
+    const groupW = minX === Infinity ? 240 : (maxX - minX) + sideMargin * 2;
+    const groupH = minY === Infinity ? 140 : (maxY - minY) + (headerHeight + sideMargin) + sideMargin;
 
     // 2. Create the ViewNode for the group
     const groupViewNode = {

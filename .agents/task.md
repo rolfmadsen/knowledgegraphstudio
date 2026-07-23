@@ -1,7 +1,13 @@
-# Tasks: Domain Relation Visual Connection Sync & Quick-Add
+# Tasks: Event Modeling Chapter & Slide Storytelling Sequence Control
 
-- [x] `src/store/useGraphStore.ts` & `src/services/GraphService.ts`: Add store actions for `toggleViewEdge`, `connectAllDomainRelations`, and `addRelatedConceptAndConnect`
-- [x] `src/features/properties/Inspector.tsx`: Build "Relationer & Forbindelser" inspector section with View Edge toggles, "Forbind alle i view", and "Tilføj node & edge til view"
-- [x] `src/features/viewport/graph/ReactFlowCanvas.tsx`: Add canvas node quick-action badge to "Forbind alle" un-connected domain relations in 1-click
-- [x] `src/store/__tests__/useGraphStore.test.ts`: Write unit tests for `toggleViewEdge`, `connectAllDomainRelations`, and `addRelatedConceptAndConnect`
-- [x] Manual & automated verification: Verify toggling edges, auto-connecting, and adding related nodes from Inspector and Canvas
+## TDD & Implementation Tasks
+
+- [x] `[x]` **Schema & Store Tests (RED)**: Write unit tests in `src/store/__tests__/useGraphStore.test.ts` for `setConceptOrder` re-indexing, `moveConceptOrder`, and initial `order` hydration.
+- [x] `[x]` **Schema & Store Implementation (GREEN)**:
+  - Add `order?: z.number()` to `ViewNode` in `src/schema/graphSchema.ts`.
+  - Add `setConceptOrder` and `moveConceptOrder` to `src/store/useGraphStore.ts`.
+- [x] `[x]` **Layout Engine Implementation (GREEN)**: Update `eventModelingLayoutEngine` in `src/notations/event-modeling/layout.ts` to sort chapters and slices by `order`.
+- [x] `[x]` **UI Integration**:
+  - Update `EmChapterNode` and `EmSliceNode` in `src/notations/event-modeling/index.tsx` to render sequence badges (`[1] Chapter`, `#1 Slice`).
+  - Add Sequence Controls (Dropdown, `⏮ Først`, `◄ Venstre`, `Højre ►`, `Sidst ⏭`, `+ Tilføj Slice efter denne`) to `src/features/properties/Inspector.tsx`.
+- [x] `[x]` **Verification**: Code built and integrated cleanly.

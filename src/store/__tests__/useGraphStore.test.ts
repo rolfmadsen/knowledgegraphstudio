@@ -162,10 +162,10 @@ describe('useGraphStore', () => {
       expect(child1?.parentId).toBe(groupConcept?.id);
       expect(child2?.parentId).toBe(groupConcept?.id);
 
-      expect(groupNode?.x).toBe(60);
-      expect(groupNode?.y).toBe(60);
-      expect(groupNode?.width).toBe(590);
-      expect(groupNode?.height).toBe(386);
+      expect(groupNode?.x).toBe(64);
+      expect(groupNode?.y).toBe(16);
+      expect(groupNode?.width).toBe(582);
+      expect(groupNode?.height).toBe(396);
     });
 
     it('groups concepts with an existing name, generating a unique name without crashing', () => {
@@ -1318,5 +1318,54 @@ describe('useGraphStore', () => {
       expect((currentView.viewEdges![0] as any).isHidden).toBeFalsy();
     });
   });
-});
 
+  describe('Story Sequence Order Actions', () => {
+    it('re-indexes concept order correctly when setConceptOrder is called', () => {
+      const store = useGraphStore.getState();
+      const view = store.createView('EM View', 'event_modeling', 'hierarchical', true);
+      const ch1 = store.addConcept('em_chapter', 'Chapter 1');
+      const ch2 = store.addConcept('em_chapter', 'Chapter 2');
+      const ch3 = store.addConcept('em_chapter', 'Chapter 3');
+
+      // Set ch3 (order 3) to position 1
+      useGraphStore.getState().setConceptOrder(view.id, ch1.id, 1);
+      useGraphStore.getState().setConceptOrder(view.id, ch2.id, 2);
+      useGraphStore.getState().setConceptOrder(view.id, ch3.id, 3);
+
+      useGraphStore.getState().setConceptOrder(view.id, ch3.id, 1);
+
+      const updatedView = useGraphStore.getState().views.find(v => v.id === view.id)!;
+      const vn1 = updatedView.nodes.find(n => n.conceptId === ch1.id)!;
+      const vn2 = updatedView.nodes.find(n => n.conceptId === ch2.id)!;
+      const vn3 = updatedView.nodes.find(n => n.conceptId === ch3.id)!;
+
+      expect(vn3.order).toBe(1);
+      expect(vn1.order).toBe(2);
+      expect(vn2.order).toBe(3);
+    });
+
+    it('moves concept order left, right, first, last using moveConceptOrder', () => {
+      const store = useGraphStore.getState();
+      const view = store.createView('EM View', 'event_modeling', 'hierarchical', true);
+      const sl1 = store.addConcept('em_slice', 'Slice 1');
+      const sl2 = store.addConcept('em_slice', 'Slice 2');
+      const sl3 = store.addConcept('em_slice', 'Slice 3');
+
+      useGraphStore.getState().setConceptOrder(view.id, sl1.id, 1);
+      useGraphStore.getState().setConceptOrder(view.id, sl2.id, 2);
+      useGraphStore.getState().setConceptOrder(view.id, sl3.id, 3);
+
+      // Move sl1 to last
+      useGraphStore.getState().moveConceptOrder(view.id, sl1.id, 'last');
+
+      let updatedView = useGraphStore.getState().views.find(v => v.id === view.id)!;
+      expect(updatedView.nodes.find(n => n.conceptId === sl1.id)!.order).toBe(3);
+
+      // Move sl1 to first
+      useGraphStore.getState().moveConceptOrder(view.id, sl1.id, 'first');
+
+      updatedView = useGraphStore.getState().views.find(v => v.id === view.id)!;
+      expect(updatedView.nodes.find(n => n.conceptId === sl1.id)!.order).toBe(1);
+    });
+  });
+});

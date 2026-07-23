@@ -100,6 +100,10 @@ function findChapterId(
   return undefined;
 }
 
+function getOrder(node: LayoutNode): number | undefined {
+  return (node as any).order;
+}
+
 // ============================================================
 // Main Layout Engine
 // ============================================================
@@ -113,8 +117,18 @@ export const eventModelingLayoutEngine: LayoutEngine = async (
 
   const nodeMap = new Map<string, LayoutNode>(nodes.map((n) => [n.id, n]));
 
-  // Partition nodes by type
-  const chapters = nodes.filter((n) => getConceptType(n) === 'em_chapter');
+  // Partition nodes by type and sort chapters by explicit order
+  const chapters = nodes
+    .filter((n) => getConceptType(n) === 'em_chapter')
+    .sort((a, b) => {
+      const orderA = getOrder(a);
+      const orderB = getOrder(b);
+      if (orderA !== undefined && orderB !== undefined) return orderA - orderB;
+      if (orderA !== undefined) return -1;
+      if (orderB !== undefined) return 1;
+      return getCreatedAt(a) - getCreatedAt(b);
+    });
+
   const slices = nodes.filter((n) => getConceptType(n) === 'em_slice');
   const elements = nodes.filter(
     (n) => !isContainer(getConceptType(n)),
@@ -154,72 +168,87 @@ export const eventModelingLayoutEngine: LayoutEngine = async (
   ) => {
     if (groupSlicesRaw.length === 0) return;
 
-    // Build slice dependency graph
-    const adj = new Map<string, Set<string>>();
-    const inDegree = new Map<string, number>();
+    const hasExplicitOrder = groupSlicesRaw.some((s) => getOrder(s) !== undefined);
+    let groupSlices: LayoutNode[];
 
-    groupSlicesRaw.forEach(s => {
-      adj.set(s.id, new Set());
-      inDegree.set(s.id, 0);
-    });
+    if (hasExplicitOrder) {
+      groupSlices = [...groupSlicesRaw].sort((a, b) => {
+        const orderA = getOrder(a);
+        const orderB = getOrder(b);
+        if (orderA !== undefined && orderB !== undefined) return orderA - orderB;
+        if (orderA !== undefined) return -1;
+        if (orderB !== undefined) return 1;
+        return getCreatedAt(a) - getCreatedAt(b);
+      });
+    } else {
+      // Build slice dependency graph
+      const adj = new Map<string, Set<string>>();
+      const inDegree = new Map<string, number>();
 
-    const elementToSlice = new Map<string, string>();
-    elements.forEach(el => {
-      if (el.parentId) {
-        elementToSlice.set(el.id, el.parentId);
-      }
-    });
+      groupSlicesRaw.forEach(s => {
+        adj.set(s.id, new Set());
+        inDegree.set(s.id, 0);
+      });
 
-    links.forEach(link => {
-      const sourceSliceId = elementToSlice.get(link.source);
-      const targetSliceId = elementToSlice.get(link.target);
-      if (sourceSliceId && targetSliceId && sourceSliceId !== targetSliceId) {
-        if (adj.has(sourceSliceId) && adj.has(targetSliceId)) {
-          const targets = adj.get(sourceSliceId)!;
-          if (!targets.has(targetSliceId)) {
-            targets.add(targetSliceId);
-            inDegree.set(targetSliceId, inDegree.get(targetSliceId)! + 1);
-          }
+      const elementToSlice = new Map<string, string>();
+      elements.forEach(el => {
+        if (el.parentId) {
+          elementToSlice.set(el.id, el.parentId);
         }
-      }
-    });
+      });
 
-    const zeroInDegree = groupSlicesRaw
-      .filter(s => inDegree.get(s.id) === 0)
-      .sort((a, b) => getCreatedAt(a) - getCreatedAt(b));
-
-    const sortedSlices: LayoutNode[] = [];
-    const visited = new Set<string>();
-
-    while (zeroInDegree.length > 0) {
-      zeroInDegree.sort((a, b) => getCreatedAt(a) - getCreatedAt(b));
-      const curr = zeroInDegree.shift()!;
-      sortedSlices.push(curr);
-      visited.add(curr.id);
-
-      const targets = adj.get(curr.id) || new Set();
-      targets.forEach(targetId => {
-        const nextDegree = inDegree.get(targetId)! - 1;
-        inDegree.set(targetId, nextDegree);
-        if (nextDegree === 0) {
-          const targetSlice = groupSlicesRaw.find(s => s.id === targetId);
-          if (targetSlice) {
-            zeroInDegree.push(targetSlice);
+      links.forEach(link => {
+        const sourceSliceId = elementToSlice.get(link.source);
+        const targetSliceId = elementToSlice.get(link.target);
+        if (sourceSliceId && targetSliceId && sourceSliceId !== targetSliceId) {
+          if (adj.has(sourceSliceId) && adj.has(targetSliceId)) {
+            const targets = adj.get(sourceSliceId)!;
+            if (!targets.has(targetSliceId)) {
+              targets.add(targetSliceId);
+              inDegree.set(targetSliceId, inDegree.get(targetSliceId)! + 1);
+            }
           }
         }
       });
+
+      const zeroInDegree = groupSlicesRaw
+        .filter(s => inDegree.get(s.id) === 0)
+        .sort((a, b) => getCreatedAt(a) - getCreatedAt(b));
+
+      const sortedSlices: LayoutNode[] = [];
+      const visited = new Set<string>();
+
+      while (zeroInDegree.length > 0) {
+        zeroInDegree.sort((a, b) => getCreatedAt(a) - getCreatedAt(b));
+        const curr = zeroInDegree.shift()!;
+        sortedSlices.push(curr);
+        visited.add(curr.id);
+
+        const targets = adj.get(curr.id) || new Set();
+        targets.forEach(targetId => {
+          const nextDegree = inDegree.get(targetId)! - 1;
+          inDegree.set(targetId, nextDegree);
+          if (nextDegree === 0) {
+            const targetSlice = groupSlicesRaw.find(s => s.id === targetId);
+            if (targetSlice) {
+              zeroInDegree.push(targetSlice);
+            }
+          }
+        });
+      }
+
+      const remaining = groupSlicesRaw
+        .filter(s => !visited.has(s.id))
+        .sort((a, b) => getCreatedAt(a) - getCreatedAt(b));
+      sortedSlices.push(...remaining);
+
+      groupSlices = sortedSlices;
     }
-
-    const remaining = groupSlicesRaw
-      .filter(s => !visited.has(s.id))
-      .sort((a, b) => getCreatedAt(a) - getCreatedAt(b));
-    sortedSlices.push(...remaining);
-
-    const groupSlices = sortedSlices;
 
     if (chapterId) {
       // Position the chapter container itself
-      positions.push({ conceptId: chapterId, x: cx, y: cy });
+      const chapterIndex = chapters.findIndex((c) => c.id === chapterId);
+      positions.push({ conceptId: chapterId, x: cx, y: cy, order: chapterIndex >= 0 ? chapterIndex + 1 : undefined } as any);
     }
 
     // Layout slices left-to-right within the group
@@ -228,7 +257,7 @@ export const eventModelingLayoutEngine: LayoutEngine = async (
       const sliceX = cx + CHAPTER_PADDING + si * (SLICE_WIDTH + SLICE_GAP);
       const sliceY = cy + CHAPTER_PADDING;
 
-      positions.push({ conceptId: slice.id, x: sliceX, y: sliceY });
+      positions.push({ conceptId: slice.id, x: sliceX, y: sliceY, order: si + 1 } as any);
 
       // Get elements belonging to this slice, sorted by row type then createdAt
       const sliceElements = elements
