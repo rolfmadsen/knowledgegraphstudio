@@ -1673,15 +1673,39 @@ export const useGraphStore = create<GraphStoreState>()(
             if (x === undefined && y === undefined) {
               if (parentId) {
                 const selectedSlice = viewNodes.find((vn) => vn.conceptId === parentId)!;
-                const elementsInSlice = viewNodes.filter((vn) => vn.parentId === parentId);
+                const elementsInSlice = viewNodes.filter((vn) => {
+                  if (vn.parentId === parentId) return true;
+                  let curr = viewNodes.find((n) => n.conceptId === vn.parentId);
+                  const visited = new Set<string>();
+                  while (curr && curr.parentId && !visited.has(curr.conceptId)) {
+                    visited.add(curr.conceptId);
+                    if (curr.parentId === parentId) return true;
+                    curr = viewNodes.find((n) => n.conceptId === curr?.parentId);
+                  }
+                  return false;
+                });
                 if (elementsInSlice.length > 0) {
-                  let maxY = -Infinity;
-                  elementsInSlice.forEach((el) => {
-                    const height = el.height ?? 90;
-                    if (el.y + height > maxY) maxY = el.y + height;
-                  });
-                  x = selectedSlice.x + 30;
-                  y = maxY + 24;
+                  const sameTypeElements = elementsInSlice.filter(
+                    (el) => conceptMap.get(el.conceptId)?.conceptType === conceptType
+                  );
+                  if (sameTypeElements.length > 0) {
+                    let maxX = -Infinity;
+                    let targetY = sameTypeElements[0].y;
+                    sameTypeElements.forEach((el) => {
+                      const width = el.width ?? 260;
+                      if (el.x + width > maxX) maxX = el.x + width;
+                    });
+                    x = maxX + 20;
+                    y = targetY;
+                  } else {
+                    let maxY = -Infinity;
+                    elementsInSlice.forEach((el) => {
+                      const height = el.height ?? 90;
+                      if (el.y + height > maxY) maxY = el.y + height;
+                    });
+                    x = selectedSlice.x + 30;
+                    y = maxY + 24;
+                  }
                 } else {
                   x = selectedSlice.x + 30;
                   y = selectedSlice.y + 60;
@@ -1707,7 +1731,15 @@ export const useGraphStore = create<GraphStoreState>()(
         console.log(`%c[Store Action] 🟢 Added Concept [${concept.conceptType}]: "${concept.name}"`, 'color: #10b981; font-weight: bold;');
 
         let updatedViews = get().views;
-        if (activeView) {
+        const EM_ALLOWED_NODE_TYPES = new Set([
+          'em_chapter', 'em_slice', 'screen', 'command', 'event', 'read_model', 'integration_event', 'automation'
+        ]);
+
+        const shouldAddToActiveView = activeView && (
+          activeView.type !== 'event_modeling' || EM_ALLOWED_NODE_TYPES.has(concept.conceptType)
+        );
+
+        if (shouldAddToActiveView) {
           const finalX = x ?? options?.x ?? 150;
           const finalY = y ?? options?.y ?? 150;
 

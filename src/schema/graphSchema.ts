@@ -257,6 +257,24 @@ export const ConceptProperty = BaseEntity.extend({
 export type ConceptProperty = z.infer<typeof ConceptProperty>;
 
 // ============================================================
+// Event Modeling Payload Attributes
+// ============================================================
+
+export const PayloadAttributeScope = z.enum(['class_attribute', 'event_local']);
+export type PayloadAttributeScope = z.infer<typeof PayloadAttributeScope>;
+
+export const PayloadAttributeSchema = z.object({
+  id: z.string(),
+  name: z.string().min(1),
+  type: DataType,
+  isRequired: z.boolean().optional(),
+  scope: PayloadAttributeScope,
+  classId: z.string().optional().nullable(),
+  propertyId: z.string().optional().nullable(),
+});
+export type PayloadAttribute = z.infer<typeof PayloadAttributeSchema>;
+
+// ============================================================
 // Concept Node — PURELY SEMANTIC (no layout fields)
 // ============================================================
 
@@ -285,6 +303,7 @@ export const BaseConceptNode = BaseEntity.extend({
   legalSource: z.string().optional(),
   wasDerivedFrom: ElementId.optional().nullable(),
   createdBy: z.enum(['user', 'ai']).optional(),
+  payload: z.array(PayloadAttributeSchema).optional(),
 });
 export type BaseConceptNode = z.infer<typeof BaseConceptNode>;
 
@@ -320,12 +339,12 @@ export const GeneralConceptNode = BaseConceptNode.extend({
       (t) => t !== 'domain' && t !== 'bounded_context' && t !== 'class' && t !== 'enumeration'
     ) as [string, ...string[]]
   ) as unknown as z.ZodType<GeneralConceptTypes>,
-  properties: z.array(ConceptProperty),
+  properties: z.array(ConceptProperty).default([]),
   enumerators: z.never().optional(),
 });
 export type GeneralConceptNode = z.infer<typeof GeneralConceptNode>;
 
-export const ConceptNode = z.union([
+export const ConceptNode = z.discriminatedUnion('conceptType', [
   DomainConceptNode,
   ContainerConceptNode,
   ClassConceptNode,

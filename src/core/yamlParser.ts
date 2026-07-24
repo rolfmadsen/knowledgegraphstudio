@@ -241,6 +241,28 @@ export function yamlToState(yamlString: string): {
       updatedAt: conceptData.updatedAt ?? now,
       lifecycleState: conceptData.lifecycleState ?? 'active',
       aliases: conceptData.aliases ?? [],
+      payload: Array.isArray((conceptData as any).payload)
+        ? ((conceptData as any).payload as any[])
+            .filter((attr) => attr && typeof attr === 'object')
+            .map((attr, idx) => {
+              const resolveStringId = (val: any): string | undefined => {
+                if (typeof val === 'string') return val.trim() || undefined;
+                if (val && typeof val === 'object') {
+                  if (typeof val.id === 'string' && val.id) return val.id;
+                  if (typeof val.name === 'string' && val.name) return val.name;
+                }
+                return undefined;
+              };
+              return {
+                id: typeof attr.id === 'string' ? attr.id : `payload-${Date.now()}-${idx}`,
+                name: typeof attr.name === 'string' ? attr.name : 'unnamed',
+                type: ['string', 'number', 'boolean', 'date'].includes(attr.type) ? attr.type : 'string',
+                scope: ['class_attribute', 'event_local'].includes(attr.scope) ? attr.scope : 'class_attribute',
+                classId: resolveStringId(attr.classId),
+                propertyId: resolveStringId(attr.propertyId),
+              };
+            })
+        : undefined,
       policies: ((conceptData.policies as any[]) ?? []).map((p, idx) => ({
         ...p,
         id: p.id ?? `policy:concept-${conceptData.id || idx}-${Date.now()}-${idx}` as ElementId,
@@ -351,8 +373,12 @@ export function yamlToState(yamlString: string): {
   const validationResult = GraphState.safeParse({ domains, concepts, relations, views: [] });
 
   if (!validationResult.success) {
+    const errorDetails = validationResult.error.issues
+      .map((i) => `${i.path.join('.')}: ${i.message}`)
+      .join('; ');
+    console.error('[YAML Hydration Zod Error]:', errorDetails, validationResult.error.issues);
     throw new YamlParseError(
-      'YAML content does not match the expected schema',
+      `YAML content does not match expected schema: ${errorDetails}`,
       validationResult.error.issues,
     );
   }

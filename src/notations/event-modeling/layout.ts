@@ -22,7 +22,7 @@ import type { LayoutEngine, LayoutInput, LayoutOutput, LayoutNode } from '../typ
 /** Pixel width of an em_slice container (includes internal padding) */
 const SLICE_WIDTH = 320;
 /** Pixel height of each swimlane row */
-const ROW_HEIGHT = 140;
+const ROW_HEIGHT = 200;
 /** Padding inside a chapter container */
 const CHAPTER_PADDING = 48;
 /** Vertical gap between chapter rows (Dagre TB ranksep) */
@@ -32,7 +32,7 @@ const SLICE_GAP = 24;
 /** Node width for EM elements */
 const NODE_WIDTH = 260;
 /** Container node estimated dimensions for Dagre */
-const CHAPTER_MIN_HEIGHT = 950;
+const CHAPTER_MIN_HEIGHT = 1150;
 
 /**
  * EM swimlane row order.
@@ -71,6 +71,44 @@ function getCreatedAt(node: LayoutNode): number {
   return (node as any).createdAt ?? 0;
 }
 
+function getAncestorSliceId(
+  nodeId: string,
+  nodeMap: Map<string, LayoutNode>,
+): string | undefined {
+  let curr = nodeMap.get(nodeId);
+  const visited = new Set<string>();
+  while (curr && curr.parentId && !visited.has(curr.id)) {
+    visited.add(curr.id);
+    const parent = nodeMap.get(curr.parentId);
+    if (!parent) break;
+    const parentType = getConceptType(parent);
+    if (parentType === 'em_slice') {
+      return parent.id;
+    }
+    curr = parent;
+  }
+  return undefined;
+}
+
+function getAncestorChapterId(
+  nodeId: string,
+  nodeMap: Map<string, LayoutNode>,
+): string | undefined {
+  let curr = nodeMap.get(nodeId);
+  const visited = new Set<string>();
+  while (curr && curr.parentId && !visited.has(curr.id)) {
+    visited.add(curr.id);
+    const parent = nodeMap.get(curr.parentId);
+    if (!parent) break;
+    const parentType = getConceptType(parent);
+    if (parentType === 'em_chapter') {
+      return parent.id;
+    }
+    curr = parent;
+  }
+  return undefined;
+}
+
 /**
  * Find the chapter ID that a given node belongs to (direct or via slice parent).
  * Returns undefined if the node is a chapter itself or has no chapter ancestor.
@@ -80,24 +118,7 @@ function findChapterId(
   _nodes: LayoutNode[],
   nodeMap: Map<string, LayoutNode>,
 ): string | undefined {
-  const node = nodeMap.get(nodeId);
-  if (!node) return undefined;
-  const type = getConceptType(node);
-  if (type === 'em_chapter') return undefined;
-
-  const parentId = node.parentId;
-  if (!parentId) return undefined;
-
-  const parent = nodeMap.get(parentId);
-  if (!parent) return undefined;
-  const parentType = getConceptType(parent);
-
-  if (parentType === 'em_chapter') return parentId;
-  if (parentType === 'em_slice') {
-    // slice's parent is a chapter
-    return parent.parentId;
-  }
-  return undefined;
+  return getAncestorChapterId(nodeId, nodeMap);
 }
 
 function getOrder(node: LayoutNode): number | undefined {
@@ -192,8 +213,9 @@ export const eventModelingLayoutEngine: LayoutEngine = async (
 
       const elementToSlice = new Map<string, string>();
       elements.forEach(el => {
-        if (el.parentId) {
-          elementToSlice.set(el.id, el.parentId);
+        const sliceId = getAncestorSliceId(el.id, nodeMap);
+        if (sliceId) {
+          elementToSlice.set(el.id, sliceId);
         }
       });
 
@@ -251,30 +273,88 @@ export const eventModelingLayoutEngine: LayoutEngine = async (
       positions.push({ conceptId: chapterId, x: cx, y: cy, order: chapterIndex >= 0 ? chapterIndex + 1 : undefined } as any);
     }
 
-    // Layout slices left-to-right within the group
+    // Filter all elements belonging to any slice in this group
+    const allElementsInGroup = elements.filter((el) => {
+      const sliceId = getAncestorSliceId(el.id, nodeMap);
+      return groupSlices.some((s) => s.id === sliceId);
+    });
+
+    const sliceY = cy + CHAPTER_PADDING;
+
+    // Filter active row indices that actually contain elements in this chapter
+    const activeRows = Array.from(
+      new Set(allElementsInGroup.map((el) => getRowIndex(getConceptType(el))))
+    ).sort((a, b) => a - b);
+
+    // Pre-calculate UNIFORM cumulative dynamic Y offsets per swimlane row across ALL slices in this chapter
+    const rowYOffsets = new Map<number, number>();
+    // 42px header height + 30px margin from underside of slice title = 72px top offset
+    let accumY = sliceY + 72;
+    let lastRowBottomY = accumY;
+
+    for (let i = 0; i < activeRows.length; i++) {
+      const r = activeRows[i];
+      rowYOffsets.set(r, accumY);
+      const elsInRow = allElementsInGroup.filter((el) => getRowIndex(getConceptType(el)) === r);
+      let maxRowHeight = 130;
+      for (const el of elsInRow) {
+        const count = (el as any).payload?.length || 0;
+        const payloadHeight = 110 + count * 26 + 32;
+        const measuredHeight = (el as any).height || 0;
+        const effectiveHeight = Math.max(payloadHeight, measuredHeight, 130);
+        if (effectiveHeight > maxRowHeight) maxRowHeight = effectiveHeight;
+      }
+      lastRowBottomY = accumY + maxRowHeight;
+      accumY += maxRowHeight + 40; // 40px vertical gap between active swimlane rows
+    }
+
+    // Layout slices left-to-right within the group with dynamic slice widths
+    let currentSliceX = cx + CHAPTER_PADDING;
+
     for (let si = 0; si < groupSlices.length; si++) {
       const slice = groupSlices[si];
-      const sliceX = cx + CHAPTER_PADDING + si * (SLICE_WIDTH + SLICE_GAP);
-      const sliceY = cy + CHAPTER_PADDING;
 
-      positions.push({ conceptId: slice.id, x: sliceX, y: sliceY, order: si + 1 } as any);
+      // Get elements belonging to this slice (direct or nested tree child)
+      const sliceElements = elements.filter((e) => getAncestorSliceId(e.id, nodeMap) === slice.id);
 
-      // Get elements belonging to this slice, sorted by row type then createdAt
-      const sliceElements = elements
-        .filter((e) => e.parentId === slice.id)
-        .sort((a, b) => {
-          const rowDiff =
-            getRowIndex(getConceptType(a)) - getRowIndex(getConceptType(b));
-          if (rowDiff !== 0) return rowDiff;
-          return getCreatedAt(a) - getCreatedAt(b);
-        });
-
+      const rowBuckets = new Map<number, LayoutNode[]>();
       for (const el of sliceElements) {
         const row = getRowIndex(getConceptType(el));
-        const elX = sliceX + (SLICE_WIDTH - NODE_WIDTH) / 2;
-        const elY = sliceY + CHAPTER_PADDING + row * ROW_HEIGHT;
-        positions.push({ conceptId: el.id, x: elX, y: elY });
+        if (!rowBuckets.has(row)) rowBuckets.set(row, []);
+        rowBuckets.get(row)!.push(el);
       }
+
+      // Calculate max columns required for side-by-side placement
+      let maxColsInSlice = 1;
+      rowBuckets.forEach((els) => {
+        if (els.length > maxColsInSlice) maxColsInSlice = els.length;
+      });
+
+      const currentSliceWidth = Math.max(
+        SLICE_WIDTH,
+        30 * 2 + maxColsInSlice * NODE_WIDTH + (maxColsInSlice - 1) * 20
+      );
+
+      // Total slice height = (lastRowBottomY - sliceY) + 30px bottom margin
+      const computedSliceHeight = activeRows.length > 0
+        ? Math.max(350, (lastRowBottomY - sliceY) + 30)
+        : 350;
+      positions.push({ conceptId: slice.id, x: currentSliceX, y: sliceY, order: si + 1, width: currentSliceWidth, height: computedSliceHeight } as any);
+
+      // Place elements side by side and centered horizontally within each row using uniform chapter Y offsets
+      rowBuckets.forEach((rowEls, row) => {
+        const elY = rowYOffsets.get(row) ?? (sliceY + row * ROW_HEIGHT);
+        const totalRowWidth = rowEls.length * NODE_WIDTH + (rowEls.length - 1) * 20;
+        const rowStartX = currentSliceX + (currentSliceWidth - totalRowWidth) / 2;
+
+        for (let ci = 0; ci < rowEls.length; ci++) {
+          const el = rowEls[ci];
+          const elX = rowStartX + ci * (NODE_WIDTH + 20);
+          positions.push({ conceptId: el.id, x: elX, y: elY });
+        }
+      });
+
+      currentSliceX += currentSliceWidth + SLICE_GAP;
     }
   };
 

@@ -35,6 +35,9 @@ Formel: **Begreb**: En [overordnet kategori] (genus), der [specifik egenskab der
 *   **EM Kapitel (EM Chapter)**: En visuel container-instans (genus), der grupperer beslægtede slices i en tematisk eller procesmæssig rækkefølge på et Event Modeling diagram.
 *   **EM Slice (EM Slice)**: En vertikal container-instans (genus), der afgrænser et enkelt brugerscenarie og placeres under et EM Kapitel.
 *   **Fortællingsrækkefølge (Story Sequence Order)**: En visuel sekvens-attribut (genus), der fastlægger den eksplicitte venstre-mod-højre rækkefølge for kapitler og slices på et Event Modeling diagram.
+*   **Informations-kompletheds-tjek (Information Completeness Check)**: En domæne-validering (genus), der verificerer at enhver attribut i et Read Model- eller Command-payload i et Event Modeling diagram beviseligt stammer fra en tidligere Domain Event i tidslinjen.
+*   **Payload-attribut (Payload Attribute)**: En data-egenskab (genus), der forbinder et felt på en Event Modeling node med en eksisterende Attribut fra en Information Model Klasse.
+*   **Event-lokal Attribut (Event-Local Attribute)**: En midlertidig data-egenskab (genus), der indkapsles i en specifik Event Modeling node uden at oprette en permanent Attribut i Information Modellen.
 
 
 #### Arkitektoniske & Tekniske Begreber (Architectural Glossary)

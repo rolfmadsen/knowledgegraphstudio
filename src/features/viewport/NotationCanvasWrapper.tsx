@@ -236,8 +236,8 @@ const HIDE_EDGES_IN_NOTATION: Record<string, Set<string>> = {
       .map((vn) => {
         const nodeInstId = vn.instanceId || vn.conceptId;
         const rfNode = rfNodes.find((n) => n.id === nodeInstId || n.id === vn.conceptId);
-        const w = rfNode?.measured?.width ?? 200;
-        const h = rfNode?.measured?.height ?? 80;
+        const w = (rfNode as any)?.measured?.width ?? (rfNode as any)?.width ?? 260;
+        const h = (rfNode as any)?.measured?.height ?? (rfNode as any)?.height ?? 120;
         const c = conceptMap.get(vn.conceptId);
         return { 
           id: nodeInstId, 
@@ -248,7 +248,8 @@ const HIDE_EDGES_IN_NOTATION: Record<string, Set<string>> = {
           parentId: vn.parentId,
           order: vn.order,
           conceptType: c?.conceptType,
-          createdAt: c?.createdAt
+          createdAt: c?.createdAt,
+          payload: (c as any)?.payload || [],
         };
       });
 
@@ -394,7 +395,11 @@ const HIDE_EDGES_IN_NOTATION: Record<string, Set<string>> = {
     ? activeView.nodes.map((n) => `${n.conceptId}:${n.order ?? ''}`).join(',')
     : '';
 
-  // Trigger layout when model size, active view, algorithm, group memberships, orders, or manual version changes
+  const payloadHash = filteredConcepts
+    .map((c) => `${c.id}:${((c as any).payload || []).length}`)
+    .join('|');
+
+  // Trigger layout when model size, active view, algorithm, group memberships, orders, payload, or manual version changes
   useEffect(() => {
     if (filteredConcepts.length > 0 && activeView && activeView.layoutAlgorithm !== 'manual') {
       const timer = setTimeout(() => {
@@ -410,6 +415,7 @@ const HIDE_EDGES_IN_NOTATION: Record<string, Set<string>> = {
     activeView?.layoutAlgorithm,
     parentIdsHash,
     ordersHash,
+    payloadHash,
     layoutVersion,
     runLayout,
   ]);

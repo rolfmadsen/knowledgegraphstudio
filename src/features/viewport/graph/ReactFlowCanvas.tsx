@@ -28,7 +28,7 @@ import type { NotationCanvasProps } from '../../../notations/types';
 import { NotationRegistry } from '../../../notations/NotationRegistry';
 import { useGraphStore, isEdgeVisibleForInstances, normalizeViewNodes } from '../../../store/useGraphStore';
 import { useShallow } from 'zustand/react/shallow';
-import { type ConceptNode, type ElementId, toElementId, type ViewType, type ConceptType, type ViewNode } from '../../../schema/graphSchema';
+import { type ConceptNode, type ElementId, toElementId, type ViewType, type ConceptType } from '../../../schema/graphSchema';
 import { getDynamicConnection, getClosestPosition } from '../../../utils/edgeRouting';
 
 // --- Padding for Grouping Containers ---
@@ -205,6 +205,31 @@ function getEdgeParams(source: InternalNode, target: InternalNode) {
   };
 }
 
+function findAncestorContainer(
+  node: InternalNode,
+  targetTypes: Array<'em_chapter' | 'em_slice'>,
+  nodesMap?: Map<string, any>
+): InternalNode | undefined {
+  if (!node || !nodesMap) return undefined;
+  const concepts = useGraphStore.getState().concepts;
+  const conceptMap = new Map(concepts.map((c) => [c.id, c]));
+
+  let curr: any = node;
+  const visited = new Set<string>();
+  while (curr && !visited.has(curr.id)) {
+    visited.add(curr.id);
+    const conceptId = (curr.data?.conceptId as ElementId) || (curr.conceptId as ElementId) || toElementId(curr.id.split('#')[0]);
+    const concept = conceptMap.get(conceptId);
+    if (concept && targetTypes.includes(concept.conceptType as any)) {
+      return curr;
+    }
+    const parentId = curr.parentId ?? curr.data?.parentId;
+    if (!parentId) break;
+    curr = nodesMap.get(parentId);
+  }
+  return undefined;
+}
+
 function getOrthogonalParams(
   source: InternalNode,
   target: InternalNode,
@@ -239,20 +264,8 @@ function getOrthogonalParams(
 
     let crossChapter = false;
     if (nodesMap) {
-      const getChapterId = (node: InternalNode): string | undefined => {
-        let curr: any = node;
-        while (curr) {
-          const concept = curr.data?.concept;
-          if (concept?.conceptType === 'em_chapter') {
-            return curr.id;
-          }
-          if (!curr.parentId) break;
-          curr = nodesMap.get(curr.parentId);
-        }
-        return undefined;
-      };
-      const sourceChapterId = getChapterId(source);
-      const targetChapterId = getChapterId(target);
+      const sourceChapterId = findAncestorContainer(source, ['em_chapter'], nodesMap)?.id;
+      const targetChapterId = findAncestorContainer(target, ['em_chapter'], nodesMap)?.id;
       if (sourceChapterId && targetChapterId && sourceChapterId !== targetChapterId) {
         crossChapter = true;
       }
@@ -1014,18 +1027,7 @@ function getEdgePoints(
         let emGutterY = draggedY;
 
         if (viewType === 'event_modeling' && nodesMap) {
-          const getChapterNode = (n: InternalNode): any => {
-            let curr: any = n;
-            while (curr) {
-              const concept = curr.data?.concept;
-              if (concept?.conceptType === 'em_chapter') {
-                return curr;
-              }
-              if (!curr.parentId) break;
-              curr = nodesMap.get(curr.parentId);
-            }
-            return undefined;
-          };
+          const getChapterNode = (n: InternalNode): any => findAncestorContainer(n, ['em_chapter'], nodesMap);
           const isAncestor = (ancestorId: string, nodeId: string): boolean => {
             let curr = nodesMap.get(nodeId);
             while (curr) {
@@ -1193,7 +1195,31 @@ function getEdgePoints(
         }
       } else {
         let draggedX = (sx + tx) / 2;
-        if (sourceOffset !== 0) {
+        let isEmCrossSlice = false;
+
+        if (viewType === 'event_modeling' && nodesMap) {
+          const srcSlice = findAncestorContainer(sourceNode, ['em_slice', 'em_chapter'], nodesMap);
+          const tgtSlice = findAncestorContainer(targetNode, ['em_slice', 'em_chapter'], nodesMap);
+
+          if (srcSlice && tgtSlice && srcSlice.id !== tgtSlice.id) {
+            isEmCrossSlice = true;
+            const srcSliceX = srcSlice.internals?.positionAbsolute?.x ?? srcSlice.position?.x ?? 0;
+            const srcSliceW = srcSlice.measured?.width ?? 320;
+            const srcSliceRight = srcSliceX + srcSliceW;
+
+            const tgtSliceX = tgtSlice.internals?.positionAbsolute?.x ?? tgtSlice.position?.x ?? 0;
+            const tgtSliceW = tgtSlice.measured?.width ?? 320;
+            const tgtSliceRight = tgtSliceX + tgtSliceW;
+
+            if (srcSliceRight < tgtSliceX) {
+              draggedX = (srcSliceRight + tgtSliceX) / 2;
+            } else if (tgtSliceRight < srcSliceX) {
+              draggedX = (tgtSliceRight + srcSliceX) / 2;
+            }
+          }
+        }
+
+        if (!isEmCrossSlice && sourceOffset !== 0) {
           draggedX += sourceOffset;
         }
 
@@ -1304,10 +1330,12 @@ function getEdgePoints(
             { x: tx, y: ty }
           ];
         } else if (viewType === 'event_modeling') {
-          if (targetPosition === Position.Left) {
-            draggedX = tx - 42;
-          } else if (targetPosition === Position.Right) {
-            draggedX = tx + 42;
+          if (!isEmCrossSlice) {
+            if (targetPosition === Position.Left) {
+              draggedX = tx - 42;
+            } else if (targetPosition === Position.Right) {
+              draggedX = tx + 42;
+            }
           }
           rawPoints = [
             { x: sx, y: sy },
@@ -2159,7 +2187,7 @@ export function ReactFlowCanvas({
 
         const sliceY = chapterVn.y + 48; // CHAPTER_PADDING
         const hSlice = maxElementBottom !== -Infinity
-          ? Math.max(280, (maxElementBottom + 48) - sliceY)
+          ? Math.max(300, (maxElementBottom + 30) - sliceY)
           : 350;
         const hChapter = hSlice + 96; // 48 padding top + 48 padding bottom
 
@@ -2201,19 +2229,6 @@ export function ReactFlowCanvas({
 
       const childIds = groupChildrenMap.get(vnInstId) || groupChildrenMap.get(vn.conceptId) || [];
 
-      let defaultW = view.type === 'c4' ? 240 : view.type === 'archimate' ? 220 : 240;
-      let defaultH = view.type === 'c4' ? 96 : view.type === 'archimate' ? 76 : 80;
-
-      if (view.type === 'event_modeling') {
-        if (c.conceptType === 'em_chapter') {
-          defaultW = 600;
-          defaultH = 600;
-        } else if (c.conceptType === 'em_slice') {
-          defaultW = 320;
-          defaultH = 500;
-        }
-      }
-
       if (childIds.length === 0) {
         let w = vn.width ?? (view.type === 'event_modeling' ? (c.conceptType === 'em_chapter' ? 600 : 320) : (view.type === 'c4' ? 280 : 240));
         let h = vn.height ?? (view.type === 'event_modeling' ? (c.conceptType === 'em_chapter' ? 600 : 500) : (view.type === 'c4' ? 160 : 140));
@@ -2221,7 +2236,7 @@ export function ReactFlowCanvas({
         if (view.type === 'event_modeling') {
           if (c.conceptType === 'em_slice') {
             h = emSliceHeights.get(vnInstId) ?? 500;
-            w = 320;
+            w = vn.width ?? 320;
           } else if (c.conceptType === 'em_chapter') {
             h = emChapterHeights.get(vnInstId) ?? 600;
             w = 600;
@@ -2255,8 +2270,8 @@ export function ReactFlowCanvas({
           if (!childVn) return;
           const childConcept = conceptMap.get(childVn.conceptId);
           const rfNode = reactFlow.getNode(cid) || (childVn.instanceId ? reactFlow.getNode(childVn.instanceId) : undefined);
-          let w = (rfNode?.measured?.width as number) ?? (rfNode?.style?.width as number) ?? childVn.width ?? defaultW;
-          let h = (rfNode?.measured?.height as number) ?? (rfNode?.style?.height as number) ?? childVn.height ?? defaultH;
+          let w = (rfNode?.measured?.width as number) ?? (rfNode?.style?.width as number) ?? childVn.width ?? 200;
+          let h = (rfNode?.measured?.height as number) ?? (rfNode?.style?.height as number) ?? childVn.height ?? 80;
           if (view.type === 'event_modeling') {
             if (childConcept?.conceptType === 'em_slice') {
               w = childVn.width ?? 320;
@@ -2272,10 +2287,11 @@ export function ReactFlowCanvas({
         if (view.type === 'event_modeling') {
           if (c.conceptType === 'em_slice') {
             const h = emSliceHeights.get(vnInstId) ?? 500;
+            const w = vn.width ?? (maxX !== -Infinity && minX !== Infinity ? Math.max(320, maxX - minX + 60) : 320);
             groupBounds.set(vnInstId, {
               x: vn.x,
               y: vn.y,
-              w: 320,
+              w,
               h,
             });
           } else if (c.conceptType === 'em_chapter') {
@@ -2283,25 +2299,35 @@ export function ReactFlowCanvas({
             const chapterX = minX !== Infinity ? minX - CHAPTER_PADDING : vn.x;
             const chapterY = minY !== Infinity ? minY - CHAPTER_PADDING : vn.y;
             const w = minX !== Infinity ? (maxX - minX) + CHAPTER_PADDING * 2 : 600;
-            const h = minY !== Infinity && maxY !== -Infinity ? (maxY - minY) + CHAPTER_PADDING * 2 : (emChapterHeights.get(vnInstId) ?? 600);
+            const h = emChapterHeights.get(vnInstId) ?? (maxY !== -Infinity ? Math.max(300, maxY - chapterY + CHAPTER_PADDING) : 600);
             groupBounds.set(vnInstId, {
               x: chapterX,
               y: chapterY,
               w,
               h,
             });
+          } else {
+            const groupX = minX !== Infinity ? minX - PADDING_LEFT : vn.x;
+            const groupY = minY !== Infinity ? minY - PADDING_TOP : vn.y;
+            const w = minX !== Infinity ? (maxX - minX) + PADDING_LEFT + PADDING_RIGHT : 200;
+            const h = minY !== Infinity ? (maxY - minY) + PADDING_TOP + PADDING_BOTTOM : 80;
+            groupBounds.set(vnInstId, {
+              x: groupX,
+              y: groupY,
+              w,
+              h,
+            });
           }
         } else {
-          const gx = minX - PADDING_LEFT;
-          const gy = minY - PADDING_TOP;
-          const gw = maxX - minX + PADDING_LEFT + PADDING_RIGHT;
-          const gh = maxY - minY + PADDING_TOP + PADDING_BOTTOM;
-
+          const groupX = minX !== Infinity ? minX - PADDING_LEFT : vn.x;
+          const groupY = minY !== Infinity ? minY - PADDING_TOP : vn.y;
+          const w = minX !== Infinity ? (maxX - minX) + PADDING_LEFT + PADDING_RIGHT : 200;
+          const h = minY !== Infinity ? (maxY - minY) + PADDING_TOP + PADDING_BOTTOM : 80;
           groupBounds.set(vnInstId, {
-            x: gx,
-            y: gy,
-            w: gw,
-            h: gh,
+            x: groupX,
+            y: groupY,
+            w,
+            h,
           });
         }
       }
@@ -2359,14 +2385,7 @@ export function ReactFlowCanvas({
       } else if (parentId) {
         const pBounds = groupBounds.get(parentId);
         if (pBounds) {
-          const parentVn = nodesMap.get(parentId);
-          const parentConcept = parentVn ? conceptMap.get(parentVn.conceptId) : conceptMap.get(parentId);
-          if (view.type === 'event_modeling' && parentConcept?.conceptType === 'em_slice') {
-            const childW = vn.width ?? 260;
-            position = { x: (320 - childW) / 2, y: vn.y - pBounds.y };
-          } else {
-            position = { x: vn.x - pBounds.x, y: vn.y - pBounds.y };
-          }
+          position = { x: vn.x - pBounds.x, y: vn.y - pBounds.y };
         }
       }
 
@@ -3042,16 +3061,8 @@ export function ReactFlowCanvas({
           proposedH = (maxY - minY) + PADDING_TOP + PADDING_BOTTOM;
         }
 
-        // Snap target node if attached to em_slice
         let snapXChanged = false;
         let snappedX = targetNode ? targetNode.position.x : 0;
-        if (view.type === 'event_modeling' && conceptType === 'em_slice' && isAttached && targetNode && isDirectParent) {
-          const childW = (targetNode.style?.width ?? targetNode.measured?.width ?? (view.type === 'event_modeling' ? 260 : defaultW)) as number;
-          snappedX = (320 - childW) / 2;
-          if (targetNode.position.x !== snappedX) {
-            snapXChanged = true;
-          }
-        }
 
         // Check if anything actually changed for this parent
         const parentBoundsChanged =
@@ -3309,32 +3320,13 @@ export function ReactFlowCanvas({
 
                 if (inNewGroup) {
                   updateViewNodeParentId(view.id, toElementId(node.id), otherVn.conceptId);
-                  let finalAbsX = childAbsX;
-                  if (view.type === 'event_modeling' && otherC?.conceptType === 'em_slice') {
-                    finalAbsX = otherBounds.x + (320 - childW) / 2;
-                  }
-                  onNodePositionChange(toElementId(node.id), finalAbsX, childAbsY);
+                  onNodePositionChange(toElementId(node.id), childAbsX, childAbsY);
                   break;
                 }
               }
             }
           } else {
-            let finalAbsX = childAbsX;
-            if (view.type === 'event_modeling' && conceptMap.get(parentId)?.conceptType === 'em_slice') {
-              let parentAbsX = 0;
-              let currParentId: string = parentId;
-              while (currParentId) {
-                const pNode = nodes.find((n) => n.id === currParentId);
-                if (pNode) {
-                  parentAbsX += pNode.position.x;
-                  currParentId = pNode.parentId ?? '';
-                } else {
-                  break;
-                }
-              }
-              finalAbsX = parentAbsX + (320 - childW) / 2;
-            }
-            onNodePositionChange(toElementId(node.id), finalAbsX, childAbsY);
+            onNodePositionChange(toElementId(node.id), childAbsX, childAbsY);
           }
         }
       } else {
@@ -3940,7 +3932,6 @@ export function ReactFlowCanvas({
     const conceptMap = new Map(concepts.map((c) => [c.id, c]));
 
     let targetParentId: ElementId | undefined = undefined;
-    let targetSliceVn: ViewNode | undefined = undefined;
 
     // Search for a slice or chapter container under the drop coordinates
     for (const vn of viewNodes) {
@@ -3956,7 +3947,6 @@ export function ReactFlowCanvas({
           flowPos.y <= bounds.y + bounds.h
         ) {
           targetParentId = vn.instanceId ? toElementId(vn.instanceId) : vn.conceptId;
-          targetSliceVn = vn;
           // Prefer em_slice if nested inside em_chapter
           if (c.conceptType === 'em_slice') {
             break;
@@ -3972,24 +3962,12 @@ export function ReactFlowCanvas({
         const selC = conceptMap.get(selVn.conceptId);
         if (selC && (selC.conceptType === 'em_slice' || selC.conceptType === 'em_chapter')) {
           targetParentId = selVn.instanceId ? toElementId(selVn.instanceId) : selVn.conceptId;
-          targetSliceVn = selVn;
         }
       }
     }
 
     let dropX = flowPos.x;
     let dropY = flowPos.y;
-
-    if (targetSliceVn && view.type === 'event_modeling') {
-      const targetC = conceptMap.get(targetSliceVn.conceptId);
-      if (targetC?.conceptType === 'em_slice') {
-        const sliceBounds = getGroupBounds(targetSliceVn.conceptId, viewNodes, view.type, conceptMap);
-        const childW = 260;
-        if (sliceBounds) {
-          dropX = sliceBounds.x + (320 - childW) / 2;
-        }
-      }
-    }
 
     addConceptToView(view.id, conceptId, dropX, dropY, targetParentId);
   }, [reactFlow, concepts, view, getGroupBounds, addConceptToView, selectedConceptId, selectedInstanceId]);

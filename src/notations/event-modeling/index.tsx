@@ -16,7 +16,8 @@
  * Gherkin: exposed via InspectorComponent on Command nodes only.
  */
 
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Handle, Position, type NodeProps, type Node } from '@xyflow/react';
 import type { Notation, NotationCanvasProps, QuickActionConfig } from '../types';
 import { ReactFlowCanvas } from '../../features/viewport/graph/ReactFlowCanvas';
@@ -195,6 +196,46 @@ function EmElementNode({ data, selected }: NodeProps<EmNodeType>) {
   const conceptType = (data.concept?.conceptType as string) ?? 'other';
   const style = EM_STYLES[conceptType];
   const typeLabel = EM_TYPE_LABELS[conceptType] ?? conceptType.toUpperCase();
+  const [isAdding, setIsAdding] = useState(false);
+  const [newAttrName, setNewAttrName] = useState('');
+
+  const updateConcept = useGraphStore((s) => s.updateConcept);
+  const addConcept = useGraphStore((s) => s.addConcept);
+  const addProperty = useGraphStore((s) => s.addProperty);
+  const allConcepts = useGraphStore((s) => s.concepts || []);
+
+  const classConcepts = useMemo(
+    () => allConcepts.filter((c) => c.conceptType === 'class'),
+    [allConcepts]
+  );
+
+  const availableProperties = useMemo(() => {
+    const list: { classId: ElementId; className: string; propId: ElementId; propName: string; propType: string }[] = [];
+    for (const cls of classConcepts) {
+      const props = (cls as any).properties || [];
+      for (const p of props) {
+        list.push({
+          classId: cls.id,
+          className: cls.name,
+          propId: p.id,
+          propName: p.name,
+          propType: String(p.type || 'string'),
+        });
+      }
+    }
+    return list;
+  }, [classConcepts]);
+
+  const filteredProperties = useMemo(() => {
+    if (!newAttrName.trim()) return availableProperties.slice(0, 5);
+    const query = newAttrName.toLowerCase().trim();
+    return availableProperties.filter(
+      (p) => p.propName.toLowerCase().includes(query) || p.className.toLowerCase().includes(query)
+    ).slice(0, 6);
+  }, [availableProperties, newAttrName]);
+
+  const conceptId = data.concept?.id || (data as any).conceptId;
+  const liveConcept = allConcepts.find((c) => c.id === conceptId) || data.concept;
 
   if (!style) {
     // Fallback for unknown types
@@ -207,6 +248,162 @@ function EmElementNode({ data, selected }: NodeProps<EmNodeType>) {
       </div>
     );
   }
+
+  const payload: any[] = (liveConcept as any)?.payload || [];
+
+  const handleSelectExistingProperty = (item: typeof availableProperties[0]) => {
+    if (!conceptId) return;
+    const newAttr = {
+      id: `payload-${Date.now()}`,
+      name: item.propName,
+      type: item.propType as any,
+      scope: 'class_attribute' as const,
+      classId: item.classId,
+      propertyId: item.propId,
+    };
+    updateConcept(conceptId, { payload: [...payload, newAttr] } as any);
+    setNewAttrName('');
+    setIsAdding(false);
+  };
+
+  const handleAddCustomAttribute = (scope: 'class_attribute' | 'event_local') => {
+    const raw = newAttrName.trim();
+    if (!raw || !conceptId) return;
+
+    let targetClassName: string | undefined = undefined;
+    let propName = raw;
+    let type = 'string';
+
+    // Parse dot notation, e.g. "OrgPerson.firstName" or "OrgPerson.firstName:number"
+    if (raw.includes('.')) {
+      const dotParts = raw.split('.');
+      targetClassName = dotParts[0].trim();
+      propName = dotParts.slice(1).join('.').trim();
+    }
+
+    if (propName.includes(':')) {
+      const colonParts = propName.split(':');
+      propName = colonParts[0].trim();
+      type = colonParts[1].trim() || 'string';
+    }
+
+    let targetClassId: ElementId | undefined = undefined;
+
+    if (scope === 'class_attribute' && targetClassName) {
+      const existingClass = classConcepts.find(
+        (c) => c.name.toLowerCase() === targetClassName!.toLowerCase()
+      );
+
+      if (existingClass) {
+        targetClassId = existingClass.id;
+        const hasProp = (existingClass.properties || []).some(
+          (p: any) => p.name.toLowerCase() === propName.toLowerCase()
+        );
+        if (!hasProp && addProperty) {
+          addProperty(existingClass.id, propName, type as DataType);
+        }
+      } else if (addConcept) {
+        // Automatically create new Information Model Class and add property to it
+        const createdConcept = addConcept('class', targetClassName);
+        const createdId = typeof createdConcept === 'object' && createdConcept ? (createdConcept as any).id : (createdConcept as any);
+        if (createdId) {
+          targetClassId = createdId;
+          if (addProperty) {
+            addProperty(createdId, propName, type as DataType);
+          }
+        }
+      }
+    }
+
+    const newAttr = {
+      id: `payload-${Date.now()}`,
+      name: propName,
+      type: type as any,
+      scope,
+      classId: targetClassId,
+    };
+
+    const nextPayload = [...payload, newAttr];
+    updateConcept(conceptId, { payload: nextPayload } as any);
+    setNewAttrName('');
+    setIsAdding(false);
+  };
+
+  const handleDeleteAttribute = (attrId: string) => {
+    if (!conceptId) return;
+    const nextPayload = payload.filter((a) => a.id !== attrId);
+    updateConcept(conceptId, { payload: nextPayload } as any);
+  };
+
+  const [selectedIndex, setSelectedIndex] = useState(0);
+
+  const selectableOptions = useMemo(() => {
+    const list: Array<{
+      kind: 'existing' | 'create_class' | 'create_local';
+      data?: typeof availableProperties[0];
+      cls?: string;
+      prop?: string;
+    }> = [];
+
+    filteredProperties.forEach((p) => {
+      list.push({ kind: 'existing', data: p });
+    });
+
+    const raw = newAttrName.trim();
+    if (raw) {
+      const hasDot = raw.includes('.');
+      const parts = raw.split('.');
+      const cls = hasDot ? parts[0].trim() : undefined;
+      const prop = hasDot ? parts.slice(1).join('.').trim() : raw;
+      list.push({ kind: 'create_class', cls, prop });
+      list.push({ kind: 'create_local', prop });
+    }
+
+    return list;
+  }, [filteredProperties, newAttrName]);
+
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [newAttrName]);
+
+  const handleExecuteSelectedOption = (idx: number) => {
+    const opt = selectableOptions[idx];
+    if (!opt) return;
+    if (opt.kind === 'existing' && opt.data) {
+      handleSelectExistingProperty(opt.data);
+    } else if (opt.kind === 'create_class') {
+      handleAddCustomAttribute('class_attribute');
+    } else if (opt.kind === 'create_local') {
+      handleAddCustomAttribute('event_local');
+    }
+  };
+
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [popoverCoords, setPopoverCoords] = useState<{ top: number; left: number; width: number } | null>(null);
+
+  useEffect(() => {
+    if (isAdding) {
+      const updateCoords = () => {
+        if (inputRef.current) {
+          const rect = inputRef.current.getBoundingClientRect();
+          setPopoverCoords({
+            top: rect.bottom + 4,
+            left: rect.left,
+            width: Math.max(rect.width, 280),
+          });
+        }
+      };
+      updateCoords();
+      const interval = setInterval(updateCoords, 100);
+      window.addEventListener('resize', updateCoords);
+      window.addEventListener('scroll', updateCoords, true);
+      return () => {
+        clearInterval(interval);
+        window.removeEventListener('resize', updateCoords);
+        window.removeEventListener('scroll', updateCoords, true);
+      };
+    }
+  }, [isAdding, newAttrName]);
 
   return (
     <div
@@ -239,6 +436,206 @@ function EmElementNode({ data, selected }: NodeProps<EmNodeType>) {
 
       <div className={`text-[14px] font-black tracking-tight leading-snug mt-2 break-words ${style.label}`}>
         {data.name || 'Untitled'}
+      </div>
+
+      {/* Interactive Payload Section */}
+      <div className="mt-3 pt-2 border-t border-slate-200/80 flex flex-col gap-1 text-[11px] font-sans relative">
+        <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-wider text-slate-400 select-none">
+          <span>Payload</span>
+          <span>{payload.length} felt{payload.length !== 1 ? 'er' : ''}</span>
+        </div>
+
+        {payload.length > 0 && (
+          <div className="flex flex-col gap-1.5 max-h-[120px] overflow-y-auto pr-0.5">
+            {payload.map((attr, i) => {
+              const boundClass = attr.classId ? classConcepts.find((c) => c.id === attr.classId || c.name === attr.classId) : undefined;
+              return (
+                <div
+                  key={attr.id || i}
+                  className="flex items-center justify-between px-2.5 py-1.5 bg-white/90 border border-slate-200/80 rounded-xl text-slate-800 font-mono text-[11px] group/item transition-all shadow-2xs"
+                >
+                  <span className="truncate font-bold" title={boundClass ? `Information Model Klasse: ${boundClass.name}` : 'Event-Lokal'}>
+                    {boundClass && <span className="text-indigo-600 font-extrabold mr-0.5">{boundClass.name}.</span>}
+                    {attr.name}
+                  </span>
+                  <div className="flex items-center gap-1.5 ml-1">
+                    <span className="text-[10px] text-slate-400 font-medium">{attr.type}</span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteAttribute(attr.id);
+                      }}
+                      className="opacity-0 group-hover/item:opacity-100 text-slate-400 hover:text-red-500 transition-opacity text-[13px] font-bold px-1"
+                      title="Slet felt"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {isAdding ? (
+          <div className="flex flex-col gap-1 mt-1 relative" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-1">
+              <input
+                ref={inputRef}
+                type="text"
+                autoFocus
+                placeholder="Søg eller skriv felt..."
+                value={newAttrName}
+                onChange={(e) => setNewAttrName(e.target.value)}
+                onKeyDown={(e) => {
+                  e.stopPropagation();
+                  if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    setSelectedIndex((prev) => (prev < selectableOptions.length - 1 ? prev + 1 : 0));
+                  } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    setSelectedIndex((prev) => (prev > 0 ? prev - 1 : selectableOptions.length - 1));
+                  } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (selectableOptions.length > 0) {
+                      handleExecuteSelectedOption(selectedIndex);
+                    } else if (newAttrName.trim()) {
+                      handleAddCustomAttribute('class_attribute');
+                    }
+                  } else if (e.key === 'Escape') {
+                    setIsAdding(false);
+                  }
+                }}
+                className="w-full px-2.5 py-1.5 text-[11px] font-mono font-semibold border border-indigo-300 rounded-lg bg-white text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/20"
+              />
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsAdding(false);
+                }}
+                className="px-2 py-1 text-[11px] font-extrabold text-slate-400 hover:text-slate-600 rounded-lg"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Smart Combobox Autocomplete Dropdown Popover via Portal */}
+            {popoverCoords && createPortal(
+              <div
+                style={{
+                  position: 'fixed',
+                  top: popoverCoords.top,
+                  left: popoverCoords.left,
+                  width: popoverCoords.width,
+                  zIndex: 999999,
+                }}
+                className="bg-white border border-slate-200/90 rounded-2xl shadow-2xl flex flex-col overflow-hidden max-h-[220px] overflow-y-auto p-1 animate-in fade-in zoom-in-95 duration-100 font-sans"
+                onClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+              >
+                {filteredProperties.length > 0 && (
+                  <div className="flex flex-col mb-1 pb-1 border-b border-slate-100">
+                    <span className="px-3 py-1 text-[9px] font-extrabold text-slate-400 uppercase bg-slate-50 rounded-lg tracking-wider mb-1">
+                      Eksisterende Attributter (IM)
+                    </span>
+                    {filteredProperties.map((prop, idx) => {
+                      const isSelected = idx === selectedIndex;
+                      return (
+                        <button
+                          key={`${prop.classId}-${prop.propId}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSelectExistingProperty(prop);
+                          }}
+                          onMouseEnter={() => setSelectedIndex(idx)}
+                          className={`px-3 py-2 text-left text-[12px] rounded-xl flex items-center justify-between transition-all ${
+                            isSelected
+                              ? 'bg-indigo-600 text-white font-bold shadow-sm'
+                              : 'hover:bg-slate-100 text-slate-800 font-medium'
+                          }`}
+                        >
+                          <span>
+                            <span className={isSelected ? 'text-indigo-200 font-extrabold' : 'text-indigo-600 font-extrabold'}>
+                              {prop.className}.
+                            </span>
+                            {prop.propName}
+                          </span>
+                          <span className={`text-[10px] font-mono ${isSelected ? 'text-indigo-200' : 'text-slate-400'}`}>
+                            {prop.propType}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {newAttrName.trim() && (
+                  <div className="flex flex-col bg-slate-50/70 p-1 gap-1 rounded-xl">
+                    {(() => {
+                      const raw = newAttrName.trim();
+                      const hasDot = raw.includes('.');
+                      const parts = raw.split('.');
+                      const cls = hasDot ? parts[0].trim() : undefined;
+                      const prop = hasDot ? parts.slice(1).join('.').trim() : raw;
+
+                      const createClassIdx = filteredProperties.length;
+                      const createLocalIdx = filteredProperties.length + 1;
+
+                      const isSelectedClass = selectedIndex === createClassIdx;
+                      const isSelectedLocal = selectedIndex === createLocalIdx;
+
+                      return (
+                        <>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAddCustomAttribute('class_attribute');
+                            }}
+                            onMouseEnter={() => setSelectedIndex(createClassIdx)}
+                            className={`px-3 py-2 text-left text-[11.5px] font-bold rounded-lg transition-all flex items-center gap-1.5 ${
+                              isSelectedClass
+                                ? 'bg-indigo-600 text-white shadow-sm'
+                                : 'text-indigo-600 hover:bg-indigo-100/70'
+                            }`}
+                          >
+                            <span>
+                              + {cls ? `Opret Klasse "${cls}" & Attribut "${prop}"` : `Opret "${prop}" (Klasse Attribut)`}
+                            </span>
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAddCustomAttribute('event_local');
+                            }}
+                            onMouseEnter={() => setSelectedIndex(createLocalIdx)}
+                            className={`px-3 py-2 text-left text-[11.5px] font-bold rounded-lg transition-all flex items-center gap-1.5 ${
+                              isSelectedLocal
+                                ? 'bg-slate-800 text-white shadow-sm'
+                                : 'text-slate-700 hover:bg-slate-200/80'
+                            }`}
+                          >
+                            <span>+ Opret "{prop}" (Event-Lokal)</span>
+                          </button>
+                        </>
+                      );
+                    })()}
+                  </div>
+                )}
+              </div>,
+              document.body
+            )}
+          </div>
+        ) : (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsAdding(true);
+            }}
+            className="flex items-center justify-center gap-1 py-1 mt-1 text-[9px] font-bold text-slate-500 hover:text-indigo-600 hover:bg-white/80 border border-dashed border-slate-300 hover:border-indigo-300 rounded-lg transition-all select-none"
+          >
+            <span>+ Tilføj attribut...</span>
+          </button>
+        )}
       </div>
     </div>
   );
