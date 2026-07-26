@@ -139,15 +139,6 @@ body {
   }
 }
 
-/*
- * PERFORMANCE: Node boxes use transition-colors (Tailwind) which triggers
- * non-composited paint for border-color, box-shadow, background-color.
- * Promote interactive node containers to compositor layer.
- * This allows the browser to handle visual changes without main-thread paint.
- */
-.react-flow__node {
-  will-change: transform;
-}
 
 /*
  * PERFORMANCE: Input and button elements with hover transitions that change

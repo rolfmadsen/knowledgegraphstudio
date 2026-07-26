@@ -298,10 +298,8 @@ export const eventModelingLayoutEngine: LayoutEngine = async (
       const elsInRow = allElementsInGroup.filter((el) => getRowIndex(getConceptType(el)) === r);
       let maxRowHeight = 130;
       for (const el of elsInRow) {
-        const count = (el as any).payload?.length || 0;
-        const payloadHeight = 110 + count * 26 + 32;
         const measuredHeight = (el as any).height || 0;
-        const effectiveHeight = Math.max(payloadHeight, measuredHeight, 130);
+        const effectiveHeight = Math.max(measuredHeight, 130);
         if (effectiveHeight > maxRowHeight) maxRowHeight = effectiveHeight;
       }
       lastRowBottomY = accumY + maxRowHeight;

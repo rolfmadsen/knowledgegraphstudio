@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { useGraphStore, isEdgeVisibleForInstances, normalizeViewNodes } from '../../store/useGraphStore';
 import { useShallow } from 'zustand/react/shallow';
-import { LifecycleState, ConceptType, DataType, type ConceptProperty, type ConceptNode, type ElementId, type PayloadAttribute } from '../../schema/graphSchema';
+import { LifecycleState, ConceptType, DataType, type ConceptProperty, type ConceptNode, type ElementId } from '../../schema/graphSchema';
 import { NotationRegistry } from '../../notations/NotationRegistry';
-import { useValidationWarnings } from '../validation/useValidation';
+import { useValidationWarnings, type ValidationWarning } from '../validation/useValidation';
 import { 
   Plus, 
   Trash2,
@@ -14,8 +14,10 @@ import {
   Eye,
   Layers,
   Sliders,
-  Zap
+  Zap,
 } from 'lucide-react';
+import { PayloadSpecModal } from '../../notations/event-modeling/PayloadSpecModal';
+import { LineageSyncModal } from '../../notations/event-modeling/LineageSyncModal';
 
 export function Inspector() {
   const { 
@@ -77,6 +79,8 @@ export function Inspector() {
   );
 
   const nameInputRef = useRef<HTMLInputElement>(null);
+  const [isPayloadSpecModalOpen, setIsPayloadSpecModalOpen] = useState(false);
+  const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
   const warnings = useValidationWarnings();
   const activeView = views.find((v) => v.id === activeViewId);
   const activeNotation = activeView ? NotationRegistry.forViewType(activeView.type) : undefined;
@@ -294,6 +298,20 @@ export function Inspector() {
     }
 
     if (!concept && !relation) {
+      // Group MISSING_EVENT_SOURCE warnings by nodeId for global panel
+      const groupedMissingSources = new Map<string, ValidationWarning[]>();
+      const nonMissingSourceWarnings: ValidationWarning[] = [];
+
+      warnings.forEach((w) => {
+        if (w.type === 'MISSING_EVENT_SOURCE' && w.nodeId) {
+          const list = groupedMissingSources.get(w.nodeId) || [];
+          list.push(w);
+          groupedMissingSources.set(w.nodeId, list);
+        } else {
+          nonMissingSourceWarnings.push(w);
+        }
+      });
+
       return (
         <div className="flex flex-col gap-8">
           <div className="flex flex-col items-center gap-5 p-6 bg-white border border-slate-200/60 rounded-[24px] shadow-sm text-center">
@@ -314,30 +332,81 @@ export function Inspector() {
                 <span className="text-[14px]">✅</span> Grafen er fuldstændig konsistent. Ingen fejl eller advarsler fundet.
               </div>
             ) : (
-              <div className="flex flex-col gap-2 max-h-[400px] overflow-y-auto custom-scrollbar pr-1">
-                {warnings.map((w) => (
-                  <div 
-                    key={w.id} 
-                    onClick={() => {
-                      if (w.nodeId) selectConcept(w.nodeId as ElementId);
-                      else if (w.relationId) selectRelation(w.relationId as ElementId);
-                    }}
-                    className={`p-3 bg-white border rounded-xl shadow-sm hover:scale-[1.01] hover:shadow-md cursor-pointer transition-all flex flex-col gap-1 border-l-4 text-left ${
-                      w.level === 'error' ? 'border-red-500 hover:border-red-600' : 'border-amber-500 hover:border-amber-600'
-                    }`}
-                  >
-                    <div className="flex justify-between items-center">
-                      <span className={`text-[8px] font-black font-mono px-1.5 py-0.5 rounded border uppercase tracking-wider ${
-                        w.level === 'error' ? 'bg-red-50 border-red-200 text-red-700' : 'bg-amber-50 border-amber-200 text-amber-700'
-                      }`}>
-                        {w.level}
-                      </span>
+              <div className="flex flex-col gap-2.5 max-h-[400px] overflow-y-auto custom-scrollbar pr-1">
+                {Array.from(groupedMissingSources.entries()).map(([nodeId, nodeWarnings]) => {
+                  const targetNode = concepts.find((c) => c.id === nodeId);
+                  const nodeName = targetNode?.name || nodeId;
+                  const conceptTypeLabel = targetNode?.conceptType ? targetNode.conceptType.toUpperCase() : 'NODE';
+
+                  return (
+                    <div
+                      key={`grouped-global-missing-${nodeId}`}
+                      onClick={() => selectConcept(nodeId as ElementId)}
+                      className="p-3 bg-rose-50/40 border border-rose-200 border-l-4 border-l-rose-500 rounded-xl shadow-2xs hover:scale-[1.01] hover:shadow-md cursor-pointer transition-all flex flex-col gap-1.5 text-left"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 truncate">
+                          <span className="text-[12px]">❌</span>
+                          <span className="text-[11px] font-black text-slate-800 truncate">
+                            {nodeName}
+                          </span>
+                        </div>
+                        <span className="text-[8px] font-mono font-bold px-1.5 py-0.5 bg-rose-100/80 border border-rose-200 text-rose-800 rounded uppercase">
+                          {conceptTypeLabel}
+                        </span>
+                      </div>
+                      <div className="text-[10px] font-bold text-rose-700 mt-0.5">
+                        Kilde mangler på tidslinjen ({nodeWarnings.length}):
+                      </div>
+                      <ul className="pl-5 list-disc text-[11px] font-mono font-bold text-slate-700 space-y-0.5">
+                        {nodeWarnings.map((w) => {
+                          const className = w.classId ? concepts.find((c) => c.id === w.classId)?.name : undefined;
+                          const label = className ? `${className}.${w.attribute}` : (w.attribute || w.message);
+                          return (
+                            <li key={w.id} className="leading-snug">
+                              {label}
+                            </li>
+                          );
+                        })}
+                      </ul>
                     </div>
-                    <p className="text-[11px] font-bold text-slate-700 leading-relaxed">
-                      {w.message}
-                    </p>
-                  </div>
-                ))}
+                  );
+                })}
+
+                {nonMissingSourceWarnings.map((w) => {
+                  const nodeName = w.nodeId ? concepts.find((c) => c.id === w.nodeId)?.name : undefined;
+                  const relName = w.relationId ? relations.find((r) => r.id === w.relationId)?.name : undefined;
+                  const targetLabel = nodeName || relName;
+
+                  return (
+                    <div
+                      key={w.id}
+                      onClick={() => {
+                        if (w.nodeId) selectConcept(w.nodeId as ElementId);
+                        else if (w.relationId) selectRelation(w.relationId as ElementId);
+                      }}
+                      className={`p-3 bg-white border rounded-xl shadow-sm hover:scale-[1.01] hover:shadow-md cursor-pointer transition-all flex flex-col gap-1 border-l-4 text-left ${
+                        w.level === 'error' ? 'border-red-500 hover:border-red-600' : 'border-amber-500 hover:border-amber-600'
+                      }`}
+                    >
+                      <div className="flex justify-between items-center">
+                        <span className={`text-[8px] font-black font-mono px-1.5 py-0.5 rounded border uppercase tracking-wider ${
+                          w.level === 'error' ? 'bg-red-50 border-red-200 text-red-700' : 'bg-amber-50 border-amber-200 text-amber-700'
+                        }`}>
+                          {w.level}
+                        </span>
+                        {targetLabel && (
+                          <span className="text-[9px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded truncate max-w-[120px]">
+                            {targetLabel}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] font-bold text-slate-700 leading-relaxed">
+                        {w.message}
+                      </p>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </InspectorSection>
@@ -348,11 +417,35 @@ export function Inspector() {
     const conceptWarnings = concept ? warnings.filter(w => w.nodeId === concept.id) : [];
     const relationWarnings = relation ? warnings.filter(w => w.relationId === relation.id) : [];
 
+    const missingSourceWarnings = conceptWarnings.filter(w => w.type === 'MISSING_EVENT_SOURCE');
+    const otherConceptWarnings = conceptWarnings.filter(w => w.type !== 'MISSING_EVENT_SOURCE');
+
     return (
       <div className="flex flex-col gap-8">
         {(conceptWarnings.length > 0 || relationWarnings.length > 0) && (
           <div className="flex flex-col gap-2">
-            {[...conceptWarnings, ...relationWarnings].map((w) => (
+            {missingSourceWarnings.length > 0 && (
+              <div className="p-3 bg-rose-50/40 border border-rose-200 border-l-4 border-l-rose-500 rounded-xl shadow-2xs flex flex-col gap-1.5 text-left">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[12px]">❌</span>
+                  <span className="text-[11px] font-bold text-rose-800 tracking-tight">
+                    Kilde mangler på tidslinjen:
+                  </span>
+                </div>
+                <ul className="pl-6 list-disc text-[11px] font-mono font-bold text-slate-700 space-y-0.5">
+                  {missingSourceWarnings.map((w) => {
+                    const className = w.classId ? concepts.find((c) => c.id === w.classId)?.name : undefined;
+                    const label = className ? `${className}.${w.attribute}` : (w.attribute || w.message);
+                    return (
+                      <li key={w.id} className="leading-snug">
+                        {label}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
+            {[...otherConceptWarnings, ...relationWarnings].map((w) => (
               <div 
                 key={w.id} 
                 className={`p-3 bg-white border border-l-4 rounded-xl shadow-sm flex items-start gap-2 text-left ${
@@ -620,38 +713,69 @@ export function Inspector() {
                 )}
 
                 {['screen', 'command', 'event', 'read_model', 'integration_event', 'automation'].includes(concept.conceptType) && (
-                  <InspectorSection title="Payload & Lineage (Event Modeling)">
-                    <div className="flex flex-col gap-3">
-                      {((concept as any).payload || []).map((attr: PayloadAttribute, index: number) => (
-                        <PayloadItemEditor
-                          key={attr.id || index}
-                          attr={attr}
-                          index={index}
-                          concept={concept}
-                          concepts={concepts}
-                          updateConcept={updateConcept}
-                          addConcept={addConcept}
-                          addProperty={addProperty}
-                        />
-                      ))}
+                  <InspectorSection title="Payload Specifikation">
+                    <div className="flex flex-col gap-3 p-3 bg-slate-50 border border-slate-200/80 rounded-2xl font-sans">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-2xs animate-pulse" title="Payload status" />
+                          <span className="text-xs font-bold text-slate-800 font-mono">
+                            Payload ({((concept as any).payload || []).length} felter)
+                          </span>
+                        </div>
+                        <span className="text-[9px] font-black uppercase text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-full">
+                          {concept.conceptType}
+                        </span>
+                      </div>
+
+                      <p className="text-[11px] text-slate-500 leading-snug">
+                        Styr og konfigurér klasser, datatypes, kildetyper og data lineage i det udvidede payload vindue.
+                      </p>
 
                       <button
-                        onClick={() => {
-                          const currentPayload: PayloadAttribute[] = [...((concept as any).payload || [])];
-                          const newAttr: PayloadAttribute = {
-                            id: `payload-${Date.now()}`,
-                            name: 'nyEgenskab',
-                            type: 'string',
-                            scope: 'class_attribute',
-                          };
-                          updateConcept(concept.id, { payload: [...currentPayload, newAttr] } as any);
-                        }}
-                        className="flex items-center justify-center gap-2 p-3 text-[10px] font-black text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all border border-dashed border-indigo-200 mt-2 tracking-widest uppercase"
+                        onClick={() => setIsPayloadSpecModalOpen(true)}
+                        className="flex items-center justify-center gap-2 p-2.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-extrabold text-xs rounded-xl transition-all shadow-sm group select-none"
                       >
-                        <Plus size={14} strokeWidth={3} />
-                        <span>TILFØJ PAYLOAD ATTRIBUT</span>
+                        <span>🚀 Åbn Payload Specifikation</span>
+                        <span className="group-hover:translate-x-0.5 transition-transform">→</span>
                       </button>
                     </div>
+
+                    {isPayloadSpecModalOpen && (
+                      <PayloadSpecModal
+                        isOpen={isPayloadSpecModalOpen}
+                        onClose={() => setIsPayloadSpecModalOpen(false)}
+                        currentNode={{
+                          id: concept.id,
+                          name: concept.name || 'Untitled',
+                          conceptType: concept.conceptType,
+                          payload: (concept as any).payload || [],
+                        }}
+                        allConcepts={concepts}
+                        activeViewId={(activeView?.id as ElementId) || ('' as ElementId)}
+                        updateConcept={updateConcept}
+                        updateProperty={updateProperty}
+                        addConcept={addConcept}
+                        addProperty={addProperty}
+                        onOpenSyncModal={() => setIsSyncModalOpen(true)}
+                      />
+                    )}
+
+                    {isSyncModalOpen && (
+                      <LineageSyncModal
+                        isOpen={isSyncModalOpen}
+                        onClose={() => setIsSyncModalOpen(false)}
+                        currentNode={{
+                          id: concept.id,
+                          name: concept.name || 'Untitled',
+                          conceptType: concept.conceptType,
+                          payload: (concept as any).payload || [],
+                        }}
+                        allConcepts={concepts}
+                        graphState={useGraphStore.getState() as any}
+                        activeViewId={(activeView?.id as ElementId) || ('' as ElementId)}
+                        updateConcept={updateConcept}
+                      />
+                    )}
                   </InspectorSection>
                 )}
 
@@ -1123,364 +1247,4 @@ export function PropertyField({ label, value, onChange, readOnly, inputRef }: { 
     );
 }
 
-interface PayloadItemEditorProps {
-  attr: PayloadAttribute;
-  index: number;
-  concept: ConceptNode;
-  concepts: ConceptNode[];
-  updateConcept: any;
-  addConcept: any;
-  addProperty: any;
-}
 
-function PayloadItemEditor({
-  attr,
-  index,
-  concept,
-  concepts,
-  updateConcept,
-  addConcept,
-  addProperty,
-}: PayloadItemEditorProps) {
-  const [isCreatingClass, setIsCreatingClass] = useState(false);
-  const [newClassName, setNewClassName] = useState('');
-  const [isCreatingProp, setIsCreatingProp] = useState(false);
-  const [newPropName, setNewPropName] = useState('');
-
-  // Auto-heal payload items that have combined strings like "Person.firstName" in attr.name
-  let currentAttr = { ...attr };
-  if (currentAttr.name && currentAttr.name.includes('.')) {
-    const parts = currentAttr.name.split('.');
-    const clsName = parts[0].trim();
-    const prName = parts.slice(1).join('.').trim();
-    if (clsName && prName) {
-      const existingCls = concepts.find(
-        (c) => c.conceptType === 'class' && c.name.toLowerCase() === clsName.toLowerCase()
-      );
-      if (existingCls) {
-        currentAttr.classId = existingCls.id;
-        currentAttr.name = prName;
-        currentAttr.scope = 'class_attribute';
-      } else if (addConcept) {
-        const createdConcept = addConcept('class', clsName);
-        const createdId = typeof createdConcept === 'object' && createdConcept ? (createdConcept as any).id : (createdConcept as any);
-        if (createdId) {
-          currentAttr.classId = createdId;
-          currentAttr.name = prName;
-          currentAttr.scope = 'class_attribute';
-          if (addProperty) addProperty(createdId, prName, currentAttr.type || 'string');
-        }
-      }
-    }
-  }
-
-  const boundClass = currentAttr.classId
-    ? concepts.find((c) => c.id === currentAttr.classId || c.name === currentAttr.classId)
-    : undefined;
-
-  const classProperties = (boundClass as any)?.properties || [];
-
-  const handleSaveInlineClass = () => {
-    const name = newClassName.trim();
-    if (!name) {
-      setIsCreatingClass(false);
-      return;
-    }
-    const existing = concepts.find((c) => c.conceptType === 'class' && c.name.toLowerCase() === name.toLowerCase());
-    let classId = existing?.id;
-    if (!classId && addConcept) {
-      const created = addConcept('class', name);
-      classId = typeof created === 'object' && created ? (created as any).id : (created as any);
-    }
-    if (classId) {
-      const currentPayload: PayloadAttribute[] = [...((concept as any).payload || [])];
-      currentPayload[index] = { ...currentPayload[index], classId, scope: 'class_attribute' };
-      updateConcept(concept.id, { payload: currentPayload } as any);
-    }
-    setNewClassName('');
-    setIsCreatingClass(false);
-  };
-
-  const handleSaveInlineProp = () => {
-    const name = newPropName.trim();
-    if (!name || !boundClass) {
-      setIsCreatingProp(false);
-      return;
-    }
-    if (addProperty) {
-      addProperty(boundClass.id, name, currentAttr.type || 'string');
-    }
-    const currentPayload: PayloadAttribute[] = [...((concept as any).payload || [])];
-    currentPayload[index] = { ...currentPayload[index], name };
-    updateConcept(concept.id, { payload: currentPayload } as any);
-    setNewPropName('');
-    setIsCreatingProp(false);
-  };
-
-  return (
-    <div className="p-3.5 bg-white border border-slate-200/90 rounded-2xl flex flex-col gap-3 group relative shadow-sm hover:shadow-md transition-all">
-      {/* Card Header & Scope Badge */}
-      <div className="flex justify-between items-center pb-2 border-b border-slate-100">
-        <div className="flex items-center gap-2">
-          <span
-            className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border ${
-              currentAttr.scope === 'class_attribute'
-                ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
-                : 'bg-slate-100 border-slate-200 text-slate-600'
-            }`}
-          >
-            {currentAttr.scope === 'class_attribute' ? 'IM Klasse-attribut' : 'Event-Lokal'}
-          </span>
-          <span className="text-[12px] font-bold text-slate-800 font-mono">
-            {boundClass ? (
-              <>
-                <span className="text-indigo-600 font-bold">{boundClass.name}.</span>
-                {currentAttr.name}
-              </>
-            ) : (
-              currentAttr.name
-            )}
-          </span>
-        </div>
-        <button
-          onClick={() => {
-            const currentPayload: PayloadAttribute[] = (concept as any).payload || [];
-            const nextPayload = currentPayload.filter((_, i) => i !== index);
-            updateConcept(concept.id, { payload: nextPayload } as any);
-          }}
-          className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-          title="Slet felt"
-        >
-          <Trash2 size={14} />
-        </button>
-      </div>
-
-      {/* Scope Selector */}
-      <div className="flex items-center gap-2 bg-slate-50 p-1 rounded-xl border border-slate-200/60">
-        <button
-          type="button"
-          onClick={() => {
-            const currentPayload: PayloadAttribute[] = [...((concept as any).payload || [])];
-            currentPayload[index] = { ...currentPayload[index], scope: 'class_attribute' };
-            updateConcept(concept.id, { payload: currentPayload } as any);
-          }}
-          className={`flex-1 py-1 text-[10px] font-extrabold rounded-lg transition-all ${
-            currentAttr.scope === 'class_attribute'
-              ? 'bg-white text-indigo-600 shadow-sm border border-slate-200/80'
-              : 'text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          📦 IM Klasse
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            const currentPayload: PayloadAttribute[] = [...((concept as any).payload || [])];
-            currentPayload[index] = { ...currentPayload[index], scope: 'event_local', classId: undefined };
-            updateConcept(concept.id, { payload: currentPayload } as any);
-          }}
-          className={`flex-1 py-1 text-[10px] font-extrabold rounded-lg transition-all ${
-            currentAttr.scope === 'event_local'
-              ? 'bg-white text-slate-800 shadow-sm border border-slate-200/80'
-              : 'text-slate-500 hover:text-slate-800'
-          }`}
-        >
-          ⚡ Event-Lokal
-        </button>
-      </div>
-
-      {currentAttr.scope === 'class_attribute' ? (
-        <div className="flex flex-col gap-3">
-          {/* IM Class Selector / Inline Input */}
-          <div className="flex flex-col gap-1">
-            <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider ml-1">
-              1. Information Model Klasse
-            </label>
-
-            {isCreatingClass ? (
-              <div className="flex items-center gap-1.5 bg-indigo-50/70 p-1.5 rounded-xl border border-indigo-200">
-                <input
-                  type="text"
-                  autoFocus
-                  placeholder="Navn på ny klasse..."
-                  value={newClassName}
-                  onChange={(e) => setNewClassName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleSaveInlineClass();
-                    if (e.key === 'Escape') setIsCreatingClass(false);
-                  }}
-                  className="w-full px-2.5 py-1 text-[11px] font-bold text-slate-800 bg-white border border-indigo-200 rounded-lg outline-none"
-                />
-                <button
-                  type="button"
-                  onClick={handleSaveInlineClass}
-                  className="px-2.5 py-1 text-[10px] font-black text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
-                >
-                  Gem
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsCreatingClass(false)}
-                  className="p-1 text-slate-400 hover:text-slate-600"
-                >
-                  ✕
-                </button>
-              </div>
-            ) : (
-              <select
-                value={currentAttr.classId || ''}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  if (val === '__CREATE_NEW__') {
-                    setIsCreatingClass(true);
-                    return;
-                  }
-                  const currentPayload: PayloadAttribute[] = [...((concept as any).payload || [])];
-                  currentPayload[index] = { ...currentPayload[index], classId: val ? (val as ElementId) : undefined };
-                  updateConcept(concept.id, { payload: currentPayload } as any);
-                }}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-[11px] font-bold text-slate-800 outline-none focus:border-indigo-500"
-              >
-                <option value="">-- Vælg Klasse --</option>
-                <option value="__CREATE_NEW__" className="text-indigo-600 font-extrabold">+ Opret ny klasse...</option>
-                {concepts.filter((c) => c.conceptType === 'class').map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-            )}
-          </div>
-
-          {/* Class Attribute Picker / Inline Input */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider ml-1">
-                2. Attribut Navn
-              </label>
-
-              {isCreatingProp ? (
-                <div className="flex items-center gap-1 bg-indigo-50/70 p-1 rounded-xl border border-indigo-200">
-                  <input
-                    type="text"
-                    autoFocus
-                    placeholder="Ny attribut..."
-                    value={newPropName}
-                    onChange={(e) => setNewPropName(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleSaveInlineProp();
-                      if (e.key === 'Escape') setIsCreatingProp(false);
-                    }}
-                    className="w-full px-2 py-1 text-[10px] font-bold text-slate-800 bg-white border border-indigo-200 rounded-lg outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleSaveInlineProp}
-                    className="px-2 py-1 text-[9px] font-black text-white bg-indigo-600 rounded-md"
-                  >
-                    Gem
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setIsCreatingProp(false)}
-                    className="px-1 text-slate-400"
-                  >
-                    ✕
-                  </button>
-                </div>
-              ) : boundClass && classProperties.length > 0 ? (
-                <select
-                  value={currentAttr.name}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (val === '__CREATE_NEW_PROP__') {
-                      setIsCreatingProp(true);
-                      return;
-                    }
-                    const selectedProp = classProperties.find((p: any) => p.name === val);
-                    const currentPayload: PayloadAttribute[] = [...((concept as any).payload || [])];
-                    currentPayload[index] = {
-                      ...currentPayload[index],
-                      name: val,
-                      type: selectedProp?.type || currentPayload[index].type,
-                      propertyId: selectedProp?.id,
-                    };
-                    updateConcept(concept.id, { payload: currentPayload } as any);
-                  }}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-[11px] font-bold text-slate-800 outline-none"
-                >
-                  <option value={currentAttr.name}>{currentAttr.name}</option>
-                  {classProperties
-                    .filter((p: any) => p.name !== currentAttr.name)
-                    .map((p: any) => (
-                      <option key={p.id || p.name} value={p.name}>
-                        {p.name} ({p.type})
-                      </option>
-                    ))}
-                  <option value="__CREATE_NEW_PROP__" className="text-indigo-600 font-extrabold">
-                    + Opret ny attribut...
-                  </option>
-                </select>
-              ) : (
-                <PropertyField
-                  label=""
-                  value={currentAttr.name}
-                  onChange={(v) => {
-                    const currentPayload: PayloadAttribute[] = [...((concept as any).payload || [])];
-                    currentPayload[index] = { ...currentPayload[index], name: v };
-                    updateConcept(concept.id, { payload: currentPayload } as any);
-                  }}
-                />
-              )}
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider ml-1">Datatype</label>
-              <select
-                value={String(currentAttr.type)}
-                onChange={(e) => {
-                  const currentPayload: PayloadAttribute[] = [...((concept as any).payload || [])];
-                  currentPayload[index] = { ...currentPayload[index], type: e.target.value as DataType };
-                  updateConcept(concept.id, { payload: currentPayload } as any);
-                }}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-[11px] font-bold text-slate-700 outline-none"
-              >
-                <option value="string">string</option>
-                <option value="number">number</option>
-                <option value="boolean">boolean</option>
-                <option value="date">date</option>
-              </select>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 gap-3">
-          <PropertyField
-            label="Attribut Navn"
-            value={currentAttr.name}
-            onChange={(v) => {
-              const currentPayload: PayloadAttribute[] = [...((concept as any).payload || [])];
-              currentPayload[index] = { ...currentPayload[index], name: v };
-              updateConcept(concept.id, { payload: currentPayload } as any);
-            }}
-          />
-          <div className="flex flex-col gap-1">
-            <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider ml-1">Datatype</label>
-            <select
-              value={String(currentAttr.type)}
-              onChange={(e) => {
-                const currentPayload: PayloadAttribute[] = [...((concept as any).payload || [])];
-                currentPayload[index] = { ...currentPayload[index], type: e.target.value as DataType };
-                updateConcept(concept.id, { payload: currentPayload } as any);
-              }}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-[11px] font-bold text-slate-700 outline-none"
-            >
-              <option value="string">string</option>
-              <option value="number">number</option>
-              <option value="boolean">boolean</option>
-              <option value="date">date</option>
-            </select>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}

@@ -13,11 +13,37 @@ export interface CompletenessIssue {
   message: string;
 }
 
+// Helper to resolve effective origin for an attribute
+function getEffectiveOrigin(attr: PayloadAttribute, conceptType: string): 'ingress' | 'derived' | 'auto' {
+  if (attr.originType) return attr.originType;
+  if (conceptType === 'screen' || conceptType === 'integration_event' || conceptType === 'event') return 'ingress';
+  return 'derived';
+}
+
+function isValidSupplier(
+  supplierConceptType: string,
+  targetConceptType: string,
+  attrOrigin: 'ingress' | 'derived' | 'auto'
+): boolean {
+  if (attrOrigin === 'auto') return true;
+  if (supplierConceptType === 'event' || supplierConceptType === 'integration_event') return true;
+  if (supplierConceptType === 'command') {
+    return targetConceptType === 'event' || targetConceptType === 'integration_event' || targetConceptType === 'command' || targetConceptType === 'automation';
+  }
+  if (supplierConceptType === 'screen') {
+    return targetConceptType === 'command' || targetConceptType === 'read_model' || targetConceptType === 'screen';
+  }
+  if (supplierConceptType === 'read_model') {
+    return targetConceptType === 'screen' || targetConceptType === 'automation' || targetConceptType === 'command' || targetConceptType === 'read_model';
+  }
+  return false;
+}
+
 /**
  * Validates Information Flow Completeness across an Event Modeling View.
  *
  * Checks that every attribute requested by a Read Model or Screen at timeline position T
- * has been emitted by a Domain Event at position <= T.
+ * has been emitted by a Domain Event or Ingress Point at position < T.
  */
 export function validateInformationCompleteness(
   graphState: GraphState,
@@ -40,34 +66,45 @@ export function validateInformationCompleteness(
     }
   }
 
-  // Sort view nodes left-to-right (chronological timeline order)
-  const sortedViewNodes = [...view.nodes].sort((a, b) => a.x - b.x);
+  // Sort view nodes left-to-right (chronological timeline order) and top-to-bottom (Screen -> Command -> Event flow within same slice)
+  const sortedViewNodes = [...view.nodes].sort((a, b) => (Math.abs(a.x - b.x) < 120 ? a.y - b.y : a.x - b.x));
 
-  // Accumulated event payload attributes available up to current position
-  // Key format: `${classId || 'local'}:${attributeName}`
-  const accumulatedAttributes = new Set<string>();
-
-  for (const viewNode of sortedViewNodes) {
+  for (let nodeIdx = 0; nodeIdx < sortedViewNodes.length; nodeIdx++) {
+    const viewNode = sortedViewNodes[nodeIdx];
     const concept = conceptMap.get(viewNode.conceptId);
     if (!concept) continue;
 
     const payload: PayloadAttribute[] = (concept as any).payload || [];
 
-    if (concept.conceptType === 'event' || concept.conceptType === 'integration_event') {
-      // Register emitted attributes into accumulated state
-      for (const attr of payload) {
-        const key = `${attr.classId || 'local'}:${attr.name.toLowerCase().trim()}`;
-        accumulatedAttributes.add(key);
-        // Also register simple name fallback
-        accumulatedAttributes.add(`name:${attr.name.toLowerCase().trim()}`);
-      }
-    } else if (concept.conceptType === 'read_model' || concept.conceptType === 'screen') {
-      // Validate that each requested attribute exists in prior events
-      for (const attr of payload) {
-        const keyWithClass = `${attr.classId || 'local'}:${attr.name.toLowerCase().trim()}`;
-        const keyNameOnly = `name:${attr.name.toLowerCase().trim()}`;
+    // Collect accumulated attributes available up to current position specifically valid for target conceptType
+    const accumulatedAttributes = new Set<string>();
+    for (let pIdx = 0; pIdx < nodeIdx; pIdx++) {
+      const pNode = sortedViewNodes[pIdx];
+      const pConcept = conceptMap.get(pNode.conceptId);
+      if (!pConcept) continue;
 
-        const isAvailable = accumulatedAttributes.has(keyWithClass) || accumulatedAttributes.has(keyNameOnly);
+      const pPayload: PayloadAttribute[] = (pConcept as any).payload || [];
+      for (const attr of pPayload) {
+        const pOrigin = getEffectiveOrigin(attr, pConcept.conceptType);
+        if (isValidSupplier(pConcept.conceptType, concept.conceptType, pOrigin)) {
+          const attrNameLower = attr.name.toLowerCase().trim();
+          const keyWithClass = attr.classId ? `${attr.classId}:${attrNameLower}` : `local:${attrNameLower}`;
+          accumulatedAttributes.add(keyWithClass);
+          accumulatedAttributes.add(`name:${attrNameLower}`);
+        }
+      }
+    }
+
+    // Validate derived attributes for target node
+    for (const attr of payload) {
+      const origin = getEffectiveOrigin(attr, concept.conceptType);
+      if (origin === 'ingress' || origin === 'auto') continue;
+
+      if (origin === 'derived') {
+        const attrNameLower = attr.name.toLowerCase().trim();
+        const keyWithClass = attr.classId ? `${attr.classId}:${attrNameLower}` : `local:${attrNameLower}`;
+
+        const isAvailable = accumulatedAttributes.has(keyWithClass) || accumulatedAttributes.has(`name:${attrNameLower}`);
 
         if (!isAvailable) {
           issues.push({
@@ -77,7 +114,7 @@ export function validateInformationCompleteness(
             classId: (attr.classId as ElementId) || undefined,
             type: 'MISSING_EVENT_SOURCE',
             severity: 'error',
-            message: `ReadModel/Screen "${concept.name}" displays attribute "${attr.name}", but no preceding Domain Event emits this attribute.`,
+            message: `Attributten "${attr.name}" mangler forudgående kilde i tidslinjen.`,
           });
         }
       }

@@ -1,7 +1,10 @@
-# Task: Implement Information Completeness Check & Payload Binding in Event Modeling
+# Task: Fix TypeScript Compilation Errors in `npm run build`
 
-## TDD Checklist
-- [x] `[x]` Write unit test in `src/notations/event-modeling/__tests__/completeness.test.ts` for timeline flow completeness validation and payload schema parsing (**RED** phase).
-- [x] `[x]` Extend `src/schema/graphSchema.ts` with `PayloadAttributeSchema` and implement `src/notations/event-modeling/completeness.ts` (**GREEN** phase).
-- [x] `[x]` Implement Zone 4 Inspector Payload Editor in `src/features/properties/Inspector.tsx` and ReactFlow node card payload rendering in `src/notations/event-modeling/index.tsx`.
-- [x] `[x]` Verify tests pass and run refactor checks (**REFACTOR** phase).
+## Goal
+Fix 9 TypeScript compilation errors in `src/features/properties/Inspector.tsx`, `src/notations/event-modeling/PayloadSpecModal.tsx`, and `src/notations/event-modeling/index.tsx`.
+
+## Checklist
+- [x] `[x]` Fix unused import `PayloadAttribute` and missing `ValidationWarning` import in `src/features/properties/Inspector.tsx`.
+- [x] `[x]` Fix prop types for `updateProperty` and `addConcept` in `PayloadSpecModalProps` in `src/notations/event-modeling/PayloadSpecModal.tsx`.
+- [x] `[x]` Fix `e.target.value` type casting in `PayloadSpecModal.tsx`.
+- [x] `[x]` Verify TypeScript types match across Inspector and Event Modeling components.

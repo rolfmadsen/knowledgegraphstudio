@@ -263,12 +263,16 @@ export type ConceptProperty = z.infer<typeof ConceptProperty>;
 export const PayloadAttributeScope = z.enum(['class_attribute', 'event_local']);
 export type PayloadAttributeScope = z.infer<typeof PayloadAttributeScope>;
 
+export const PayloadAttributeOrigin = z.enum(['ingress', 'derived', 'auto']);
+export type PayloadAttributeOrigin = z.infer<typeof PayloadAttributeOrigin>;
+
 export const PayloadAttributeSchema = z.object({
   id: z.string(),
   name: z.string().min(1),
   type: DataType,
   isRequired: z.boolean().optional(),
   scope: PayloadAttributeScope,
+  originType: PayloadAttributeOrigin.optional(),
   classId: z.string().optional().nullable(),
   propertyId: z.string().optional().nullable(),
 });

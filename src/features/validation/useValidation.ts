@@ -8,6 +8,9 @@ export interface ValidationWarning {
   message: string;
   nodeId?: string;
   relationId?: string;
+  type?: string;
+  attribute?: string;
+  classId?: string;
 }
 
 const CLASSIFICATION_LEVELS: Record<string, number> = {
@@ -159,11 +162,36 @@ export function calculateValidationWarnings(
   return warnings;
 }
 
+import { validateInformationCompleteness } from '../../notations/event-modeling/completeness';
+
 export function useValidationWarnings(): ValidationWarning[] {
-  const concepts = useGraphStore((s) => s.concepts);
-  const relations = useGraphStore((s) => s.relations);
+  const concepts = useGraphStore((s) => s.concepts || []);
+  const relations = useGraphStore((s) => s.relations || []);
+  const views = useGraphStore((s) => s.views || []);
+  const activeViewId = useGraphStore((s) => s.activeViewId);
 
   return useMemo(() => {
-    return calculateValidationWarnings(concepts, relations);
-  }, [concepts, relations]);
+    const baseWarnings = calculateValidationWarnings(concepts, relations);
+
+    const activeView = views.find((v) => v.id === activeViewId);
+    if (activeView && activeView.type === 'event_modeling' && activeViewId) {
+      const completenessIssues = validateInformationCompleteness(
+        { concepts, relations, views, activeViewId } as any,
+        activeViewId
+      );
+      completenessIssues.forEach((issue, idx) => {
+        baseWarnings.push({
+          id: `completeness-${issue.targetNodeId}-${issue.attribute}-${idx}`,
+          level: issue.severity === 'error' ? 'error' : 'warning',
+          message: issue.message,
+          nodeId: issue.targetNodeId,
+          type: issue.type,
+          attribute: issue.attribute,
+          classId: issue.classId,
+        });
+      });
+    }
+
+    return baseWarnings;
+  }, [concepts, relations, views, activeViewId]);
 }

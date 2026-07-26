@@ -1,30 +1,21 @@
-# Specification: Event Modeling Chapter & Slide Storytelling Sequence Control
+# Specification: Inline Class & Attribute Editing in Payload Specification
 
 ## Overview
-This feature introduces explicit storytelling sequence ordering (`order`) for Event Modeling chapters (`em_chapter`) and slides/slices (`em_slice`). It allows users to control the exact left-to-right narrative sequence of chapters and slides across Event Modeling views.
+This specification defines inline editing capability inside the Event Modeling Node Payload Specification popover card. Users can edit Class names, Attribute names, and Attribute types directly within the popover card on the canvas without having to navigate to Zone 4 Inspector or the Information Model view.
 
-## Architecture & Schema Changes
+## Functional Requirements
 
-1. **ViewNode Schema (`src/schema/graphSchema.ts`)**:
-   - Add optional `order?: z.number()` property to `ViewNode`.
-   - `order` is 1-indexed ($1, 2, 3, \dots$) and scoped per View (supporting the 1:N view model).
+### 1. Inline Attribute Name Editing
+- Clicking on an attribute name in the Payload Specification popover triggers inline editing mode (`editingAttrId === attr.id`).
+- An input field replaces the static label.
+- On `Enter` or `blur`:
+  - For `class_attribute` with `attr.classId` and `attr.propertyId`: Calls `updateProperty(attr.classId, attr.propertyId, { name: newName })` to sync the Information Model Class property, and updates `attr.name` in node payload.
+  - For `event_local` attributes: Updates `attr.name` in node payload (`updateConcept(nodeId, { payload: updatedPayload })`).
 
-2. **Layout Engine (`src/notations/event-modeling/layout.ts`)**:
-   - **Chapter Ordering (Pass 1)**: Sort chapters by `viewNode.order ?? createdAt` before placing them horizontally left-to-right.
-   - **Slice Ordering (Pass 2)**: Sort slices within each chapter by `viewNode.order ?? createdAt`.
-   - **Hydration / Auto-numbering**: When `order` is undefined (e.g. legacy graphs), layout automatically initializes `order` ($1, 2, 3, \dots$) based on current left-to-right $X$ positions.
+### 2. Inline Class Name Editing & Rebinding
+- Clicking on the bound `Class.` badge/prefix (e.g., `OrgPerson.`):
+  - In edit mode: Allows changing the Class name directly (`updateConcept(boundClass.id, { name: newClassName })`), updating the Information Model Class name globally across the model graph.
+  - In rebind mode: Provides a dropdown to change class binding or switch to `event_local`.
 
-3. **Graph Store Actions (`src/store/useGraphStore.ts`)**:
-   - `setConceptOrder(viewId, conceptId, newOrder: number)`: Updates `order` for `conceptId` and re-indexes all sibling chapters/slices to maintain a contiguous $1 \dots K$ sequence.
-   - `moveConceptOrder(viewId, conceptId, direction: 'left' | 'right' | 'first' | 'last')`: Helper for step/jump reordering.
-   - `addConceptToView` / creation logic: Automatically assigns `order = siblingCount + 1` (appends at end) or inserts at `insertAfterConceptId` position.
-
-4. **Canvas Component Header Badges (`src/notations/event-modeling/index.tsx`)**:
-   - `EmChapterNode`: Renders a subtle sequence badge on the chapter header (e.g., `[1] Chapter Name`).
-   - `EmSliceNode`: Renders a subtle sequence badge on the slice header (e.g., `1.2 Slice Name` or `[2] Slice Name`).
-
-5. **Inspector Controls (`src/features/properties/Inspector.tsx`)**:
-   - When an `em_chapter` or `em_slice` node is selected:
-     - **Sequence Position Dropdown / Select**: `Position: [ N ▼ ] of Total`. Direct selection instantly jumps the element to position $N$.
-     - **Jump & Step Buttons**: `⏮ First`, `◄ Left`, `► Right`, `⏭ Last`.
-     - **Contextual Creation Button**: `+ Add Slice After` (or `+ Add Chapter After`) creates a new container directly at position $N+1$.
+### 3. Inline Type Editing
+- Clicking on the type label (e.g. `string`, `number`, `boolean`) allows toggling or changing attribute data type inline.

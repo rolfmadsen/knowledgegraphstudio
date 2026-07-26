@@ -26,7 +26,7 @@ export const LEGACY_MODEL_FILENAME = 'model.typegraph.yaml';
 export const LEGACY_VIEWS_FILENAME = 'views.typegraph.yaml';
 
 // Initialize REPO_DIR from localStorage or default to '/workspace'
-export let REPO_DIR = localStorage.getItem(STORAGE_KEY) || '/workspace';
+export let REPO_DIR = typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEY) || '/workspace' : '/workspace';
 export let YAML_PATH = `${REPO_DIR}/${YAML_FILENAME}`;
 export let MODEL_PATH = `${REPO_DIR}/${MODEL_FILENAME}`;
 export let VIEWS_PATH = `${REPO_DIR}/${VIEWS_FILENAME}`;
@@ -39,7 +39,9 @@ export function setRepoDir(newDir: string) {
   YAML_PATH = `${REPO_DIR}/${YAML_FILENAME}`;
   MODEL_PATH = `${REPO_DIR}/${MODEL_FILENAME}`;
   VIEWS_PATH = `${REPO_DIR}/${VIEWS_FILENAME}`;
-  localStorage.setItem(STORAGE_KEY, REPO_DIR);
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem(STORAGE_KEY, REPO_DIR);
+  }
   console.log(`[FileSystem] Active workspace set to: ${REPO_DIR}`);
 }
 

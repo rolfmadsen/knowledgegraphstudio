@@ -39,6 +39,52 @@ export const PADDING_BOTTOM = 36;
 export const PADDING_LEFT = 36;
 export const PADDING_RIGHT = 36;
 
+export function getEstimatedElementWidth(
+  vn?: { width?: number; conceptId?: string; instanceId?: string },
+  concept?: any,
+  rfNode?: any
+): number {
+  if (rfNode?.measured?.width && (rfNode.measured.width as number) > 0) {
+    return rfNode.measured.width as number;
+  }
+  if (rfNode?.style?.width && typeof rfNode.style.width === 'number' && rfNode.style.width > 0) {
+    return rfNode.style.width as number;
+  }
+  if (vn?.width && vn.width > 0) {
+    return vn.width;
+  }
+  if (concept) {
+    const EM_TYPES = ['screen', 'command', 'event', 'domain_event', 'read_model', 'integration_event', 'automation'];
+    if (EM_TYPES.includes(concept.conceptType)) {
+      return 260;
+    }
+  }
+  return 200;
+}
+
+export function getEstimatedElementHeight(
+  vn?: { height?: number; conceptId?: string; instanceId?: string },
+  concept?: any,
+  rfNode?: any
+): number {
+  if (rfNode?.measured?.height && (rfNode.measured.height as number) > 0) {
+    return rfNode.measured.height as number;
+  }
+  if (rfNode?.style?.height && typeof rfNode.style.height === 'number' && rfNode.style.height > 0) {
+    return rfNode.style.height as number;
+  }
+  if (vn?.height && vn.height > 0) {
+    return vn.height;
+  }
+  if (concept) {
+    const EM_TYPES = ['screen', 'command', 'event', 'domain_event', 'read_model', 'integration_event', 'automation'];
+    if (EM_TYPES.includes(concept.conceptType)) {
+      return 130;
+    }
+  }
+  return 80;
+}
+
 function getGroupBounds(
   groupId: string,
   viewNodes: Array<{ conceptId: string; x: number; y: number; width?: number; height?: number; parentId?: string; instanceId?: string }>,
@@ -57,6 +103,7 @@ function getGroupBounds(
     if (conceptType === 'em_slice') {
       const parentId = vn.parentId;
       const parentConcept = parentId ? conceptMap?.get(parentId) : null;
+      let maxElementRight = -Infinity;
       let maxElementBottom = -Infinity;
 
       if (parentConcept && parentConcept.conceptType === 'em_chapter') {
@@ -65,24 +112,34 @@ function getGroupBounds(
           const sliceElements = viewNodes.filter(e => e.parentId === sliceVn.conceptId);
           sliceElements.forEach(el => {
             const rfNode = rfNodesMap?.get(el.conceptId) || rfNodesMap?.get((el as any).instanceId);
-            const h = (rfNode?.measured?.height as number) ?? (rfNode?.style?.height as number) ?? el.height ?? 80;
+            const elConcept = conceptMap?.get(el.conceptId);
+            const w = getEstimatedElementWidth(el, elConcept, rfNode);
+            const h = getEstimatedElementHeight(el, elConcept, rfNode);
+            if (sliceVn.conceptId === groupId || sliceVn.instanceId === groupId) {
+              maxElementRight = Math.max(maxElementRight, el.x + w);
+            }
             maxElementBottom = Math.max(maxElementBottom, el.y + h);
           });
         });
       } else {
         children.forEach(child => {
           const rfNode = rfNodesMap?.get(child.conceptId) || rfNodesMap?.get((child as any).instanceId);
-          let childH = (rfNode?.measured?.height as number) ?? (rfNode?.style?.height as number) ?? child.height ?? 80;
+          const childConcept = conceptMap?.get(child.conceptId);
+          const childW = getEstimatedElementWidth(child, childConcept, rfNode);
+          const childH = getEstimatedElementHeight(child, childConcept, rfNode);
+          maxElementRight = Math.max(maxElementRight, child.x + childW);
           maxElementBottom = Math.max(maxElementBottom, child.y + childH);
         });
       }
 
+      const sliceX = vn.x;
       const sliceY = vn.y;
-      const h = maxElementBottom !== -Infinity ? Math.max(280, (maxElementBottom + 48) - sliceY) : 350;
+      const w = vn.width ?? (maxElementRight !== -Infinity ? Math.max(320, (maxElementRight + 36) - sliceX) : 320);
+      const h = vn.height ?? (maxElementBottom !== -Infinity ? Math.max(350, (maxElementBottom + 36) - sliceY) : 350);
       return {
-        x: vn.x,
+        x: sliceX,
         y: sliceY,
-        w: 320,
+        w,
         h,
       };
     } else if (conceptType === 'em_chapter') {
@@ -117,7 +174,6 @@ function getGroupBounds(
   }
 
   let defaultW = viewType === 'c4' ? 240 : viewType === 'archimate' ? 220 : 240;
-  let defaultH = viewType === 'c4' ? 96 : viewType === 'archimate' ? 76 : 80;
 
   if (children.length === 0) {
     return {
@@ -150,7 +206,7 @@ function getGroupBounds(
 
     const rfNode = rfNodesMap?.get(child.conceptId) || rfNodesMap?.get((child as any).instanceId);
     let w = (rfNode?.measured?.width as number) ?? (rfNode?.style?.width as number) ?? child.width ?? defaultW;
-    let h = (rfNode?.measured?.height as number) ?? (rfNode?.style?.height as number) ?? child.height ?? defaultH;
+    let h = getEstimatedElementHeight(child, childConcept, rfNode);
     minX = Math.min(minX, child.x);
     minY = Math.min(minY, child.y);
     maxX = Math.max(maxX, child.x + w);
@@ -230,7 +286,7 @@ function findAncestorContainer(
   return undefined;
 }
 
-function getOrthogonalParams(
+export function getOrthogonalParams(
   source: InternalNode,
   target: InternalNode,
   layoutAlgorithm?: string,
@@ -262,16 +318,9 @@ function getOrthogonalParams(
     const sourceParentId = source.parentId;
     const targetParentId = target.parentId;
 
-    let crossChapter = false;
-    if (nodesMap) {
-      const sourceChapterId = findAncestorContainer(source, ['em_chapter'], nodesMap)?.id;
-      const targetChapterId = findAncestorContainer(target, ['em_chapter'], nodesMap)?.id;
-      if (sourceChapterId && targetChapterId && sourceChapterId !== targetChapterId) {
-        crossChapter = true;
-      }
-    }
+    const inSameSlice = sourceParentId && targetParentId && sourceParentId === targetParentId;
 
-    if (crossChapter) {
+    if (inSameSlice) {
       if (dy > 0) {
         sourcePosition = Position.Bottom;
         targetPosition = Position.Top;
@@ -280,25 +329,13 @@ function getOrthogonalParams(
         targetPosition = Position.Bottom;
       }
     } else {
-      const inSameSlice = sourceParentId && targetParentId && sourceParentId === targetParentId;
-
-      if (inSameSlice) {
-        if (dy > 0) {
-          sourcePosition = Position.Bottom;
-          targetPosition = Position.Top;
-        } else {
-          sourcePosition = Position.Top;
-          targetPosition = Position.Bottom;
-        }
+      // Different slices or chapters: always Left/Right horizontal flow through the gutter
+      if (dx > 0) {
+        sourcePosition = Position.Right;
+        targetPosition = Position.Left;
       } else {
-        // Different slices: always Left/Right horizontal flow
-        if (dx > 0) {
-          sourcePosition = Position.Right;
-          targetPosition = Position.Left;
-        } else {
-          sourcePosition = Position.Left;
-          targetPosition = Position.Right;
-        }
+        sourcePosition = Position.Left;
+        targetPosition = Position.Right;
       }
     }
   } else if (layoutAlgorithm === 'hierarchical') {
@@ -1198,23 +1235,43 @@ function getEdgePoints(
         let isEmCrossSlice = false;
 
         if (viewType === 'event_modeling' && nodesMap) {
-          const srcSlice = findAncestorContainer(sourceNode, ['em_slice', 'em_chapter'], nodesMap);
-          const tgtSlice = findAncestorContainer(targetNode, ['em_slice', 'em_chapter'], nodesMap);
+          const srcChapter = findAncestorContainer(sourceNode, ['em_chapter'], nodesMap);
+          const tgtChapter = findAncestorContainer(targetNode, ['em_chapter'], nodesMap);
 
-          if (srcSlice && tgtSlice && srcSlice.id !== tgtSlice.id) {
+          if (srcChapter && tgtChapter && srcChapter.id !== tgtChapter.id) {
             isEmCrossSlice = true;
-            const srcSliceX = srcSlice.internals?.positionAbsolute?.x ?? srcSlice.position?.x ?? 0;
-            const srcSliceW = srcSlice.measured?.width ?? 320;
-            const srcSliceRight = srcSliceX + srcSliceW;
+            const srcChapterX = srcChapter.internals?.positionAbsolute?.x ?? srcChapter.position?.x ?? 0;
+            const srcChapterW = srcChapter.measured?.width ?? 600;
+            const srcChapterRight = srcChapterX + srcChapterW;
 
-            const tgtSliceX = tgtSlice.internals?.positionAbsolute?.x ?? tgtSlice.position?.x ?? 0;
-            const tgtSliceW = tgtSlice.measured?.width ?? 320;
-            const tgtSliceRight = tgtSliceX + tgtSliceW;
+            const tgtChapterX = tgtChapter.internals?.positionAbsolute?.x ?? tgtChapter.position?.x ?? 0;
+            const tgtChapterW = tgtChapter.measured?.width ?? 600;
+            const tgtChapterRight = tgtChapterX + tgtChapterW;
 
-            if (srcSliceRight < tgtSliceX) {
-              draggedX = (srcSliceRight + tgtSliceX) / 2;
-            } else if (tgtSliceRight < srcSliceX) {
-              draggedX = (tgtSliceRight + srcSliceX) / 2;
+            if (srcChapterRight < tgtChapterX) {
+              draggedX = (srcChapterRight + tgtChapterX) / 2;
+            } else if (tgtChapterRight < srcChapterX) {
+              draggedX = (tgtChapterRight + srcChapterX) / 2;
+            }
+          } else {
+            const srcSlice = findAncestorContainer(sourceNode, ['em_slice', 'em_chapter'], nodesMap);
+            const tgtSlice = findAncestorContainer(targetNode, ['em_slice', 'em_chapter'], nodesMap);
+
+            if (srcSlice && tgtSlice && srcSlice.id !== tgtSlice.id) {
+              isEmCrossSlice = true;
+              const srcSliceX = srcSlice.internals?.positionAbsolute?.x ?? srcSlice.position?.x ?? 0;
+              const srcSliceW = srcSlice.measured?.width ?? 320;
+              const srcSliceRight = srcSliceX + srcSliceW;
+
+              const tgtSliceX = tgtSlice.internals?.positionAbsolute?.x ?? tgtSlice.position?.x ?? 0;
+              const tgtSliceW = tgtSlice.measured?.width ?? 320;
+              const tgtSliceRight = tgtSliceX + tgtSliceW;
+
+              if (srcSliceRight < tgtSliceX) {
+                draggedX = (srcSliceRight + tgtSliceX) / 2;
+              } else if (tgtSliceRight < srcSliceX) {
+                draggedX = (tgtSliceRight + srcSliceX) / 2;
+              }
             }
           }
         }
@@ -2159,10 +2216,12 @@ export function ReactFlowCanvas({
       }
     });
 
-    // Pre-calculate chapter heights and slice heights for Event Modeling to ensure
-    // consistent column heights and uniform margins.
+    // Pre-calculate chapter heights and slice heights/widths for Event Modeling to ensure
+    // consistent column heights, uniform margins, and prevent horizontal overflow.
     const emChapterHeights = new Map<string, number>();
     const emSliceHeights = new Map<string, number>();
+    const emSliceWidths = new Map<string, number>();
+
     if (view.type === 'event_modeling') {
       const chapters = viewNodes.filter(vn => conceptMap.get(vn.conceptId)?.conceptType === 'em_chapter');
       const slices = viewNodes.filter(vn => conceptMap.get(vn.conceptId)?.conceptType === 'em_slice');
@@ -2175,19 +2234,29 @@ export function ReactFlowCanvas({
         const chapterInstId = chapterVn.instanceId || chapterVn.conceptId;
         const chapterSlices = slices.filter(s => s.parentId === chapterInstId || s.parentId === chapterVn.conceptId);
         let maxElementBottom = -Infinity;
+
         chapterSlices.forEach(sliceVn => {
           const sliceInstId = sliceVn.instanceId || sliceVn.conceptId;
           const sliceElements = elements.filter(e => e.parentId === sliceInstId || e.parentId === sliceVn.conceptId);
+          let sliceRight = -Infinity;
+
           sliceElements.forEach(el => {
             const rfNode = reactFlow.getNode(el.instanceId || el.conceptId);
-            const h = (rfNode?.measured?.height as number) ?? (rfNode?.style?.height as number) ?? el.height ?? 80;
+            const elConcept = conceptMap.get(el.conceptId);
+            const w = getEstimatedElementWidth(el, elConcept, rfNode);
+            const h = getEstimatedElementHeight(el, elConcept, rfNode);
+            sliceRight = Math.max(sliceRight, el.x + w);
             maxElementBottom = Math.max(maxElementBottom, el.y + h);
           });
+
+          const sliceX = sliceVn.x;
+          const wSlice = sliceVn.width ?? (sliceRight !== -Infinity ? Math.max(320, (sliceRight + 36) - sliceX) : 320);
+          emSliceWidths.set(sliceInstId, wSlice);
         });
 
         const sliceY = chapterVn.y + 48; // CHAPTER_PADDING
         const hSlice = maxElementBottom !== -Infinity
-          ? Math.max(300, (maxElementBottom + 30) - sliceY)
+          ? Math.max(350, (maxElementBottom + 36) - sliceY)
           : 350;
         const hChapter = hSlice + 96; // 48 padding top + 48 padding bottom
 
@@ -2196,6 +2265,35 @@ export function ReactFlowCanvas({
           const sliceInstId = sliceVn.instanceId || sliceVn.conceptId;
           emSliceHeights.set(sliceInstId, hSlice);
         });
+      });
+
+      // Calculate heights and widths for standalone/orphaned slices not attached to a chapter
+      const chapterInstIds = new Set(chapters.map(c => c.instanceId || c.conceptId));
+      const standaloneSlices = slices.filter(s => !s.parentId || !chapterInstIds.has(s.parentId));
+      standaloneSlices.forEach(sliceVn => {
+        const sliceInstId = sliceVn.instanceId || sliceVn.conceptId;
+        const sliceElements = elements.filter(e => e.parentId === sliceInstId || e.parentId === sliceVn.conceptId);
+        let maxElementRight = -Infinity;
+        let maxElementBottom = -Infinity;
+
+        sliceElements.forEach(el => {
+          const rfNode = reactFlow.getNode(el.instanceId || el.conceptId);
+          const elConcept = conceptMap.get(el.conceptId);
+          const w = getEstimatedElementWidth(el, elConcept, rfNode);
+          const h = getEstimatedElementHeight(el, elConcept, rfNode);
+          maxElementRight = Math.max(maxElementRight, el.x + w);
+          maxElementBottom = Math.max(maxElementBottom, el.y + h);
+        });
+
+        const sliceX = sliceVn.x;
+        const sliceY = sliceVn.y;
+        const wSlice = sliceVn.width ?? (maxElementRight !== -Infinity ? Math.max(320, (maxElementRight + 36) - sliceX) : 320);
+        const hSlice = maxElementBottom !== -Infinity
+          ? Math.max(350, (maxElementBottom + 36) - sliceY)
+          : 350;
+
+        emSliceWidths.set(sliceInstId, wSlice);
+        emSliceHeights.set(sliceInstId, hSlice);
       });
     }
 
@@ -2230,13 +2328,13 @@ export function ReactFlowCanvas({
       const childIds = groupChildrenMap.get(vnInstId) || groupChildrenMap.get(vn.conceptId) || [];
 
       if (childIds.length === 0) {
-        let w = vn.width ?? (view.type === 'event_modeling' ? (c.conceptType === 'em_chapter' ? 600 : 320) : (view.type === 'c4' ? 280 : 240));
-        let h = vn.height ?? (view.type === 'event_modeling' ? (c.conceptType === 'em_chapter' ? 600 : 500) : (view.type === 'c4' ? 160 : 140));
+        let w = vn.width ?? (view.type === 'event_modeling' ? (c.conceptType === 'em_chapter' ? 600 : (emSliceWidths.get(vnInstId) ?? 320)) : (view.type === 'c4' ? 280 : 240));
+        let h = vn.height ?? (view.type === 'event_modeling' ? (c.conceptType === 'em_chapter' ? 600 : (emSliceHeights.get(vnInstId) ?? 350)) : (view.type === 'c4' ? 160 : 140));
 
         if (view.type === 'event_modeling') {
           if (c.conceptType === 'em_slice') {
-            h = emSliceHeights.get(vnInstId) ?? 500;
-            w = vn.width ?? 320;
+            h = emSliceHeights.get(vnInstId) ?? 350;
+            w = emSliceWidths.get(vnInstId) ?? vn.width ?? 320;
           } else if (c.conceptType === 'em_chapter') {
             h = emChapterHeights.get(vnInstId) ?? 600;
             w = 600;
@@ -2270,12 +2368,12 @@ export function ReactFlowCanvas({
           if (!childVn) return;
           const childConcept = conceptMap.get(childVn.conceptId);
           const rfNode = reactFlow.getNode(cid) || (childVn.instanceId ? reactFlow.getNode(childVn.instanceId) : undefined);
-          let w = (rfNode?.measured?.width as number) ?? (rfNode?.style?.width as number) ?? childVn.width ?? 200;
-          let h = (rfNode?.measured?.height as number) ?? (rfNode?.style?.height as number) ?? childVn.height ?? 80;
+          let w = getEstimatedElementWidth(childVn, childConcept, rfNode);
+          let h = getEstimatedElementHeight(childVn, childConcept, rfNode);
           if (view.type === 'event_modeling') {
             if (childConcept?.conceptType === 'em_slice') {
-              w = childVn.width ?? 320;
-              h = childVn.height ?? 500;
+              w = emSliceWidths.get(cid) ?? childVn.width ?? 320;
+              h = emSliceHeights.get(cid) ?? childVn.height ?? 350;
             }
           }
           minX = Math.min(minX, childVn.x);
@@ -2286,8 +2384,8 @@ export function ReactFlowCanvas({
 
         if (view.type === 'event_modeling') {
           if (c.conceptType === 'em_slice') {
-            const h = emSliceHeights.get(vnInstId) ?? 500;
-            const w = vn.width ?? (maxX !== -Infinity && minX !== Infinity ? Math.max(320, maxX - minX + 60) : 320);
+            const h = emSliceHeights.get(vnInstId) ?? 350;
+            const w = emSliceWidths.get(vnInstId) ?? vn.width ?? (maxX !== -Infinity && minX !== Infinity ? Math.max(320, (maxX + 36) - vn.x) : 320);
             groupBounds.set(vnInstId, {
               x: vn.x,
               y: vn.y,
@@ -2429,9 +2527,12 @@ export function ReactFlowCanvas({
 
       const nodeInstanceId = vn.instanceId || vn.conceptId;
       const depth = getDepth(nodeInstanceId);
+
+      const isSelectedConcept = selectedConceptIds.includes(c.id);
+
       const calculatedZIndex = isGroup
         ? (c.conceptType === 'em_chapter' ? 0 : 1)
-        : (100 + depth * 10);
+        : (isSelectedConcept ? 1000 : 100 + depth * 10);
 
       const nodeStyle: React.CSSProperties = {
         ...style,
