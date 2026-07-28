@@ -10,7 +10,6 @@ import {
   type NodeChange,
   type OnConnect,
   type NodeMouseHandler,
-  Controls,
   type InternalNode,
   useInternalNode,
   useStore,
@@ -27,7 +26,6 @@ import '@xyflow/react/dist/style.css';
 import type { NotationCanvasProps } from '../../../notations/types';
 import { NotationRegistry } from '../../../notations/NotationRegistry';
 import { useGraphStore, isEdgeVisibleForInstances, normalizeViewNodes } from '../../../store/useGraphStore';
-import { useShallow } from 'zustand/react/shallow';
 import { type ConceptNode, type ElementId, toElementId, type ViewType, type ConceptType } from '../../../schema/graphSchema';
 import { getDynamicConnection, getClosestPosition } from '../../../utils/edgeRouting';
 
@@ -92,12 +90,12 @@ function getGroupBounds(
   conceptMap?: Map<string, any>,
   rfNodesMap?: Map<string, any>
 ) {
-  const vn = viewNodes.find(n => n.conceptId === groupId);
+  const vn = viewNodes.find(n => n.conceptId === groupId || (n as any).instanceId === groupId);
   if (!vn) return null;
 
-  const children = viewNodes.filter(n => n.parentId === groupId);
-  const concept = conceptMap?.get(groupId);
+  const concept = conceptMap?.get(vn.conceptId);
   const conceptType = concept?.conceptType;
+  const children = viewNodes.filter(n => n.parentId === groupId || (vn.instanceId && n.parentId === vn.instanceId) || (vn.conceptId && n.parentId === vn.conceptId));
 
   if (viewType === 'event_modeling') {
     if (conceptType === 'em_slice') {
@@ -192,7 +190,7 @@ function getGroupBounds(
   children.forEach(child => {
     // If the child is a group itself, we compute its bounds recursively
     const childConcept = conceptMap?.get(child.conceptId);
-    const isChildGroup = childConcept && (childConcept.conceptType === 'bounded_context' || childConcept.conceptType === 'em_chapter' || childConcept.conceptType === 'em_slice');
+    const isChildGroup = childConcept && (childConcept.conceptType === 'domain' || childConcept.conceptType === 'bounded_context' || childConcept.conceptType === 'em_chapter' || childConcept.conceptType === 'em_slice');
     if (isChildGroup) {
       const cb = getGroupBounds(child.conceptId, viewNodes, viewType, conceptMap, rfNodesMap);
       if (cb) {
@@ -733,7 +731,7 @@ function getEdgePoints(
           const xMin = Math.min(sx, tx);
           const xMax = Math.max(sx, tx);
           const intermediateNodes: any[] = [];
-          
+
           const yMinPath = Math.min(sy_center, ty_center);
           const yMaxPath = Math.max(sy_center, ty_center);
           for (const [id, node] of nodesMap.entries()) {
@@ -786,7 +784,7 @@ function getEdgePoints(
           const xMinPath = Math.min(sx, tx);
           const xMaxPath = Math.max(sx, tx);
           const intermediateNodes: any[] = [];
-          
+
           for (const [id, node] of nodesMap.entries()) {
             if (id === e.source || id === e.target) continue;
             if (node.type !== 'conceptNode') continue;
@@ -837,7 +835,7 @@ function getEdgePoints(
           const t2 = getEdgeTypeString(e2);
           const idx1 = TYPE_ORDER.indexOf(t1);
           const idx2 = TYPE_ORDER.indexOf(t2);
-          
+
           if (idx1 !== idx2) {
             return idx1 - idx2;
           }
@@ -1080,7 +1078,7 @@ function getEdgePoints(
             const cy = chNode.internals?.positionAbsolute?.y ?? chNode.position?.y ?? 0;
             const ch = chNode.measured?.height ?? 0;
             if (ch > 0) return cy + ch;
-            
+
             let maxBottom = cy;
             for (const [id, node] of nodesMap.entries()) {
               if (id === chapterId) continue;
@@ -1101,7 +1099,7 @@ function getEdgePoints(
             const srcBottom = getChapterBottom(srcChapter.id);
             const tgtY = tgtChapter.internals?.positionAbsolute?.y ?? tgtChapter.position?.y ?? 0;
             const tgtBottom = getChapterBottom(tgtChapter.id);
-            
+
             if (srcBottom < tgtY) {
               emGutterY = (srcBottom + tgtY) / 2;
             } else if (tgtBottom < srcY) {
@@ -1543,11 +1541,11 @@ function FloatingEdge({ id, source, target, style, label, labelStyle, selected, 
   const relationId = (data?.relationId as ElementId) || toElementId(id.split('__')[0]);
   const customLayout = layoutAlgorithm === 'manual'
     ? viewEdges?.find((ve) => {
-        if (ve.relationId !== relationId) return false;
-        const matchSrc = ve.sourceInstanceId ? ve.sourceInstanceId === source : true;
-        const matchTgt = ve.targetInstanceId ? ve.targetInstanceId === target : true;
-        return matchSrc && matchTgt;
-      })
+      if (ve.relationId !== relationId) return false;
+      const matchSrc = ve.sourceInstanceId ? ve.sourceInstanceId === source : true;
+      const matchTgt = ve.targetInstanceId ? ve.targetInstanceId === target : true;
+      return matchSrc && matchTgt;
+    })
     : undefined;
   const isDragging = draggedSegment !== null;
 
@@ -2053,39 +2051,13 @@ export function ReactFlowCanvas({
 
   const currentAlgo = view.layoutAlgorithm;
   const containerRef = useRef<HTMLDivElement>(null);
-  const hintsRef = useRef<HTMLDivElement>(null);
-  const hintsObserverRef = useRef<ResizeObserver | null>(null);
-  const hintsRefCallback = useCallback((node: HTMLDivElement | null) => {
-    (hintsRef as any).current = node;
 
-    if (hintsObserverRef.current) {
-      hintsObserverRef.current.disconnect();
-      hintsObserverRef.current = null;
-    }
 
-    if (node) {
-      useGraphStore.getState().setFooterHintsWidth(node.getBoundingClientRect().width);
 
-      const observer = new ResizeObserver((entries) => {
-        for (const entry of entries) {
-          useGraphStore.getState().setFooterHintsWidth(entry.target.getBoundingClientRect().width);
-        }
-      });
-      observer.observe(node);
-      hintsObserverRef.current = observer;
-    }
-  }, []);
-
-  const { canvasWidth, footerLayoutWidth, footerHintsWidth } = useGraphStore(
-    useShallow((s) => ({
-      canvasWidth: s.canvasWidth,
-      footerLayoutWidth: s.footerLayoutWidth,
-      footerHintsWidth: s.footerHintsWidth,
-    }))
-  );
 
   const activeDraggingNode = useRef<ElementId | null>(null);
   const selectedConceptIdRef = useRef(selectedConceptId);
+  const canvasWidth = useGraphStore((s) => s.canvasWidth);
 
   const reactFlow = useReactFlow();
   const centerSelectionCount = useGraphStore((s) => s.centerSelectionCount);
@@ -2303,7 +2275,7 @@ export function ReactFlowCanvas({
     // so that child group bounds are calculated before parent groups recalculate their bounds.
     const groupNodes = viewNodes.filter((vn) => {
       const c = conceptMap.get(vn.conceptId);
-      return c && (c.conceptType === 'bounded_context' || c.conceptType === 'em_chapter' || c.conceptType === 'em_slice');
+      return c && (c.conceptType === 'domain' || c.conceptType === 'bounded_context' || c.conceptType === 'em_chapter' || c.conceptType === 'em_slice');
     });
 
     const groupDepthMap = new Map<string, number>();
@@ -2384,8 +2356,16 @@ export function ReactFlowCanvas({
 
         if (view.type === 'event_modeling') {
           if (c.conceptType === 'em_slice') {
-            const h = emSliceHeights.get(vnInstId) ?? 350;
-            const w = emSliceWidths.get(vnInstId) ?? vn.width ?? (maxX !== -Infinity && minX !== Infinity ? Math.max(320, (maxX + 36) - vn.x) : 320);
+            const minSliceW = 320;
+            const calculatedW = (maxX !== -Infinity && minX !== Infinity) ? Math.max(minSliceW, (maxX + 30) - vn.x) : minSliceW;
+            const storedW = emSliceWidths.get(vnInstId) ?? vn.width;
+            const w = storedW ? Math.max(storedW, calculatedW) : calculatedW;
+
+            const minSliceH = 350;
+            const calculatedH = (maxY !== -Infinity && minY !== Infinity) ? Math.max(minSliceH, (maxY + 30) - vn.y) : minSliceH;
+            const storedH = emSliceHeights.get(vnInstId) ?? vn.height;
+            const h = storedH ? Math.max(storedH, calculatedH) : calculatedH;
+
             groupBounds.set(vnInstId, {
               x: vn.x,
               y: vn.y,
@@ -2455,9 +2435,9 @@ export function ReactFlowCanvas({
       const c = conceptMap.get(vn.conceptId);
       if (!c) return [];
 
-      const isGroup = c.conceptType === 'bounded_context' || c.conceptType === 'em_chapter' || c.conceptType === 'em_slice';
+      const isGroup = c.conceptType === 'domain' || c.conceptType === 'bounded_context' || c.conceptType === 'em_chapter' || c.conceptType === 'em_slice';
       const parentConcept = vn.parentId ? conceptMap.get(vn.parentId) : undefined;
-      const parentId = vn.parentId && nodesMap.has(vn.parentId) && parentConcept && (parentConcept.conceptType === 'bounded_context' || parentConcept.conceptType === 'em_chapter' || parentConcept.conceptType === 'em_slice') ? vn.parentId : undefined;
+      const parentId = vn.parentId && nodesMap.has(vn.parentId) && parentConcept && (parentConcept.conceptType === 'domain' || parentConcept.conceptType === 'bounded_context' || parentConcept.conceptType === 'em_chapter' || parentConcept.conceptType === 'em_slice') ? vn.parentId : undefined;
 
       const nodeInstId = (vn.instanceId || vn.conceptId) as ElementId;
 
@@ -2542,7 +2522,7 @@ export function ReactFlowCanvas({
       const isInstanceSelected = selectedInstanceId
         ? nodeInstanceId === selectedInstanceId
         : (selectedConceptIds.includes(c.id) &&
-           nodeInstanceId === (viewNodes.find(vn => vn.conceptId === c.id)?.instanceId || c.id));
+          nodeInstanceId === (viewNodes.find(vn => vn.conceptId === c.id)?.instanceId || c.id));
 
       return [{
         id: nodeInstanceId,
@@ -4008,9 +3988,7 @@ export function ReactFlowCanvas({
     }
   }, [connectingSourceId, handleDeleteClick]);
 
-  const hintsWidth = footerHintsWidth || hintsRef.current?.getBoundingClientRect().width || 380;
-  const layoutWidth = footerLayoutWidth || 270;
-  const shouldStack = canvasWidth > 0 && canvasWidth < layoutWidth + hintsWidth + 220;
+
 
   const onDragOverCanvas = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -4037,7 +4015,7 @@ export function ReactFlowCanvas({
     // Search for a slice or chapter container under the drop coordinates
     for (const vn of viewNodes) {
       const c = conceptMap.get(vn.conceptId);
-      if (!c || (c.conceptType !== 'em_slice' && c.conceptType !== 'em_chapter' && c.conceptType !== 'bounded_context')) continue;
+      if (!c || (c.conceptType !== 'domain' && c.conceptType !== 'em_slice' && c.conceptType !== 'em_chapter' && c.conceptType !== 'bounded_context')) continue;
 
       const bounds = getGroupBounds(vn.conceptId, viewNodes, view.type, conceptMap);
       if (bounds) {
@@ -4158,16 +4136,14 @@ export function ReactFlowCanvas({
                   aria-selected={idx === comboboxSelectedIndex}
                   onClick={() => handleSelectConnectTargetConcept(c)}
                   onMouseEnter={() => setComboboxSelectedIndex(idx)}
-                  className={`flex items-center justify-between px-3 py-2 rounded-xl text-left text-[11px] transition-all cursor-pointer outline-none ${
-                    idx === comboboxSelectedIndex
+                  className={`flex items-center justify-between px-3 py-2 rounded-xl text-left text-[11px] transition-all cursor-pointer outline-none ${idx === comboboxSelectedIndex
                       ? 'bg-slate-100/90 border border-slate-300/80 shadow-sm text-slate-900 font-bold'
                       : 'border border-transparent hover:bg-slate-50 text-slate-700 font-medium'
-                  }`}
+                    }`}
                 >
                   <span className="truncate mr-2">{c.name}</span>
-                  <span className={`text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded shrink-0 ${
-                    idx === comboboxSelectedIndex ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-500 border border-slate-200'
-                  }`}>
+                  <span className={`text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded shrink-0 ${idx === comboboxSelectedIndex ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-500 border border-slate-200'
+                    }`}>
                     {c.conceptType.replace('_', ' ')}
                   </span>
                 </button>
@@ -4205,14 +4181,14 @@ export function ReactFlowCanvas({
           deleteKeyCode={null}
           snapToGrid={true}
           snapGrid={[24, 24]}
-          proOptions={{ hideAttribution: true }}
+          minZoom={0.005}
+          maxZoom={3.0}
           fitView
-          fitViewOptions={{ maxZoom: 1.0 }}
+          fitViewOptions={{ padding: 0.1, minZoom: 0.005, maxZoom: 1.0 }}
           panOnScroll={true}
           zoomActivationKeyCode={['Control', 'Meta', 'Command']}
         >
           <Background variant={BackgroundVariant.Dots} color="#1C1917" gap={24} size={1} style={{ opacity: 0.05 }} />
-          <Controls showInteractive={false} fitViewOptions={{ maxZoom: 1.0 }} className="!bg-white !border-slate-200 !shadow-studio !rounded-xl !mb-6 !ml-6 p-1 flex flex-col gap-1 overflow-hidden" />
 
           {/* Top Quick Actions Toolbar */}
           {showToolbar && topActions.length > 0 && (
@@ -4336,8 +4312,8 @@ export function ReactFlowCanvas({
                     ${(connectingSourceId === selectedConceptId || connectingSourceId === selectedInstanceId)
                       ? 'text-emerald-500 bg-emerald-50'
                       : focusedToolbarButtonId === 'bottom-connect'
-                      ? 'ring-2 ring-emerald-400 scale-[1.08] shadow-md text-emerald-500 bg-emerald-50'
-                      : 'text-slate-400 hover:text-emerald-500 hover:bg-emerald-50/50'
+                        ? 'ring-2 ring-emerald-400 scale-[1.08] shadow-md text-emerald-500 bg-emerald-50'
+                        : 'text-slate-400 hover:text-emerald-500 hover:bg-emerald-50/50'
                     }`}
                 >
                   <ArrowUpRight size={15} strokeWidth={2.5} />
@@ -4392,41 +4368,6 @@ export function ReactFlowCanvas({
         </ReactFlow>
       </div>
 
-      {/* Spatial Navigation Keyboard Hint */}
-      <div
-        ref={hintsRefCallback}
-        className={`absolute z-[100] flex items-center gap-2 px-4 h-10 bg-white/90 backdrop-blur-xl border border-slate-200/80 rounded-2xl shadow-xl shadow-slate-200/60 pointer-events-none select-none transition-all duration-300
-          ${shouldStack
-            ? 'bottom-6 left-1/2 -translate-x-1/2'
-            : 'bottom-6 left-auto right-24 translate-x-0'
-          }
-        `}
-      >
-        <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Nodes:</span>
-        <div className="flex gap-0.5">
-          <kbd className="px-1.5 py-0.5 text-[9px] font-black text-slate-500 bg-slate-100 border border-slate-200 rounded">▲</kbd>
-          <kbd className="px-1.5 py-0.5 text-[9px] font-black text-slate-500 bg-slate-100 border border-slate-200 rounded">▼</kbd>
-          <kbd className="px-1.5 py-0.5 text-[9px] font-black text-slate-500 bg-slate-100 border border-slate-200 rounded">◀</kbd>
-          <kbd className="px-1.5 py-0.5 text-[9px] font-black text-slate-500 bg-slate-100 border border-slate-200 rounded">▶</kbd>
-        </div>
-        <div className="w-px h-4 bg-slate-200 mx-1" />
-        <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Edges:</span>
-        <div className="flex items-center gap-1">
-          <kbd className="px-1.5 py-0.5 text-[9px] font-black text-slate-500 bg-slate-100 border border-slate-200 rounded">Alt</kbd>
-          <span className="text-[9px] font-bold text-slate-400">+</span>
-          <div className="flex gap-0.5">
-            <kbd className="px-1.5 py-0.5 text-[9px] font-black text-slate-500 bg-slate-100 border border-slate-200 rounded">▲</kbd>
-            <kbd className="px-1.5 py-0.5 text-[9px] font-black text-slate-500 bg-slate-100 border border-slate-200 rounded">▼</kbd>
-            <kbd className="px-1.5 py-0.5 text-[9px] font-black text-slate-500 bg-slate-100 border border-slate-200 rounded">◀</kbd>
-            <kbd className="px-1.5 py-0.5 text-[9px] font-black text-slate-500 bg-slate-100 border border-slate-200 rounded">▶</kbd>
-          </div>
-        </div>
-        <div className="w-px h-4 bg-slate-200 mx-1" />
-        <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Delete:</span>
-        <div className="flex items-center gap-1">
-          <kbd className="px-1.5 py-0.5 text-[9px] font-black text-slate-500 bg-slate-100 border border-slate-200 rounded">Del</kbd>
-        </div>
-      </div>
     </div>
   );
 }

@@ -334,7 +334,13 @@ export function getNodeAbsolutePosition(
 
 function EmElementNode({ data, selected }: NodeProps<EmNodeType>) {
   const conceptType = (data.concept?.conceptType as string) ?? 'other';
-  const style = EM_STYLES[conceptType];
+  const style = EM_STYLES[conceptType] ?? {
+    bg: 'bg-slate-50',
+    border: 'border-slate-400',
+    label: 'text-slate-700',
+    badge: 'bg-slate-100 border-slate-300',
+    badgeText: 'text-slate-700',
+  };
   const typeLabel = EM_TYPE_LABELS[conceptType] ?? conceptType.toUpperCase();
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
   const [isPayloadSpecModalOpen, setIsPayloadSpecModalOpen] = useState(false);

@@ -3,8 +3,23 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { nodePolyfills } from 'vite-plugin-node-polyfills'
 
+import path from 'path';
+import fs from 'fs';
+
+const hasJointJS = fs.existsSync(path.resolve(__dirname, 'node_modules/jointjs'));
+
 // https://vite.dev/config/
 export default defineConfig({
+  resolve: {
+    alias: {
+      ...(!hasJointJS
+        ? {
+            jointjs: path.resolve(__dirname, 'src/features/jointjs/jointjsRuntimeShim.ts'),
+            '@joint/react': path.resolve(__dirname, 'src/features/jointjs/jointjsRuntimeShim.ts'),
+          }
+        : {}),
+    },
+  },
   plugins: [
     tailwindcss(),
     react(),

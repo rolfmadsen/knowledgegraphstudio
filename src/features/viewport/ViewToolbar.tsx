@@ -1,8 +1,8 @@
 import { useRef, useCallback } from 'react';
 import { useGraphStore } from '../../store/useGraphStore';
-import { useShallow } from 'zustand/react/shallow';
-import { Shuffle, Hand, AlignVerticalDistributeCenter, Zap } from 'lucide-react';
-import type { LayoutAlgorithm } from '../../schema/graphSchema';
+import { Shuffle, Hand, AlignVerticalDistributeCenter, Zap, Grid } from 'lucide-react';
+import type { LayoutAlgorithm, ElementId } from '../../schema/graphSchema';
+import { apply5ColumnMatrixLayoutToStore } from '../jointjs/matrixLayout';
 
 const LAYOUT_OPTIONS: Array<{
   algo: LayoutAlgorithm;
@@ -21,6 +21,12 @@ const LAYOUT_OPTIONS: Array<{
     label: 'Tree (T-D)',
     icon: <AlignVerticalDistributeCenter size={10} strokeWidth={3} />,
     description: 'Top-down hierarchical flow',
+  },
+  {
+    algo: 'orthogonal',
+    label: '5-Col JointJS',
+    icon: <Grid size={10} strokeWidth={3} />,
+    description: '5-column 2D matrix layout with Manhattan 90° routing',
   },
   {
     algo: 'manual',
@@ -54,14 +60,7 @@ export function ViewToolbar() {
     }
   }, []);
 
-  const { activeView, canvasWidth, footerLayoutWidth, footerHintsWidth } = useGraphStore(
-    useShallow((s) => ({
-      activeView: s.views.find((v) => v.id === s.activeViewId),
-      canvasWidth: s.canvasWidth,
-      footerLayoutWidth: s.footerLayoutWidth,
-      footerHintsWidth: s.footerHintsWidth,
-    })),
-  );
+  const activeView = useGraphStore((s) => s.views.find((v) => v.id === s.activeViewId));
 
   if (!activeView) return null;
 
@@ -69,6 +68,11 @@ export function ViewToolbar() {
   const isAutoLayout = currentAlgo !== 'manual';
 
   const handleLayoutChange = (algo: LayoutAlgorithm) => {
+    if (algo === 'orthogonal') {
+      apply5ColumnMatrixLayoutToStore(activeView.id as ElementId);
+      return;
+    }
+
     // Update layoutAlgorithm on the view via a proper store setState call
     useGraphStore.setState((s) => ({
       views: s.views.map((v) => {
@@ -76,10 +80,6 @@ export function ViewToolbar() {
 
         let nodes = v.nodes;
         if (algo === 'manual') {
-          // Always freeze the current x/y (latest auto-layout positions) as the new manual
-          // positions. We deliberately do NOT prefer old manualX/Y here because batchUpdateViewNodePositions
-          // (used by the layout engine) only updates x/y — leaving manualX/Y stale. Using stale
-          // manualX/Y would cause nodes to "bunch" at their old positions from a prior MANUAL session.
           nodes = v.nodes.map((n) => ({
             ...n,
             x: n.manualX ?? n.x,
@@ -98,9 +98,8 @@ export function ViewToolbar() {
       }),
     }));
 
-    // Trigger auto-layout for algorithmic modes (manual skips layout in the worker)
+    // Trigger auto-layout for algorithmic modes
     if (algo !== 'manual') {
-      // Small delay to let the state update propagate before the worker reads activeViewRef
       setTimeout(() => {
         useGraphStore.setState((s) => ({ layoutVersion: s.layoutVersion + 1 }));
       }, 20);
@@ -108,21 +107,16 @@ export function ViewToolbar() {
   };
 
   const handleReLayout = () => {
-    useGraphStore.setState((s) => ({ layoutVersion: s.layoutVersion + 1 }));
+    if (currentAlgo === 'orthogonal') {
+      apply5ColumnMatrixLayoutToStore(activeView.id as ElementId);
+    } else {
+      useGraphStore.setState((s) => ({ layoutVersion: s.layoutVersion + 1 }));
+    }
   };
-
-  const layoutWidth = footerLayoutWidth || innerRef.current?.getBoundingClientRect().width || 270;
-  const hintsWidth = footerHintsWidth || 380;
-  const shouldStack = canvasWidth > 0 && canvasWidth < layoutWidth + hintsWidth + 220;
 
   return (
     <div
-      className={`absolute z-[110] flex items-center gap-2 select-none transition-all duration-300
-        ${shouldStack 
-          ? 'bottom-20 left-1/2 -translate-x-1/2' 
-          : 'bottom-6 left-20 translate-x-0'
-        }
-      `}
+      className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[110] flex items-center gap-2 select-none transition-all duration-300"
     >
       <div 
         ref={toolbarRefCallback}
