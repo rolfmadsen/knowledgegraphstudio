@@ -1,5 +1,5 @@
 import { useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
-import * as joint from 'jointjs';
+import * as joint from '@joint/core';
 import { mapGraphToJointCells, type JointMapperInput } from './jointMapper';
 import { renderNodeHTML } from './renderNode';
 import type { ConceptNode, ElementId } from '../../schema/graphSchema';

@@ -1,4 +1,4 @@
-import * as joint from 'jointjs';
+import * as joint from '@joint/core';
 import type { ConceptNode, ConceptRelation, ViewNode, ViewEdge } from '../../schema/graphSchema';
 
 export interface JointMapperInput {

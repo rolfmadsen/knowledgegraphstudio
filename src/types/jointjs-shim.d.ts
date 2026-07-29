@@ -1,4 +1,4 @@
-declare module 'jointjs' {
+declare module '@joint/core' {
   export namespace dia {
     export class Graph {
       constructor(attributes?: any, options?: any);
@@ -53,8 +53,6 @@ declare module 'jointjs' {
   }
 }
 
-declare module '@joint/react' {
-  import React from 'react';
-  export const GraphProvider: React.FC<{ children?: React.ReactNode }>;
-  export const Paper: React.FC<any>;
+declare module 'jointjs' {
+  export * from '@joint/core';
 }

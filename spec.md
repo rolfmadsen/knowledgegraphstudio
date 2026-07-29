@@ -3,11 +3,9 @@
 ## Overview
 Implement JointJS / @joint/react integration for Knowledge Graph Studio across 5 sequential phases, providing native Manhattan 90° orthogonal edge routing, HTML/React node rendering, Zustand store synchronization, Cmd+K search-and-pan navigation, minimap, and a 5-column 2D matrix layout engine.
 
-## 5-Phase Breakdown & Technical Requirements
-
-### Phase 1: Package Installation & Data Mapper Layer
-- Install `@joint/react` and `jointjs`.
-- Implement `src/features/jointjs/jointMapper.ts` to convert Zustand `concepts`, `relations`, and active view nodes/edges to `@joint/react` cells (`dia.Element` and `dia.Link`).
+## Core Directives & Architectural Principles
+- Install `@joint/core` (^4.3.1) and `@joint/react` (^4.3.2).
+- Implement `src/features/jointjs/jointMapper.ts` to convert Zustand `concepts`, `relations`, and active view nodes/edges to JointJS cells (`dia.Element` and `dia.Link`).
 - Use Manhattan 90° orthogonal router (`router: { name: 'manhattan' }`) with rounded connectors (`connector: { name: 'rounded' }`).
 - Include unit tests verifying mapper correctness.
 

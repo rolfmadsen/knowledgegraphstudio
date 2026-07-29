@@ -6,7 +6,7 @@ import { nodePolyfills } from 'vite-plugin-node-polyfills'
 import path from 'path';
 import fs from 'fs';
 
-const hasJointJS = fs.existsSync(path.resolve(__dirname, 'node_modules/jointjs'));
+const hasJointJS = fs.existsSync(path.resolve(__dirname, 'node_modules/@joint/core')) || fs.existsSync(path.resolve(__dirname, 'node_modules/jointjs'));
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -14,6 +14,7 @@ export default defineConfig({
     alias: {
       ...(!hasJointJS
         ? {
+            '@joint/core': path.resolve(__dirname, 'src/features/jointjs/jointjsRuntimeShim.ts'),
             jointjs: path.resolve(__dirname, 'src/features/jointjs/jointjsRuntimeShim.ts'),
             '@joint/react': path.resolve(__dirname, 'src/features/jointjs/jointjsRuntimeShim.ts'),
           }

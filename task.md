@@ -1,4 +1,4 @@
-# Task: JointJS / @joint/react Canvas Integration & 5-Phase Implementation
+# Task: JointJS Canvas Integration & 5-Phase Implementation
 
 ## Goal
 Execute all 5 phases of the JointJS canvas integration, including TDD tests, Zustand store synchronization, Cmd+K search-and-pan, minimap, and 5-column orthogonal matrix layout engine.

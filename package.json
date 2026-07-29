@@ -36,8 +36,8 @@
     "zod": "^4.4.3",
     "zundo": "^2.3.0",
     "zustand": "^5.0.14",
-    "@joint/react": "^0.7.2",
-    "jointjs": "^4.0.4"
+    "@joint/core": "^4.3.1",
+    "@joint/react": "^4.3.2"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
