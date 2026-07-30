@@ -764,10 +764,13 @@ export const useGraphStore = create<GraphStoreState>()(
       updateViewNodePosition: (viewId, targetId, x, y) => {
         const view = get().views.find((v) => v.id === viewId);
         if (!view) return;
+        const GRID_SIZE = 24;
+        const snappedX = Math.round(x / GRID_SIZE) * GRID_SIZE;
+        const snappedY = Math.round(y / GRID_SIZE) * GRID_SIZE;
         const node = view.nodes.find((n) => (n.instanceId ? n.instanceId === targetId : n.conceptId === targetId));
         const effectiveManualX = node?.manualX ?? node?.x;
         const effectiveManualY = node?.manualY ?? node?.y;
-        if (node && node.x === x && node.y === y && effectiveManualX === x && effectiveManualY === y) {
+        if (node && node.x === snappedX && node.y === snappedY && effectiveManualX === snappedX && effectiveManualY === snappedY) {
           return;
         }
         set((s) => ({
@@ -776,7 +779,7 @@ export const useGraphStore = create<GraphStoreState>()(
               ...v,
               nodes: v.nodes.map((n) => {
                 const isMatch = n.instanceId ? n.instanceId === targetId : n.conceptId === targetId;
-                return !isMatch ? n : { ...n, x, y, manualX: x, manualY: y };
+                return !isMatch ? n : { ...n, x: snappedX, y: snappedY, manualX: snappedX, manualY: snappedY };
               }),
             },
           ),
@@ -787,8 +790,14 @@ export const useGraphStore = create<GraphStoreState>()(
       batchUpdateViewNodePositions: (viewId, positions) => {
         const view = get().views.find((v) => v.id === viewId);
         if (!view) return;
+        const GRID_SIZE = 24;
+        const snappedPositions = positions.map((p) => ({
+          ...p,
+          x: Math.round(p.x / GRID_SIZE) * GRID_SIZE,
+          y: Math.round(p.y / GRID_SIZE) * GRID_SIZE,
+        }));
         let changed = false;
-        for (const p of positions) {
+        for (const p of snappedPositions) {
           const node = view.nodes.find((n) => p.instanceId ? (n.instanceId || n.conceptId) === p.instanceId : n.conceptId === p.conceptId);
           if (!node || node.x !== p.x || node.y !== p.y || (p.order !== undefined && node.order !== p.order)) {
             changed = true;
@@ -806,7 +815,7 @@ export const useGraphStore = create<GraphStoreState>()(
               nodes: (() => {
                 const updated = v.nodes.map((n) => {
                   const nodeInstId = n.instanceId || n.conceptId;
-                  const pos = positions.find((p) => p.instanceId ? p.instanceId === nodeInstId : p.conceptId === n.conceptId);
+                  const pos = snappedPositions.find((p) => p.instanceId ? p.instanceId === nodeInstId : p.conceptId === n.conceptId);
                   if (!pos) return n;
                   const newOrder = pos.order !== undefined ? pos.order : n.order;
                   return isManual
@@ -822,6 +831,9 @@ export const useGraphStore = create<GraphStoreState>()(
       },
 
       addConceptToView: (viewId, conceptId, x, y, parentId, instanceId) => {
+        const GRID_SIZE = 24;
+        const snappedX = Math.round(x / GRID_SIZE) * GRID_SIZE;
+        const snappedY = Math.round(y / GRID_SIZE) * GRID_SIZE;
         const view = get().views.find((v) => v.id === viewId);
         if (!view) return;
         const concept = get().concepts.find((c) => c.id === conceptId);
@@ -876,11 +888,11 @@ export const useGraphStore = create<GraphStoreState>()(
                 {
                   instanceId: newInstanceId,
                   conceptId,
-                  x,
-                  y,
+                  x: snappedX,
+                  y: snappedY,
                   parentId,
                   ...(defaultOrder !== undefined ? { order: defaultOrder } : {}),
-                  ...(v.layoutAlgorithm === 'manual' ? { manualX: x, manualY: y } : {}),
+                  ...(v.layoutAlgorithm === 'manual' ? { manualX: snappedX, manualY: snappedY } : {}),
                 },
               ],
             },
@@ -1108,9 +1120,10 @@ export const useGraphStore = create<GraphStoreState>()(
         const notation = NotationRegistry.forViewType(view.type);
         const allowedTypes = notation?.allowedConceptTypes;
 
+        const conceptMap = new Map(concepts.map((c) => [c.id, c]));
         const existingIds = new Set(view.nodes.map((n) => n.conceptId));
         const existingNames = new Set(
-          view.nodes.map((vn) => concepts.find((c) => c.id === vn.conceptId)?.name.trim().toLowerCase()).filter(Boolean)
+          view.nodes.map((vn) => conceptMap.get(vn.conceptId)?.name.trim().toLowerCase()).filter(Boolean)
         );
         const missing = concepts.filter((c) => {
           if (existingIds.has(c.id)) return false;
@@ -1150,10 +1163,11 @@ export const useGraphStore = create<GraphStoreState>()(
         const view = views.find((v) => v.id === activeViewId);
         if (!view) return;
 
+        const conceptMap = new Map(concepts.map((c) => [c.id, c]));
         const conceptIdSet = new Set(conceptIds);
         const existingIds = new Set(view.nodes.map((n) => n.conceptId));
         const existingNames = new Set(
-          view.nodes.map((vn) => concepts.find((c) => c.id === vn.conceptId)?.name.trim().toLowerCase()).filter(Boolean)
+          view.nodes.map((vn) => conceptMap.get(vn.conceptId)?.name.trim().toLowerCase()).filter(Boolean)
         );
 
         const notation = NotationRegistry.forViewType(view.type);

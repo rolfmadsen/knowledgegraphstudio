@@ -1,4 +1,4 @@
-import { useMemo, useEffect, useRef, useCallback } from 'react';
+import { useMemo, useEffect, useRef, useCallback, memo } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import type { Notation, NotationCanvasProps } from '../types';
 import { ReactFlowCanvas } from '../../features/viewport/graph/ReactFlowCanvas';
@@ -38,7 +38,7 @@ export const useDcrSimulationStore = create<DcrSimulationStore>((set, get) => ({
   setSimulating: (isSimulating) => {
     set({ isSimulating });
     if (!isSimulating) {
-      set({ markings: {} });
+      set({ markings: get().initialMarkings });
     }
   },
   initialize: (concepts) => {
@@ -64,6 +64,7 @@ export const useDcrSimulationStore = create<DcrSimulationStore>((set, get) => ({
   executeEvent: (eventId, relations) => {
     const current = { ...get().markings };
     const eventState = current[eventId];
+
     if (!eventState || !eventState.isIncluded) return;
 
     // 1. Mark as executed and not pending
@@ -217,7 +218,7 @@ function DcrSimulationControls({ concepts }: { concepts: ConceptNode[]; relation
 // DCR Node Component
 // ============================================================
 
-export function DcrNodeComponent({ data, selected }: NodeProps) {
+export const DcrNodeComponent = memo(function DcrNodeComponent({ data, selected }: NodeProps) {
   const concept = data.concept as ConceptNode;
   const conceptType = concept?.conceptType || 'other';
 
@@ -332,15 +333,19 @@ export function DcrNodeComponent({ data, selected }: NodeProps) {
     executeEvent(concept.id, relations);
   };
 
+  const nameLen = (concept?.name || '').length;
+  const dynamicHeight = nameLen > 40 ? 144 : nameLen > 20 ? 120 : 96;
+
   return (
     <div
       onClick={handleExecute}
+      style={{ width: '288px', minHeight: `${dynamicHeight}px` }}
       className={`
-        relative min-w-[210px] min-h-[76px] px-5 py-4 border-2 transition-all duration-300 rounded-xl flex flex-col justify-between shadow-sm hover:shadow-md font-sans text-left
+        relative px-5 py-4 border-2 transition-colors duration-300 rounded-xl flex flex-col justify-between shadow-sm hover:shadow-md font-sans text-left box-border
         ${isSimulating && isEnabled ? 'cursor-pointer animate-[pulse_2s_infinite]' : ''}
         ${isExcluded ? 'opacity-30 border-slate-300 bg-slate-50' : ''}
         ${selected
-          ? 'bg-white border-emerald-500 scale-[1.03] ring-4 ring-emerald-100 shadow-lg shadow-emerald-100/50'
+          ? 'bg-white border-emerald-500 ring-4 ring-emerald-100 shadow-lg shadow-emerald-100/50'
           : isSimulating && isEnabled
             ? 'bg-emerald-50/50 border-emerald-400 shadow-md shadow-emerald-100/30'
             : 'bg-[#FDFDFD] border-slate-300'}
@@ -382,7 +387,7 @@ export function DcrNodeComponent({ data, selected }: NodeProps) {
       </div>
     </div>
   );
-}
+});
 
 // ============================================================
 // DCR Canvas component

@@ -1,8 +1,7 @@
 import { useRef, useCallback } from 'react';
 import { useGraphStore } from '../../store/useGraphStore';
 import { Shuffle, Hand, AlignVerticalDistributeCenter, Zap, Grid } from 'lucide-react';
-import type { LayoutAlgorithm, ElementId } from '../../schema/graphSchema';
-import { apply5ColumnMatrixLayoutToStore } from '../jointjs/matrixLayout';
+import type { LayoutAlgorithm } from '../../schema/graphSchema';
 
 const LAYOUT_OPTIONS: Array<{
   algo: LayoutAlgorithm;
@@ -24,9 +23,9 @@ const LAYOUT_OPTIONS: Array<{
   },
   {
     algo: 'orthogonal',
-    label: '5-Col JointJS',
+    label: 'Grid',
     icon: <Grid size={10} strokeWidth={3} />,
-    description: '5-column 2D matrix layout with Manhattan 90° routing',
+    description: '2D matrix grid layout',
   },
   {
     algo: 'manual',
@@ -68,12 +67,6 @@ export function ViewToolbar() {
   const isAutoLayout = currentAlgo !== 'manual';
 
   const handleLayoutChange = (algo: LayoutAlgorithm) => {
-    if (algo === 'orthogonal') {
-      apply5ColumnMatrixLayoutToStore(activeView.id as ElementId);
-      return;
-    }
-
-    // Update layoutAlgorithm on the view via a proper store setState call
     useGraphStore.setState((s) => ({
       views: s.views.map((v) => {
         if (v.id !== activeView.id) return v;
@@ -98,7 +91,6 @@ export function ViewToolbar() {
       }),
     }));
 
-    // Trigger auto-layout for algorithmic modes
     if (algo !== 'manual') {
       setTimeout(() => {
         useGraphStore.setState((s) => ({ layoutVersion: s.layoutVersion + 1 }));
@@ -107,37 +99,31 @@ export function ViewToolbar() {
   };
 
   const handleReLayout = () => {
-    if (currentAlgo === 'orthogonal') {
-      apply5ColumnMatrixLayoutToStore(activeView.id as ElementId);
-    } else {
-      useGraphStore.setState((s) => ({ layoutVersion: s.layoutVersion + 1 }));
-    }
+    useGraphStore.setState((s) => ({ layoutVersion: s.layoutVersion + 1 }));
   };
 
   return (
     <div
       className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[110] flex items-center gap-2 select-none transition-all duration-300"
+      style={{ pointerEvents: 'auto' }}
     >
-      <div 
+      <div
         ref={toolbarRefCallback}
-        className="flex items-center gap-2 px-4 h-10 bg-white/90 backdrop-blur-xl border border-slate-200/80 rounded-2xl shadow-xl shadow-slate-200/60"
+        className="h-10 px-2 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800/80 shadow-xl shadow-slate-200/60 dark:shadow-slate-950/60 rounded-2xl flex items-center gap-1 font-sans text-xs"
       >
-
-        {/* Layout algorithm buttons */}
-        <div className="flex items-center gap-0.5">
-          {LAYOUT_OPTIONS.filter(opt => !(activeView.type === 'event_modeling' && opt.algo === 'hierarchical')).map(({ algo, label, icon, description }) => {
+        <div className="flex items-center gap-0.5 border-r border-slate-200 dark:border-slate-800 pr-1.5 mr-0.5">
+          {LAYOUT_OPTIONS.map(({ algo, label, icon, description }) => {
             const isActive = currentAlgo === algo;
             return (
               <button
                 key={algo}
                 onClick={() => handleLayoutChange(algo)}
                 title={description}
-                className={`
-                  flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider
-                  ${isActive
-                    ? 'bg-emerald-600 text-white shadow-md shadow-emerald-200'
-                    : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'}
-                `}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all ${
+                  isActive
+                    ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
               >
                 {icon}
                 <span>{label}</span>
@@ -146,22 +132,19 @@ export function ViewToolbar() {
           })}
         </div>
 
-        {/* Re-layout trigger — disabled in manual mode */}
-        <>
-          <div className="w-px h-4 bg-slate-200 mx-1" />
+        {isAutoLayout && (
           <button
             onClick={handleReLayout}
-            disabled={!isAutoLayout}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-transform active:scale-95
-              disabled:opacity-30 disabled:cursor-not-allowed
-              enabled:text-emerald-600 enabled:hover:bg-emerald-50"
-            title={isAutoLayout ? 'Re-run auto layout' : 'Switch to Force or Tree to use auto layout'}
+            title="Genberegn automatisk placering for elementer"
+            className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/50 transition-colors"
           >
-            <Zap size={10} strokeWidth={3} />
-            <span>Layout</span>
+            <Zap size={12} strokeWidth={2.5} />
+            <span>Genberegn</span>
           </button>
-        </>
+        )}
       </div>
     </div>
   );
 }
+
+export default ViewToolbar;

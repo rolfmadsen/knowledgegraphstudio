@@ -1,11 +1,19 @@
-# Task: JointJS Canvas Integration & 5-Phase Implementation
+# Task: Skalering & 24px Grid Alignment i ReactFlow
 
-## Goal
-Execute all 5 phases of the JointJS canvas integration, including TDD tests, Zustand store synchronization, Cmd+K search-and-pan, minimap, and 5-column orthogonal matrix layout engine.
+## Checklist
 
-## Phase Checklist
-- [ ] Phase 1: Package Installation & Data Mapper Layer (`jointMapper.ts`, Manhattan router, rounded connector, unit tests)
-- [ ] Phase 2: JointReactCanvasWrapper Component & Node Renderers (`JointReactCanvasWrapper.tsx`, `renderNode.tsx`, UML/Concept HTMLBox, unit tests)
-- [ ] Phase 3: Zustand Store & Canvas Event Integration (selection, drag-and-drop, zoom/pan events, store actions, unit tests)
-- [ ] Phase 4: Canvas Navigation Tools (`Minimap.tsx`, `CmdKSearch.tsx` command palette search & smooth pan-to-node animation, unit tests)
-- [ ] Phase 5: Compact Orthogonal Matrix Layout Engine & Converter Update (5-column 2D matrix packing, Manhattan 90° routing integration, position converters, unit tests)
+### Fase 1-2: Core Performance Overhaul & Selector Isolation
+- [x] Add `onlyRenderVisibleElements={true}` to `<ReactFlow />` in `ReactFlowCanvas.tsx`
+- [x] Memoize anonymous inline callbacks (`onEdgeClick`, `onEdgeDoubleClick`, `onPaneClick`) with `useCallback`
+- [x] Wrap custom node component renderers in `React.memo()` (C4, Archimate, DCR, Event Modeling, Core Model)
+- [x] Audit node/concept lookup logic to ensure $O(1)$ Map/Record indexing instead of $O(N)$ `.find()`
+- [x] Apply `useShallow` on array/object selectors in `useGraphStore` and memoize `FloatingEdge`
+
+### Fase 3: 24px Grid Corner Alignment & Dynamic Height Increments
+- [x] Ensure node default widths and heights are exact multiples of 24px (`w % 24 === 0`, `h % 24 === 0`)
+- [x] Implement dynamic height snapping in 24px increments (`Math.ceil(height / 24) * 24`) for wrapping labels
+- [x] Verify edge connection handles and orthogonal params align to 24px grid points
+
+### Fase 4: Final Build & Verification
+- [x] Run `npm run build` and `npm run test` to verify clean state
+- [x] Create walkthrough artifact summarizing 24px grid alignment implementation

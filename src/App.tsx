@@ -21,7 +21,7 @@ import { ModelExplorer } from './features/modelexplorer/ModelExplorer';
 import { ViewToolbar } from './features/viewport/ViewToolbar';
 import type { PullResult } from './services/GitService';
 import { Header } from './components/ui/Header';
-import { LayoutGrid, Code2, Columns2, HelpCircle, PanelLeftOpen } from 'lucide-react';
+import { LayoutGrid, Code2, Columns2, PanelLeftOpen } from 'lucide-react';
 import { StatusBar } from './features/statusbar/StatusBar';
 import { useUISession, readUISession } from './hooks/useUISession';
 
@@ -553,7 +553,13 @@ function App() {
           >
             <ViewportContainer
               diffMode={diffMode}
-              graphViewport={<NotationCanvasWrapper focusMode={focusMode} isAIPanelActive={propertiesOpen && activeTab === 'ai'} />}
+              graphViewport={
+                <NotationCanvasWrapper
+                  focusMode={focusMode}
+                  isAIPanelActive={propertiesOpen && activeTab === 'ai'}
+                  onHelpClick={() => setIsHelpOpen(true)}
+                />
+              }
               diffViewport={
                 diffLoaded ? (
                   <Suspense fallback={<div className="flex-1 flex items-center justify-center"><div className="animate-pulse text-xs text-slate-400">Loading Diff...</div></div>}>
@@ -580,15 +586,6 @@ function App() {
               )}
             </div>
           </div>
-
-          {/* Floating Help Trigger */}
-          <button
-            onClick={() => setIsHelpOpen(true)}
-            className="absolute bottom-6 right-6 z-[110] w-10 h-10 bg-white/90 backdrop-blur-xl border border-slate-200/80 rounded-2xl shadow-xl shadow-slate-200/60 flex items-center justify-center text-slate-500 hover:text-emerald-600 hover:bg-slate-100 transition-all active:scale-95 group"
-            title="Keyboard Shortcuts (?)"
-          >
-            <HelpCircle size={18} strokeWidth={3} className="group-hover:rotate-12 transition-transform" />
-          </button>
         </main>
 
         {/* Right Side: Split View Code OR Properties */}

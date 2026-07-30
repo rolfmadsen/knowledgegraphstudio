@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useMemo, useState } from 'react';
+import { useCallback, useEffect, useRef, useMemo, useState, memo } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import {
   ReactFlow,
   Background,
@@ -19,6 +20,7 @@ import {
   useReactFlow,
   Position,
   NodeToolbar,
+  MiniMap,
 } from '@xyflow/react';
 import { Trash2, ArrowUpRight, Plus, X, Tv, Zap, GitCommit, Database, Share2, Cpu } from 'lucide-react';
 import Fuse from 'fuse.js';
@@ -36,6 +38,12 @@ export const PADDING_TOP = 84;
 export const PADDING_BOTTOM = 36;
 export const PADDING_LEFT = 36;
 export const PADDING_RIGHT = 36;
+export const GRID_SIZE = 24;
+export const GRID_STEP = GRID_SIZE;
+
+export function snapToGridStep(val: number, step = GRID_SIZE): number {
+  return Math.round(val / step) * step;
+}
 
 export function getEstimatedElementWidth(
   vn?: { width?: number; conceptId?: string; instanceId?: string },
@@ -43,21 +51,21 @@ export function getEstimatedElementWidth(
   rfNode?: any
 ): number {
   if (rfNode?.measured?.width && (rfNode.measured.width as number) > 0) {
-    return rfNode.measured.width as number;
+    return snapToGridStep(rfNode.measured.width as number);
   }
   if (rfNode?.style?.width && typeof rfNode.style.width === 'number' && rfNode.style.width > 0) {
-    return rfNode.style.width as number;
+    return snapToGridStep(rfNode.style.width as number);
   }
   if (vn?.width && vn.width > 0) {
-    return vn.width;
+    return snapToGridStep(vn.width);
   }
   if (concept) {
     const EM_TYPES = ['screen', 'command', 'event', 'domain_event', 'read_model', 'integration_event', 'automation'];
     if (EM_TYPES.includes(concept.conceptType)) {
-      return 260;
+      return 11 * GRID_SIZE;
     }
   }
-  return 200;
+  return 10 * GRID_SIZE;
 }
 
 export function getEstimatedElementHeight(
@@ -65,22 +73,23 @@ export function getEstimatedElementHeight(
   concept?: any,
   rfNode?: any
 ): number {
+  const minHeight = 4 * GRID_SIZE;
   if (rfNode?.measured?.height && (rfNode.measured.height as number) > 0) {
-    return rfNode.measured.height as number;
+    return Math.max(minHeight, snapToGridStep(rfNode.measured.height as number));
   }
   if (rfNode?.style?.height && typeof rfNode.style.height === 'number' && rfNode.style.height > 0) {
-    return rfNode.style.height as number;
+    return Math.max(minHeight, snapToGridStep(rfNode.style.height as number));
   }
   if (vn?.height && vn.height > 0) {
-    return vn.height;
+    return Math.max(minHeight, snapToGridStep(vn.height));
   }
   if (concept) {
     const EM_TYPES = ['screen', 'command', 'event', 'domain_event', 'read_model', 'integration_event', 'automation'];
     if (EM_TYPES.includes(concept.conceptType)) {
-      return 130;
+      return 6 * GRID_SIZE;
     }
   }
-  return 80;
+  return minHeight;
 }
 
 function getGroupBounds(
@@ -1501,11 +1510,12 @@ function getEdgeTypeString(edge: any): string {
 }
 
 // Custom FloatingEdge
-function FloatingEdge({ id, source, target, style, label, labelStyle, selected, data, className }: FloatingEdgeProps) {
+const FloatingEdge = memo(function FloatingEdge({ id, source, target, style, label, labelStyle, selected, data, className }: FloatingEdgeProps) {
   const sourceNode = useInternalNode(source);
   const targetNode = useInternalNode(target);
 
-  const { updateViewEdgeLayout, activeViewId } = useGraphStore();
+  const updateViewEdgeLayout = useGraphStore((s) => s.updateViewEdgeLayout);
+  const activeViewId = useGraphStore((s) => s.activeViewId);
   const [draggedSegment, setDraggedSegment] = useState<number | null>(null);
   const [dragDirection, setDragDirection] = useState<'horizontal' | 'vertical' | null>(null);
   const reactFlow = useReactFlow();
@@ -2028,7 +2038,7 @@ function FloatingEdge({ id, source, target, style, label, labelStyle, selected, 
       )}
     </>
   );
-}
+});
 
 export interface ReactFlowCanvasProps extends NotationCanvasProps {
   nodeTypes: NodeTypes;
@@ -2082,7 +2092,29 @@ export function ReactFlowCanvas({
     setFocusedToolbarButtonId,
     updateConcept,
     connectAllDomainRelationsForInstance,
-  } = useGraphStore();
+  } = useGraphStore(
+    useShallow((s) => ({
+      batchUpdateViewNodePositions: s.batchUpdateViewNodePositions,
+      ungroupConcept: s.ungroupConcept,
+      updateViewNodeParentId: s.updateViewNodeParentId,
+      setSelectedConceptIds: s.setSelectedConceptIds,
+      selectedConceptIds: s.selectedConceptIds,
+      selectedInstanceId: s.selectedInstanceId,
+      requestDeleteConceptConfirm: s.requestDeleteConceptConfirm,
+      removeConceptFromView: s.removeConceptFromView,
+      addConcept: s.addConcept,
+      addConceptToView: s.addConceptToView,
+      addRelation: s.addRelation,
+      updateViewEdgeLayout: s.updateViewEdgeLayout,
+      selectConcept: s.selectConcept,
+      triggerLayout: s.triggerLayout,
+      views: s.views,
+      focusedToolbarButtonId: s.focusedToolbarButtonId,
+      setFocusedToolbarButtonId: s.setFocusedToolbarButtonId,
+      updateConcept: s.updateConcept,
+      connectAllDomainRelationsForInstance: s.connectAllDomainRelationsForInstance,
+    }))
+  );
 
   const activeNotation = useMemo(() => NotationRegistry.forViewType(view.type), [view.type]);
 
@@ -4051,6 +4083,22 @@ export function ReactFlowCanvas({
     addConceptToView(view.id, conceptId, dropX, dropY, targetParentId);
   }, [reactFlow, concepts, view, getGroupBounds, addConceptToView, selectedConceptId, selectedInstanceId]);
 
+  const onEdgeClickHandler = useCallback((_e: React.MouseEvent, edge: Edge) => {
+    const relId = (edge.data?.relationId as ElementId) || toElementId(edge.id.split('__')[0]);
+    onRelationSelect(relId);
+  }, [onRelationSelect]);
+
+  const onEdgeDoubleClickHandler = useCallback((_e: React.MouseEvent, edge: Edge) => {
+    const relId = (edge.data?.relationId as ElementId) || toElementId(edge.id.split('__')[0]);
+    useGraphStore.getState().resetViewEdgeLayout(view.id, relId);
+  }, [view.id]);
+
+  const onPaneClickHandler = useCallback(() => {
+    selectConcept(null);
+    onNodeSelect(null);
+    onRelationSelect(null);
+  }, [selectConcept, onNodeSelect, onRelationSelect]);
+
   const showToolbar = selectedConceptIds.length === 1 && selectedConceptId;
 
   return (
@@ -4137,8 +4185,8 @@ export function ReactFlowCanvas({
                   onClick={() => handleSelectConnectTargetConcept(c)}
                   onMouseEnter={() => setComboboxSelectedIndex(idx)}
                   className={`flex items-center justify-between px-3 py-2 rounded-xl text-left text-[11px] transition-all cursor-pointer outline-none ${idx === comboboxSelectedIndex
-                      ? 'bg-slate-100/90 border border-slate-300/80 shadow-sm text-slate-900 font-bold'
-                      : 'border border-transparent hover:bg-slate-50 text-slate-700 font-medium'
+                    ? 'bg-slate-100/90 border border-slate-300/80 shadow-sm text-slate-900 font-bold'
+                    : 'border border-transparent hover:bg-slate-50 text-slate-700 font-medium'
                     }`}
                 >
                   <span className="truncate mr-2">{c.name}</span>
@@ -4159,6 +4207,7 @@ export function ReactFlowCanvas({
           edges={edges}
           nodeTypes={nodeTypes}
           nodesDraggable={currentAlgo === 'manual'}
+          onlyRenderVisibleElements={true}
           onNodesChange={onNodesChange}
           onConnect={onConnectHandler}
           isValidConnection={isValidConnection}
@@ -4167,15 +4216,9 @@ export function ReactFlowCanvas({
           onNodeDragStart={onNodeDragStart}
           onNodeDrag={onNodeDrag}
           onNodeDragStop={onNodeDragStop}
-          onEdgeClick={(_e, edge) => {
-            const relId = (edge.data?.relationId as ElementId) || toElementId(edge.id.split('__')[0]);
-            onRelationSelect(relId);
-          }}
-          onEdgeDoubleClick={(_e, edge) => {
-            const relId = (edge.data?.relationId as ElementId) || toElementId(edge.id.split('__')[0]);
-            useGraphStore.getState().resetViewEdgeLayout(view.id, relId);
-          }}
-          onPaneClick={() => { selectConcept(null); onNodeSelect(null); onRelationSelect(null); }}
+          onEdgeClick={onEdgeClickHandler}
+          onEdgeDoubleClick={onEdgeDoubleClickHandler}
+          onPaneClick={onPaneClickHandler}
           onSelectionChange={onSelectionChange}
           edgeTypes={edgeTypes}
           deleteKeyCode={null}
@@ -4188,7 +4231,7 @@ export function ReactFlowCanvas({
           panOnScroll={true}
           zoomActivationKeyCode={['Control', 'Meta', 'Command']}
         >
-          <Background variant={BackgroundVariant.Dots} color="#1C1917" gap={24} size={1} style={{ opacity: 0.05 }} />
+          <Background variant={BackgroundVariant.Dots} color="#475569" gap={24} size={2} offset={-12} style={{ opacity: 0.45 }} />
 
           {/* Top Quick Actions Toolbar */}
           {showToolbar && topActions.length > 0 && (
@@ -4365,6 +4408,19 @@ export function ReactFlowCanvas({
               </div>
             </NodeToolbar>
           )}
+          <MiniMap
+            position="bottom-right"
+            nodeColor={(node) => {
+              const conceptType = (node.data as any)?.concept?.conceptType || (node.data as any)?.conceptType;
+              if (conceptType === 'class') return '#2563eb';
+              if (conceptType === 'attribute') return '#d97706';
+              return '#64748b';
+            }}
+            maskColor="rgba(241, 245, 249, 0.75)"
+            className="!bottom-6 !right-20 !m-0 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl shadow-xl overflow-hidden bg-white/95 dark:bg-slate-900/95 backdrop-blur-md"
+            zoomable
+            pannable
+          />
         </ReactFlow>
       </div>
 

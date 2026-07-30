@@ -1,17 +1,23 @@
+import { memo } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import type { ConceptNode } from '../../schema/graphSchema';
 
 // --- 1. Conceptual Model Node Component (🧠 Simple Class Box without Attributes) ---
-export function ConceptualNodeComponent({ data, selected }: NodeProps) {
+export const ConceptualNodeComponent = memo(function ConceptualNodeComponent({ data, selected }: NodeProps) {
   const concept = data.concept as ConceptNode;
+  const nameLen = (concept?.name || '').length + (concept?.definition || '').length;
+  const dynamicHeight = nameLen > 60 ? 144 : nameLen > 30 ? 120 : 96;
 
   return (
-    <div className={`
-      relative min-w-[220px] max-w-[350px] bg-white border-2 rounded-2xl shadow-sm overflow-hidden flex flex-col font-sans transition-transform duration-300 text-left
-      ${selected
-        ? 'border-emerald-500 scale-[1.02] ring-4 ring-emerald-100/50 shadow-md'
-        : 'border-slate-200 hover:border-slate-300'}
-    `}>
+    <div
+      style={{ width: '288px', minHeight: `${dynamicHeight}px` }}
+      className={`
+        relative bg-white border-2 rounded-2xl shadow-sm overflow-hidden flex flex-col font-sans transition-colors duration-300 text-left box-border
+        ${selected
+          ? 'border-emerald-500 ring-4 ring-emerald-100/50 shadow-md'
+          : 'border-slate-200 hover:border-slate-300'}
+      `}
+    >
       {/* Target and Source handles for FloatingEdge intersections */}
       <Handle type="target" position={Position.Top} style={{ visibility: 'hidden', top: '50%', left: '50%' }} />
       <Handle type="source" position={Position.Bottom} style={{ visibility: 'hidden', top: '50%', left: '50%' }} />
@@ -38,10 +44,10 @@ export function ConceptualNodeComponent({ data, selected }: NodeProps) {
       )}
     </div>
   );
-}
+});
 
 // --- 2. Information Model Node Component (📊 Rich Class, DataType and Enum Renderer) ---
-export function InformationNodeComponent({ data, selected }: NodeProps) {
+export const InformationNodeComponent = memo(function InformationNodeComponent({ data, selected }: NodeProps) {
   const concept = data.concept as ConceptNode;
   const type = concept?.conceptType || 'class';
 
@@ -67,13 +73,19 @@ export function InformationNodeComponent({ data, selected }: NodeProps) {
     typeLabel = 'ENUMERATION';
   }
 
+  const propCount = properties.length + enumerators.length;
+  const dynamicHeight = propCount > 4 ? 168 : propCount > 2 ? 144 : propCount > 0 ? 120 : 96;
+
   return (
-    <div className={`
-      relative min-w-[250px] bg-white border-2 rounded-2xl shadow-md overflow-hidden flex flex-col font-sans transition-transform duration-300 text-left
-      ${selected
-        ? 'border-emerald-500 scale-[1.02] ring-4 ring-emerald-100/50 shadow-lg'
-        : 'border-slate-200 hover:border-slate-300'}
-    `}>
+    <div
+      style={{ width: '288px', minHeight: `${dynamicHeight}px` }}
+      className={`
+        relative bg-white border-2 rounded-2xl shadow-md overflow-hidden flex flex-col font-sans transition-colors duration-300 text-left box-border
+        ${selected
+          ? 'border-emerald-500 ring-4 ring-emerald-100/50 shadow-lg'
+          : 'border-slate-200 hover:border-slate-300'}
+      `}
+    >
       {/* Target and Source handles for FloatingEdge intersections */}
       <Handle type="target" position={Position.Top} style={{ visibility: 'hidden', top: '50%', left: '50%' }} />
       <Handle type="source" position={Position.Bottom} style={{ visibility: 'hidden', top: '50%', left: '50%' }} />
@@ -152,4 +164,4 @@ export function InformationNodeComponent({ data, selected }: NodeProps) {
       </div>
     </div>
   );
-}
+});

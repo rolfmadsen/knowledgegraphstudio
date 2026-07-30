@@ -3,24 +3,24 @@ import { getEstimatedElementHeight, getEstimatedElementWidth } from '../ReactFlo
 
 describe('ReactFlowCanvas element dimension estimation', () => {
   it('uses measured dimensions when available', () => {
-    const vn = { width: 300, height: 100 };
+    const vn = { width: 288, height: 96 };
     const concept = { conceptType: 'read_model', payload: [{ id: '1' }, { id: '2' }] };
-    const rfNode = { measured: { width: 320, height: 210 } };
+    const rfNode = { measured: { width: 312, height: 216 } };
 
-    expect(getEstimatedElementWidth(vn, concept, rfNode)).toBe(320);
-    expect(getEstimatedElementHeight(vn, concept, rfNode)).toBe(210);
+    expect(getEstimatedElementWidth(vn, concept, rfNode)).toBe(312);
+    expect(getEstimatedElementHeight(vn, concept, rfNode)).toBe(216);
   });
 
   it('uses style dimensions when measured dimensions are missing', () => {
-    const vn = { width: 280, height: 100 };
+    const vn = { width: 288, height: 96 };
     const concept = { conceptType: 'read_model' };
-    const rfNode = { style: { width: 290, height: 180 } };
+    const rfNode = { style: { width: 288, height: 192 } };
 
-    expect(getEstimatedElementWidth(vn, concept, rfNode)).toBe(290);
-    expect(getEstimatedElementHeight(vn, concept, rfNode)).toBe(180);
+    expect(getEstimatedElementWidth(vn, concept, rfNode)).toBe(288);
+    expect(getEstimatedElementHeight(vn, concept, rfNode)).toBe(192);
   });
 
-  it('returns fixed compact height (130px) for unmeasured EM element nodes regardless of payload count', () => {
+  it('returns fixed compact height (144px) for unmeasured EM element nodes regardless of payload count', () => {
     const vn = {};
     const conceptWithPayload = {
       conceptType: 'read_model',
@@ -32,16 +32,16 @@ describe('ReactFlowCanvas element dimension estimation', () => {
     const conceptNoPayload = { conceptType: 'domain_event' };
     const rfNode = undefined;
 
-    expect(getEstimatedElementHeight(vn, conceptWithPayload, rfNode)).toBe(130);
-    expect(getEstimatedElementHeight(vn, conceptNoPayload, rfNode)).toBe(130);
+    expect(getEstimatedElementHeight(vn, conceptWithPayload, rfNode)).toBe(144);
+    expect(getEstimatedElementHeight(vn, conceptNoPayload, rfNode)).toBe(144);
   });
 
-  it('defaults to 200 width and 80 height for unknown non-EM nodes', () => {
+  it('defaults to 240 width and 96 height for unknown non-EM nodes', () => {
     const vn = {};
     const concept = { conceptType: 'other' };
     const rfNode = undefined;
 
-    expect(getEstimatedElementWidth(vn, concept, rfNode)).toBe(200);
-    expect(getEstimatedElementHeight(vn, concept, rfNode)).toBe(80);
+    expect(getEstimatedElementWidth(vn, concept, rfNode)).toBe(240);
+    expect(getEstimatedElementHeight(vn, concept, rfNode)).toBe(96);
   });
 });

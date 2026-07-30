@@ -8,18 +8,17 @@ import { type ElementId, toElementId, type ConceptNode, type ConceptRelation, ty
 import { PADDING_LEFT, PADDING_TOP } from './graph/ReactFlowCanvas';
 
 import { useAIStore } from '../ai/store/useAIStore';
-import { JointReactCanvasWrapper, type JointReactCanvasWrapperRef } from '../jointjs/JointReactCanvasWrapper';
-import { Minimap } from '../jointjs/Minimap';
-import { CmdKSearchDialog } from '../jointjs/CmdKSearch';
 import { CanvasZoomControls } from './CanvasZoomControls';
 import { CanvasSearchWidget } from './CanvasSearchWidget';
+import { calculateGridMatrixPositions } from './gridMatrixLayout';
 
 interface NotationCanvasWrapperProps {
   focusMode: boolean;
   isAIPanelActive: boolean;
+  onHelpClick?: () => void;
 }
 
-export function NotationCanvasWrapper({ focusMode, isAIPanelActive }: NotationCanvasWrapperProps) {
+export function NotationCanvasWrapper({ focusMode, isAIPanelActive, onHelpClick }: NotationCanvasWrapperProps) {
   const reactFlow = useReactFlow();
 
   // Get store state and mutation functions
@@ -211,29 +210,59 @@ const HIDE_EDGES_IN_NOTATION: Record<string, Set<string>> = {
   const viewConcepts = useMemo(() => {
     const currentView = viewWithProposals || activeView;
     if (!currentView) return [];
-    
+
     const viewConceptIds = new Set<string>();
     (currentView.nodes || []).forEach((vn) => {
-      if (vn.conceptId) viewConceptIds.add(vn.conceptId);
-      if ((vn as any).instanceId) viewConceptIds.add((vn as any).instanceId);
+      if (vn.conceptId) {
+        viewConceptIds.add(vn.conceptId);
+        const rawId = vn.conceptId.includes(':') ? vn.conceptId.split(':').pop()! : vn.conceptId;
+        viewConceptIds.add(rawId);
+      }
+      if ((vn as any).instanceId) {
+        viewConceptIds.add((vn as any).instanceId);
+        const rawInst = (vn as any).instanceId.includes(':') ? (vn as any).instanceId.split(':').pop()! : (vn as any).instanceId;
+        viewConceptIds.add(rawInst);
+      }
     });
 
-    return storeConcepts.filter((c) => viewConceptIds.has(c.id));
+    const filtered = storeConcepts.filter((c) => {
+      const rawCId = c.id.includes(':') ? c.id.split(':').pop()! : c.id;
+      return viewConceptIds.has(c.id) || viewConceptIds.has(rawCId);
+    });
+
+    return filtered;
   }, [activeView, viewWithProposals, storeConcepts, layoutVersion]);
 
   const viewRelations = useMemo(() => {
     const currentView = viewWithProposals || activeView;
     if (!currentView) return [];
-    
+
     const viewConceptIds = new Set<string>();
     (currentView.nodes || []).forEach((vn) => {
-      if (vn.conceptId) viewConceptIds.add(vn.conceptId);
-      if ((vn as any).instanceId) viewConceptIds.add((vn as any).instanceId);
+      if (vn.conceptId) {
+        viewConceptIds.add(vn.conceptId);
+        const rawId = vn.conceptId.includes(':') ? vn.conceptId.split(':').pop()! : vn.conceptId;
+        viewConceptIds.add(rawId);
+      }
+      if ((vn as any).instanceId) {
+        viewConceptIds.add((vn as any).instanceId);
+        const rawInst = (vn as any).instanceId.includes(':') ? (vn as any).instanceId.split(':').pop()! : (vn as any).instanceId;
+        viewConceptIds.add(rawInst);
+      }
     });
 
-    return storeRelations.filter(
-      (r) => r.name && viewConceptIds.has(r.sourceConceptId) && viewConceptIds.has(r.targetConceptId)
-    );
+    const filtered = storeRelations.filter((r) => {
+      if (!r.name) return false;
+      const rawSrc = r.sourceConceptId.includes(':') ? r.sourceConceptId.split(':').pop()! : r.sourceConceptId;
+      const rawTgt = r.targetConceptId.includes(':') ? r.targetConceptId.split(':').pop()! : r.targetConceptId;
+
+      const srcMatch = viewConceptIds.has(r.sourceConceptId) || viewConceptIds.has(rawSrc);
+      const tgtMatch = viewConceptIds.has(r.targetConceptId) || viewConceptIds.has(rawTgt);
+
+      return srcMatch && tgtMatch;
+    });
+
+    return filtered;
   }, [activeView, viewWithProposals, storeRelations, layoutVersion]);
 
   // Use refs to avoid recreating the layout loop when rendering updates occur
@@ -258,7 +287,20 @@ const HIDE_EDGES_IN_NOTATION: Record<string, Set<string>> = {
 
     if (!currentNotation?.layoutEngine || !currentView) return;
     const algo = currentView.layoutAlgorithm;
-    if (algo === 'manual' || algo === 'orthogonal') return;
+    if (algo === 'manual') return;
+
+    if (algo === 'orthogonal') {
+      const viewNodes = currentView.nodes ?? [];
+      const visibleConceptIds = new Set(currentConcepts.map((c) => c.id));
+      const filteredViewNodes = viewNodes.filter((vn) => visibleConceptIds.has(vn.conceptId));
+      const gridPositions = calculateGridMatrixPositions(
+        filteredViewNodes.map((vn) => ({ id: vn.instanceId || vn.conceptId, conceptId: vn.conceptId }))
+      );
+      if (gridPositions.length > 0) {
+        batchUpdateViewNodePositions(currentView.id, gridPositions);
+      }
+      return;
+    }
 
     // Read current node measurements from the ReactFlow canvas
     const rfNodes = reactFlow.getNodes();
@@ -493,71 +535,57 @@ const HIDE_EDGES_IN_NOTATION: Record<string, Set<string>> = {
     onConnect: addRelation,
   };
 
-  const isJointCanvas = activeView.layoutAlgorithm === 'orthogonal';
-  const jointRef = useRef<JointReactCanvasWrapperRef>(null);
-
   const handleSelectAndPan = useCallback(
     (id: ElementId, type: 'concept' | 'relation') => {
       if (type === 'concept') {
         selectConcept(id);
 
-        if (isJointCanvas) {
-          jointRef.current?.panToNode(id);
-        } else {
-          // 1. Try finding live ReactFlow node from reactFlow instance (handles auto-layout coordinates!)
-          const allRfNodes = reactFlow.getNodes();
-          const liveRfNode = allRfNodes.find((n) => n.id === id || n.data?.conceptId === id || (n.data as any)?.concept?.id === id);
+        // 1. Try finding live ReactFlow node from reactFlow instance (handles auto-layout coordinates!)
+        const allRfNodes = reactFlow.getNodes();
+        const liveRfNode = allRfNodes.find((n) => n.id === id || n.data?.conceptId === id || (n.data as any)?.concept?.id === id);
 
-          if (liveRfNode) {
-            let absX = liveRfNode.position.x;
-            let absY = liveRfNode.position.y;
-            let pId = liveRfNode.parentId;
-            const visited = new Set<string>();
+        if (liveRfNode) {
+          let absX = liveRfNode.position.x;
+          let absY = liveRfNode.position.y;
+          let pId = liveRfNode.parentId;
+          const visited = new Set<string>();
 
-            while (pId && !visited.has(pId)) {
-              visited.add(pId);
-              const parentRfNode = reactFlow.getNode(pId);
-              if (parentRfNode) {
-                absX += parentRfNode.position.x;
-                absY += parentRfNode.position.y;
-                pId = parentRfNode.parentId;
-              } else {
-                break;
-              }
+          while (pId && !visited.has(pId)) {
+            visited.add(pId);
+            const parentRfNode = reactFlow.getNode(pId);
+            if (parentRfNode) {
+              absX += parentRfNode.position.x;
+              absY += parentRfNode.position.y;
+              pId = parentRfNode.parentId;
+            } else {
+              break;
             }
-
-            const w = liveRfNode.measured?.width || (typeof liveRfNode.style?.width === 'number' ? liveRfNode.style.width : 200);
-            const h = liveRfNode.measured?.height || (typeof liveRfNode.style?.height === 'number' ? liveRfNode.style.height : 120);
-            const centerX = absX + w / 2;
-            const centerY = absY + h / 2;
-
-            reactFlow.setCenter(centerX, centerY, { zoom: 1.0, duration: 800 });
-            return;
           }
 
-          // 2. Fallback to activeView.nodes store coordinates
+          const nodeWidth = (liveRfNode as any).measured?.width || liveRfNode.width || 200;
+          const nodeHeight = (liveRfNode as any).measured?.height || liveRfNode.height || 120;
+          const centerX = absX + nodeWidth / 2;
+          const centerY = absY + nodeHeight / 2;
+
+          reactFlow.setCenter(centerX, centerY, { zoom: 1.0, duration: 800 });
+        } else {
+          // 2. Fallback to viewWithProposals or activeView concept coordinates
           const currentView = viewWithProposals || activeView;
-          let nodes = currentView?.nodes || [];
-          let targetNode = nodes.find((n) => n.conceptId === id || (n as any).instanceId === id);
-
-          if (!targetNode && activeView?.id) {
-            useGraphStore.getState().addConceptToView(activeView.id, id, 200, 200);
-            targetNode = { conceptId: id, x: 200, y: 200, width: 200, height: 120 };
-          }
+          const targetNode = currentView?.nodes.find((n) => n.conceptId === id);
 
           if (targetNode) {
             let absX = targetNode.x;
             let absY = targetNode.y;
-            let currentParentId = targetNode.parentId;
+            let pId = targetNode.parentId;
             const visited = new Set<string>();
 
-            while (currentParentId && !visited.has(currentParentId)) {
-              visited.add(currentParentId);
-              const parentVn = nodes.find((n) => n.conceptId === currentParentId || (n as any).instanceId === currentParentId);
-              if (parentVn) {
-                absX += parentVn.x;
-                absY += parentVn.y;
-                currentParentId = parentVn.parentId;
+            while (pId && !visited.has(pId)) {
+              visited.add(pId);
+              const parentNode = currentView?.nodes.find((n) => n.conceptId === pId || (n as any).instanceId === pId);
+              if (parentNode) {
+                absX += parentNode.x;
+                absY += parentNode.y;
+                pId = parentNode.parentId;
               } else {
                 break;
               }
@@ -573,84 +601,24 @@ const HIDE_EDGES_IN_NOTATION: Record<string, Set<string>> = {
         selectRelation(id);
       }
     },
-    [selectConcept, selectRelation, isJointCanvas, activeView, viewWithProposals, reactFlow]
+    [selectConcept, selectRelation, activeView, viewWithProposals, reactFlow]
   );
 
   return (
     <div className="flex-1 relative w-full h-full min-h-0 overflow-hidden">
-      {isJointCanvas ? (
-        <JointReactCanvasWrapper
-          ref={jointRef}
-          key={`joint-${activeView.id}`}
-          data={{
-            concepts: conceptsWithProposals,
-            relations: relationsWithProposals,
-            viewNodes: (viewWithProposals || activeView).nodes,
-            viewEdges: (viewWithProposals || activeView).viewEdges,
-          }}
-          selectedConceptId={selectedConceptId}
-          selectedRelationId={selectedRelationId}
-          onSelectConcept={selectConcept}
-          onSelectRelation={selectRelation}
-          onNodeMove={(conceptId, x, y) => updateViewNodePosition(activeView.id, conceptId, x, y)}
-        />
-      ) : (
-        <CanvasComponent key={`${activeView.id}-${activeView.type}`} {...canvasProps} />
-      )}
+      <CanvasComponent key={`${activeView.id}-${activeView.type}`} {...canvasProps} />
 
-      {/* Bottom-Right Controls: Zoom (+ - []) & Minimap */}
+      {/* Bottom-Right Controls: Zoom (+ - []) */}
       <div className="absolute bottom-6 right-6 z-[100] flex items-end gap-3 pointer-events-auto">
         <CanvasZoomControls
-          onZoomIn={() => {
-            if (isJointCanvas) {
-              const paper = jointRef.current?.paper;
-              if (paper) {
-                const currentScale = paper.scale().sx || 1;
-                jointRef.current?.setZoom(Math.min(3, currentScale * 1.2));
-              }
-            } else {
-              reactFlow.zoomIn();
-            }
-          }}
-          onZoomOut={() => {
-            if (isJointCanvas) {
-              const paper = jointRef.current?.paper;
-              if (paper) {
-                const currentScale = paper.scale().sx || 1;
-                jointRef.current?.setZoom(Math.max(0.2, currentScale / 1.2));
-              }
-            } else {
-              reactFlow.zoomOut();
-            }
-          }}
-          onFitView={() => {
-            if (isJointCanvas) {
-              jointRef.current?.paper?.scaleContentToFit({ padding: 50, useModelGeometry: true, minScale: 0.005, maxScale: 1.0 });
-            } else {
-              reactFlow.fitView({ padding: 0.1, minZoom: 0.005, maxZoom: 1.0, duration: 500 });
-            }
-          }}
-        />
-
-        <Minimap
-          viewNodes={(viewWithProposals || activeView)?.nodes || []}
-          concepts={conceptsWithProposals}
-          onNavigate={(x, y) => {
-            if (isJointCanvas && jointRef.current?.paper) {
-              const paper = jointRef.current.paper;
-              const paperSize = paper.getComputedSize() || { width: 800, height: 600 };
-              const currentScale = paper.scale().sx || 1;
-              const targetX = paperSize.width / 2 - x * currentScale;
-              const targetY = paperSize.height / 2 - y * currentScale;
-              paper.translate(targetX, targetY);
-            } else {
-              reactFlow.setCenter(x, y, { zoom: reactFlow.getZoom() || 1, duration: 400 });
-            }
-          }}
+          onZoomIn={() => reactFlow.zoomIn()}
+          onZoomOut={() => reactFlow.zoomOut()}
+          onFitView={() => reactFlow.fitView({ padding: 0.1, minZoom: 0.005, maxZoom: 1.0, duration: 500 })}
+          onHelpClick={onHelpClick}
         />
       </div>
 
-      {/* Bottom-Left Controls: Search Bar */}
+      {/* Bottom-Left Controls: Search Bar (Ctrl+K) */}
       <div className="absolute bottom-6 left-6 z-[100]">
         <CanvasSearchWidget
           concepts={viewConcepts}
@@ -658,12 +626,6 @@ const HIDE_EDGES_IN_NOTATION: Record<string, Set<string>> = {
           onSelectAndPan={handleSelectAndPan}
         />
       </div>
-
-      <CmdKSearchDialog
-        concepts={viewConcepts}
-        relations={viewRelations}
-        onSelectAndPan={handleSelectAndPan}
-      />
     </div>
   );
 }

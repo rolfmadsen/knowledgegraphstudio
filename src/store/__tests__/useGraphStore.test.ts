@@ -952,12 +952,12 @@ describe('useGraphStore', () => {
       expect(currentView.nodes[0].manualX).toBe(100);
       expect(currentView.nodes[0].manualY).toBe(100);
 
-      // 3. User drags the node to a new manual coordinate (e.g. 500, 500)
-      store.updateViewNodePosition(view.id, concept.id, 500, 500);
+      // 3. User drags the node to a new manual coordinate (e.g. 504, 504)
+      store.updateViewNodePosition(view.id, concept.id, 504, 504);
 
       currentView = useGraphStore.getState().views.find(v => v.id === view.id)!;
-      expect(currentView.nodes[0].x).toBe(500);
-      expect(currentView.nodes[0].manualX).toBe(500);
+      expect(currentView.nodes[0].x).toBe(504);
+      expect(currentView.nodes[0].manualX).toBe(504);
 
       // 4. Switch to auto-layout (e.g., hierarchical) and simulate layout worker updates
       useGraphStore.setState((s) => ({
@@ -967,12 +967,12 @@ describe('useGraphStore', () => {
         })
       }));
 
-      // Simulate worker layout update setting x, y to auto-computed coordinates (e.g., 200, 200)
-      store.batchUpdateViewNodePositions(view.id, [{ conceptId: concept.id, x: 200, y: 200 }]);
+      // Simulate worker layout update setting x, y to auto-computed coordinates (e.g., 192, 192)
+      store.batchUpdateViewNodePositions(view.id, [{ conceptId: concept.id, x: 192, y: 192 }]);
 
       currentView = useGraphStore.getState().views.find(v => v.id === view.id)!;
-      expect(currentView.nodes[0].x).toBe(200); // auto-layout coordinate
-      expect(currentView.nodes[0].manualX).toBe(500); // preserved manual coordinate
+      expect(currentView.nodes[0].x).toBe(192); // auto-layout coordinate
+      expect(currentView.nodes[0].manualX).toBe(504); // preserved manual coordinate
 
       // 5. Switch back to manual layout
       useGraphStore.setState((s) => ({
@@ -996,10 +996,10 @@ describe('useGraphStore', () => {
       }));
 
       currentView = useGraphStore.getState().views.find(v => v.id === view.id)!;
-      // Coordinates should restore back to the manual position (500, 500), NOT stay at (200, 200)
-      expect(currentView.nodes[0].x).toBe(500);
-      expect(currentView.nodes[0].y).toBe(500);
-      expect(currentView.nodes[0].manualX).toBe(500);
+      // Coordinates should restore back to the manual position (504, 504), NOT stay at (192, 192)
+      expect(currentView.nodes[0].x).toBe(504);
+      expect(currentView.nodes[0].y).toBe(504);
+      expect(currentView.nodes[0].manualX).toBe(504);
     });
   });
 
@@ -1078,13 +1078,13 @@ describe('useGraphStore', () => {
       store.addConceptToView(view.id, concept.id, 0, 0, undefined, 'inst_2');
 
       store.batchUpdateViewNodePositions(view.id, [
-        { instanceId: 'inst_1', x: 100, y: 150 },
-        { instanceId: 'inst_2', x: 500, y: 150 },
+        { instanceId: 'inst_1', x: 96, y: 144 },
+        { instanceId: 'inst_2', x: 504, y: 144 },
       ]);
 
       const currentView = useGraphStore.getState().views.find(v => v.id === view.id)!;
-      expect(currentView.nodes[0].x).toBe(100);
-      expect(currentView.nodes[1].x).toBe(500);
+      expect(currentView.nodes[0].x).toBe(96);
+      expect(currentView.nodes[1].x).toBe(504);
     });
     it('toggles ViewEdge on and off for specific instances', () => {
       const store = useGraphStore.getState();

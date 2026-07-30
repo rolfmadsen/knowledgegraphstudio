@@ -27,6 +27,8 @@ Formel: **Begreb**: En [overordnet kategori] (genus), der [specifik egenskab der
 *   **Kommandoprompt (Command Hub / Zone 3)**: En centreret modal-dialog, der muliggør hurtig nodeoprettelse og relationsopbygning via tastaturet.
 *   **Egenskaber (Node Properties / Zone 4)**: Et redigeringspanel, der giver adgang to at modificere egenskaber, metadata og forretningsregler for det valgte element.
 *   **Fokustilstand (Focus Mode)**: En visuel visningstilstand, der skjuler irrelevant støj på lærredet ved kun at vise den valgte node og dens direkte naboer.
+*   **Lærreds-panorering (Canvas Panning)**: En visningsfunktion (genus), der forskyder JointJS lærredets synlige område (translation) ved hjælp af musetræk på blanke lærredsområder (blank:pointerdown) eller scrollhjul.
+*   **Lærreds-skalering (Canvas Zooming)**: En visningsfunktion (genus), der forstørrer eller formindsker JointJS lærredets visningsskala (scale) omkring et koordinatpunkt ved hjælp af zoom-knapper eller pinch/wheel-handlinger.
 *   **Semantisk Konflikthåndtering (Conflict Resolution)**: En interaktiv proces, der lader brugeren vælge mellem konfliktende ændringer på begrebsniveau under synkronisering.
 *   **Node-instans (View Node Instance)**: En visuel repræsentation (genus), der placerer et semantisk begreb på en specifik position eller container i et givet visningsdiagram.
 *   **Instans-forbindelse (View Edge)**: En visuel pil (genus), der forbinder to specifikke node-instanser på et visningsdiagram.

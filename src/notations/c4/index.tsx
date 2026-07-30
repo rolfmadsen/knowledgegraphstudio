@@ -1,4 +1,4 @@
-import { useMemo, createElement } from 'react';
+import { useMemo, createElement, memo } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import type { Notation, NotationCanvasProps } from '../types';
 import { ReactFlowCanvas } from '../../features/viewport/graph/ReactFlowCanvas';
@@ -18,7 +18,7 @@ function isConceptExternal(concept: ConceptNode): boolean {
 }
 
 // --- C4 Styled Node Component ---
-export function C4NodeComponent({ data, selected }: NodeProps) {
+export const C4NodeComponent = memo(function C4NodeComponent({ data, selected }: NodeProps) {
   const concept = data.concept as ConceptNode;
   const conceptType = concept?.conceptType || 'other';
 
@@ -110,14 +110,19 @@ export function C4NodeComponent({ data, selected }: NodeProps) {
   }
 
   const stereotype = `«${stereotypeLabel}»`;
+  const nameLen = (concept?.name || '').length + (concept?.definition || '').length;
+  const dynamicHeight = nameLen > 60 ? 144 : nameLen > 30 ? 120 : 96;
 
   return (
-    <div className={`
-      relative min-w-[240px] max-w-[360px] min-h-[96px] px-5 py-4 border-2 transition-all duration-300 rounded-xl flex flex-col justify-between shadow-sm hover:shadow-md font-sans text-left
-      ${selected
-        ? `bg-white border-indigo-600 scale-[1.03] ring-4 ring-indigo-100 shadow-lg shadow-indigo-100/50`
-        : `${bgColor} ${borderColor}`}
-    `}>
+    <div
+      style={{ width: '288px', minHeight: `${dynamicHeight}px` }}
+      className={`
+        relative px-5 py-4 border-2 transition-colors duration-300 rounded-xl flex flex-col justify-between shadow-sm hover:shadow-md font-sans text-left box-border
+        ${selected
+          ? `bg-white border-indigo-600 ring-4 ring-indigo-100 shadow-lg shadow-indigo-100/50`
+          : `${bgColor} ${borderColor}`}
+      `}
+    >
       <Handle type="target" position={Position.Top} style={{ visibility: 'hidden', top: '50%', left: '50%' }} />
       <Handle type="source" position={Position.Bottom} style={{ visibility: 'hidden', top: '50%', left: '50%' }} />
 
@@ -144,7 +149,7 @@ export function C4NodeComponent({ data, selected }: NodeProps) {
       )}
     </div>
   );
-}
+});
 
 function C4Canvas(props: NotationCanvasProps) {
   const nodeTypes = useMemo(() => ({ conceptNode: C4NodeComponent }), []);

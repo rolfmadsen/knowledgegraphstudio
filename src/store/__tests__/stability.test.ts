@@ -51,12 +51,12 @@ describe('Graph Store Stability', () => {
     const view = useGraphStore.getState().createView('Test View');
     useGraphStore.getState().addConceptToView(view.id, concept.id, 0, 0);
     
-    useGraphStore.getState().updateNodePosition(concept.id, 100, 200);
+    useGraphStore.getState().updateNodePosition(concept.id, 96, 192);
     
     const updatedView = useGraphStore.getState().views.find(v => v.id === view.id)!;
     const node = updatedView.nodes.find(n => n.conceptId === concept.id);
-    expect(node?.x).toBe(100);
-    expect(node?.y).toBe(200);
+    expect(node?.x).toBe(96);
+    expect(node?.y).toBe(192);
     
     const conceptAfter = useGraphStore.getState().concepts.find(c => c.id === concept.id);
     expect(conceptAfter?.definition).toBe('Stay here');

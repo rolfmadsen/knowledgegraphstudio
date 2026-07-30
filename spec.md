@@ -1,31 +1,24 @@
-# Specification: JointJS / @joint/react Canvas Integration
+# Specification: Skalering & Grid-Alignment i ReactFlow (>1.000 Noder)
 
 ## Overview
-Implement JointJS / @joint/react integration for Knowledge Graph Studio across 5 sequential phases, providing native Manhattan 90° orthogonal edge routing, HTML/React node rendering, Zustand store synchronization, Cmd+K search-and-pan navigation, minimap, and a 5-column 2D matrix layout engine.
+1. Performance-optimering af ReactFlow (`@xyflow/react`) til 1.000+ noder (Culling, Memoization, O(1) opslag, `useShallow`).
+2. Exact 24px Grid Geometry Alignment for noder og kanter: Alle 4 hjørner af en node rammer præcist grid-punkter, og dynamiske teksthøjder vokser i 24px trin.
 
-## Core Directives & Architectural Principles
-- Install `@joint/core` (^4.3.1) and `@joint/react` (^4.3.2).
-- Implement `src/features/jointjs/jointMapper.ts` to convert Zustand `concepts`, `relations`, and active view nodes/edges to JointJS cells (`dia.Element` and `dia.Link`).
-- Use Manhattan 90° orthogonal router (`router: { name: 'manhattan' }`) with rounded connectors (`connector: { name: 'rounded' }`).
-- Include unit tests verifying mapper correctness.
+## Scope of Work & Architectural Boundaries
 
-### Phase 2: JointReactCanvasWrapper & Custom Node Renderers
-- Implement `src/features/jointjs/JointReactCanvasWrapper.tsx` wrapped with `<GraphProvider>` and `<Paper>`.
-- Implement `src/features/jointjs/renderNode.tsx` supporting custom HTML/React rendering (`<HTMLBox>` or React portal element) for UML classes and concepts.
+### 1. Performance Overhaul (Fase 1-2)
+- `onlyRenderVisibleElements={true}` i `<ReactFlow />`.
+- Stabile `useCallback` handlers for onEdgeClick, onEdgeDoubleClick, onPaneClick.
+- `React.memo` på alle custom node & edge komponenter.
+- $O(1)$ `Map` opslag i store og selectors med `useShallow`.
 
-### Phase 3: Zustand Store & Canvas Event Integration
-- Wire paper/graph event listeners to Zustand store (`useGraphStore.ts`):
-  - Node select -> `selectConcept(conceptId, instanceId)`
-  - Link select -> `selectRelation(relationId)`
-  - Node drag / move -> store position update
-  - Zoom / pan synchronization
-- Include unit tests for event handlers and store dispatching.
+### 2. Grid Geometry & Height Step Increments (Fase 3)
+- **Grid Unit = 24px** (`snapGrid={[24, 24]}`).
+- **Grid-Aligned Width & Height**: Noders bredder (f.eks. 240px, 264px, 288px) og højder (f.eks. 96px, 120px, 144px, 168px) er altid hele multipla af 24px.
+- **Dynamisk 24px Højdestigning**: Ved lange titler/labels beregnes højden i trin af 24px (`Math.ceil(height / 24) * 24`), så alle 4 hjørner: `(x, y)`, `(x+w, y)`, `(x, y+h)`, `(x+w, y+h)` altid rammer eksakte grid-punkter.
+- **Edge Routing Grid Snap**: Ortogonale kantstier og tilslutningspunkter justeres til 24px grid-koordinater.
 
-### Phase 4: Canvas Navigation Tools (Minimap & Cmd+K Search-and-Pan)
-- Add Minimap component displaying overall graph overview.
-- Add Cmd+K Command Palette with fuzzy search over concepts/relations and smooth pan-to-node camera transition.
-
-### Phase 5: Compact Orthogonal Matrix Layout Engine & Converter Update
-- Implement `src/features/jointjs/matrixLayout.ts` with a 5-column 2D matrix layout engine.
-- Calculate grid positions with configurable spacing and integrate with Manhattan 90° routing.
-- Provide position converter functions between Zustand store positions and JointJS cells.
+## Verification Criteria
+1. **Tests & Build**: `npm run test` og `npm run build` passerer 100%.
+2. **Grid Precision**: Noders 4 hjørner falder på eksakte 24px koordinater `(x % 24 === 0, y % 24 === 0, w % 24 === 0, h % 24 === 0)`.
+3. **Dynamic Label Height**: Tekstindhold tilpasser højden i 24px spring (96px, 120px, 144px...).

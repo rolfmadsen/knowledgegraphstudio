@@ -1,4 +1,4 @@
-import { useMemo, createElement } from 'react';
+import { useMemo, createElement, memo } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import type { Notation, NotationCanvasProps } from '../types';
 import { ReactFlowCanvas } from '../../features/viewport/graph/ReactFlowCanvas';
@@ -8,7 +8,7 @@ import { isValidRelation, getAvailableRelations, isSubclass, ARCHIMATE_TYPE_MAP 
 
 
 // --- ArchiMate Styled Node Component ---
-export function ArchimateNodeComponent({ data, selected }: NodeProps) {
+export const ArchimateNodeComponent = memo(function ArchimateNodeComponent({ data, selected }: NodeProps) {
   const concept = data.concept as ConceptNode;
   const conceptType = concept?.conceptType || 'other';
 
@@ -171,14 +171,19 @@ export function ArchimateNodeComponent({ data, selected }: NodeProps) {
 
   const label = archimateNotation.conceptTypeLabels?.[conceptType] || conceptType.toUpperCase().replace('_', ' ');
   const stereotype = `«${label}»`;
+  const nameLen = (concept?.name || '').length;
+  const dynamicHeight = nameLen > 40 ? 144 : nameLen > 20 ? 120 : 96;
 
   return (
-    <div className={`
-      relative min-w-[210px] min-h-[76px] px-5 py-4 border-2 transition-all duration-300 rounded-xl flex flex-col justify-between shadow-sm hover:shadow-md font-sans text-left
-      ${selected
-        ? `bg-white border-emerald-500 scale-[1.03] ring-4 ring-emerald-100 shadow-lg shadow-emerald-100/50`
-        : `${bgColor} ${borderColor}`}
-    `}>
+    <div
+      style={{ width: '288px', minHeight: `${dynamicHeight}px` }}
+      className={`
+        relative px-5 py-4 border-2 transition-colors duration-300 rounded-xl flex flex-col justify-between shadow-sm hover:shadow-md font-sans text-left box-border
+        ${selected
+          ? `bg-white border-emerald-500 ring-4 ring-emerald-100 shadow-lg shadow-emerald-100/50`
+          : `${bgColor} ${borderColor}`}
+      `}
+    >
       <Handle type="target" position={Position.Top} style={{ visibility: 'hidden', top: '50%', left: '50%' }} />
       <Handle type="source" position={Position.Bottom} style={{ visibility: 'hidden', top: '50%', left: '50%' }} />
 
@@ -194,7 +199,7 @@ export function ArchimateNodeComponent({ data, selected }: NodeProps) {
       </div>
     </div>
   );
-}
+});
 
 function ArchimateCanvas(props: NotationCanvasProps) {
   const nodeTypes = useMemo(() => ({ conceptNode: ArchimateNodeComponent }), []);

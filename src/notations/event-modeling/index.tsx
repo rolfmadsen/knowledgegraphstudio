@@ -16,7 +16,7 @@
  * Gherkin: exposed via InspectorComponent on Command nodes only.
  */
 
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, memo } from 'react';
 import { Handle, Position, type NodeProps, type Node } from '@xyflow/react';
 import type { Notation, NotationCanvasProps, QuickActionConfig } from '../types';
 import { ReactFlowCanvas } from '../../features/viewport/graph/ReactFlowCanvas';
@@ -434,13 +434,17 @@ function EmElementNode({ data, selected }: NodeProps<EmNodeType>) {
     return false;
   }, [payload, conceptType, accumulatedPrecedingEventAttributes]);
 
+  const nameLen = (liveConcept?.name || '').length + (payload?.length || 0) * 15;
+  const dynamicHeight = nameLen > 60 ? 144 : nameLen > 30 ? 120 : 96;
+
   return (
     <div
+      style={{ width: '264px', minHeight: `${dynamicHeight}px` }}
       className={`
-        relative w-[260px] min-w-[260px] min-h-[90px] px-5 py-4 border-2 rounded-2xl
-        shadow-sm hover:shadow-md transition-all duration-200 font-sans flex flex-col justify-between
+        relative px-5 py-4 border-2 rounded-2xl box-border
+        shadow-sm hover:shadow-md transition-colors duration-200 font-sans flex flex-col justify-between
         ${style.bg} ${style.border}
-        ${selected ? 'ring-4 ring-emerald-200 scale-[1.02] shadow-lg' : ''}
+        ${selected ? 'ring-4 ring-emerald-200 shadow-lg' : ''}
       `}
     >
       <Handle type="target" position={Position.Top} style={{ visibility: 'hidden', top: '50%', left: '50%', pointerEvents: 'none' }} />
@@ -553,12 +557,12 @@ function EmElementNode({ data, selected }: NodeProps<EmNodeType>) {
 // Dispatcher: routes to the right node renderer
 // ============================================================
 
-function EventModelingNodeComponent(props: NodeProps<EmNodeType>) {
+const EventModelingNodeComponent = memo(function EventModelingNodeComponent(props: NodeProps<EmNodeType>) {
   const conceptType = (props.data.concept?.conceptType as string) ?? 'other';
   if (conceptType === 'em_chapter') return <EmChapterNode {...props} />;
   if (conceptType === 'em_slice') return <EmSliceNode {...props} />;
   return <EmElementNode {...props} />;
-}
+});
 
 // ============================================================
 // Canvas
