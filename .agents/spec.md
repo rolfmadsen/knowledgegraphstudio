@@ -1,21 +1,33 @@
-# Specification: Inline Class & Attribute Editing in Payload Specification
+# Specification: Formal Graph Containment Relations & Focus Mode Container Scoping
 
-## Overview
-This specification defines inline editing capability inside the Event Modeling Node Payload Specification popover card. Users can edit Class names, Attribute names, and Attribute types directly within the popover card on the canvas without having to navigate to Zone 4 Inspector or the Information Model view.
+## 1. Overview & Motivation
+In the Knowledge Graph Studio, Event Modeling chapters (`em_chapter`) and slices (`em_slice`) organize nodes visually using container frames.
+This specification formalizes structural containment (`includes` relations) and refines Focus Mode filtering to present clean, scoped subtrees when focusing chapters or slices.
 
-## Functional Requirements
+---
 
-### 1. Inline Attribute Name Editing
-- Clicking on an attribute name in the Payload Specification popover triggers inline editing mode (`editingAttrId === attr.id`).
-- An input field replaces the static label.
-- On `Enter` or `blur`:
-  - For `class_attribute` with `attr.classId` and `attr.propertyId`: Calls `updateProperty(attr.classId, attr.propertyId, { name: newName })` to sync the Information Model Class property, and updates `attr.name` in node payload.
-  - For `event_local` attributes: Updates `attr.name` in node payload (`updateConcept(nodeId, { payload: updatedPayload })`).
+## 2. Key Decisions
+1. **Relation Type & Direction**:
+   - `includes` relation, directed from Container to Member:
+     - `em_chapter` $\xrightarrow{\text{includes}}$ `em_slice`
+     - `em_slice` $\xrightarrow{\text{includes}}$ `node` (`screen`, `command`, `event`, `read_model`, `automation`, `integration_event`)
+2. **Single Source of Truth**:
+   - `ConceptRelation` (`type: 'includes'`) in `GraphState.relations` is the single source of truth.
+3. **Focus Mode Scoping**:
+   - **Chapter Focused**: Shows the `em_chapter` + its direct 1-hop child `em_slice` nodes. Inner nodes inside slices remain hidden.
+   - **Slice Focused**: Shows its parent `em_chapter` + the focused `em_slice` + all inner nodes directly contained in that `em_slice`. Sibling slices and their contents remain hidden.
 
-### 2. Inline Class Name Editing & Rebinding
-- Clicking on the bound `Class.` badge/prefix (e.g., `OrgPerson.`):
-  - In edit mode: Allows changing the Class name directly (`updateConcept(boundClass.id, { name: newClassName })`), updating the Information Model Class name globally across the model graph.
-  - In rebind mode: Provides a dropdown to change class binding or switch to `event_local`.
+---
 
-### 3. Inline Type Editing
-- Clicking on the type label (e.g. `string`, `number`, `boolean`) allows toggling or changing attribute data type inline.
+## 3. Detailed Technical Requirements
+
+### 3.1 Validator & Schema Updates
+- **`validator.ts`**: `isValidRelation` permits `includes` relations from `em_chapter` to `em_slice`, and `em_slice` to EM element types.
+
+### 3.2 GraphService & Store Mutations
+- `GraphService` and `useGraphStore` preserve and synchronize `includes` relations on concept addition, view creation, and reparenting.
+
+### 3.3 Focus Mode Filtering (`selectors.ts`)
+- Refine `useFocusedGraph` selector:
+  - If a container (such as `em_chapter` or `em_slice`) is selected, include ONLY its direct 1-level child nodes (do not recurse deeper into grandchildren).
+  - Include parent container hierarchy upwards so ancestors (`em_chapter`) remain visible to the left.

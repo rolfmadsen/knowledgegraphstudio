@@ -28,18 +28,21 @@ import '@xyflow/react/dist/style.css';
 import type { NotationCanvasProps } from '../../../notations/types';
 import { NotationRegistry } from '../../../notations/NotationRegistry';
 import { useGraphStore, isEdgeVisibleForInstances, normalizeViewNodes } from '../../../store/useGraphStore';
+import { GRID_SIZE, CANVAS_BACKGROUND_OFFSET } from '../../../constants/grid';
 import { type ConceptNode, type ElementId, toElementId, type ViewType, type ConceptType } from '../../../schema/graphSchema';
-import { getDynamicConnection, getClosestPosition } from '../../../utils/edgeRouting';
+import { getDynamicConnection, getClosestPosition, getConceptNodeSize } from '../../../utils/edgeRouting';
 
 // --- Padding for Grouping Containers ---
-// Header label occupies ~48px. With PADDING_TOP = 84 (48 + 36), the separation between
-// the header text and the top node is 36px, perfectly matching left, right, and bottom margins.
-export const PADDING_TOP = 84;
-export const PADDING_BOTTOM = 36;
-export const PADDING_LEFT = 36;
-export const PADDING_RIGHT = 36;
-export const GRID_SIZE = 24;
+export { GRID_SIZE } from '../../../constants/grid';
 export const GRID_STEP = GRID_SIZE;
+export const SLICE_WIDTH = 12 * GRID_SIZE;   // 288px (12 * 24px grid units)
+export const SLICE_HEIGHT = 15 * GRID_SIZE;  // 360px (15 * 24px grid units)
+export const SLICE_GAP = 2 * GRID_SIZE;     // 48px (2 * 24px grid units gutter between slices)
+export const PADDING_TOP = 2 * GRID_SIZE;    // 48px (Slice header + 1 grid size margin)
+export const PADDING_BOTTOM = 1 * GRID_SIZE; // 24px (1 grid size margin)
+export const PADDING_LEFT = 1 * GRID_SIZE;   // 24px (1 grid size margin)
+export const PADDING_RIGHT = 1 * GRID_SIZE;  // 24px (1 grid size margin)
+
 
 export function snapToGridStep(val: number, step = GRID_SIZE): number {
   return Math.round(val / step) * step;
@@ -62,7 +65,7 @@ export function getEstimatedElementWidth(
   if (concept) {
     const EM_TYPES = ['screen', 'command', 'event', 'domain_event', 'read_model', 'integration_event', 'automation'];
     if (EM_TYPES.includes(concept.conceptType)) {
-      return 11 * GRID_SIZE;
+      return 10 * GRID_SIZE;
     }
   }
   return 10 * GRID_SIZE;
@@ -90,6 +93,26 @@ export function getEstimatedElementHeight(
     }
   }
   return minHeight;
+}
+
+export function getNodeAbsolutePosition(
+  rfNode: { position: { x: number; y: number }; parentId?: string },
+  getNode: (id: string) => { position: { x: number; y: number }; parentId?: string } | undefined
+): { x: number; y: number } {
+  let absX = rfNode.position.x;
+  let absY = rfNode.position.y;
+  let currParentId = rfNode.parentId;
+  while (currParentId) {
+    const parentNode = getNode(currParentId);
+    if (parentNode) {
+      absX += parentNode.position.x;
+      absY += parentNode.position.y;
+      currParentId = parentNode.parentId;
+    } else {
+      break;
+    }
+  }
+  return { x: absX, y: absY };
 }
 
 function getGroupBounds(
@@ -139,10 +162,18 @@ function getGroupBounds(
         });
       }
 
-      const sliceX = vn.x;
-      const sliceY = vn.y;
-      const w = vn.width ?? (maxElementRight !== -Infinity ? Math.max(320, (maxElementRight + 36) - sliceX) : 320);
-      const h = vn.height ?? (maxElementBottom !== -Infinity ? Math.max(350, (maxElementBottom + 36) - sliceY) : 350);
+      const sliceX = snapToGridStep(vn.x, GRID_SIZE);
+      const sliceY = snapToGridStep(vn.y, GRID_SIZE);
+      const minSliceW = SLICE_WIDTH; // 336px (14 * 24px)
+      const minSliceH = 15 * GRID_SIZE; // 360px
+      const calculatedW = maxElementRight !== -Infinity
+        ? Math.max(minSliceW, Math.ceil(((maxElementRight + PADDING_RIGHT) - sliceX) / GRID_SIZE) * GRID_SIZE)
+        : minSliceW;
+      const calculatedH = maxElementBottom !== -Infinity
+        ? Math.max(minSliceH, Math.ceil(((maxElementBottom + PADDING_BOTTOM) - sliceY) / GRID_SIZE) * GRID_SIZE)
+        : minSliceH;
+      const w = vn.width ? Math.ceil(vn.width / GRID_SIZE) * GRID_SIZE : calculatedW;
+      const h = vn.height ? Math.ceil(vn.height / GRID_SIZE) * GRID_SIZE : calculatedH;
       return {
         x: sliceX,
         y: sliceY,
@@ -884,7 +915,7 @@ function getEdgePoints(
       const targetTotalEdges = sortedTargetEdges.length;
       const targetOffsetIndex = sortedTargetEdges.findIndex(e => e.id === edgeId);
 
-      const step = 20;
+      const step = 2 * GRID_SIZE;
 
       if (sourceTotalEdges > 1 && sourceOffsetIndex !== -1) {
         sourceOffset = (sourceOffsetIndex - (sourceTotalEdges - 1) / 2) * step;
@@ -945,6 +976,22 @@ function getEdgePoints(
     const nodeX = targetX;
     tx = shouldSlide ? Math.max(nodeX, Math.min(nodeX + targetWidth, lastWaypoint.x)) : tx_center;
     tx += targetOffset;
+  }
+
+  if (sourcePosition === Position.Top || sourcePosition === Position.Bottom) {
+    sx = Math.round(sx / GRID_SIZE) * GRID_SIZE;
+    sy = Math.round(sy / GRID_SIZE) * GRID_SIZE;
+  } else {
+    sx = Math.round(sx / GRID_SIZE) * GRID_SIZE;
+    // Keep sy at exact visual center (sourceY + sourceHeight / 2) for Left/Right handles
+  }
+
+  if (targetPosition === Position.Top || targetPosition === Position.Bottom) {
+    tx = Math.round(tx / GRID_SIZE) * GRID_SIZE;
+    ty = Math.round(ty / GRID_SIZE) * GRID_SIZE;
+  } else {
+    tx = Math.round(tx / GRID_SIZE) * GRID_SIZE;
+    // Keep ty at exact visual center (targetY + targetHeight / 2) for Left/Right handles
   }
 
 
@@ -1255,10 +1302,14 @@ function getEdgePoints(
             const tgtChapterW = tgtChapter.measured?.width ?? 600;
             const tgtChapterRight = tgtChapterX + tgtChapterW;
 
-            if (srcChapterRight < tgtChapterX) {
-              draggedX = (srcChapterRight + tgtChapterX) / 2;
+            if (targetPosition === Position.Left) {
+              draggedX = tgtChapterX - 2 * GRID_SIZE;
+            } else if (targetPosition === Position.Right) {
+              draggedX = tgtChapterRight + 2 * GRID_SIZE;
+            } else if (srcChapterRight < tgtChapterX) {
+              draggedX = tgtChapterX - 2 * GRID_SIZE;
             } else if (tgtChapterRight < srcChapterX) {
-              draggedX = (tgtChapterRight + srcChapterX) / 2;
+              draggedX = tgtChapterRight + 2 * GRID_SIZE;
             }
           } else {
             const srcSlice = findAncestorContainer(sourceNode, ['em_slice', 'em_chapter'], nodesMap);
@@ -1267,17 +1318,21 @@ function getEdgePoints(
             if (srcSlice && tgtSlice && srcSlice.id !== tgtSlice.id) {
               isEmCrossSlice = true;
               const srcSliceX = srcSlice.internals?.positionAbsolute?.x ?? srcSlice.position?.x ?? 0;
-              const srcSliceW = srcSlice.measured?.width ?? 320;
+              const srcSliceW = srcSlice.measured?.width ?? SLICE_WIDTH;
               const srcSliceRight = srcSliceX + srcSliceW;
 
               const tgtSliceX = tgtSlice.internals?.positionAbsolute?.x ?? tgtSlice.position?.x ?? 0;
-              const tgtSliceW = tgtSlice.measured?.width ?? 320;
+              const tgtSliceW = tgtSlice.measured?.width ?? SLICE_WIDTH;
               const tgtSliceRight = tgtSliceX + tgtSliceW;
 
-              if (srcSliceRight < tgtSliceX) {
-                draggedX = (srcSliceRight + tgtSliceX) / 2;
-              } else if (tgtSliceRight < srcSliceX) {
-                draggedX = (tgtSliceRight + srcSliceX) / 2;
+              const gapHalf = SLICE_GAP / 2; // 24px
+
+              if (targetPosition === Position.Left || srcSliceRight < tgtSliceX) {
+                // Route through the gutter directly before the target slice!
+                draggedX = tgtSliceX - gapHalf;
+              } else if (targetPosition === Position.Right || tgtSliceRight < srcSliceX) {
+                // Route through the gutter directly after the target slice!
+                draggedX = tgtSliceRight + gapHalf;
               }
             }
           }
@@ -1286,6 +1341,8 @@ function getEdgePoints(
         if (!isEmCrossSlice && sourceOffset !== 0) {
           draggedX += sourceOffset;
         }
+
+        draggedX = Math.round(draggedX / GRID_SIZE) * GRID_SIZE;
 
         // Find intermediate nodes in the horizontal path
         const xMin = Math.min(sx, tx);
@@ -1396,11 +1453,12 @@ function getEdgePoints(
         } else if (viewType === 'event_modeling') {
           if (!isEmCrossSlice) {
             if (targetPosition === Position.Left) {
-              draggedX = tx - 42;
+              draggedX = tx - 2 * GRID_SIZE;
             } else if (targetPosition === Position.Right) {
-              draggedX = tx + 42;
+              draggedX = tx + 2 * GRID_SIZE;
             }
           }
+          draggedX = Math.round(draggedX / GRID_SIZE) * GRID_SIZE;
           rawPoints = [
             { x: sx, y: sy },
             { x: draggedX, y: sy },
@@ -2254,14 +2312,16 @@ export function ReactFlowCanvas({
           });
 
           const sliceX = sliceVn.x;
-          const wSlice = sliceVn.width ?? (sliceRight !== -Infinity ? Math.max(320, (sliceRight + 36) - sliceX) : 320);
+          const wSlice = sliceRight !== -Infinity
+            ? Math.max(SLICE_WIDTH, Math.ceil(((sliceRight + 24) - sliceX) / GRID_SIZE) * GRID_SIZE)
+            : SLICE_WIDTH;
           emSliceWidths.set(sliceInstId, wSlice);
         });
 
         const sliceY = chapterVn.y + 48; // CHAPTER_PADDING
         const hSlice = maxElementBottom !== -Infinity
-          ? Math.max(350, (maxElementBottom + 36) - sliceY)
-          : 350;
+          ? Math.max(SLICE_HEIGHT, Math.ceil(((maxElementBottom + PADDING_BOTTOM) - sliceY) / GRID_SIZE) * GRID_SIZE)
+          : SLICE_HEIGHT;
         const hChapter = hSlice + 96; // 48 padding top + 48 padding bottom
 
         emChapterHeights.set(chapterInstId, hChapter);
@@ -2291,10 +2351,12 @@ export function ReactFlowCanvas({
 
         const sliceX = sliceVn.x;
         const sliceY = sliceVn.y;
-        const wSlice = sliceVn.width ?? (maxElementRight !== -Infinity ? Math.max(320, (maxElementRight + 36) - sliceX) : 320);
+        const wSlice = maxElementRight !== -Infinity
+          ? Math.max(SLICE_WIDTH, Math.ceil(((maxElementRight + 24) - sliceX) / GRID_SIZE) * GRID_SIZE)
+          : SLICE_WIDTH;
         const hSlice = maxElementBottom !== -Infinity
-          ? Math.max(350, (maxElementBottom + 36) - sliceY)
-          : 350;
+          ? Math.max(SLICE_HEIGHT, Math.ceil(((maxElementBottom + PADDING_BOTTOM) - sliceY) / GRID_SIZE) * GRID_SIZE)
+          : SLICE_HEIGHT;
 
         emSliceWidths.set(sliceInstId, wSlice);
         emSliceHeights.set(sliceInstId, hSlice);
@@ -2332,13 +2394,13 @@ export function ReactFlowCanvas({
       const childIds = groupChildrenMap.get(vnInstId) || groupChildrenMap.get(vn.conceptId) || [];
 
       if (childIds.length === 0) {
-        let w = vn.width ?? (view.type === 'event_modeling' ? (c.conceptType === 'em_chapter' ? 600 : (emSliceWidths.get(vnInstId) ?? 320)) : (view.type === 'c4' ? 280 : 240));
+        let w = vn.width ?? (view.type === 'event_modeling' ? (c.conceptType === 'em_chapter' ? 600 : (emSliceWidths.get(vnInstId) ?? SLICE_WIDTH)) : (view.type === 'c4' ? 280 : 240));
         let h = vn.height ?? (view.type === 'event_modeling' ? (c.conceptType === 'em_chapter' ? 600 : (emSliceHeights.get(vnInstId) ?? 350)) : (view.type === 'c4' ? 160 : 140));
 
         if (view.type === 'event_modeling') {
           if (c.conceptType === 'em_slice') {
-            h = emSliceHeights.get(vnInstId) ?? 350;
-            w = emSliceWidths.get(vnInstId) ?? vn.width ?? 320;
+            h = emSliceHeights.get(vnInstId) ?? SLICE_HEIGHT;
+            w = emSliceWidths.get(vnInstId) ?? SLICE_WIDTH;
           } else if (c.conceptType === 'em_chapter') {
             h = emChapterHeights.get(vnInstId) ?? 600;
             w = 600;
@@ -2376,8 +2438,8 @@ export function ReactFlowCanvas({
           let h = getEstimatedElementHeight(childVn, childConcept, rfNode);
           if (view.type === 'event_modeling') {
             if (childConcept?.conceptType === 'em_slice') {
-              w = emSliceWidths.get(cid) ?? childVn.width ?? 320;
-              h = emSliceHeights.get(cid) ?? childVn.height ?? 350;
+              w = emSliceWidths.get(cid) ?? SLICE_WIDTH;
+              h = emSliceHeights.get(cid) ?? SLICE_HEIGHT;
             }
           }
           minX = Math.min(minX, childVn.x);
@@ -2388,15 +2450,17 @@ export function ReactFlowCanvas({
 
         if (view.type === 'event_modeling') {
           if (c.conceptType === 'em_slice') {
-            const minSliceW = 320;
-            const calculatedW = (maxX !== -Infinity && minX !== Infinity) ? Math.max(minSliceW, (maxX + 30) - vn.x) : minSliceW;
-            const storedW = emSliceWidths.get(vnInstId) ?? vn.width;
-            const w = storedW ? Math.max(storedW, calculatedW) : calculatedW;
+            const minSliceW = SLICE_WIDTH;
+            const calculatedW = (maxX !== -Infinity && minX !== Infinity)
+              ? Math.max(minSliceW, Math.ceil(((maxX + 24) - vn.x) / GRID_SIZE) * GRID_SIZE)
+              : minSliceW;
+            const w = emSliceWidths.get(vnInstId) ?? calculatedW;
 
-            const minSliceH = 350;
-            const calculatedH = (maxY !== -Infinity && minY !== Infinity) ? Math.max(minSliceH, (maxY + 30) - vn.y) : minSliceH;
-            const storedH = emSliceHeights.get(vnInstId) ?? vn.height;
-            const h = storedH ? Math.max(storedH, calculatedH) : calculatedH;
+            const minSliceH = SLICE_HEIGHT;
+            const calculatedH = (maxY !== -Infinity && minY !== Infinity)
+              ? Math.max(minSliceH, Math.ceil(((maxY + PADDING_BOTTOM) - vn.y) / GRID_SIZE) * GRID_SIZE)
+              : minSliceH;
+            const h = emSliceHeights.get(vnInstId) ?? calculatedH;
 
             groupBounds.set(vnInstId, {
               x: vn.x,
@@ -2406,15 +2470,15 @@ export function ReactFlowCanvas({
             });
           } else if (c.conceptType === 'em_chapter') {
             const CHAPTER_PADDING = 48;
-            const chapterX = minX !== Infinity ? minX - CHAPTER_PADDING : vn.x;
-            const chapterY = minY !== Infinity ? minY - CHAPTER_PADDING : vn.y;
-            const w = minX !== Infinity ? (maxX - minX) + CHAPTER_PADDING * 2 : 600;
-            const h = emChapterHeights.get(vnInstId) ?? (maxY !== -Infinity ? Math.max(300, maxY - chapterY + CHAPTER_PADDING) : 600);
+            const chapterX = Math.round((minX !== Infinity ? minX - CHAPTER_PADDING : vn.x) / GRID_SIZE) * GRID_SIZE;
+            const chapterY = Math.round((minY !== Infinity ? minY - CHAPTER_PADDING : vn.y) / GRID_SIZE) * GRID_SIZE;
+            const chapterW = Math.round((minX !== Infinity ? (maxX - minX) + CHAPTER_PADDING * 2 : 600) / GRID_SIZE) * GRID_SIZE;
+            const chapterH = emChapterHeights.get(vnInstId) ?? Math.round((maxY !== -Infinity ? Math.max(300, maxY - chapterY + CHAPTER_PADDING) : 600) / GRID_SIZE) * GRID_SIZE;
             groupBounds.set(vnInstId, {
               x: chapterX,
               y: chapterY,
-              w,
-              h,
+              w: chapterW,
+              h: chapterH,
             });
           } else {
             const groupX = minX !== Infinity ? minX - PADDING_LEFT : vn.x;
@@ -2467,9 +2531,36 @@ export function ReactFlowCanvas({
       const c = conceptMap.get(vn.conceptId);
       if (!c) return [];
 
-      const isGroup = c.conceptType === 'domain' || c.conceptType === 'bounded_context' || c.conceptType === 'em_chapter' || c.conceptType === 'em_slice';
-      const parentConcept = vn.parentId ? conceptMap.get(vn.parentId) : undefined;
-      const parentId = vn.parentId && nodesMap.has(vn.parentId) && parentConcept && (parentConcept.conceptType === 'domain' || parentConcept.conceptType === 'bounded_context' || parentConcept.conceptType === 'em_chapter' || parentConcept.conceptType === 'em_slice') ? vn.parentId : undefined;
+      // em_chapter / em_slice are group containers ONLY in event_modeling view.
+      // In knowledge_graph and all other views they render as standalone leaf cards
+      // (ConceptNodeComponent), so they must NOT be treated as group containers —
+      // otherwise groupBounds gives them a children-derived height (140px) instead of
+      // the card height (96px), shifting edge exit points below visual center.
+      const isEmGroupType = c.conceptType === 'em_chapter' || c.conceptType === 'em_slice';
+      const isGroup = c.conceptType === 'domain' || c.conceptType === 'bounded_context' || (view.type === 'event_modeling' && isEmGroupType);
+
+      let rawParentId = vn.parentId;
+      // Only auto-assign parentId from 'includes' relations in event_modeling view.
+      // In other views (e.g. knowledge_graph), em_chapter→em_slice includes edges are
+      // rendered as visible graph edges, not as ReactFlow parent-child nesting.
+      if (!rawParentId && view.type === 'event_modeling') {
+        const incomingIncludes = relations.find(
+          (r) => (r.name?.toLowerCase() === 'includes' || r.relationType === 'includes' || (r as any).predicate === 'includes') && r.targetConceptId === c.id
+        );
+        if (incomingIncludes) {
+          const parentVn = viewNodes.find((vnNode) => vnNode.conceptId === incomingIncludes.sourceConceptId);
+          if (parentVn) {
+            rawParentId = (parentVn.instanceId || parentVn.conceptId) as ElementId;
+          }
+        }
+      }
+
+      const parentConcept = rawParentId ? conceptMap.get(rawParentId) : undefined;
+      const parentId = rawParentId && nodesMap.has(rawParentId) && parentConcept && (
+        parentConcept.conceptType === 'domain' ||
+        parentConcept.conceptType === 'bounded_context' ||
+        (view.type === 'event_modeling' && (parentConcept.conceptType === 'em_chapter' || parentConcept.conceptType === 'em_slice'))
+      ) ? rawParentId : undefined;
 
       const nodeInstId = (vn.instanceId || vn.conceptId) as ElementId;
 
@@ -2497,6 +2588,23 @@ export function ReactFlowCanvas({
         if (pBounds) {
           position = { x: vn.x - pBounds.x, y: vn.y - pBounds.y };
         }
+      }
+
+      // Pre-seed width + height on the ReactFlow node style so measured.width/height
+      // always matches the visual dimensions, ensuring getEdgePoints computes the correct center.
+      // This guarantees sy_center = nodeY + height/2 lands on a 24px grid point after the
+      // grid-snap at lines 981-984 — giving perfectly centered edge handles.
+      //
+      // Uses shared single source of truth functions from edgeRouting.ts:
+      //   • getConceptNodeSize(name) — for knowledge_graph, archimate, c4, etc.
+      //   • getEMNodeHeight(name, payloadCount) — for EM leaf nodes
+      if (!style && view.type !== 'event_modeling') {
+        const { width: _standardWidth, height: _dynamicHeight } = getConceptNodeSize(c.name);
+        style = { width: _standardWidth, minHeight: _dynamicHeight };
+      } else if (!style && view.type === 'event_modeling') {
+        const _emLeafWidth = 10 * GRID_SIZE;  // 240px — NODE_WIDTH in layout.ts
+        const _emLeafHeight = 6 * GRID_SIZE;  // 144px base minHeight
+        style = { width: _emLeafWidth, minHeight: _emLeafHeight };
       }
 
       const isProposed = (c as any).isProposed;
@@ -2589,6 +2697,10 @@ export function ReactFlowCanvas({
     const resultEdges: Edge[] = [];
 
     relations.forEach((r) => {
+      // Suppress 'includes' containment relations from being drawn as line edges ONLY on container-framed notation views (e.g. event_modeling, archimate, c4)
+      const isContainerFramedView = view.type === 'event_modeling' || view.type === 'archimate' || view.type === 'c4';
+      if (isContainerFramedView && (r.name?.toLowerCase() === 'includes' || r.relationType === 'includes' || (r as any).predicate === 'includes')) return;
+
       const sourceNodes = viewNodes.filter((vn) => vn.conceptId === r.sourceConceptId);
       const targetNodes = viewNodes.filter((vn) => vn.conceptId === r.targetConceptId);
 
@@ -3072,8 +3184,8 @@ export function ReactFlowCanvas({
             defaultW = 600;
             defaultH = 600;
           } else if (conceptType === 'em_slice') {
-            defaultW = 320;
-            defaultH = 500;
+            defaultW = SLICE_WIDTH;
+            defaultH = SLICE_HEIGHT;
           }
         }
 
@@ -3112,7 +3224,7 @@ export function ReactFlowCanvas({
           const centerY = targetNode.position.y + (childH as number) / 2;
 
           if (view.type === 'event_modeling' && conceptType === 'em_slice') {
-            const insideX = centerX >= -DETACHMENT_THRESHOLD && centerX <= 320 + DETACHMENT_THRESHOLD;
+            const insideX = centerX >= -DETACHMENT_THRESHOLD && centerX <= SLICE_WIDTH + DETACHMENT_THRESHOLD;
             const insideY = centerY >= -DETACHMENT_THRESHOLD;
             isAttached = insideX && insideY;
           } else {
@@ -3151,8 +3263,8 @@ export function ReactFlowCanvas({
 
         if (view.type === 'event_modeling') {
           if (conceptType === 'em_slice') {
-            proposedW = 320;
-            proposedH = maxY !== -Infinity ? Math.max(200, maxY + 48) : 500;
+            proposedW = SLICE_WIDTH;
+            proposedH = maxY !== -Infinity ? Math.max(SLICE_HEIGHT, Math.ceil(((maxY + PADDING_BOTTOM) - parentNode.position.y) / GRID_SIZE) * GRID_SIZE) : SLICE_HEIGHT;
           } else if (conceptType === 'em_chapter') {
             const CHAPTER_PADDING = 48;
             proposedW = minX !== Infinity ? (maxX - minX) + CHAPTER_PADDING * 2 : 600;
@@ -3231,6 +3343,102 @@ export function ReactFlowCanvas({
 
   const onNodeDragStop = useCallback((_: React.MouseEvent, node: Node) => {
     activeDraggingNode.current = null;
+
+    // --- Phase 2: Event Modeling Semantic Drag-and-Drop Handler ---
+    if (view.type === 'event_modeling' && currentAlgo !== 'manual') {
+      const viewNodes = view.nodes ?? [];
+      const conceptMap = new Map(concepts.map((c) => [c.id, c]));
+      const draggedVn = viewNodes.find((vn) => vn.conceptId === toElementId(node.id));
+      const draggedConcept = conceptMap.get(toElementId(node.id));
+
+      if (draggedVn && draggedConcept) {
+        const draggedType = draggedConcept.conceptType;
+
+        // Mode 4: Chapter Timeline Reordering
+        if (draggedType === 'em_chapter') {
+          const chapters = viewNodes.filter((vn) => conceptMap.get(vn.conceptId)?.conceptType === 'em_chapter');
+          const chapterPositions = chapters
+            .map((c) => ({
+              conceptId: c.conceptId,
+              x: c.conceptId === draggedVn.conceptId ? node.position.x : c.x,
+            }))
+            .sort((a, b) => a.x - b.x);
+
+          chapterPositions.forEach((cp, idx) => {
+            const cNode = conceptMap.get(cp.conceptId);
+            if (cNode && (cNode as any).order !== idx + 1) {
+              useGraphStore.getState().updateConcept(cp.conceptId, { order: idx + 1 } as any);
+            }
+          });
+        }
+        // Mode 3: Slice Reordering & Chapter Re-parenting
+        else if (draggedType === 'em_slice') {
+          const dropX = node.position.x;
+          const dropY = node.position.y;
+
+          const chapters = viewNodes.filter((vn) => conceptMap.get(vn.conceptId)?.conceptType === 'em_chapter');
+          let targetChapterId: ElementId | undefined = draggedVn.parentId;
+
+          for (const chapterVn of chapters) {
+            const cb = getGroupBounds(chapterVn.conceptId, viewNodes, view.type, conceptMap);
+            if (cb && dropX >= cb.x && dropX <= cb.x + cb.w && dropY >= cb.y && dropY <= cb.y + cb.h) {
+              targetChapterId = chapterVn.conceptId;
+              break;
+            }
+          }
+
+          if (targetChapterId !== draggedVn.parentId) {
+            updateViewNodeParentId(view.id, draggedConcept.id, targetChapterId);
+          }
+
+          // Reorder sibling slices within target chapter by drop X position
+          const chapterSlices = viewNodes.filter(
+            (vn) => conceptMap.get(vn.conceptId)?.conceptType === 'em_slice' && vn.parentId === targetChapterId
+          );
+          const slicePositions = chapterSlices
+            .map((s) => ({
+              conceptId: s.conceptId,
+              x: s.conceptId === draggedVn.conceptId ? dropX : s.x,
+            }))
+            .sort((a, b) => a.x - b.x);
+
+          slicePositions.forEach((sp, idx) => {
+            const sNode = conceptMap.get(sp.conceptId);
+            if (sNode && (sNode as any).order !== idx + 1) {
+              useGraphStore.getState().updateConcept(sp.conceptId, { order: idx + 1 } as any);
+            }
+          });
+        }
+        // Modes 1 & 2: Intra-slice reorder / Cross-slice transfer
+        else {
+          const nodeAbsPos = getNodeAbsolutePosition(node, (id) => nodes.find((n) => n.id === id));
+          const dropX = nodeAbsPos.x;
+          const dropY = nodeAbsPos.y;
+
+          const slices = viewNodes.filter((vn) => conceptMap.get(vn.conceptId)?.conceptType === 'em_slice');
+          let targetSliceId: ElementId | undefined = draggedVn.parentId;
+
+          for (const sliceVn of slices) {
+            const sb = getGroupBounds(sliceVn.conceptId, viewNodes, view.type, conceptMap);
+            if (sb && dropX >= sb.x && dropX <= sb.x + sb.w && dropY >= sb.y && dropY <= sb.y + sb.h) {
+              targetSliceId = sliceVn.conceptId;
+              break;
+            }
+          }
+
+          if (targetSliceId && targetSliceId !== draggedVn.parentId) {
+            updateViewNodeParentId(view.id, draggedConcept.id, targetSliceId);
+          }
+        }
+
+        // Trigger layout recalculation to snap everything into clean swimlane positions
+        setTimeout(() => {
+          useGraphStore.setState((s) => ({ layoutVersion: s.layoutVersion + 1 }));
+        }, 20);
+        return;
+      }
+    }
+
     if (currentAlgo !== 'manual') return;
 
     const viewNodes = view.nodes ?? [];
@@ -3268,8 +3476,8 @@ export function ReactFlowCanvas({
       const deltaY = newGroupAbsY - oldGroupY;
 
       if (draggedConcept.conceptType === 'em_slice') {
-        const sliceW = node.measured?.width ?? 320;
-        const sliceH = node.measured?.height ?? 500;
+        const sliceW = node.measured?.width ?? SLICE_WIDTH;
+        const sliceH = node.measured?.height ?? SLICE_HEIGHT;
 
         const parentId = draggedVn.parentId;
         const parentNode = parentId ? nodes.find((n) => n.id === parentId) : null;
@@ -3364,7 +3572,7 @@ export function ReactFlowCanvas({
         batchUpdateViewNodePositions(view.id, positionsToUpdate);
       }
     } else {
-      const dragDefaultW = view.type === 'event_modeling' ? 260 : (view.type === 'c4' ? 240 : view.type === 'archimate' ? 210 : 200);
+      const dragDefaultW = view.type === 'event_modeling' ? 10 * GRID_SIZE : (view.type === 'c4' ? 240 : view.type === 'archimate' ? 210 : 200);
       const dragDefaultH = view.type === 'event_modeling' ? 90 : (view.type === 'c4' ? 96 : view.type === 'archimate' ? 76 : 80);
       const childW = node.measured?.width ?? dragDefaultW;
       const childH = node.measured?.height ?? dragDefaultH;
@@ -3402,8 +3610,8 @@ export function ReactFlowCanvas({
           if (view.type === 'event_modeling') {
             const isSlice = conceptMap.get(parentId)?.conceptType === 'em_slice';
             if (isSlice) {
-              // Slices have fixed width 320, vertical boundary can grow downwards indefinitely
-              isOutside = centerX < -DETACHMENT_THRESHOLD || centerX > 320 + DETACHMENT_THRESHOLD || centerY < -DETACHMENT_THRESHOLD;
+              // Slices have fixed width SLICE_WIDTH (14 * GRID_SIZE), vertical boundary can grow downwards indefinitely
+              isOutside = centerX < -DETACHMENT_THRESHOLD || centerX > SLICE_WIDTH + DETACHMENT_THRESHOLD || centerY < -DETACHMENT_THRESHOLD;
             } else {
               isOutside = centerX < -DETACHMENT_THRESHOLD || centerX > parentW + DETACHMENT_THRESHOLD || centerY < -DETACHMENT_THRESHOLD || centerY > parentH + DETACHMENT_THRESHOLD;
             }
@@ -3604,10 +3812,10 @@ export function ReactFlowCanvas({
         if (slicesInChapter.length > 0) {
           let maxX = -Infinity;
           slicesInChapter.forEach((sl) => {
-            const width = sl.width ?? 320;
+            const width = sl.width ?? SLICE_WIDTH;
             if (sl.x + width > maxX) maxX = sl.x + width;
           });
-          newX = maxX + 24;
+          newX = maxX + SLICE_GAP;
           newY = currentViewNode.y + 48;
         } else {
           newX = currentViewNode.x + 48;
@@ -3784,8 +3992,6 @@ export function ReactFlowCanvas({
     let newY = currentViewNode.y;
 
     const ROW_HEIGHT = 140;
-    const SLICE_WIDTH = 320;
-    const SLICE_GAP = 24;
 
     if (action.createNewParent === 'sibling-slice' || action.createNewParent === 'sibling-slice-left') {
       const sliceVn = view.nodes.find((vn) => (vn.instanceId || vn.conceptId) === currentViewNode.parentId);
@@ -3843,17 +4049,19 @@ export function ReactFlowCanvas({
         newY = currentViewNode.y;
       }
     } else {
+      const stepX = view.type === 'event_modeling' ? SLICE_WIDTH + SLICE_GAP : 10 * GRID_SIZE;
+      const stepY = view.type === 'event_modeling' ? 8 * GRID_SIZE : 6 * GRID_SIZE;
       if (action.position === 'top') {
         newX = currentViewNode.x;
-        newY = currentViewNode.y - ROW_HEIGHT;
+        newY = currentViewNode.y - stepY;
       } else if (action.position === 'bottom') {
         newX = currentViewNode.x;
-        newY = currentViewNode.y + ROW_HEIGHT;
+        newY = currentViewNode.y + stepY;
       } else if (action.position === 'right') {
-        newX = currentViewNode.x + 250;
+        newX = currentViewNode.x + stepX;
         newY = currentViewNode.y;
       } else if (action.position === 'left') {
-        newX = currentViewNode.x - 250;
+        newX = currentViewNode.x - stepX;
         newY = currentViewNode.y;
       }
     }
@@ -4223,7 +4431,7 @@ export function ReactFlowCanvas({
           edgeTypes={edgeTypes}
           deleteKeyCode={null}
           snapToGrid={true}
-          snapGrid={[24, 24]}
+          snapGrid={[GRID_SIZE, GRID_SIZE]}
           minZoom={0.005}
           maxZoom={3.0}
           fitView
@@ -4231,7 +4439,7 @@ export function ReactFlowCanvas({
           panOnScroll={true}
           zoomActivationKeyCode={['Control', 'Meta', 'Command']}
         >
-          <Background variant={BackgroundVariant.Dots} color="#475569" gap={24} size={2} offset={-12} style={{ opacity: 0.45 }} />
+          <Background variant={BackgroundVariant.Dots} color="#475569" gap={GRID_SIZE} size={2} offset={CANVAS_BACKGROUND_OFFSET} style={{ opacity: 0.45 }} />
 
           {/* Top Quick Actions Toolbar */}
           {showToolbar && topActions.length > 0 && (
@@ -4411,11 +4619,52 @@ export function ReactFlowCanvas({
           <MiniMap
             position="bottom-right"
             nodeColor={(node) => {
-              const conceptType = (node.data as any)?.concept?.conceptType || (node.data as any)?.conceptType;
-              if (conceptType === 'class') return '#2563eb';
-              if (conceptType === 'attribute') return '#d97706';
-              return '#64748b';
+              const concept = (node.data as any)?.concept;
+              const conceptType = concept?.conceptType || (node.data as any)?.conceptType || 'other';
+
+              // Container nodes must be transparent in MiniMap to avoid obscuring nested child elements
+              if (['em_chapter', 'em_slice', 'bounded_context', 'domain'].includes(conceptType)) {
+                return 'transparent';
+              }
+
+              switch (conceptType) {
+                case 'screen':
+                  return '#f59e0b'; // Warm Amber/Yellow
+                case 'command':
+                  return '#3b82f6'; // Bright Blue
+                case 'event':
+                case 'domain_event':
+                  return '#f97316'; // Vibrant Orange
+                case 'read_model':
+                  return '#10b981'; // Emerald Green
+                case 'integration_event':
+                  return '#a855f7'; // Purple
+                case 'automation':
+                  return '#ec4899'; // Pink
+                case 'actor':
+                  return '#6366f1'; // Indigo
+                case 'system':
+                  return '#2563eb'; // Blue
+                case 'application_component':
+                  return '#059669'; // Emerald
+                case 'class':
+                  return '#2563eb';
+                case 'attribute':
+                  return '#d97706';
+                default:
+                  return '#64748b';
+              }
             }}
+            nodeStrokeColor={(node) => {
+              const concept = (node.data as any)?.concept;
+              const conceptType = concept?.conceptType || (node.data as any)?.conceptType || 'other';
+
+              if (conceptType === 'em_chapter') return '#64748b';
+              if (conceptType === 'em_slice') return '#94a3b8';
+              if (['bounded_context', 'domain'].includes(conceptType)) return '#94a3b8';
+              return 'transparent';
+            }}
+            nodeStrokeWidth={2}
             maskColor="rgba(241, 245, 249, 0.75)"
             className="!bottom-6 !right-20 !m-0 border border-slate-200/80 dark:border-slate-800/80 rounded-2xl shadow-xl overflow-hidden bg-white/95 dark:bg-slate-900/95 backdrop-blur-md"
             zoomable

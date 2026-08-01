@@ -15,7 +15,7 @@
  */
 
 import type { ComponentType } from 'react';
-import type { ViewType, View, ConceptType, ConceptRelation, ElementId, ConceptNode, ConceptProperty, DataType } from '../schema/graphSchema';
+import type { ViewType, View, ConceptType, ConceptRelation, ElementId, ConceptNode, ConceptProperty, DataType, LayoutAlgorithm } from '../schema/graphSchema';
 import type { GraphStoreState } from '../store/useGraphStore';
 
 // ============================================================
@@ -99,6 +99,19 @@ export interface Notation {
    * "Auto Layout" for this notation's views.
    */
   readonly layoutEngine?: LayoutEngine;
+  /**
+   * Optional layout algorithms supported by this notation.
+   * If omitted, all generic layout options are shown.
+   */
+  readonly supportedLayoutAlgorithms?: LayoutAlgorithm[];
+  /**
+   * Optional default layout algorithm for this notation when a new view is created.
+   */
+  readonly defaultLayoutAlgorithm?: LayoutAlgorithm;
+  /**
+   * Optional localized labels for layout algorithms in this notation context.
+   */
+  readonly layoutAlgorithmLabels?: Partial<Record<LayoutAlgorithm, string>>;
   /**
    * Optional concept types supported/visible in this notation.
    * If omitted, all types are allowed.

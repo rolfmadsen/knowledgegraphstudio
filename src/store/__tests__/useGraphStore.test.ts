@@ -61,6 +61,15 @@ describe('useGraphStore', () => {
     expect(useGraphStore.getState().concepts).toHaveLength(1);
   });
 
+  it('creates an event modeling view without null relations', () => {
+    const view = useGraphStore.getState().createView('EM Test', 'event_modeling');
+    expect(view).toBeDefined();
+    expect(view.type).toBe('event_modeling');
+    const state = useGraphStore.getState();
+    expect(state.relations).toBeDefined();
+    expect(Array.isArray(state.relations)).toBe(true);
+  });
+
   describe('Undo/Redo Stability', () => {
     it('preserves concept layout positions in history', async () => {
       // 1. Initial state
@@ -807,8 +816,8 @@ describe('useGraphStore', () => {
       expect(concept?.conceptType).toBe('business_service');
       expect(concept?.name).toBe('Hovedservice');
       
-      expect(view.nodes[0].x).toBe(150);
-      expect(view.nodes[0].y).toBe(150);
+      expect(view.nodes[0].x).toBe(144);
+      expect(view.nodes[0].y).toBe(144);
     });
 
     it('automatically creates a class named Nyt Begreb for conceptual_model view', () => {

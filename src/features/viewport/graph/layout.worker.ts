@@ -74,8 +74,8 @@ self.onmessage = (event: MessageEvent<LayoutRequest>) => {
   // 3. Add Nodes to Dagre
   nodes.forEach((node) => {
     g.setNode(node.id, {
-      width: node.width ?? 220,
-      height: node.height ?? 80,
+      width: node.width ?? 240,
+      height: node.height ?? 96,
     });
   });
 
@@ -94,13 +94,18 @@ self.onmessage = (event: MessageEvent<LayoutRequest>) => {
   // 5. Execute Synchronous Layout
   dagre.layout(g);
 
-  // 6. Map Dagre Results (center coordinates) back to final array
+  // 6. Map Dagre Results (Dagre returns center coordinates; convert to top-left and snap to 24px grid)
+  const GRID_SIZE = 24;
   const finalNodes = nodes.map((node) => {
     const dagreNode = g.node(node.id);
+    const w = node.width ?? 240;
+    const h = node.height ?? 96;
+    const topLeftX = (dagreNode.x ?? 0) - w / 2;
+    const topLeftY = (dagreNode.y ?? 0) - h / 2;
     return {
       id: node.id,
-      x: dagreNode.x,
-      y: dagreNode.y,
+      x: Math.round(topLeftX / GRID_SIZE) * GRID_SIZE,
+      y: Math.round(topLeftY / GRID_SIZE) * GRID_SIZE,
     };
   });
 

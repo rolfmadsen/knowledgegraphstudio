@@ -1,30 +1,52 @@
-# Specification: Event Modeling Chapter & Slide Storytelling Sequence Control
+# Specification: Help Modal - Event Modeling Guide Tab
 
-## Overview
-This feature introduces explicit storytelling sequence ordering (`order`) for Event Modeling chapters (`em_chapter`) and slides/slices (`em_slice`). It allows users to control the exact left-to-right narrative sequence of chapters and slides across Event Modeling views.
+## 1. Overview & Motivation
+Knowledge Graph Studio provides visual modeling for Event Modeling (EM) alongside DCR, C4, and ArchiMate. To help users learn and apply Event Modeling patterns and avoid common anti-patterns directly within the studio, we are adding a dedicated "Event Modeling" tab to the `HelpCenter` modal component.
 
-## Architecture & Schema Changes
+---
 
-1. **ViewNode Schema (`src/schema/graphSchema.ts`)**:
-   - Add optional `order?: z.number()` property to `ViewNode`.
-   - `order` is 1-indexed ($1, 2, 3, \dots$) and scoped per View (supporting the 1:N view model).
+## 2. Detailed Technical Requirements
 
-2. **Layout Engine (`src/notations/event-modeling/layout.ts`)**:
-   - **Chapter Ordering (Pass 1)**: Sort chapters by `viewNode.order ?? createdAt` before placing them horizontally left-to-right.
-   - **Slice Ordering (Pass 2)**: Sort slices within each chapter by `viewNode.order ?? createdAt`.
-   - **Hydration / Auto-numbering**: When `order` is undefined (e.g. legacy graphs), layout automatically initializes `order` ($1, 2, 3, \dots$) based on current left-to-right $X$ positions.
+### 2.1 Tab Navigation
+- Add `'event-modeling'` (or `'em'`) as a tab in `HelpCenter.tsx`.
+- Tab label: `"Event Modeling"`.
+- Render a new button next to "Shortcuts", "Git Guide", and "DCR Guide".
 
-3. **Graph Store Actions (`src/store/useGraphStore.ts`)**:
-   - `setConceptOrder(viewId, conceptId, newOrder: number)`: Updates `order` for `conceptId` and re-indexes all sibling chapters/slices to maintain a contiguous $1 \dots K$ sequence.
-   - `moveConceptOrder(viewId, conceptId, direction: 'left' | 'right' | 'first' | 'last')`: Helper for step/jump reordering.
-   - `addConceptToView` / creation logic: Automatically assigns `order = siblingCount + 1` (appends at end) or inserts at `insertAfterConceptId` position.
+### 2.2 Content Sections
 
-4. **Canvas Component Header Badges (`src/notations/event-modeling/index.tsx`)**:
-   - `EmChapterNode`: Renders a subtle sequence badge on the chapter header (e.g., `[1] Chapter Name`).
-   - `EmSliceNode`: Renders a subtle sequence badge on the slice header (e.g., `1.2 Slice Name` or `[2] Slice Name`).
+#### Section 1: Core Elements
+Display cards/badges representing the 6 EM elements:
+1. **Screen** (white / light UI trigger)
+2. **Command** (blue box / user intent)
+3. **Domain Event** (yellow/amber box / state change recorded)
+4. **Read Model** (green box / view representation)
+5. **Integration Event** (purple/amber box / external boundary event)
+6. **Automation** (teal/rose box / reactive trigger)
 
-5. **Inspector Controls (`src/features/properties/Inspector.tsx`)**:
-   - When an `em_chapter` or `em_slice` node is selected:
-     - **Sequence Position Dropdown / Select**: `Position: [ N ▼ ] of Total`. Direct selection instantly jumps the element to position $N$.
-     - **Jump & Step Buttons**: `⏮ First`, `◄ Left`, `► Right`, `⏭ Last`.
-     - **Contextual Creation Button**: `+ Add Slice After` (or `+ Add Chapter After`) creates a new container directly at position $N+1$.
+#### Section 2: 4 Event Model Patterns
+Display 4 structured pattern cards with visual step flows (e.g. `Screen → Command → Domain Event(s)`):
+1. **State Change Pattern**: `Screen → Command → Domain Event(s)`
+   - Description: Describes a state change and its way from the start (trigger) to the end (state change). White box (Screen) -> blue box (Command) -> yellow box(es) (Event).
+2. **State View Pattern**: `Domain Event(s) → Read Model`
+   - Description: Connects existing events from the board to a green “Read Model (View)” box. Gives quick overview of what information will be used by it.
+3. **Automation Pattern**: `Domain Event(s) → Read Model → Automation → Command → Domain Event(s)`
+   - Description: Use whenever the system should do something automatically. Combined State Change and State View Pattern with an automated trigger in the middle.
+4. **Translation Pattern (System integration)**: `Integration Event → Automation → Command → Integration Event`
+   - Description: Used for transferring knowledge between systems. External Integration Event triggers Automation that issues Command to produce outgoing Integration Event. External data can also populate Read Models directly for visualization.
+
+#### Section 3: The 4 Anti-Patterns (Overcomplication)
+Display 4 warning/anti-pattern cards:
+1. **The Left Chair**: `Screen → Command → Domain Event + Domain Event + Domain Event...`
+   - One command triggering too many events. Business logic crammed into one place instead of separate state changes.
+2. **The Right Chair**: `Domain Event + Domain Event + Domain Event → Read Model`
+   - Many events feeding into a single read model (View). Indicates a 'Summary View' that knows everything, potentially creating high coupling.
+3. **The Bed**: `Screen → Command + Command + Command`
+   - One UI component firing multiple commands in sequence. Front-end orchestration instead of event flow handling sequence.
+4. **The Bookshelf**:
+   - One slice contains all business rules/logic (Given-When-Thens), while others are anemic. 'God-Object' in visual form where one slice does everything.
+
+---
+
+## 3. Verification Plan
+- Verify unit tests pass (`npm run test`).
+- Verify visual UI correctness in HelpCenter.

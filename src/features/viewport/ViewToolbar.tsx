@@ -1,7 +1,8 @@
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useMemo } from 'react';
 import { useGraphStore } from '../../store/useGraphStore';
 import { Shuffle, Hand, AlignVerticalDistributeCenter, Zap, Grid } from 'lucide-react';
 import type { LayoutAlgorithm } from '../../schema/graphSchema';
+import { NotationRegistry } from '../../notations/NotationRegistry';
 
 const LAYOUT_OPTIONS: Array<{
   algo: LayoutAlgorithm;
@@ -61,9 +62,20 @@ export function ViewToolbar() {
 
   const activeView = useGraphStore((s) => s.views.find((v) => v.id === s.activeViewId));
 
+  const notation = useMemo(() => {
+    return activeView ? NotationRegistry.forViewType(activeView.type) : undefined;
+  }, [activeView?.type]);
+
+  const visibleLayoutOptions = useMemo(() => {
+    if (!notation || !notation.supportedLayoutAlgorithms) {
+      return LAYOUT_OPTIONS;
+    }
+    return LAYOUT_OPTIONS.filter((opt) => notation.supportedLayoutAlgorithms!.includes(opt.algo));
+  }, [notation]);
+
   if (!activeView) return null;
 
-  const currentAlgo = activeView.layoutAlgorithm ?? 'force_directed';
+  const currentAlgo = activeView.layoutAlgorithm ?? notation?.defaultLayoutAlgorithm ?? 'force_directed';
   const isAutoLayout = currentAlgo !== 'manual';
 
   const handleLayoutChange = (algo: LayoutAlgorithm) => {
@@ -102,6 +114,8 @@ export function ViewToolbar() {
     useGraphStore.setState((s) => ({ layoutVersion: s.layoutVersion + 1 }));
   };
 
+
+
   return (
     <div
       className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[110] flex items-center gap-2 select-none transition-all duration-300"
@@ -111,9 +125,10 @@ export function ViewToolbar() {
         ref={toolbarRefCallback}
         className="h-10 px-2 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border border-slate-200/80 dark:border-slate-800/80 shadow-xl shadow-slate-200/60 dark:shadow-slate-950/60 rounded-2xl flex items-center gap-1 font-sans text-xs"
       >
-        <div className="flex items-center gap-0.5 border-r border-slate-200 dark:border-slate-800 pr-1.5 mr-0.5">
-          {LAYOUT_OPTIONS.map(({ algo, label, icon, description }) => {
+        <div className={`flex items-center gap-0.5 ${isAutoLayout ? 'border-r border-slate-200 dark:border-slate-800 pr-1.5 mr-0.5' : ''}`}>
+          {visibleLayoutOptions.map(({ algo, label, icon, description }) => {
             const isActive = currentAlgo === algo;
+            const customLabel = notation?.layoutAlgorithmLabels?.[algo] || label;
             return (
               <button
                 key={algo}
@@ -126,7 +141,7 @@ export function ViewToolbar() {
                 }`}
               >
                 {icon}
-                <span>{label}</span>
+                <span>{customLabel}</span>
               </button>
             );
           })}
@@ -136,10 +151,10 @@ export function ViewToolbar() {
           <button
             onClick={handleReLayout}
             title="Genberegn automatisk placering for elementer"
-            className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/50 transition-colors"
+            className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/50 transition-colors cursor-pointer"
           >
             <Zap size={12} strokeWidth={2.5} />
-            <span>Genberegn</span>
+            <span>Layout</span>
           </button>
         )}
       </div>

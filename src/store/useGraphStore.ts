@@ -33,6 +33,7 @@ import { NotationRegistry } from '../notations/NotationRegistry';
 import git from 'isomorphic-git';
 import { getFS, REPO_DIR, writeYaml, setRepoDir, readViewsYaml } from '../core/fileSystem';
 import { yamlToViews } from '../core/yamlParser';
+import { generateId } from '../core/idGenerator';
 
 import { FileSystemAccessService } from '../services/FileSystemAccessService';
 import type { SyncStatus } from '../types/sync';
@@ -877,9 +878,37 @@ export const useGraphStore = create<GraphStoreState>()(
           defaultOrder = existingSlices.length + 1;
         }
 
+        const currentRelations = get().relations;
+        let nextRelations = currentRelations;
+        if (parentId) {
+          const alreadyHasRel = currentRelations.some(
+            (r) => r.sourceConceptId === parentId && r.targetConceptId === conceptId && (r.name === 'includes' || r.relationType === 'includes')
+          );
+          if (!alreadyHasRel) {
+            const includesRelId = generateId('other', 'includes');
+            const now = Date.now();
+            nextRelations = [
+              ...currentRelations,
+              {
+                id: includesRelId,
+                createdAt: now,
+                updatedAt: now,
+                lifecycleState: 'active',
+                sourceConceptId: parentId,
+                targetConceptId: conceptId,
+                name: 'includes',
+                category: 'structural',
+                relationType: 'includes',
+                policies: [],
+              } as ConceptRelation,
+            ];
+          }
+        }
+
         const temporal = getTemporalState();
         temporal.pause();
         set((s) => ({
+          relations: nextRelations,
           views: s.views.map((v) =>
             v.id !== viewId ? v : {
               ...v,
@@ -1000,12 +1029,13 @@ export const useGraphStore = create<GraphStoreState>()(
         
         let nodes: ViewNode[] = [];
         let nextConcepts = get().concepts;
+        let nextRelations = get().relations;
 
         if (defaultElements && defaultElements.length > 0 && !skipDefaultElements) {
           const createdConcepts: ConceptNode[] = [];
           const createdViewNodes: ViewNode[] = [];
 
-          let tempState = { ...get(), activeViewId: viewId, concepts: nextConcepts };
+          let tempState = { ...get(), activeViewId: viewId, concepts: nextConcepts, relations: nextRelations };
 
           for (let i = 0; i < defaultElements.length; i++) {
             const config = defaultElements[i];
@@ -1026,18 +1056,24 @@ export const useGraphStore = create<GraphStoreState>()(
             if (nextState.concepts) {
               tempState.concepts = nextState.concepts as ConceptNode[];
             }
+            if (nextState.relations) {
+              tempState.relations = nextState.relations as ConceptRelation[];
+            }
 
-            let x = 150;
-            let y = 150;
+            let x = 144;
+            let y = 144;
 
             if (config.parentIndex !== undefined && createdViewNodes[config.parentIndex]) {
               const parentNode = createdViewNodes[config.parentIndex];
               x = parentNode.x + (config.xOffset ?? 48);
               y = parentNode.y + (config.yOffset ?? 48);
             } else {
-              x = config.xOffset ?? 150;
-              y = config.yOffset ?? 150;
+              x = config.xOffset ?? 144;
+              y = config.yOffset ?? 144;
             }
+
+            x = Math.round(x / 24) * 24;
+            y = Math.round(y / 24) * 24;
 
             const viewNode: ViewNode = {
               conceptId: concept.id,
@@ -1051,6 +1087,7 @@ export const useGraphStore = create<GraphStoreState>()(
           }
 
           nextConcepts = tempState.concepts;
+          nextRelations = tempState.relations;
           nodes = createdViewNodes;
         }
 
@@ -1070,6 +1107,7 @@ export const useGraphStore = create<GraphStoreState>()(
           views: [...s.views, newView],
           activeViewId: newView.id,
           concepts: nextConcepts,
+          relations: nextRelations,
         }));
 
         PersistenceService.scheduleAutoSave(get());
@@ -1580,6 +1618,9 @@ export const useGraphStore = create<GraphStoreState>()(
           const conceptMap = new Map(get().concepts.map((c) => [c.id, c]));
           const viewNodes = activeView.nodes ?? [];
 
+          const GRID_SIZE = 24;
+          const SLICE_WIDTH = 14 * GRID_SIZE;
+
           if (conceptType === 'em_chapter') {
             if (x === undefined && y === undefined) {
               const chapters = viewNodes.filter(
@@ -1594,7 +1635,7 @@ export const useGraphStore = create<GraphStoreState>()(
                   if (slicesInCh.length > 0) {
                     let maxSliceRight = -Infinity;
                     slicesInCh.forEach((sl) => {
-                      const slWidth = sl.width ?? 320;
+                      const slWidth = sl.width ?? SLICE_WIDTH;
                       if (sl.x + slWidth > maxSliceRight) maxSliceRight = sl.x + slWidth;
                     });
                     chWidth = Math.max(600, maxSliceRight - ch.x + 48);
@@ -1644,10 +1685,10 @@ export const useGraphStore = create<GraphStoreState>()(
                 if (slicesInChapter.length > 0) {
                   let maxX = -Infinity;
                   slicesInChapter.forEach((sl) => {
-                    const width = sl.width ?? 320;
+                    const width = SLICE_WIDTH;
                     if (sl.x + width > maxX) maxX = sl.x + width;
                   });
-                  x = maxX + 24;
+                  x = maxX + 2 * GRID_SIZE;
                   y = chapterVn.y + 48;
                 } else {
                   x = chapterVn.x + 48;
@@ -1660,7 +1701,7 @@ export const useGraphStore = create<GraphStoreState>()(
                 if (slices.length > 0) {
                   let maxX = -Infinity;
                   slices.forEach((sl) => {
-                    const width = sl.width ?? 320;
+                    const width = SLICE_WIDTH;
                     if (sl.x + width > maxX) maxX = sl.x + width;
                   });
                   x = maxX + 40;
@@ -1706,7 +1747,7 @@ export const useGraphStore = create<GraphStoreState>()(
                     let maxX = -Infinity;
                     let targetY = sameTypeElements[0].y;
                     sameTypeElements.forEach((el) => {
-                      const width = el.width ?? 260;
+                      const width = el.width ?? 240;
                       if (el.x + width > maxX) maxX = el.x + width;
                     });
                     x = maxX + 20;
@@ -1728,7 +1769,7 @@ export const useGraphStore = create<GraphStoreState>()(
                 // Free-floating element (no slice selected): place to the right of all existing containers
                 let maxX = 100;
                 viewNodes.forEach((vn) => {
-                  const width = vn.width ?? 320;
+                  const width = vn.width ?? SLICE_WIDTH;
                   if (vn.x + width > maxX) maxX = vn.x + width;
                 });
                 x = maxX + 60;

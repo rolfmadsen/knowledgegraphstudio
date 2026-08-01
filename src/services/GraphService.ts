@@ -156,10 +156,33 @@ export class GraphService {
       concept = { ...base, properties: [] } as ConceptNode;
     }
 
+    const nextRelations = [...state.relations];
+    if (options.parentId) {
+      const includesRelId = generateId('other', 'includes');
+      const alreadyHasRel = nextRelations.some(
+        (r) => r.sourceConceptId === options.parentId && r.targetConceptId === id && (r.name === 'includes' || r.relationType === 'includes')
+      );
+      if (!alreadyHasRel) {
+        nextRelations.push({
+          id: includesRelId,
+          createdAt: now,
+          updatedAt: now,
+          lifecycleState: 'active',
+          sourceConceptId: options.parentId,
+          targetConceptId: id,
+          name: 'includes',
+          category: 'structural',
+          relationType: 'includes',
+          policies: [],
+        } as ConceptRelation);
+      }
+    }
+
     return {
       concept,
       nextState: {
         concepts: [...state.concepts, concept],
+        relations: nextRelations,
       },
     };
   }
@@ -883,8 +906,8 @@ export class GraphService {
         defaultW = 600;
         defaultH = 600;
       } else if (groupType === 'em_slice') {
-        defaultW = 320;
-        defaultH = 500;
+        defaultW = 12 * 24; // 12x grid width (288px)
+        defaultH = 15 * 24; // 15x grid height (360px)
       }
     }
 

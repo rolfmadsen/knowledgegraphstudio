@@ -1,10 +1,9 @@
-# Task: Inline Class & Attribute Editing in Payload Specification
+# Task: Implement Focus Mode Container Scoping
 
-## Checklist
-- [ ] `[ ]` Add state hooks for inline editing (`editingAttrId`, `editingAttrField`, `editValue`) in `EmElementNode` (`src/notations/event-modeling/index.tsx`).
-- [ ] `[ ]` Implement inline Attribute Name editor (input field with `Enter`/`blur` commit).
-- [ ] `[ ]` Implement inline Class Name editor / Rebind dropdown for bound class attributes.
-- [ ] `[ ]` Implement inline Type selector for data type toggling (`string`, `number`, `boolean`, `date`, `object`).
-- [ ] `[ ]` Wire `updateProperty` and `updateConcept` store calls for two-way synchronization with Information Model concepts.
-- [ ] `[ ]` Add unit test verifying payload inline attribute renaming and type updates.
-- [ ] `[ ]` Verify TypeScript compilation and interactive behavior.
+## TDD Implementation Checklist
+
+- [ ] `[ ]` Write failing unit test in `src/store/__tests__/selectors.focus.test.ts` verifying 1-level child expansion for selected containers (Chapter shows Slices without grandchildren; Slice shows Chapter + Slice + direct inner nodes).
+- [ ] `[ ]` Run the test command and verify it fails (**RED** phase).
+- [ ] `[ ]` Update `useFocusedGraph` in `src/store/selectors.ts` to perform 1-level child expansion for selected container nodes and preserve parent container ancestry.
+- [ ] `[ ]` Run the test command and verify it passes (**GREEN** phase).
+- [ ] `[ ]` Refactor and ensure all test suites remain green (**REFACTOR** phase).

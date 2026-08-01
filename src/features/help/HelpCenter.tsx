@@ -17,7 +17,13 @@ import {
   Play,
   Check,
   AlertCircle,
-  ListTodo
+  ListTodo,
+  Workflow,
+  Tv,
+  Terminal,
+  Eye,
+  Globe,
+  Cpu
 } from 'lucide-react';
 
 interface ShortcutGroupProps {
@@ -157,8 +163,8 @@ function DcrMatrixStep({
   );
 }
 
-export function HelpCenter({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
-  const [activeTab, setActiveTab] = useState<'shortcuts' | 'git' | 'dcr'>('shortcuts');
+export function HelpCenter({ isOpen, onClose, initialTab = 'shortcuts' }: { isOpen: boolean; onClose: () => void; initialTab?: 'shortcuts' | 'git' | 'dcr' | 'event-modeling' }) {
+  const [activeTab, setActiveTab] = useState<'shortcuts' | 'git' | 'dcr' | 'event-modeling'>(initialTab);
 
   if (!isOpen) return null;
 
@@ -224,6 +230,16 @@ export function HelpCenter({ isOpen, onClose }: { isOpen: boolean; onClose: () =
             >
               <Zap size={14} />
               DCR Guide
+            </button>
+            <button
+              onClick={() => setActiveTab('event-modeling')}
+              className={`px-6 py-2.5 rounded-xl text-[12px] font-black transition-all flex items-center gap-2 ${activeTab === 'event-modeling'
+                  ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-200'
+                  : 'text-slate-400 hover:text-slate-700 hover:bg-white'
+                }`}
+            >
+              <Workflow size={14} />
+              Event Modeling
             </button>
           </div>
         </div>
@@ -368,7 +384,7 @@ export function HelpCenter({ isOpen, onClose }: { isOpen: boolean; onClose: () =
                 </p>
               </div>
             </div>
-          ) : (
+          ) : activeTab === 'dcr' ? (
             <div className="flex flex-col gap-10">
               {/* Introduction Card */}
               <div className="flex items-center gap-6 p-6 bg-emerald-50 rounded-[2rem] border border-emerald-100 shadow-sm animate-in fade-in slide-in-from-top-4 duration-500">
@@ -602,6 +618,227 @@ export function HelpCenter({ isOpen, onClose }: { isOpen: boolean; onClose: () =
                       <li>Godkend (A) skaber udestående krav om svar (A ●🠆 B).</li>
                       <li>Godkend (A) ekskluderer sig selv (A 🠆% A) så den ikke kan køres igen, før svaret (B) er givet.</li>
                     </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-10">
+              {/* Introduction Card */}
+              <div className="flex items-center gap-6 p-6 bg-emerald-50 rounded-[2rem] border border-emerald-100 shadow-sm animate-in fade-in slide-in-from-top-4 duration-500">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-600 flex items-center justify-center text-white shadow-lg shadow-emerald-200 flex-shrink-0">
+                  <Workflow size={24} strokeWidth={2.5} />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <h3 className="text-[11px] font-black uppercase tracking-widest text-emerald-800 font-sans">Event Modeling Guide</h3>
+                  <p className="text-[12.5px] text-emerald-700/90 font-medium leading-relaxed font-sans">
+                    Event Modeling er en visuel domænemodelleringsmetode, der kortlægger hvordan systemets tilstand ændrer sig over tid via <strong>Screens, Commands, Domain Events, Read Models, Automations</strong> og <strong>Integration Events</strong>.
+                  </p>
+                </div>
+              </div>
+
+              {/* Core Elements */}
+              <div className="flex flex-col gap-6">
+                <h3 className="text-sm font-black uppercase tracking-widest text-slate-800 px-1">Core Elements</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="p-4 rounded-2xl border border-slate-200 bg-white shadow-sm flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-slate-100 border border-slate-300 flex items-center justify-center text-slate-700 flex-shrink-0">
+                      <Tv size={18} />
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-[13px] font-bold text-slate-800">Screen</span>
+                      <span className="text-[11px] text-slate-500 font-medium">UI / Brugergrænseflade</span>
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-2xl border border-blue-200 bg-blue-50/50 shadow-sm flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-blue-100 border border-blue-300 flex items-center justify-center text-blue-700 flex-shrink-0">
+                      <Terminal size={18} />
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-[13px] font-bold text-blue-900">Command</span>
+                      <span className="text-[11px] text-blue-600 font-medium">Brugerens Intention</span>
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-2xl border border-amber-200 bg-amber-50/50 shadow-sm flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-amber-100 border border-amber-300 flex items-center justify-center text-amber-700 flex-shrink-0">
+                      <Zap size={18} />
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-[13px] font-bold text-amber-900">Domain Event</span>
+                      <span className="text-[11px] text-amber-600 font-medium">Registreret Tilstandsændring</span>
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-2xl border border-emerald-200 bg-emerald-50/50 shadow-sm flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-emerald-100 border border-emerald-300 flex items-center justify-center text-emerald-700 flex-shrink-0">
+                      <Eye size={18} />
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-[13px] font-bold text-emerald-900">Read Model</span>
+                      <span className="text-[11px] text-emerald-600 font-medium">Visningsmodel / Projektion</span>
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-2xl border border-purple-200 bg-purple-50/50 shadow-sm flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-purple-100 border border-purple-300 flex items-center justify-center text-purple-700 flex-shrink-0">
+                      <Globe size={18} />
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-[13px] font-bold text-purple-900">Integration Event</span>
+                      <span className="text-[11px] text-purple-600 font-medium">Ekstern Systemgrænsehændelse</span>
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-2xl border border-rose-200 bg-rose-50/50 shadow-sm flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-rose-100 border border-rose-300 flex items-center justify-center text-rose-700 flex-shrink-0">
+                      <Cpu size={18} />
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-[13px] font-bold text-rose-900">Automation</span>
+                      <span className="text-[11px] text-rose-600 font-medium">Automatisk System-Trigger</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 4 Event Model Patterns */}
+              <div className="flex flex-col gap-6">
+                <h3 className="text-sm font-black uppercase tracking-widest text-slate-800 px-1">4 Event Model Patterns</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Pattern 1 */}
+                  <div className="p-6 rounded-2xl border border-slate-100 bg-white/70 shadow-sm flex flex-col gap-3">
+                    <h4 className="text-[13px] font-bold text-slate-800">State Change Pattern</h4>
+                    <div className="flex flex-wrap items-center gap-1.5 py-1">
+                      <span className="px-2 py-0.5 bg-white border border-slate-300 text-slate-700 rounded-lg text-[11px] font-mono font-bold">Screen</span>
+                      <span className="text-slate-400 font-bold text-[12px]">→</span>
+                      <span className="px-2 py-0.5 bg-blue-100 border border-blue-300 text-blue-700 rounded-lg text-[11px] font-mono font-bold">Command</span>
+                      <span className="text-slate-400 font-bold text-[12px]">→</span>
+                      <span className="px-2 py-0.5 bg-amber-100 border border-amber-300 text-amber-700 rounded-lg text-[11px] font-mono font-bold">Domain Event(s)</span>
+                    </div>
+                    <p className="text-[12px] text-slate-600 font-medium leading-relaxed">
+                      State Change Pattern describes a state change and its way from the start (what is the trigger?) to the end (what is the state change?). It starts with a white box (Screen), followed by a blue box (Command) and then one or multiple yellow boxes (Event).
+                    </p>
+                  </div>
+
+                  {/* Pattern 2 */}
+                  <div className="p-6 rounded-2xl border border-slate-100 bg-white/70 shadow-sm flex flex-col gap-3">
+                    <h4 className="text-[13px] font-bold text-slate-800">State View Pattern</h4>
+                    <div className="flex flex-wrap items-center gap-1.5 py-1">
+                      <span className="px-2 py-0.5 bg-amber-100 border border-amber-300 text-amber-700 rounded-lg text-[11px] font-mono font-bold">Domain Event(s)</span>
+                      <span className="text-slate-400 font-bold text-[12px]">→</span>
+                      <span className="px-2 py-0.5 bg-emerald-100 border border-emerald-300 text-emerald-700 rounded-lg text-[11px] font-mono font-bold">Read Model</span>
+                    </div>
+                    <p className="text-[12px] text-slate-600 font-medium leading-relaxed">
+                      State View Pattern connects existing events from the board to a green “Read Model (View)” box. That leads to a quick overview of what information will be used by it.
+                    </p>
+                  </div>
+
+                  {/* Pattern 3 */}
+                  <div className="p-6 rounded-2xl border border-slate-100 bg-white/70 shadow-sm flex flex-col gap-3">
+                    <h4 className="text-[13px] font-bold text-slate-800">Automation Pattern</h4>
+                    <div className="flex flex-wrap items-center gap-1.5 py-1">
+                      <span className="px-2 py-0.5 bg-amber-100 border border-amber-300 text-amber-700 rounded-lg text-[11px] font-mono font-bold">Domain Event(s)</span>
+                      <span className="text-slate-400 font-bold text-[12px]">→</span>
+                      <span className="px-2 py-0.5 bg-emerald-100 border border-emerald-300 text-emerald-700 rounded-lg text-[11px] font-mono font-bold">Read Model</span>
+                      <span className="text-slate-400 font-bold text-[12px]">→</span>
+                      <span className="px-2 py-0.5 bg-rose-100 border border-rose-300 text-rose-700 rounded-lg text-[11px] font-mono font-bold">Automation</span>
+                      <span className="text-slate-400 font-bold text-[12px]">→</span>
+                      <span className="px-2 py-0.5 bg-blue-100 border border-blue-300 text-blue-700 rounded-lg text-[11px] font-mono font-bold">Command</span>
+                      <span className="text-slate-400 font-bold text-[12px]">→</span>
+                      <span className="px-2 py-0.5 bg-amber-100 border border-amber-300 text-amber-700 rounded-lg text-[11px] font-mono font-bold">Domain Event(s)</span>
+                    </div>
+                    <p className="text-[12px] text-slate-600 font-medium leading-relaxed">
+                      Use this pattern whenever the system should do something automatically. It is essentially a combined State Change and State View Pattern with an automated trigger in the middle.
+                    </p>
+                  </div>
+
+                  {/* Pattern 4 */}
+                  <div className="p-6 rounded-2xl border border-slate-100 bg-white/70 shadow-sm flex flex-col gap-3">
+                    <h4 className="text-[13px] font-bold text-slate-800">Translation Pattern (System integration)</h4>
+                    <div className="flex flex-wrap items-center gap-1.5 py-1">
+                      <span className="px-2 py-0.5 bg-purple-100 border border-purple-300 text-purple-700 rounded-lg text-[11px] font-mono font-bold">Integration Event</span>
+                      <span className="text-slate-400 font-bold text-[12px]">→</span>
+                      <span className="px-2 py-0.5 bg-rose-100 border border-rose-300 text-rose-700 rounded-lg text-[11px] font-mono font-bold">Automation</span>
+                      <span className="text-slate-400 font-bold text-[12px]">→</span>
+                      <span className="px-2 py-0.5 bg-blue-100 border border-blue-300 text-blue-700 rounded-lg text-[11px] font-mono font-bold">Command</span>
+                      <span className="text-slate-400 font-bold text-[12px]">→</span>
+                      <span className="px-2 py-0.5 bg-purple-100 border border-purple-300 text-purple-700 rounded-lg text-[11px] font-mono font-bold">Integration Event</span>
+                    </div>
+                    <p className="text-[12px] text-slate-600 font-medium leading-relaxed">
+                      Used for transferring knowledge between systems. An external Integration Event triggers an Automation that issues a Command to produce an outgoing Integration Event. External data can also populate Read Models directly for visualization.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* The 4 Anti-Patterns (Overcomplication) */}
+              <div className="flex flex-col gap-6">
+                <h3 className="text-sm font-black uppercase tracking-widest text-rose-800 px-1 flex items-center gap-2">
+                  <AlertTriangle size={16} className="text-rose-600" />
+                  The 4 Anti-Patterns (Overcomplication)
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Anti-Pattern 1 */}
+                  <div className="p-6 rounded-2xl border border-rose-100 bg-rose-50/20 shadow-sm flex flex-col gap-3">
+                    <h4 className="text-[13px] font-bold text-slate-800">The Left Chair</h4>
+                    <div className="flex flex-wrap items-center gap-1 py-1">
+                      <span className="px-2 py-0.5 bg-white border border-slate-300 text-slate-700 rounded-lg text-[10.5px] font-mono font-bold">Screen</span>
+                      <span className="text-slate-400 font-bold text-[11px]">→</span>
+                      <span className="px-2 py-0.5 bg-blue-100 border border-blue-300 text-blue-700 rounded-lg text-[10.5px] font-mono font-bold">Command</span>
+                      <span className="text-slate-400 font-bold text-[11px]">→</span>
+                      <span className="px-2 py-0.5 bg-amber-100 border border-amber-300 text-amber-700 rounded-lg text-[10.5px] font-mono font-bold">Domain Event</span>
+                      <span className="text-slate-400 font-bold text-[11px]">+</span>
+                      <span className="px-2 py-0.5 bg-amber-100 border border-amber-300 text-amber-700 rounded-lg text-[10.5px] font-mono font-bold">Domain Event</span>
+                      <span className="text-slate-400 font-bold text-[11px]">+</span>
+                      <span className="px-2 py-0.5 bg-amber-100 border border-amber-300 text-amber-700 rounded-lg text-[10.5px] font-mono font-bold">Domain Event...</span>
+                    </div>
+                    <p className="text-[12px] text-slate-600 font-medium leading-relaxed">
+                      One command triggering too many events. This often happens when business logic is crammed into one place instead of being broken down into separate state changes.
+                    </p>
+                  </div>
+
+                  {/* Anti-Pattern 2 */}
+                  <div className="p-6 rounded-2xl border border-rose-100 bg-rose-50/20 shadow-sm flex flex-col gap-3">
+                    <h4 className="text-[13px] font-bold text-slate-800">The Right Chair</h4>
+                    <div className="flex flex-wrap items-center gap-1 py-1">
+                      <span className="px-2 py-0.5 bg-amber-100 border border-amber-300 text-amber-700 rounded-lg text-[10.5px] font-mono font-bold">Domain Event</span>
+                      <span className="text-slate-400 font-bold text-[11px]">+</span>
+                      <span className="px-2 py-0.5 bg-amber-100 border border-amber-300 text-amber-700 rounded-lg text-[10.5px] font-mono font-bold">Domain Event</span>
+                      <span className="text-slate-400 font-bold text-[11px]">+</span>
+                      <span className="px-2 py-0.5 bg-amber-100 border border-amber-300 text-amber-700 rounded-lg text-[10.5px] font-mono font-bold">Domain Event</span>
+                      <span className="text-slate-400 font-bold text-[11px]">→</span>
+                      <span className="px-2 py-0.5 bg-emerald-100 border border-emerald-300 text-emerald-700 rounded-lg text-[10.5px] font-mono font-bold">Read Model</span>
+                    </div>
+                    <p className="text-[12px] text-slate-600 font-medium leading-relaxed">
+                      Many events feeding into a single read model (View). This indicates a 'Summary View' that knows everything, potentially creating high coupling.
+                    </p>
+                  </div>
+
+                  {/* Anti-Pattern 3 */}
+                  <div className="p-6 rounded-2xl border border-rose-100 bg-rose-50/20 shadow-sm flex flex-col gap-3">
+                    <h4 className="text-[13px] font-bold text-slate-800">The Bed</h4>
+                    <div className="flex flex-wrap items-center gap-1 py-1">
+                      <span className="px-2 py-0.5 bg-white border border-slate-300 text-slate-700 rounded-lg text-[10.5px] font-mono font-bold">Screen</span>
+                      <span className="text-slate-400 font-bold text-[11px]">→</span>
+                      <span className="px-2 py-0.5 bg-blue-100 border border-blue-300 text-blue-700 rounded-lg text-[10.5px] font-mono font-bold">Command</span>
+                      <span className="text-slate-400 font-bold text-[11px]">+</span>
+                      <span className="px-2 py-0.5 bg-blue-100 border border-blue-300 text-blue-700 rounded-lg text-[10.5px] font-mono font-bold">Command</span>
+                      <span className="text-slate-400 font-bold text-[11px]">+</span>
+                      <span className="px-2 py-0.5 bg-blue-100 border border-blue-300 text-blue-700 rounded-lg text-[10.5px] font-mono font-bold">Command</span>
+                    </div>
+                    <p className="text-[12px] text-slate-600 font-medium leading-relaxed">
+                      One UI component firing multiple commands in sequence. This reveals orchestration happening in the front-end instead of letting the event flow handle the sequence.
+                    </p>
+                  </div>
+
+                  {/* Anti-Pattern 4 */}
+                  <div className="p-6 rounded-2xl border border-rose-100 bg-rose-50/20 shadow-sm flex flex-col gap-3">
+                    <h4 className="text-[13px] font-bold text-slate-800">The Bookshelf</h4>
+                    <p className="text-[12px] text-slate-600 font-medium leading-relaxed">
+                      One slice contains all your business rules and logic (Given-When-Thens), while others are anemic. This is a 'God-Object' in visual form where one slice does everything.
+                    </p>
                   </div>
                 </div>
               </div>

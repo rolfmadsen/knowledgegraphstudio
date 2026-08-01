@@ -1,8 +1,11 @@
 import { useMemo, memo } from 'react';
 import type { NotationCanvasProps } from '../../../notations/types';
-import { ReactFlowCanvas, GRID_SIZE } from './ReactFlowCanvas';
+import { ReactFlowCanvas } from './ReactFlowCanvas';
 import { Handle, Position, type NodeProps, type Node } from '@xyflow/react';
 import type { ConceptNode } from '../../../schema/graphSchema';
+import { getConceptNodeSize } from '../../../utils/edgeRouting';
+
+export { getConceptNodeSize };
 
 interface ConceptNodeData extends Record<string, unknown> {
   name: string;
@@ -14,13 +17,7 @@ interface ConceptNodeData extends Record<string, unknown> {
 type ConceptNodeType = Node<ConceptNodeData, 'conceptNode'>;
 
 export const ConceptNodeComponent = memo(function ConceptNodeComponent({ data, selected }: NodeProps<ConceptNodeType>) {
-  const nameLength = (data.name || '').length;
-  // Standard width = 10x grid size (240px). Base height = 4x grid size (96px).
-  // Dynamic height increases in exact step increments of GRID_SIZE (24px) for long labels.
-  const standardWidth = 10 * GRID_SIZE; // 240px
-  const baseHeight = 4 * GRID_SIZE; // 96px
-  const extraSteps = Math.ceil(Math.max(0, nameLength - 20) / 20);
-  const dynamicHeight = baseHeight + extraSteps * GRID_SIZE;
+  const { width: standardWidth, height: dynamicHeight } = getConceptNodeSize(data.name);
 
   if (data.concept?.conceptType === 'bounded_context') {
     return (
@@ -47,7 +44,7 @@ export const ConceptNodeComponent = memo(function ConceptNodeComponent({ data, s
 
   return (
     <div
-      style={{ width: `${standardWidth}px`, minHeight: `${dynamicHeight}px` }}
+      style={{ width: `${standardWidth}px`, height: `${dynamicHeight}px` }}
       className={`
         relative px-6 py-4 bg-white/95 backdrop-blur-md border-2 transition-colors duration-300 rounded-[2rem] flex flex-col justify-center box-border
         ${selected

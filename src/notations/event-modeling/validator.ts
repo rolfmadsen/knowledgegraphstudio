@@ -47,7 +47,17 @@ export function isValidRelation(
   targetType: ConceptType,
   label?: string
 ): boolean {
-  if (label && DCR_RELATIONS.has(label.toLowerCase().trim())) {
+  const cleanLabel = label?.toLowerCase().trim();
+  if (cleanLabel === 'includes') {
+    if (sourceType === 'em_chapter') {
+      return targetType === 'em_slice';
+    }
+    if (sourceType === 'em_slice') {
+      return EM_ELEMENT_TYPES.has(targetType);
+    }
+    return false;
+  }
+  if (cleanLabel && DCR_RELATIONS.has(cleanLabel)) {
     return EM_ELEMENT_TYPES.has(sourceType) && EM_ELEMENT_TYPES.has(targetType);
   }
   const allowed = VALID_EM_CONNECTIONS[sourceType as string];

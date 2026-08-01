@@ -21,17 +21,17 @@ function makeMockNode(x: number, y: number, w: number, h: number): InternalNode 
 describe('edgeRouting', () => {
   describe('getDynamicConnection', () => {
     it('returns anchor y and waypoint x for horizontal exit direction', () => {
-      const anchor = { x: 100, y: 150 };
-      const waypoint = { x: 200, y: 250 };
+      const anchor = { x: 120, y: 144 };
+      const waypoint = { x: 240, y: 288 };
       const result = getDynamicConnection(anchor, waypoint, 'horizontal');
-      expect(result).toEqual({ x: 200, y: 150 });
+      expect(result).toEqual({ x: 240, y: 144 });
     });
 
     it('returns anchor x and waypoint y for vertical exit direction', () => {
-      const anchor = { x: 100, y: 150 };
-      const waypoint = { x: 200, y: 250 };
+      const anchor = { x: 120, y: 144 };
+      const waypoint = { x: 240, y: 288 };
       const result = getDynamicConnection(anchor, waypoint, 'vertical');
-      expect(result).toEqual({ x: 100, y: 250 });
+      expect(result).toEqual({ x: 120, y: 288 });
     });
   });
 

@@ -111,7 +111,7 @@ describe('eventModelingLayoutEngine', () => {
     expect(sliceWidth).toBeGreaterThan(320);
 
     // Combined child node width is centered inside the slice container
-    const totalChildWidth = 2 * 260 + 20; // 540px
+    const totalChildWidth = 2 * 240 + 24; // 504px
     const expectedLeftMargin = (sliceWidth - totalChildWidth) / 2;
     expect(pos1!.x - slicePos!.x).toEqual(expectedLeftMargin);
   });
@@ -139,4 +139,21 @@ describe('eventModelingLayoutEngine', () => {
     expect(pos2!.x).toBeGreaterThan(pos1!.x);
     expect(pos2!.x).toBeLessThanOrEqual(slicePos!.x + (slicePos as any).width);
   });
+
+  it('sets slice width to 12x grid width (288px) by default', async () => {
+    const input: LayoutInput = {
+      nodes: [
+        { id: 'chapter-1', x: 0, y: 0, conceptType: 'em_chapter' } as any,
+        { id: 'slice-1', x: 0, y: 0, parentId: 'chapter-1', conceptType: 'em_slice' } as any,
+      ],
+      links: [],
+      layoutAlgorithm: 'hierarchical',
+    };
+
+    const output = await eventModelingLayoutEngine(input);
+    const slicePos = output.positions.find((p) => p.conceptId === 'slice-1');
+    expect(slicePos).toBeDefined();
+    expect((slicePos as any).width).toBe(288); // 12 * 24px = 288px
+  });
 });
+

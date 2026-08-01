@@ -418,8 +418,8 @@ const HIDE_EDGES_IN_NOTATION: Record<string, Set<string>> = {
                 let h = rfNode?.measured?.height;
                 if (!w || !h) {
                   if (childConcept?.conceptType === 'em_slice') {
-                    w = w ?? 320;
-                    h = h ?? 500;
+                    w = w ?? 12 * 24; // 12x grid width (288px)
+                    h = h ?? 15 * 24; // 15x grid height (360px)
                   } else if (childConcept?.conceptType === 'em_chapter') {
                     w = w ?? 600;
                     h = h ?? 600;

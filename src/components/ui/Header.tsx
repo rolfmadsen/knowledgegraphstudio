@@ -68,7 +68,7 @@ export function Header({
 
         <div className="hidden xl:flex flex-1 justify-center">
           <div className="text-[14px] font-black text-slate-400 uppercase tracking-[0.6em] flex items-center gap-3 select-none transition-colors hover:text-slate-700">
-            xArchi - Preview Edition
+            xArchi Studio - v1.0-Alpha
           </div>
         </div>
 

@@ -21,7 +21,7 @@ import { Handle, Position, type NodeProps, type Node } from '@xyflow/react';
 import type { Notation, NotationCanvasProps, QuickActionConfig } from '../types';
 import { ReactFlowCanvas } from '../../features/viewport/graph/ReactFlowCanvas';
 import { useGraphStore } from '../../store/useGraphStore';
-import { eventModelingLayoutEngine } from './layout';
+import { eventModelingLayoutEngine, SLICE_WIDTH, GRID_SIZE } from './layout';
 import { LineageSyncModal } from './LineageSyncModal';
 import { PayloadSpecModal } from './PayloadSpecModal';
 import { isValidRelation, getAvailableRelations } from './validator';
@@ -160,7 +160,7 @@ function EmSliceNode({ data, selected }: NodeProps<EmNodeType>) {
           ? 'bg-slate-100/80 ring-2 ring-slate-300 shadow-sm'
           : 'bg-slate-50/50 hover:bg-slate-100/40'}
       `}
-      style={{ border: '1px solid #e2e8f0' }}
+      style={{ border: '1px solid #e2e8f0', minWidth: `${SLICE_WIDTH}px` }}
     >
       <Handle type="target" position={Position.Top} style={{ visibility: 'hidden', top: '50%', left: '50%', pointerEvents: 'none' }} />
       <Handle type="source" position={Position.Bottom} style={{ visibility: 'hidden', top: '50%', left: '50%', pointerEvents: 'none' }} />
@@ -434,15 +434,13 @@ function EmElementNode({ data, selected }: NodeProps<EmNodeType>) {
     return false;
   }, [payload, conceptType, accumulatedPrecedingEventAttributes]);
 
-  const nameLen = (liveConcept?.name || '').length + (payload?.length || 0) * 15;
-  const dynamicHeight = nameLen > 60 ? 144 : nameLen > 30 ? 120 : 96;
 
   return (
     <div
-      style={{ width: '264px', minHeight: `${dynamicHeight}px` }}
+      style={{ width: `${10 * GRID_SIZE}px`, minHeight: `${6 * GRID_SIZE}px` }}
       className={`
         relative px-5 py-4 border-2 rounded-2xl box-border
-        shadow-sm hover:shadow-md transition-colors duration-200 font-sans flex flex-col justify-between
+        shadow-sm hover:shadow-md transition-colors duration-200 font-sans flex flex-col justify-start gap-2.5
         ${style.bg} ${style.border}
         ${selected ? 'ring-4 ring-emerald-200 shadow-lg' : ''}
       `}
@@ -511,44 +509,44 @@ function EmElementNode({ data, selected }: NodeProps<EmNodeType>) {
         )}
       </div>
 
-        {/* Lineage Sync Interactive Modal */}
-        {isSyncModalOpen && (
-          <LineageSyncModal
-            isOpen={isSyncModalOpen}
-            onClose={() => setIsSyncModalOpen(false)}
-            currentNode={{
-              id: conceptId || (data.concept?.id as ElementId),
-              name: data.name || 'Untitled',
-              conceptType,
-              payload,
-            }}
-            allConcepts={allConcepts}
-            graphState={useGraphStore.getState() as any}
-            activeViewId={activeViewId || ('' as ElementId)}
-            updateConcept={updateConcept}
-          />
-        )}
+      {/* Lineage Sync Interactive Modal */}
+      {isSyncModalOpen && (
+        <LineageSyncModal
+          isOpen={isSyncModalOpen}
+          onClose={() => setIsSyncModalOpen(false)}
+          currentNode={{
+            id: conceptId || (data.concept?.id as ElementId),
+            name: data.name || 'Untitled',
+            conceptType,
+            payload,
+          }}
+          allConcepts={allConcepts}
+          graphState={useGraphStore.getState() as any}
+          activeViewId={activeViewId || ('' as ElementId)}
+          updateConcept={updateConcept}
+        />
+      )}
 
-        {/* Payload Specification Modal */}
-        {isPayloadSpecModalOpen && (
-          <PayloadSpecModal
-            isOpen={isPayloadSpecModalOpen}
-            onClose={() => setIsPayloadSpecModalOpen(false)}
-            currentNode={{
-              id: conceptId || (data.concept?.id as ElementId),
-              name: data.name || 'Untitled',
-              conceptType,
-              payload,
-            }}
-            allConcepts={allConcepts}
-            activeViewId={activeViewId || ('' as ElementId)}
-            updateConcept={updateConcept}
-            updateProperty={updateProperty}
-            addConcept={addConcept}
-            addProperty={addProperty}
-            onOpenSyncModal={() => setIsSyncModalOpen(true)}
-          />
-        )}
+      {/* Payload Specification Modal */}
+      {isPayloadSpecModalOpen && (
+        <PayloadSpecModal
+          isOpen={isPayloadSpecModalOpen}
+          onClose={() => setIsPayloadSpecModalOpen(false)}
+          currentNode={{
+            id: conceptId || (data.concept?.id as ElementId),
+            name: data.name || 'Untitled',
+            conceptType,
+            payload,
+          }}
+          allConcepts={allConcepts}
+          activeViewId={activeViewId || ('' as ElementId)}
+          updateConcept={updateConcept}
+          updateProperty={updateProperty}
+          addConcept={addConcept}
+          addProperty={addProperty}
+          onOpenSyncModal={() => setIsSyncModalOpen(true)}
+        />
+      )}
     </div>
   );
 }
@@ -1143,13 +1141,13 @@ function EventModelingRelationInspector({
 // ============================================================
 
 const EM_EDGE_COLORS: Record<string, string> = {
-  invokes:   '#3B82F6', // blue
-  triggers:  '#F59E0B', // amber
-  feeds:     '#10B981', // emerald
-  displays:  '#F59E0B', // amber
-  emits:     '#A855F7', // purple
+  invokes: '#3B82F6', // blue
+  triggers: '#F59E0B', // amber
+  feeds: '#10B981', // emerald
+  displays: '#F59E0B', // amber
+  emits: '#A855F7', // purple
   automates: '#F43F5E', // rose
-  notifies:  '#A855F7', // purple
+  notifies: '#A855F7', // purple
 };
 
 // ============================================================
@@ -1164,10 +1162,13 @@ export const eventModelingNotation: Notation = {
   orthogonalEdges: true,
   CanvasComponent: EventModelingCanvas,
   layoutEngine: eventModelingLayoutEngine,
+  supportedLayoutAlgorithms: ['hierarchical', 'manual'],
+  defaultLayoutAlgorithm: 'hierarchical',
+  layoutAlgorithmLabels: { hierarchical: 'Swimlane', manual: 'Manual' },
   defaultElements: [
-    { conceptType: 'em_chapter', name: 'Start Chapter', xOffset: 100, yOffset: 80 },
-    { conceptType: 'em_slice', name: 'Start Slice', parentIndex: 0, xOffset: 48, yOffset: 48 },
-    { conceptType: 'event', name: 'Start Event', parentIndex: 1, xOffset: 30, yOffset: 140 },
+    { conceptType: 'em_chapter', name: 'Start Chapter', xOffset: 4 * GRID_SIZE, yOffset: 4 * GRID_SIZE },
+    { conceptType: 'em_slice', name: 'Start Slice', parentIndex: 0, xOffset: 2 * GRID_SIZE, yOffset: 2 * GRID_SIZE },
+    { conceptType: 'event', name: 'Start Event', parentIndex: 1, xOffset: 1 * GRID_SIZE, yOffset: 6 * GRID_SIZE },
   ],
   allowedConceptTypes: [
     'screen',
@@ -1234,14 +1235,14 @@ export const eventModelingNotation: Notation = {
   RelationInspectorComponent: EventModelingRelationInspector,
   hideViewsSection: false,
   conceptTypeLabels: {
-    screen:            'Screen',
-    command:           'Command',
-    event:             'Domain Event',
-    read_model:        'Read Model',
+    screen: 'Screen',
+    command: 'Command',
+    event: 'Domain Event',
+    read_model: 'Read Model',
     integration_event: 'Integration Event',
-    automation:        'Automation',
-    em_chapter:        'Chapter',
-    em_slice:          'Slice',
+    automation: 'Automation',
+    em_chapter: 'Chapter',
+    em_slice: 'Slice',
   },
   getEdgeStyle: (relation, isSelected) => {
     const relName = (relation.name ?? '').toLowerCase().trim();

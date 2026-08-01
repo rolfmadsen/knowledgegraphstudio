@@ -31,8 +31,8 @@ export const dagreLayoutEngine: LayoutEngine = async (input: LayoutInput): Promi
         resolve({
           positions: nodes.map((n: { id: string; x: number; y: number }) => ({
             conceptId: n.id,
-            x: n.x - (input.nodes.find(in_ => in_.id === n.id)?.width ?? 200) / 2,
-            y: n.y - (input.nodes.find(in_ => in_.id === n.id)?.height ?? 80) / 2,
+            x: n.x,
+            y: n.y,
           })),
         });
       }

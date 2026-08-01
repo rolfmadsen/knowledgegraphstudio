@@ -4,7 +4,7 @@ import type { ConceptNode, ConceptRelation } from '../schema/graphSchema';
 
 /**
  * Get filtered concepts and relations for Focus Mode.
- * When focusMode is true, returns only the selected node + 1-hop neighbors + container hierarchy & children.
+ * When focusMode is true, returns only the selected node + 1-hop neighbors + container hierarchy & direct children.
  * When false, returns all concepts/relations.
  */
 export function useFocusedGraph(focusMode: boolean): {
@@ -32,18 +32,11 @@ export function useFocusedGraph(focusMode: boolean): {
       neighborIds.add(r.targetConceptId);
     }
 
-    // 2. Expand children for container nodes (e.g. domain, bounded_context, chapter, slice)
-    // If selectedId or any neighbor is a container, include all child nodes inside it
-    let expanded = true;
-    while (expanded) {
-      expanded = false;
-      for (const view of views) {
-        for (const vn of view.nodes || []) {
-          const isParentVisible = vn.parentId && (neighborIds.has(vn.parentId) || (vn.parentId as string).includes(selectedId));
-          if (isParentVisible && vn.conceptId && !neighborIds.has(vn.conceptId)) {
-            neighborIds.add(vn.conceptId);
-            expanded = true;
-          }
+    // 2. Expand direct 1-level child nodes of the selected container node
+    for (const view of views) {
+      for (const vn of view.nodes || []) {
+        if (vn.parentId === selectedId && vn.conceptId) {
+          neighborIds.add(vn.conceptId);
         }
       }
     }
