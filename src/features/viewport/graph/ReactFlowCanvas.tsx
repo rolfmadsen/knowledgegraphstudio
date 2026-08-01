@@ -2292,6 +2292,8 @@ export function ReactFlowCanvas({
         return type && type !== 'em_chapter' && type !== 'em_slice' && type !== 'bounded_context';
       });
 
+      const EM_BOTTOM_PADDING = 1 * GRID_SIZE; // 24px (1 grid height margin below lowest node)
+
       chapters.forEach(chapterVn => {
         const chapterInstId = chapterVn.instanceId || chapterVn.conceptId;
         const chapterSlices = slices.filter(s => s.parentId === chapterInstId || s.parentId === chapterVn.conceptId);
@@ -2312,22 +2314,25 @@ export function ReactFlowCanvas({
           });
 
           const sliceX = sliceVn.x;
-          const wSlice = sliceRight !== -Infinity
-            ? Math.max(SLICE_WIDTH, Math.ceil(((sliceRight + 24) - sliceX) / GRID_SIZE) * GRID_SIZE)
-            : SLICE_WIDTH;
+          const wSlice = sliceVn.width ?? (sliceRight !== -Infinity
+            ? Math.max(SLICE_WIDTH, Math.ceil(((sliceRight + GRID_SIZE) - sliceX) / GRID_SIZE) * GRID_SIZE)
+            : SLICE_WIDTH);
           emSliceWidths.set(sliceInstId, wSlice);
         });
 
-        const sliceY = chapterVn.y + 48; // CHAPTER_PADDING
-        const hSlice = maxElementBottom !== -Infinity
-          ? Math.max(SLICE_HEIGHT, Math.ceil(((maxElementBottom + PADDING_BOTTOM) - sliceY) / GRID_SIZE) * GRID_SIZE)
-          : SLICE_HEIGHT;
-        const hChapter = hSlice + 96; // 48 padding top + 48 padding bottom
+        const maxStoredSliceH = Math.max(...chapterSlices.map(s => s.height || 0));
+        const sliceY = chapterVn.y + 2 * GRID_SIZE; // CHAPTER_PADDING (48px)
+        const hSlice = maxStoredSliceH > 0
+          ? Math.ceil(maxStoredSliceH / GRID_SIZE) * GRID_SIZE
+          : (maxElementBottom !== -Infinity
+            ? Math.max(SLICE_HEIGHT, Math.ceil(((maxElementBottom + EM_BOTTOM_PADDING) - sliceY) / GRID_SIZE) * GRID_SIZE)
+            : SLICE_HEIGHT);
+        const hChapter = chapterVn.height ?? (hSlice + 4 * GRID_SIZE); // 2 * GRID_SIZE padding top + 2 * GRID_SIZE padding bottom (96px)
 
         emChapterHeights.set(chapterInstId, hChapter);
         chapterSlices.forEach(sliceVn => {
           const sliceInstId = sliceVn.instanceId || sliceVn.conceptId;
-          emSliceHeights.set(sliceInstId, hSlice);
+          emSliceHeights.set(sliceInstId, sliceVn.height ?? hSlice);
         });
       });
 
@@ -2351,12 +2356,12 @@ export function ReactFlowCanvas({
 
         const sliceX = sliceVn.x;
         const sliceY = sliceVn.y;
-        const wSlice = maxElementRight !== -Infinity
-          ? Math.max(SLICE_WIDTH, Math.ceil(((maxElementRight + 24) - sliceX) / GRID_SIZE) * GRID_SIZE)
-          : SLICE_WIDTH;
-        const hSlice = maxElementBottom !== -Infinity
-          ? Math.max(SLICE_HEIGHT, Math.ceil(((maxElementBottom + PADDING_BOTTOM) - sliceY) / GRID_SIZE) * GRID_SIZE)
-          : SLICE_HEIGHT;
+        const wSlice = sliceVn.width ?? (maxElementRight !== -Infinity
+          ? Math.max(SLICE_WIDTH, Math.ceil(((maxElementRight + GRID_SIZE) - sliceX) / GRID_SIZE) * GRID_SIZE)
+          : SLICE_WIDTH);
+        const hSlice = sliceVn.height ?? (maxElementBottom !== -Infinity
+          ? Math.max(SLICE_HEIGHT, Math.ceil(((maxElementBottom + EM_BOTTOM_PADDING) - sliceY) / GRID_SIZE) * GRID_SIZE)
+          : SLICE_HEIGHT);
 
         emSliceWidths.set(sliceInstId, wSlice);
         emSliceHeights.set(sliceInstId, hSlice);

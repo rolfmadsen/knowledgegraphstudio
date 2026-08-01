@@ -1,6 +1,8 @@
-# Task: Add Event Modeling Tab to Help Modal
+# Task: Fix Event Modeling Container Padding and Grid Alignment
 
 ## Checklist
-- [x] Write unit test for `HelpCenter` component verifying the new 'Event Modeling' tab renders and shows Core Elements, Patterns, and Anti-Patterns (`src/features/help/__tests__/HelpCenter.test.tsx`).
-- [x] Add `'event-modeling'` tab button and tab content to `src/features/help/HelpCenter.tsx` with all Core Elements, 4 Event Model Patterns, and 4 Anti-Patterns.
-- [x] Verify UI components and test files.
+- [x] Write failing unit test in `src/notations/event-modeling/__tests__/layout.test.ts` and `src/store/__tests__/useGraphStore.test.ts` verifying container dimension persistence and grid alignment.
+- [x] Verify test behavior (**RED** phase).
+- [x] Implement source changes in `useGraphStore.ts`, `NotationCanvasWrapper.tsx`, `ReactFlowCanvas.tsx`, and `layout.ts`.
+- [x] Verify layout calculations and container sizing (**GREEN** phase).
+- [x] Refactor and ensure clean architectural boundaries (**REFACTOR** phase).

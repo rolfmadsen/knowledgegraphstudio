@@ -363,6 +363,8 @@ const HIDE_EDGES_IN_NOTATION: Record<string, Set<string>> = {
           conceptId: toElementId(p.conceptId.split('#')[0]),
           x: p.x,
           y: p.y,
+          width: (p as any).width,
+          height: (p as any).height,
           order: (p as any).order,
         }));
         // already defined conceptMap above
@@ -452,8 +454,14 @@ const HIDE_EDGES_IN_NOTATION: Record<string, Set<string>> = {
         // Compare new normalized layout coordinates with current coordinates to avoid unnecessary state updates
         let hasChanged = false;
         for (const pos of normalizedPositions) {
-          const vn = viewNodes.find((v) => v.conceptId === pos.conceptId);
-          if (!vn || Math.abs(vn.x - pos.x) > 0.1 || Math.abs(vn.y - pos.y) > 0.1) {
+          const vn = viewNodes.find((v) => (v.instanceId || v.conceptId) === pos.instanceId || v.conceptId === pos.conceptId);
+          if (
+            !vn ||
+            Math.abs(vn.x - pos.x) > 0.1 ||
+            Math.abs(vn.y - pos.y) > 0.1 ||
+            (pos.width !== undefined && vn.width !== pos.width) ||
+            (pos.height !== undefined && vn.height !== pos.height)
+          ) {
             hasChanged = true;
             break;
           }

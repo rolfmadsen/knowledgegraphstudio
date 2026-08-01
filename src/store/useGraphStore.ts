@@ -300,7 +300,7 @@ export interface GraphStoreState {
   // --- View Actions ---
   setActiveViewId: (id: ElementId | null) => void;
   updateViewNodePosition: (viewId: ElementId, targetId: ElementId, x: number, y: number) => void;
-  batchUpdateViewNodePositions: (viewId: ElementId, positions: Array<{ conceptId?: ElementId; instanceId?: string; x: number; y: number; order?: number }>) => void;
+  batchUpdateViewNodePositions: (viewId: ElementId, positions: Array<{ conceptId?: ElementId; instanceId?: string; x: number; y: number; width?: number; height?: number; order?: number }>) => void;
   addConceptToView: (viewId: ElementId, conceptId: ElementId, x: number, y: number, parentId?: ElementId, instanceId?: string) => void;
   removeConceptFromView: (viewId: ElementId, conceptId: ElementId) => void;
   removeConceptsFromView: (viewId: ElementId, conceptIds: ElementId[]) => void;
@@ -800,7 +800,14 @@ export const useGraphStore = create<GraphStoreState>()(
         let changed = false;
         for (const p of snappedPositions) {
           const node = view.nodes.find((n) => p.instanceId ? (n.instanceId || n.conceptId) === p.instanceId : n.conceptId === p.conceptId);
-          if (!node || node.x !== p.x || node.y !== p.y || (p.order !== undefined && node.order !== p.order)) {
+          if (
+            !node ||
+            node.x !== p.x ||
+            node.y !== p.y ||
+            (p.width !== undefined && node.width !== p.width) ||
+            (p.height !== undefined && node.height !== p.height) ||
+            (p.order !== undefined && node.order !== p.order)
+          ) {
             changed = true;
             break;
           }
@@ -819,9 +826,13 @@ export const useGraphStore = create<GraphStoreState>()(
                   const pos = snappedPositions.find((p) => p.instanceId ? p.instanceId === nodeInstId : p.conceptId === n.conceptId);
                   if (!pos) return n;
                   const newOrder = pos.order !== undefined ? pos.order : n.order;
+                  const sizeProps = {
+                    ...(pos.width !== undefined ? { width: pos.width } : {}),
+                    ...(pos.height !== undefined ? { height: pos.height } : {}),
+                  };
                   return isManual
-                    ? { ...n, x: pos.x, y: pos.y, manualX: pos.x, manualY: pos.y, ...(newOrder !== undefined ? { order: newOrder } : {}) }
-                    : { ...n, x: pos.x, y: pos.y, ...(newOrder !== undefined ? { order: newOrder } : {}) };
+                    ? { ...n, x: pos.x, y: pos.y, manualX: pos.x, manualY: pos.y, ...sizeProps, ...(newOrder !== undefined ? { order: newOrder } : {}) }
+                    : { ...n, x: pos.x, y: pos.y, ...sizeProps, ...(newOrder !== undefined ? { order: newOrder } : {}) };
                 });
                 return updated;
               })(),

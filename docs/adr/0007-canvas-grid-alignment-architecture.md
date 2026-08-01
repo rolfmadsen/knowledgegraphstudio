@@ -1,4 +1,4 @@
-# 1. 24px Canvas Grid Alignment & Pattern Geometry Architecture
+# 0007: 24px Canvas Grid Alignment & Pattern Geometry Architecture
 
 * Status: Accepted
 * Date: 2026-08-01

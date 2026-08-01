@@ -96,6 +96,21 @@ describe('useGraphStore', () => {
       expect((state.concepts[0] as unknown as { y: number }).y).toBe(100);
     });
 
+    it('persists width and height when updated via batchUpdateViewNodePositions', () => {
+      const view = useGraphStore.getState().createView('Container Test', 'event_modeling');
+      const conceptId = toElementId('concept:slice1');
+      useGraphStore.getState().addConceptToView(view.id, conceptId, 100, 100);
+
+      useGraphStore.getState().batchUpdateViewNodePositions(view.id, [
+        { conceptId, x: 120, y: 120, width: 288, height: 432 }
+      ]);
+
+      const updatedView = useGraphStore.getState().views.find(v => v.id === view.id);
+      const node = updatedView?.nodes.find(n => n.conceptId === conceptId);
+      expect(node?.width).toBe(288);
+      expect(node?.height).toBe(432);
+    });
+
     it('clears history correctly', () => {
       useGraphStore.setState({ concepts: [{ id: toElementId('c1') } as unknown as ConceptNode] });
       expect(getTemporalState().pastStates).toHaveLength(1);

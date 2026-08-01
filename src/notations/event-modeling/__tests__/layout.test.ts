@@ -155,5 +155,32 @@ describe('eventModelingLayoutEngine', () => {
     expect(slicePos).toBeDefined();
     expect((slicePos as any).width).toBe(288); // 12 * 24px = 288px
   });
+
+  it('sets slice and chapter heights as exact multiples of 24px grid units', async () => {
+    const input: LayoutInput = {
+      nodes: [
+        { id: 'chapter-1', x: 0, y: 0, conceptType: 'em_chapter' } as any,
+        { id: 'slice-1', x: 0, y: 0, parentId: 'chapter-1', conceptType: 'em_slice' } as any,
+        { id: 'event-1', x: 0, y: 0, parentId: 'slice-1', conceptType: 'event', createdAt: 100 } as any,
+        { id: 'read-model-1', x: 0, y: 0, parentId: 'slice-1', conceptType: 'read_model', createdAt: 200 } as any,
+      ],
+      links: [],
+      layoutAlgorithm: 'hierarchical',
+    };
+
+    const output = await eventModelingLayoutEngine(input);
+    const chapterPos = output.positions.find((p) => p.conceptId === 'chapter-1');
+    const slicePos = output.positions.find((p) => p.conceptId === 'slice-1');
+
+    expect(chapterPos).toBeDefined();
+    expect(slicePos).toBeDefined();
+
+    const sliceH = (slicePos as any).height;
+    const chapterH = (chapterPos as any).height;
+
+    expect(sliceH % 24).toBe(0);
+    expect(chapterH % 24).toBe(0);
+    expect(chapterH).toBe(sliceH + 96);
+  });
 });
 

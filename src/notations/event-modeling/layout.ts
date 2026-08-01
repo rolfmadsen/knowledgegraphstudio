@@ -275,12 +275,6 @@ export const eventModelingLayoutEngine: LayoutEngine = async (
       groupSlices = sortedSlices;
     }
 
-    if (chapterId) {
-      // Position the chapter container itself
-      const chapterIndex = chapters.findIndex((c) => c.id === chapterId);
-      positions.push({ conceptId: chapterId, x: Math.round(cx / GRID_SIZE) * GRID_SIZE, y: Math.round(cy / GRID_SIZE) * GRID_SIZE, order: chapterIndex >= 0 ? chapterIndex + 1 : undefined } as any);
-    }
-
     // Filter all elements belonging to any slice in this group
     const allElementsInGroup = elements.filter((el) => {
       const sliceId = getAncestorSliceId(el.id, nodeMap);
@@ -321,6 +315,24 @@ export const eventModelingLayoutEngine: LayoutEngine = async (
       accumY += maxRowHeight + VERTICAL_GAP; // Even 72px (3x 24px) gap between adjacent rows
     }
 
+    const MIN_SLICE_HEIGHT = 15 * GRID_SIZE; // 360px
+    const computedSliceHeight = activeRows.length > 0
+      ? Math.max(MIN_SLICE_HEIGHT, Math.ceil(((lastRowBottomY - sliceY) + GRID_SIZE) / GRID_SIZE) * GRID_SIZE)
+      : MIN_SLICE_HEIGHT;
+
+    if (chapterId) {
+      // Position the chapter container itself
+      const chapterIndex = chapters.findIndex((c) => c.id === chapterId);
+      const computedChapterHeight = computedSliceHeight + 4 * GRID_SIZE; // 2 * GRID_SIZE top + 2 * GRID_SIZE bottom padding
+      positions.push({
+        conceptId: chapterId,
+        x: Math.round(cx / GRID_SIZE) * GRID_SIZE,
+        y: Math.round(cy / GRID_SIZE) * GRID_SIZE,
+        order: chapterIndex >= 0 ? chapterIndex + 1 : undefined,
+        height: computedChapterHeight,
+      } as any);
+    }
+
     // Layout slices left-to-right within the group with dynamic slice widths
     let currentSliceX = cx + CHAPTER_PADDING;
 
@@ -346,13 +358,10 @@ export const eventModelingLayoutEngine: LayoutEngine = async (
       const rawSliceWidth = 2 * SLICE_MARGIN + maxColsInSlice * NODE_WIDTH + (maxColsInSlice - 1) * ELEMENT_GAP;
       const currentSliceWidth = Math.max(
         SLICE_WIDTH,
-        Math.ceil(rawSliceWidth / 24) * 24
+        Math.ceil(rawSliceWidth / GRID_SIZE) * GRID_SIZE
       );
 
       // Total slice height = (lastRowBottomY - sliceY) + 48px bottom margin snapped to 24px grid
-      const computedSliceHeight = activeRows.length > 0
-        ? Math.max(360, Math.ceil(((lastRowBottomY - sliceY) + 48) / 24) * 24)
-        : 360;
       positions.push({ conceptId: slice.id, x: Math.round(currentSliceX / GRID_SIZE) * GRID_SIZE, y: Math.round(sliceY / GRID_SIZE) * GRID_SIZE, order: si + 1, width: currentSliceWidth, height: computedSliceHeight } as any);
 
       // Place elements side by side and centered horizontally within each row using uniform chapter Y offsets
