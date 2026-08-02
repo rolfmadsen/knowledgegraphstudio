@@ -1,4 +1,4 @@
-import { type ConceptNode, type ConceptRelation, type ConceptProperty } from '../../schema/graphSchema';
+import { type ConceptNode, type ConceptRelation, type ConceptProperty, type View, type ElementId } from '../../schema/graphSchema';
 
 function toKebabCase(str: string): string {
   return str
@@ -39,7 +39,26 @@ function formatGherkinDesc(concept: ConceptNode): string {
   return desc;
 }
 
-export function generateOpenAPI(concepts: ConceptNode[], relations: ConceptRelation[]): string {
+export function generateOpenAPI(
+  concepts: ConceptNode[],
+  relations: ConceptRelation[],
+  views?: View[],
+  activeViewId?: ElementId | null
+): string {
+  let targetConcepts = concepts;
+  let targetRelations = relations;
+
+  if (activeViewId && views && views.length > 0) {
+    const activeView = views.find((v) => v.id === activeViewId);
+    if (activeView) {
+      const viewConceptIds = new Set(activeView.nodes.map((n) => n.conceptId));
+      targetConcepts = concepts.filter((c) => viewConceptIds.has(c.id));
+      targetRelations = relations.filter(
+        (r) => viewConceptIds.has(r.sourceConceptId) && viewConceptIds.has(r.targetConceptId)
+      );
+    }
+  }
+
   let yaml = '';
   yaml += 'openapi: 3.2.0\n';
   yaml += 'info:\n';
@@ -48,13 +67,13 @@ export function generateOpenAPI(concepts: ConceptNode[], relations: ConceptRelat
   yaml += '  description: Autogenereret OpenAPI specifikation baseret på Event Modeling + DCR regler.\n';
   yaml += 'paths:\n';
 
-  const commands = concepts.filter((c) => c.conceptType === 'command');
-  const readModels = concepts.filter((c) => c.conceptType === 'read_model');
+  const commands = targetConcepts.filter((c) => c.conceptType === 'command');
+  const readModels = targetConcepts.filter((c) => c.conceptType === 'read_model');
 
   // Map Commands -> POST/PUT Endpoints
   commands.forEach((cmd) => {
     // Find relation pointing to this command carrying integration details
-    const rel = relations.find(
+    const rel = targetRelations.find(
       (r) => r.targetConceptId === cmd.id && (r.name === 'invokes' || r.name === 'automates')
     );
     const path = rel?.endpointPath || `/commands/${toKebabCase(cmd.name)}`;
@@ -98,7 +117,7 @@ export function generateOpenAPI(concepts: ConceptNode[], relations: ConceptRelat
   // Map Read Models -> GET Endpoints
   readModels.forEach((rm) => {
     // Find relation feeding this read model carrying integration details
-    const rel = relations.find(
+    const rel = targetRelations.find(
       (r) => r.targetConceptId === rm.id && r.name === 'feeds'
     );
     const path = rel?.endpointPath || `/queries/${toKebabCase(rm.name)}`;

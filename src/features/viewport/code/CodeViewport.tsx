@@ -7,6 +7,7 @@ import { Copy, Check, FileCode, Lock, AlertCircle, AlertTriangle } from 'lucide-
 import { generateOpenAPI } from '../../compiler/openapiGenerator';
 import { generateAsyncAPI } from '../../compiler/asyncapiGenerator';
 import { generateArazzo } from '../../compiler/arazzoGenerator';
+import { generateRDF } from '../../compiler/rdfGenerator';
 
 interface CodeViewportProps {
   isConflict?: boolean;
@@ -30,6 +31,23 @@ export function CodeViewport({ isConflict = false }: CodeViewportProps) {
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
+  const activeView = useMemo(() => views.find((v) => v.id === activeViewId), [views, activeViewId]);
+
+  // Allowed tabs based on the active view notation type
+  const allowedTabs = useMemo(() => {
+    if (!activeView) return ['full', 'view'];
+    switch (activeView.type) {
+      case 'event_modeling':
+        return ['full', 'view', 'openapi', 'asyncapi', 'arazzo'];
+      case 'knowledge_graph':
+      case 'conceptual_model':
+      case 'information_model':
+        return ['full', 'view', 'rdf'];
+      default:
+        return ['full', 'view'];
+    }
+  }, [activeView]);
+
   const yamlContent = useMemo(() => {
     if (isConflict && rawYaml) return rawYaml;
     if (activeCodeTab === 'view') {
@@ -39,13 +57,16 @@ export function CodeViewport({ isConflict = false }: CodeViewportProps) {
       return '# Ingen aktiv visning. Opret eller vælg en visning i Model Explorer.';
     }
     if (activeCodeTab === 'openapi') {
-      return generateOpenAPI(concepts, relations);
+      return generateOpenAPI(concepts, relations, views, activeViewId);
     }
     if (activeCodeTab === 'asyncapi') {
-      return generateAsyncAPI(concepts, relations);
+      return generateAsyncAPI(concepts, relations, views, activeViewId);
     }
     if (activeCodeTab === 'arazzo') {
       return generateArazzo(concepts, relations, views, activeViewId);
+    }
+    if (activeCodeTab === 'rdf') {
+      return generateRDF(concepts, relations, views, activeViewId);
     }
     return stringifyState ? stringifyState() : '';
   }, [domains, concepts, relations, views, isConflict, rawYaml, stringifyState, activeCodeTab, activeViewId]);
@@ -55,12 +76,12 @@ export function CodeViewport({ isConflict = false }: CodeViewportProps) {
     setLocalYaml(undefined);
   }, [activeCodeTab, activeViewId]);
 
-  // Auto-switch back to 'full' tab if the active view is lost/deleted
+  // Auto-switch back if active view is lost or current tab is disallowed
   useEffect(() => {
-    if (!activeViewId && activeCodeTab === 'view') {
-      setActiveCodeTab?.('full');
+    if (!allowedTabs.includes(activeCodeTab)) {
+      setActiveCodeTab?.(activeViewId ? 'view' : 'full');
     }
-  }, [activeViewId, activeCodeTab, setActiveCodeTab]);
+  }, [allowedTabs, activeCodeTab, activeViewId, setActiveCodeTab]);
 
   // Debounced sync function to update the global store from YAML input
   const syncToStore = useCallback(
@@ -76,10 +97,12 @@ export function CodeViewport({ isConflict = false }: CodeViewportProps) {
   );
 
   const handleEditorChange = (value: string | undefined) => {
-    setLocalYaml(value);
-    const currentTab = useGraphStore.getState().activeCodeTab;
-    if (value && !isConflict && currentTab === 'full') {
-      syncToStore(value);
+    // Only capture local edits when on editable 'full' tab
+    if (activeCodeTab === 'full') {
+      setLocalYaml(value);
+      if (value && !isConflict) {
+        syncToStore(value);
+      }
     }
   };
 
@@ -99,11 +122,11 @@ export function CodeViewport({ isConflict = false }: CodeViewportProps) {
   const displayError = error || (isConflict ? conflictError : null);
 
   const handleCopy = useCallback(() => {
-    const toCopy = localYaml ?? yamlContent;
+    const toCopy = activeCodeTab === 'full' ? (localYaml ?? yamlContent) : yamlContent;
     navigator.clipboard.writeText(toCopy);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-  }, [localYaml, yamlContent]);
+  }, [activeCodeTab, localYaml, yamlContent]);
 
   return (
     <div className="relative w-full h-full flex flex-col font-sans">
@@ -132,33 +155,50 @@ export function CodeViewport({ isConflict = false }: CodeViewportProps) {
           >
             Aktuelt View
           </button>
-          <button
-            onClick={() => setActiveCodeTab?.('openapi')}
-            className={`flex-1 h-full flex items-center justify-center text-[9px] font-black uppercase tracking-wider border-b-2 transition-all ${activeCodeTab === 'openapi'
-              ? 'border-emerald-600 text-slate-800 bg-white'
-              : 'border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-100/50'
-              }`}
-          >
-            OpenAPI
-          </button>
-          <button
-            onClick={() => setActiveCodeTab?.('asyncapi')}
-            className={`flex-1 h-full flex items-center justify-center text-[9px] font-black uppercase tracking-wider border-b-2 transition-all ${activeCodeTab === 'asyncapi'
-              ? 'border-emerald-600 text-slate-800 bg-white'
-              : 'border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-100/50'
-              }`}
-          >
-            AsyncAPI
-          </button>
-          <button
-            onClick={() => setActiveCodeTab?.('arazzo')}
-            className={`flex-1 h-full flex items-center justify-center text-[9px] font-black uppercase tracking-wider border-b-2 transition-all ${activeCodeTab === 'arazzo'
-              ? 'border-emerald-600 text-slate-800 bg-white'
-              : 'border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-100/50'
-              }`}
-          >
-            Arazzo
-          </button>
+          {allowedTabs.includes('openapi') && (
+            <button
+              onClick={() => setActiveCodeTab?.('openapi')}
+              className={`flex-1 h-full flex items-center justify-center text-[9px] font-black uppercase tracking-wider border-b-2 transition-all ${activeCodeTab === 'openapi'
+                ? 'border-emerald-600 text-slate-800 bg-white'
+                : 'border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-100/50'
+                }`}
+            >
+              OpenAPI
+            </button>
+          )}
+          {allowedTabs.includes('asyncapi') && (
+            <button
+              onClick={() => setActiveCodeTab?.('asyncapi')}
+              className={`flex-1 h-full flex items-center justify-center text-[9px] font-black uppercase tracking-wider border-b-2 transition-all ${activeCodeTab === 'asyncapi'
+                ? 'border-emerald-600 text-slate-800 bg-white'
+                : 'border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-100/50'
+                }`}
+            >
+              AsyncAPI
+            </button>
+          )}
+          {allowedTabs.includes('arazzo') && (
+            <button
+              onClick={() => setActiveCodeTab?.('arazzo')}
+              className={`flex-1 h-full flex items-center justify-center text-[9px] font-black uppercase tracking-wider border-b-2 transition-all ${activeCodeTab === 'arazzo'
+                ? 'border-emerald-600 text-slate-800 bg-white'
+                : 'border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-100/50'
+                }`}
+            >
+              Arazzo
+            </button>
+          )}
+          {allowedTabs.includes('rdf') && (
+            <button
+              onClick={() => setActiveCodeTab?.('rdf')}
+              className={`flex-1 h-full flex items-center justify-center text-[9px] font-black uppercase tracking-wider border-b-2 transition-all ${activeCodeTab === 'rdf'
+                ? 'border-emerald-600 text-slate-800 bg-white'
+                : 'border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-100/50'
+                }`}
+            >
+              RDF / Turtle
+            </button>
+          )}
         </div>
       </div>
 
@@ -185,7 +225,15 @@ export function CodeViewport({ isConflict = false }: CodeViewportProps) {
           </div>
           <div className="flex flex-col">
             <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-800 leading-tight font-sans">
-              {activeCodeTab === 'openapi' ? 'OpenAPI 3.2' : activeCodeTab === 'asyncapi' ? 'AsyncAPI 3.0' : activeCodeTab === 'arazzo' ? 'Arazzo 1.0' : 'YAML Exchange Format'}
+              {activeCodeTab === 'openapi'
+                ? 'OpenAPI 3.2'
+                : activeCodeTab === 'asyncapi'
+                  ? 'AsyncAPI 3.0'
+                  : activeCodeTab === 'arazzo'
+                    ? 'Arazzo 1.0'
+                    : activeCodeTab === 'rdf'
+                      ? 'RDF / Turtle (SKOS & OWL)'
+                      : 'YAML Exchange Format'}
             </span>
             <span className={`text-[9px] font-bold mt-0.5 leading-none ${error
               ? 'text-rose-600'
@@ -205,9 +253,11 @@ export function CodeViewport({ isConflict = false }: CodeViewportProps) {
                       ? 'Autogenereret AsyncAPI v3.0.0 specifikation (Skrivebeskyttet)'
                       : activeCodeTab === 'arazzo'
                         ? 'Autogenereret Arazzo v1.0.1 specifikation (Skrivebeskyttet)'
-                        : isConflict
-                          ? 'Konflikt i kildekode (Kan redigeres)'
-                          : 'Alle elementer og relationer (Kan redigeres)'}
+                        : activeCodeTab === 'rdf'
+                          ? 'Autogenereret Turtle .ttl RDF specifikation med SKOS & OWL (Skrivebeskyttet)'
+                          : isConflict
+                            ? 'Konflikt i kildekode (Kan redigeres)'
+                            : 'Alle elementer og relationer (Kan redigeres)'}
             </span>
           </div>
         </div>
@@ -236,7 +286,7 @@ export function CodeViewport({ isConflict = false }: CodeViewportProps) {
         <Editor
           height="100%"
           defaultLanguage="yaml"
-          value={localYaml ?? yamlContent}
+          value={activeCodeTab === 'full' ? (localYaml ?? yamlContent) : yamlContent}
           onChange={handleEditorChange}
           theme="vs-light"
           options={{

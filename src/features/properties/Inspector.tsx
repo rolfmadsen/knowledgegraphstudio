@@ -518,7 +518,7 @@ export function Inspector() {
                     </div>
                 </InspectorSection>
 
-                {activeViewId && concept.conceptType !== 'bounded_context' && concept.conceptType !== 'em_chapter' && (
+                {activeViewId && concept.conceptType !== 'bounded_context' && concept.conceptType !== 'em_chapter' && !activeNotation?.hideParentGroupSection && (
                   <InspectorSection title="Forældregruppe">
                     <div className="flex flex-col gap-2">
                       <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">

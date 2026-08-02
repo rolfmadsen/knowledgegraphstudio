@@ -177,6 +177,10 @@ export interface Notation {
    */
   readonly hideViewsSection?: boolean;
   /**
+   * Optional flag to suppress the parent group selection in the properties inspector.
+   */
+  readonly hideParentGroupSection?: boolean;
+  /**
    * Optional quick actions for creating related nodes from the toolbar.
    */
   readonly getQuickActions?: (nodeType: ConceptType) => QuickActionConfig[];

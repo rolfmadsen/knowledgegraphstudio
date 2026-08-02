@@ -5,7 +5,7 @@
 
 ## Context
 
-In Knowledge Graph Studio (specifically Event Modeling, Knowledge Graph, ArchiMate, and C4 views), node cards render dynamic user labels and interactive payload buttons.
+In xArchi Studio (specifically Event Modeling, Knowledge Graph, ArchiMate, and C4 views), node cards render dynamic user labels and interactive payload buttons.
 
 Two major UI/UX challenges arose during edge routing and node sizing:
 1. **Edge Handle Off-Center Drift**: If node `height / 2` was not an exact integer multiple of `GRID_SIZE` (24px) or if edge routing forcibly rounded `sy` (the handle Y position) to the nearest 24px grid line, side-handle exit points shifted away from the node's visual vertical center.

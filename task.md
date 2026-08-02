@@ -1,8 +1,7 @@
-# Task: Fix Event Modeling Container Padding and Grid Alignment
+# Task Breakdown: Contextual Export Tabs & View Sync Fix
 
-## Checklist
-- [x] Write failing unit test in `src/notations/event-modeling/__tests__/layout.test.ts` and `src/store/__tests__/useGraphStore.test.ts` verifying container dimension persistence and grid alignment.
-- [x] Verify test behavior (**RED** phase).
-- [x] Implement source changes in `useGraphStore.ts`, `NotationCanvasWrapper.tsx`, `ReactFlowCanvas.tsx`, and `layout.ts`.
-- [x] Verify layout calculations and container sizing (**GREEN** phase).
-- [x] Refactor and ensure clean architectural boundaries (**REFACTOR** phase).
+- [x] Write unit tests in `src/features/compiler/__tests__/viewFilteredGenerators.test.ts` specifying view-filtered generators.
+- [x] Update `openapiGenerator.ts` and `asyncapiGenerator.ts` to support optional `activeViewId` filtering.
+- [x] Update `CodeViewport.tsx` to fix the `localYaml` sync bug, filter export tabs contextually by `activeView.type`, and implement automatic tab fallback.
+- [x] Update `useGraphStore.ts` stringifyState method to preserve the active view in view-filtered YAML outputs.
+- [x] Verify state sync and contextual tab logic.

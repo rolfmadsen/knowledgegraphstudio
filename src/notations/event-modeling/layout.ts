@@ -290,11 +290,11 @@ export const eventModelingLayoutEngine: LayoutEngine = async (
 
     // Pre-calculate UNIFORM cumulative Y offsets per swimlane row across ALL slices in this chapter
     const rowYOffsets = new Map<number, number>();
-    const VERTICAL_GAP = 48; // 2x 24px grid size = 48px vertical gap between rows
+    const VERTICAL_GAP = GRID_SIZE * 3; // 72px  
     const BASE_ROW_HEIGHT = 6 * GRID_SIZE; // 144px (6x 24px base height for EM nodes)
 
     // 72px top offset below slice header
-    let accumY = sliceY + 72;
+    let accumY = sliceY + GRID_SIZE * 3;
     let lastRowBottomY = accumY;
 
     for (let i = 0; i < activeRows.length; i++) {

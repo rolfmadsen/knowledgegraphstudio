@@ -1,4 +1,4 @@
-import { type ConceptNode, type ConceptRelation, type ConceptProperty } from '../../schema/graphSchema';
+import { type ConceptNode, type ConceptRelation, type ConceptProperty, type View, type ElementId } from '../../schema/graphSchema';
 
 function toKebabCase(str: string): string {
   return str
@@ -18,7 +18,26 @@ function mapDataTypeToJsonSchema(type: string): string {
   return 'type: string';
 }
 
-export function generateAsyncAPI(concepts: ConceptNode[], relations: ConceptRelation[]): string {
+export function generateAsyncAPI(
+  concepts: ConceptNode[],
+  relations: ConceptRelation[],
+  views?: View[],
+  activeViewId?: ElementId | null
+): string {
+  let targetConcepts = concepts;
+  let targetRelations = relations;
+
+  if (activeViewId && views && views.length > 0) {
+    const activeView = views.find((v) => v.id === activeViewId);
+    if (activeView) {
+      const viewConceptIds = new Set(activeView.nodes.map((n) => n.conceptId));
+      targetConcepts = concepts.filter((c) => viewConceptIds.has(c.id));
+      targetRelations = relations.filter(
+        (r) => viewConceptIds.has(r.sourceConceptId) && viewConceptIds.has(r.targetConceptId)
+      );
+    }
+  }
+
   let yaml = '';
   yaml += 'asyncapi: 3.0.0\n';
   yaml += 'info:\n';
@@ -26,7 +45,7 @@ export function generateAsyncAPI(concepts: ConceptNode[], relations: ConceptRela
   yaml += '  version: 1.0.0\n';
   yaml += '  description: Autogenereret AsyncAPI specifikation baseret på Event Modeling events og topics.\n';
 
-  const events = concepts.filter((c) => c.conceptType === 'event' || c.conceptType === 'integration_event');
+  const events = targetConcepts.filter((c) => c.conceptType === 'event' || c.conceptType === 'integration_event');
 
   yaml += 'channels:\n';
   
@@ -35,7 +54,7 @@ export function generateAsyncAPI(concepts: ConceptNode[], relations: ConceptRela
 
   events.forEach((ev) => {
     // Find relation that defines topicName
-    const rel = relations.find(
+    const rel = targetRelations.find(
       (r) => (r.sourceConceptId === ev.id || r.targetConceptId === ev.id) && r.topicName
     );
     const topic = rel?.topicName || `events.${toKebabCase(ev.name)}`;
@@ -58,10 +77,10 @@ export function generateAsyncAPI(concepts: ConceptNode[], relations: ConceptRela
 
   // Helper to find slice actor
   const getActorForNode = (nodeId: string): string => {
-    const node = concepts.find(c => c.id === nodeId);
+    const node = targetConcepts.find(c => c.id === nodeId);
     if (!node) return 'System';
     if (node.parentId) {
-      const parent = concepts.find(c => c.id === node.parentId);
+      const parent = targetConcepts.find(c => c.id === node.parentId);
       if (parent && parent.conceptType === 'em_slice' && parent.definition) {
         return parent.definition;
       }
@@ -73,12 +92,12 @@ export function generateAsyncAPI(concepts: ConceptNode[], relations: ConceptRela
     const channelRef = `#/channels/${toKebabCase(ev.name)}Channel`;
 
     // 1. Publishers (Commands -> triggers -> Event)
-    const publisherRelations = relations.filter(
+    const publisherRelations = targetRelations.filter(
       (r) => r.targetConceptId === ev.id && r.name === 'triggers'
     );
 
     publisherRelations.forEach((r) => {
-      const commandNode = concepts.find(c => c.id === r.sourceConceptId);
+      const commandNode = targetConcepts.find(c => c.id === r.sourceConceptId);
       if (commandNode) {
         const actor = getActorForNode(commandNode.id);
         const opId = `publish_${toKebabCase(commandNode.name).replace(/-/g, '_')}`;
@@ -91,12 +110,12 @@ export function generateAsyncAPI(concepts: ConceptNode[], relations: ConceptRela
     });
 
     // 2. Subscribers (Event -> feeds/triggers/notifies -> Target)
-    const subscriberRelations = relations.filter(
+    const subscriberRelations = targetRelations.filter(
       (r) => r.sourceConceptId === ev.id && (r.name === 'feeds' || r.name === 'triggers' || r.name === 'notifies')
     );
 
     subscriberRelations.forEach((r) => {
-      const targetNode = concepts.find(c => c.id === r.targetConceptId);
+      const targetNode = targetConcepts.find(c => c.id === r.targetConceptId);
       if (targetNode && targetNode.conceptType !== 'integration_event') {
         const actor = getActorForNode(targetNode.id);
         const opId = `subscribe_${toKebabCase(targetNode.name).replace(/-/g, '_')}_to_${toKebabCase(ev.name).replace(/-/g, '_')}`;

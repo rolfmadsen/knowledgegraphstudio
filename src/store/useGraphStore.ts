@@ -228,7 +228,7 @@ export interface GraphStoreState {
   relationBuilderSourceId: ElementId | null;
   centerSelectionCount: number;
   focusMode: boolean;
-  activeCodeTab: 'full' | 'view' | 'openapi' | 'asyncapi' | 'arazzo';
+  activeCodeTab: 'full' | 'view' | 'openapi' | 'asyncapi' | 'arazzo' | 'rdf';
   /** Non-null while the styled "last view" delete modal is open. */
   deleteConceptConfirm: { conceptIds: ElementId[]; conceptNames: string[]; viewId: ElementId } | null;
   /** Non-null while the styled view delete confirmation modal is open. */
@@ -278,7 +278,7 @@ export interface GraphStoreState {
   navigateToolbarFocus: (direction: 'up' | 'down' | 'left' | 'right') => void;
   centerSelectedNode: () => void;
   setFocusMode: (focus: boolean) => void;
-  setActiveCodeTab: (tab: 'full' | 'view' | 'openapi' | 'asyncapi' | 'arazzo') => void;
+  setActiveCodeTab: (tab: 'full' | 'view' | 'openapi' | 'asyncapi' | 'arazzo' | 'rdf') => void;
   setRelationBuilderOpen: (open: boolean, sourceId?: ElementId | null) => void;
   setNodeCreatorOpen: (open: boolean) => void;
   setCreateViewModalOpen: (open: boolean) => void;
@@ -2285,7 +2285,7 @@ export const useGraphStore = create<GraphStoreState>()(
               domains: filteredDomains,
               concepts: filteredConcepts,
               relations: filteredRelations,
-              views: [],
+              views: [view],
             });
           }
         }

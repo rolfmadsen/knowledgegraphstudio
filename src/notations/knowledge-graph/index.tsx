@@ -74,6 +74,8 @@ export const knowledgeGraphNotation: Notation = {
   orthogonalEdges: true,
   CanvasComponent: KnowledgeGraphCanvas,
   layoutEngine: dagreLayoutEngine,
+  supportedLayoutAlgorithms: ['force_directed', 'hierarchical', 'manual'],
+  hideParentGroupSection: true,
   defaultElement: { conceptType: 'entity', name: 'Startemne' },
 };
 export default knowledgeGraphNotation;

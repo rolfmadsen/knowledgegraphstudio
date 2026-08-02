@@ -98,7 +98,8 @@ describe('useGraphStore', () => {
 
     it('persists width and height when updated via batchUpdateViewNodePositions', () => {
       const view = useGraphStore.getState().createView('Container Test', 'event_modeling');
-      const conceptId = toElementId('concept:slice1');
+      const concept = useGraphStore.getState().addConcept('em_slice', 'Slice 1');
+      const conceptId = concept.id;
       useGraphStore.getState().addConceptToView(view.id, conceptId, 100, 100);
 
       useGraphStore.getState().batchUpdateViewNodePositions(view.id, [
