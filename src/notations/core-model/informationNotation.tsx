@@ -29,7 +29,6 @@ function InformationInspector({
   addProperty: (conceptId: any, name: string, type: DataType, isRequired?: boolean) => void;
   concepts: any[];
 }) {
-  const deleteConcept = useGraphStore((s) => s.deleteConcept);
   const activeViewId = useGraphStore((s) => s.activeViewId);
   const views = useGraphStore((s) => s.views);
   const ungroupConcept = useGraphStore((s) => s.ungroupConcept);
@@ -42,42 +41,6 @@ function InformationInspector({
 
   return (
     <>
-      <InspectorSection 
-        title="General"
-        rightAction={
-          <button 
-              onClick={(e) => { e.stopPropagation(); deleteConcept(concept.id); }}
-              className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-              title="Slet Klasse"
-          >
-              <Trash2 size={14} strokeWidth={2.5} />
-          </button>
-        }
-      >
-          <div className="flex flex-col gap-5">
-              <PropertyField 
-                label="Navn" 
-                value={concept.name} 
-                onChange={(v) => updateConcept(concept.id, { name: v })} 
-              />
-              <div className="flex flex-col gap-2">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">Type</label>
-                  <div className="relative">
-                      <select
-                          value={concept.conceptType}
-                          onChange={(e) => updateConcept(concept.id, { conceptType: e.target.value as any })}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[12px] font-semibold text-slate-700 hover:border-slate-300 focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/5 outline-none appearance-none cursor-pointer transition-all"
-                      >
-                          <option value="class">Klasse</option>
-                          <option value="datatype">Struktureret Datatype</option>
-                          <option value="enumeration">Enumeration</option>
-                      </select>
-                      <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400" />
-                  </div>
-              </div>
-          </div>
-      </InspectorSection>
-
       {concept.conceptType === 'class' && (
         <InspectorSection title="Semantisk sporbarhed">
           <div className="flex flex-col gap-2">
@@ -173,6 +136,43 @@ function InformationInspector({
                                   </div>
                               </div>
                           </div>
+
+                          {activeView?.type === 'logical_data_model' && (
+                              <div className="flex flex-col gap-3 pt-2 border-t border-slate-100">
+                                  <div className="flex items-center gap-4">
+                                      <label className="flex items-center gap-1.5 text-[10px] font-bold text-slate-700 cursor-pointer">
+                                          <input 
+                                              type="checkbox" 
+                                              checked={Boolean(p.isIdentifier)} 
+                                              onChange={(e) => updateProperty(concept.id, p.id, { isIdentifier: e.target.checked })} 
+                                              className="rounded text-emerald-600 focus:ring-emerald-500 h-3.5 w-3.5"
+                                          />
+                                          🔑 Nøgle / Identifikator
+                                      </label>
+                                      <label className="flex items-center gap-1.5 text-[10px] font-bold text-slate-700 cursor-pointer">
+                                          <input 
+                                              type="checkbox" 
+                                              checked={Boolean(p.isUnique)} 
+                                              onChange={(e) => updateProperty(concept.id, p.id, { isUnique: e.target.checked })} 
+                                              className="rounded text-emerald-600 focus:ring-emerald-500 h-3.5 w-3.5"
+                                          />
+                                          ✨ Unik Constraint
+                                      </label>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-3">
+                                      <PropertyField 
+                                          label="Standardværdi" 
+                                          value={p.defaultValue || ''} 
+                                          onChange={(v) => updateProperty(concept.id, p.id, { defaultValue: v })} 
+                                      />
+                                      <PropertyField 
+                                          label="Format (f.eks. uuid/email)" 
+                                          value={p.format || ''} 
+                                          onChange={(v) => updateProperty(concept.id, p.id, { format: v })} 
+                                      />
+                                  </div>
+                              </div>
+                          )}
                       </div>
                   ))}
                   <button 
@@ -359,6 +359,27 @@ export const informationNotation: Notation = {
   conceptTypeLabels: {
     class: 'Klasse',
     datatype: 'Struktureret Datatype',
+    enumeration: 'Enumeration',
+  },
+  isValidRelation,
+  getAvailableRelations,
+  InspectorComponent: InformationInspector,
+  RelationInspectorComponent: InformationRelationInspector,
+};
+
+export const logicalDataNotation: Notation = {
+  id: 'logical-data-model',
+  displayName: 'Logisk datamodel',
+  icon: '⚡',
+  supportedViewTypes: ['logical_data_model'],
+  orthogonalEdges: true,
+  CanvasComponent: InformationCanvas,
+  layoutEngine: dagreLayoutEngine,
+  defaultElement: { conceptType: 'class', name: 'Ny Logisk Entitet' },
+  allowedConceptTypes: ['class', 'datatype', 'enumeration'],
+  conceptTypeLabels: {
+    class: 'Logisk Entitet',
+    datatype: 'Logisk Datatype',
     enumeration: 'Enumeration',
   },
   isValidRelation,

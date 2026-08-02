@@ -56,7 +56,8 @@ const VIEW_TYPE_DESCRIPTIONS: Record<string, string> = {
   archimate: 'Enterprise architecture using ArchiMate notation',
   c4: 'Software architecture using C4 model notation',
   conceptual_model: 'Terminological model for business concepts and definitions',
-  information_model: 'Structured data model with classes, attributes, and types',
+  information_model: 'Describes business information, phenomena, classes, attributes, and business rules',
+  logical_data_model: 'Describes structured data elements, explicit datatypes, cardinalities, references, and logical constraints',
   dcr: 'Process modeling using Dynamic Condition Response graphs',
   event_modeling: 'Timeline-based modeling of events and system states',
 };

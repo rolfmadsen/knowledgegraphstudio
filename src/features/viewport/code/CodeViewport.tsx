@@ -42,6 +42,7 @@ export function CodeViewport({ isConflict = false }: CodeViewportProps) {
       case 'knowledge_graph':
       case 'conceptual_model':
       case 'information_model':
+      case 'logical_data_model':
         return ['full', 'view', 'rdf'];
       default:
         return ['full', 'view'];
@@ -71,9 +72,10 @@ export function CodeViewport({ isConflict = false }: CodeViewportProps) {
     return stringifyState ? stringifyState() : '';
   }, [domains, concepts, relations, views, isConflict, rawYaml, stringifyState, activeCodeTab, activeViewId]);
 
-  // Clear any dirty local edits when switching tabs or active views
+  // Clear any dirty local edits and errors when switching tabs or active views
   useEffect(() => {
     setLocalYaml(undefined);
+    setError(null);
   }, [activeCodeTab, activeViewId]);
 
   // Auto-switch back if active view is lost or current tab is disallowed
@@ -119,7 +121,7 @@ export function CodeViewport({ isConflict = false }: CodeViewportProps) {
     }
   };
 
-  const displayError = error || (isConflict ? conflictError : null);
+  const displayError = activeCodeTab === 'full' ? (error || (isConflict ? conflictError : null)) : null;
 
   const handleCopy = useCallback(() => {
     const toCopy = activeCodeTab === 'full' ? (localYaml ?? yamlContent) : yamlContent;
@@ -235,7 +237,7 @@ export function CodeViewport({ isConflict = false }: CodeViewportProps) {
                       ? 'RDF / Turtle (SKOS & OWL)'
                       : 'YAML Exchange Format'}
             </span>
-            <span className={`text-[9px] font-bold mt-0.5 leading-none ${error
+            <span className={`text-[9px] font-bold mt-0.5 leading-none ${displayError
               ? 'text-rose-600'
               : activeCodeTab !== 'full'
                 ? 'text-blue-600'
@@ -243,7 +245,7 @@ export function CodeViewport({ isConflict = false }: CodeViewportProps) {
                   ? 'text-amber-600'
                   : 'text-emerald-600'
               }`}>
-              {error
+              {displayError
                 ? 'Syntaksfejl i kildekoden'
                 : activeCodeTab === 'view'
                   ? 'Inkluderede elementer og relationer (Skrivebeskyttet)'
@@ -254,7 +256,11 @@ export function CodeViewport({ isConflict = false }: CodeViewportProps) {
                       : activeCodeTab === 'arazzo'
                         ? 'Autogenereret Arazzo v1.0.1 specifikation (Skrivebeskyttet)'
                         : activeCodeTab === 'rdf'
-                          ? 'Autogenereret Turtle .ttl RDF specifikation med SKOS & OWL (Skrivebeskyttet)'
+                          ? activeView?.type === 'logical_data_model'
+                            ? 'Autogenereret Turtle .ttl — LOGISK DATAMODEL (v1.0 Exchange Profile: OWL & SHACL)'
+                            : activeView?.type === 'conceptual_model'
+                              ? 'Autogenereret Turtle .ttl — BEGREBSMODEL (SKOS)'
+                              : 'Autogenereret Turtle .ttl — INFORMATIONSMODEL (OWL)'
                           : isConflict
                             ? 'Konflikt i kildekode (Kan redigeres)'
                             : 'Alle elementer og relationer (Kan redigeres)'}
@@ -274,9 +280,9 @@ export function CodeViewport({ isConflict = false }: CodeViewportProps) {
             )}
           </button>
           <div className="w-2 h-2 rounded-full relative flex mr-1">
-            <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${error ? 'bg-rose-400' : activeCodeTab !== 'full' ? 'bg-blue-400' : isConflict ? 'bg-amber-400' : 'bg-emerald-400'
+            <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${displayError ? 'bg-rose-400' : activeCodeTab !== 'full' ? 'bg-blue-400' : isConflict ? 'bg-amber-400' : 'bg-emerald-400'
               }`}></span>
-            <span className={`relative inline-flex rounded-full h-2 w-2 ${error ? 'bg-rose-600' : activeCodeTab !== 'full' ? 'bg-blue-600' : isConflict ? 'bg-amber-500' : 'bg-emerald-500'
+            <span className={`relative inline-flex rounded-full h-2 w-2 ${displayError ? 'bg-rose-600' : activeCodeTab !== 'full' ? 'bg-blue-600' : isConflict ? 'bg-amber-500' : 'bg-emerald-500'
               }`}></span>
           </div>
         </div>
@@ -285,7 +291,7 @@ export function CodeViewport({ isConflict = false }: CodeViewportProps) {
       <div className="flex-1 relative">
         <Editor
           height="100%"
-          defaultLanguage="yaml"
+          language={activeCodeTab === 'rdf' ? 'turtle' : 'yaml'}
           value={activeCodeTab === 'full' ? (localYaml ?? yamlContent) : yamlContent}
           onChange={handleEditorChange}
           theme="vs-light"

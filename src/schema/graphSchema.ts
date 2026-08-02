@@ -151,6 +151,7 @@ export const ViewType = z.enum([
   'information_model',
   'dcr',
   'event_modeling',
+  'logical_data_model',
 ]);
 export type ViewType = z.infer<typeof ViewType>;
 
@@ -247,12 +248,25 @@ export type Policy = z.infer<typeof Policy>;
 // Concept Property
 // ============================================================
 
+export const CoreModelRole = z.enum(['conceptual', 'information', 'logical']);
+export type CoreModelRole = z.infer<typeof CoreModelRole>;
+
 export const ConceptProperty = BaseEntity.extend({
   name: z.string().min(1),
   type: DataType,
   isRequired: z.boolean().optional(),
   wasDerivedFrom: ElementId.optional().nullable(),
+  derivedFrom: z.array(ElementId).optional(),
   multiplicity: z.string().optional(),
+  isIdentifier: z.boolean().optional(),
+  isUnique: z.boolean().optional(),
+  defaultValue: z.string().optional(),
+  format: z.string().optional(),
+  pattern: z.string().optional(),
+  minLength: z.number().optional(),
+  maxLength: z.number().optional(),
+  minValue: z.number().optional(),
+  maxValue: z.number().optional(),
 });
 export type ConceptProperty = z.infer<typeof ConceptProperty>;
 
@@ -296,6 +310,7 @@ export const BaseConceptNode = BaseEntity.extend({
   parentId: ElementId.optional(),
   domainId: ElementId.optional(),
   classification: DataClassification.optional(),
+  coreModelRole: CoreModelRole.optional(),
   name: z.string().min(1),
   aliases: z.array(z.string()),
   definition: z.string().optional(),
@@ -306,6 +321,7 @@ export const BaseConceptNode = BaseEntity.extend({
   source: z.string().optional(),
   legalSource: z.string().optional(),
   wasDerivedFrom: ElementId.optional().nullable(),
+  derivedFrom: z.array(ElementId).optional(),
   createdBy: z.enum(['user', 'ai']).optional(),
   payload: z.array(PayloadAttributeSchema).optional(),
 });
@@ -395,6 +411,8 @@ export const ConceptRelation = BaseEntity.extend({
   targetRole: z.string().optional(),
   sourceMultiplicity: z.string().optional(),
   targetMultiplicity: z.string().optional(),
+  wasDerivedFrom: ElementId.optional().nullable(),
+  derivedFrom: z.array(ElementId).optional(),
   createdBy: z.enum(['user', 'ai']).optional(),
   integrationPattern: IntegrationPattern.optional(),
   technology: z.string().optional(),
@@ -450,6 +468,7 @@ export const View = BaseEntity.extend({
   name: z.string().min(1),
   type: ViewType,
   layoutAlgorithm: LayoutAlgorithm,
+  derivedFrom: z.array(ElementId).optional(),
   nodes: z.array(ViewNode),
   edges: z.array(ElementId),
   viewEdges: z.array(ViewEdge).optional(),

@@ -4,9 +4,8 @@ import { ReactFlowCanvas } from '../../features/viewport/graph/ReactFlowCanvas';
 import { ConceptualNodeComponent } from './sharedComponents';
 import { dagreLayoutEngine } from '../knowledge-graph';
 import { isValidRelation, getAvailableRelations } from './conceptualValidator';
-import { useGraphStore } from '../../store/useGraphStore';
 import { InspectorSection, PropertyField } from '../../features/properties/Inspector';
-import { Trash2, ChevronDown } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 
 function ConceptualCanvas(props: NotationCanvasProps) {
   const nodeTypes = useMemo(() => ({ conceptNode: ConceptualNodeComponent }), []);
@@ -17,31 +16,9 @@ function ConceptualInspector({ concept, updateConcept }: {
   concept: any;
   updateConcept: (id: any, updates: any) => void;
 }) {
-  const deleteConcept = useGraphStore((s) => s.deleteConcept);
 
   return (
     <>
-      <InspectorSection 
-        title="General"
-        rightAction={
-          <button 
-              onClick={(e) => { e.stopPropagation(); deleteConcept(concept.id); }}
-              className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-              title="Slet Klasse"
-          >
-              <Trash2 size={14} strokeWidth={2.5} />
-          </button>
-        }
-      >
-          <div className="flex flex-col gap-5">
-              <PropertyField 
-                label="Name" 
-                value={concept.name} 
-                onChange={(v) => updateConcept(concept.id, { name: v })} 
-              />
-          </div>
-      </InspectorSection>
-      
       <InspectorSection title="Forretningsmetadata">
           <div className="flex flex-col gap-5">
               <PropertyField 

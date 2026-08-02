@@ -38,7 +38,7 @@ import { knowledgeGraphNotation } from './notations/knowledge-graph';
 import { archimateNotation } from './notations/archimate';
 import { c4Notation } from './notations/c4';
 import { conceptualNotation } from './notations/core-model/conceptualNotation';
-import { informationNotation } from './notations/core-model/informationNotation';
+import { informationNotation, logicalDataNotation } from './notations/core-model/informationNotation';
 import { dcrNotation } from './notations/dcr';
 import { eventModelingNotation } from './notations/event-modeling';
 
@@ -48,6 +48,7 @@ NotationRegistry.register(archimateNotation);
 NotationRegistry.register(c4Notation);
 NotationRegistry.register(conceptualNotation);
 NotationRegistry.register(informationNotation);
+NotationRegistry.register(logicalDataNotation);
 NotationRegistry.register(dcrNotation);
 NotationRegistry.register(eventModelingNotation);
 
