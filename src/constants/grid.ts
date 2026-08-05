@@ -1,6 +1,6 @@
 /**
  * Centralized Grid & Canvas Alignment Constants
- * @see docs/adr/0001-canvas-grid-alignment-architecture.md
+ * @see docs/adr/0008-canvas-geometry-grid-aligned-bounds.md
  */
 
 /** Standard canvas grid snap size in pixels */
@@ -13,6 +13,6 @@ export const GRID_SIZE = 24;
  * To align visual dot centers dead-on with 24px node grid coordinates (0, 24, 48, 72, 96, 120),
  * offset MUST be set to GRID_SIZE / 0.5 (48px).
  * 
- * DO NOT ALTER THIS VALUE WITHOUT READING ADR 0001.
+ * DO NOT ALTER THIS VALUE WITHOUT READING ADR 0008.
  */
 export const CANVAS_BACKGROUND_OFFSET = GRID_SIZE / 0.5; // 48px

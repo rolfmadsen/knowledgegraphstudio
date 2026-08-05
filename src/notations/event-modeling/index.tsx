@@ -17,8 +17,10 @@
  */
 
 import { useMemo, useState, useEffect, memo } from 'react';
-import { Handle, Position, type NodeProps, type Node } from '@xyflow/react';
+import { type NodeProps, type Node } from '@xyflow/react';
 import type { Notation, NotationCanvasProps, QuickActionConfig } from '../types';
+import type { NotationCanvasPolicy } from '../../features/viewport/graph/contracts/canvasPolicy';
+import { FloatingEdgeHandles } from '../../features/viewport/graph/primitives/FloatingEdgeHandles';
 import { ReactFlowCanvas } from '../../features/viewport/graph/ReactFlowCanvas';
 import { useGraphStore } from '../../store/useGraphStore';
 import { eventModelingLayoutEngine, SLICE_WIDTH, GRID_SIZE } from './layout';
@@ -127,8 +129,7 @@ function EmChapterNode({ data, selected }: NodeProps<EmNodeType>) {
           : 'border-slate-300 hover:border-slate-400 bg-transparent'}
       `}
     >
-      <Handle type="target" position={Position.Top} style={{ visibility: 'hidden', top: '50%', left: '50%', pointerEvents: 'none' }} />
-      <Handle type="source" position={Position.Bottom} style={{ visibility: 'hidden', top: '50%', left: '50%', pointerEvents: 'none' }} />
+      <FloatingEdgeHandles />
 
       {/* Chapter header — sits at top-left corner */}
       <div className="absolute -top-3 left-4 flex items-center gap-1.5 pointer-events-none select-none">
@@ -162,8 +163,7 @@ function EmSliceNode({ data, selected }: NodeProps<EmNodeType>) {
       `}
       style={{ border: '1px solid #e2e8f0', minWidth: `${SLICE_WIDTH}px` }}
     >
-      <Handle type="target" position={Position.Top} style={{ visibility: 'hidden', top: '50%', left: '50%', pointerEvents: 'none' }} />
-      <Handle type="source" position={Position.Bottom} style={{ visibility: 'hidden', top: '50%', left: '50%', pointerEvents: 'none' }} />
+      <FloatingEdgeHandles />
 
       {/* Slice label + actor — sits at top of slice */}
       <div className="flex flex-col gap-0.5 px-3 pt-2 pointer-events-none select-none">
@@ -332,7 +332,7 @@ export function getNodeAbsolutePosition(
   return { x: absX, y: absY };
 }
 
-function EmElementNode({ data, selected }: NodeProps<EmNodeType>) {
+export function EmElementNode({ data, selected }: NodeProps<EmNodeType>) {
   const conceptType = (data.concept?.conceptType as string) ?? 'other';
   const style = EM_STYLES[conceptType] ?? {
     bg: 'bg-slate-50',
@@ -445,8 +445,7 @@ function EmElementNode({ data, selected }: NodeProps<EmNodeType>) {
         ${selected ? 'ring-4 ring-emerald-200 shadow-lg' : ''}
       `}
     >
-      <Handle type="target" position={Position.Top} style={{ visibility: 'hidden', top: '50%', left: '50%', pointerEvents: 'none' }} />
-      <Handle type="source" position={Position.Bottom} style={{ visibility: 'hidden', top: '50%', left: '50%', pointerEvents: 'none' }} />
+      <FloatingEdgeHandles />
 
       <div className="flex items-start justify-between gap-2">
         <span
@@ -1154,12 +1153,36 @@ const EM_EDGE_COLORS: Record<string, string> = {
 // Notation export
 // ============================================================
 
+export const eventModelingCanvasPolicy: NotationCanvasPolicy = {
+  getInitialNodeGeometry(context) {
+    if (context.isContainer || context.conceptType === 'em_chapter' || context.conceptType === 'em_slice') {
+      return {
+        width: 14 * GRID_SIZE, // 336px
+        height: 10 * GRID_SIZE, // 240px
+        sizing: 'container',
+      };
+    }
+    return {
+      width: 10 * GRID_SIZE, // 240px leaf width profile
+      minHeight: 6 * GRID_SIZE, // 144px
+      sizing: 'content',
+    };
+  },
+  getNodeRole(context) {
+    return context.isContainer || context.conceptType === 'em_chapter' || context.conceptType === 'em_slice' ? 'container' : 'leaf';
+  },
+  shouldRenderRelation() {
+    return true;
+  },
+};
+
 export const eventModelingNotation: Notation = {
   id: 'event-modeling',
   displayName: 'Event Modeling',
   icon: '⚡',
   supportedViewTypes: ['event_modeling'],
   orthogonalEdges: true,
+  canvasPolicy: eventModelingCanvasPolicy,
   CanvasComponent: EventModelingCanvas,
   layoutEngine: eventModelingLayoutEngine,
   supportedLayoutAlgorithms: ['hierarchical', 'manual'],

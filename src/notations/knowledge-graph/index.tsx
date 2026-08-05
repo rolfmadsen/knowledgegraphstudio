@@ -62,9 +62,24 @@ function KnowledgeGraphCanvas(props: NotationCanvasProps) {
   return <GraphViewport {...props} />;
 }
 
-// ============================================================
-// Notation Export
-// ============================================================
+import type { NotationCanvasPolicy } from '../../features/viewport/graph/contracts/canvasPolicy';
+import { GRID_SIZE } from '../../constants/grid';
+
+export const knowledgeGraphCanvasPolicy: NotationCanvasPolicy = {
+  getInitialNodeGeometry() {
+    return {
+      width: 10 * GRID_SIZE, // 240px profile
+      minHeight: 4 * GRID_SIZE, // 96px
+      sizing: 'content',
+    };
+  },
+  getNodeRole(context) {
+    return context.isContainer ? 'container' : 'leaf';
+  },
+  shouldRenderRelation() {
+    return true;
+  },
+};
 
 export const knowledgeGraphNotation: Notation = {
   id: 'knowledge-graph',
@@ -72,6 +87,7 @@ export const knowledgeGraphNotation: Notation = {
   icon: '🌐',
   supportedViewTypes: ['knowledge_graph'],
   orthogonalEdges: true,
+  canvasPolicy: knowledgeGraphCanvasPolicy,
   CanvasComponent: KnowledgeGraphCanvas,
   layoutEngine: dagreLayoutEngine,
   supportedLayoutAlgorithms: ['force_directed', 'hierarchical', 'manual'],

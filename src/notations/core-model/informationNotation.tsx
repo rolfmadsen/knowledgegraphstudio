@@ -1,5 +1,7 @@
 import { useMemo, createElement } from 'react';
 import type { Notation, NotationCanvasProps } from '../types';
+import type { NotationCanvasPolicy } from '../../features/viewport/graph/contracts/canvasPolicy';
+import { GRID_SIZE } from '../../constants/grid';
 import { ReactFlowCanvas } from '../../features/viewport/graph/ReactFlowCanvas';
 import { InformationNodeComponent } from './sharedComponents';
 import { dagreLayoutEngine } from '../knowledge-graph';
@@ -346,12 +348,29 @@ function InformationRelationInspector({ relation, updateRelation, concepts }: {
   );
 }
 
+export const informationCanvasPolicy: NotationCanvasPolicy = {
+  getInitialNodeGeometry() {
+    return {
+      width: 12 * GRID_SIZE, // 288px
+      minHeight: 4 * GRID_SIZE, // 96px
+      sizing: 'content',
+    };
+  },
+  getNodeRole() {
+    return 'leaf';
+  },
+  shouldRenderRelation() {
+    return true;
+  },
+};
+
 export const informationNotation: Notation = {
   id: 'information-model',
   displayName: 'Informationsmodel',
   icon: '📊',
   supportedViewTypes: ['information_model'],
   orthogonalEdges: true,
+  canvasPolicy: informationCanvasPolicy,
   CanvasComponent: InformationCanvas,
   layoutEngine: dagreLayoutEngine,
   defaultElement: { conceptType: 'class', name: 'Ny Klasse' },
@@ -373,6 +392,7 @@ export const logicalDataNotation: Notation = {
   icon: '⚡',
   supportedViewTypes: ['logical_data_model'],
   orthogonalEdges: true,
+  canvasPolicy: informationCanvasPolicy,
   CanvasComponent: InformationCanvas,
   layoutEngine: dagreLayoutEngine,
   defaultElement: { conceptType: 'class', name: 'Ny Logisk Entitet' },

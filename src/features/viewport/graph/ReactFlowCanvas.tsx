@@ -30,7 +30,7 @@ import { NotationRegistry } from '../../../notations/NotationRegistry';
 import { useGraphStore, isEdgeVisibleForInstances, normalizeViewNodes } from '../../../store/useGraphStore';
 import { GRID_SIZE, CANVAS_BACKGROUND_OFFSET } from '../../../constants/grid';
 import { type ConceptNode, type ElementId, toElementId, type ViewType, type ConceptType } from '../../../schema/graphSchema';
-import { getDynamicConnection, getClosestPosition, getConceptNodeSize } from '../../../utils/edgeRouting';
+import { getDynamicConnection, getClosestPosition } from '../../../utils/edgeRouting';
 
 // --- Padding for Grouping Containers ---
 export { GRID_SIZE } from '../../../constants/grid';
@@ -2603,13 +2603,15 @@ export function ReactFlowCanvas({
       // Uses shared single source of truth functions from edgeRouting.ts:
       //   • getConceptNodeSize(name) — for knowledge_graph, archimate, c4, etc.
       //   • getEMNodeHeight(name, payloadCount) — for EM leaf nodes
-      if (!style && view.type !== 'event_modeling') {
-        const { width: _standardWidth, height: _dynamicHeight } = getConceptNodeSize(c.name);
-        style = { width: _standardWidth, minHeight: _dynamicHeight };
-      } else if (!style && view.type === 'event_modeling') {
-        const _emLeafWidth = 10 * GRID_SIZE;  // 240px — NODE_WIDTH in layout.ts
-        const _emLeafHeight = 6 * GRID_SIZE;  // 144px base minHeight
-        style = { width: _emLeafWidth, minHeight: _emLeafHeight };
+      if (!style && activeNotation?.canvasPolicy) {
+        const policy = activeNotation.canvasPolicy;
+        const geom = policy.getInitialNodeGeometry({
+          viewType: view.type,
+          conceptType: c.conceptType,
+          hasPayload: Boolean(c.payload && c.payload.length > 0),
+          isContainer: Boolean((c as any).isContainer || c.conceptType === 'em_chapter' || c.conceptType === 'em_slice' || c.conceptType === 'bounded_context'),
+        });
+        style = { width: geom.width, height: geom.height, minHeight: geom.minHeight };
       }
 
       const isProposed = (c as any).isProposed;

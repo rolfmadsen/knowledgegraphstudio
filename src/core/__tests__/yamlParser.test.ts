@@ -2,7 +2,7 @@
  * Tests for yamlParser.ts — Two-Way Sync (Spec §4, §7.3)
  */
 import { describe, it, expect } from 'vitest';
-import { stateToYaml, yamlToState, YamlParseError } from '../yamlParser';
+import { stateToYaml, yamlToState, yamlToViews, viewsToYaml, YamlParseError } from '../yamlParser';
 import type { Domain, ConceptNode, ConceptRelation } from '../../schema/graphSchema';
 
 // ============================================================
@@ -259,6 +259,29 @@ concepts:
 `;
     expect(() => yamlToState(invalidYaml)).toThrow(YamlParseError);
     expect(() => yamlToState(invalidYaml)).toThrow('schema');
+  });
+
+  it('throws YamlParseError when views.xarchi.yaml contains invalid YAML syntax', () => {
+    expect(() => yamlToViews('{ invalid: yaml: [')).toThrow(YamlParseError);
+  });
+
+  it('round-trips views array using viewsToYaml and yamlToViews', () => {
+    const views = [
+      {
+        id: 'view:1' as any,
+        name: 'Test View',
+        type: 'conceptual_model' as any,
+        layoutAlgorithm: 'manual' as const,
+        createdAt: 1000,
+        updatedAt: 1000,
+        lifecycleState: 'active' as const,
+        nodes: [{ conceptId: 'concept:1' as any, instanceId: 'concept:1', x: 10, y: 20 }],
+        edges: [],
+      },
+    ];
+    const yamlStr = viewsToYaml(views);
+    const parsedViews = yamlToViews(yamlStr);
+    expect(parsedViews).toEqual(views);
   });
 });
 

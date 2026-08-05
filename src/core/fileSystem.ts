@@ -275,6 +275,28 @@ export async function modelYamlExists(): Promise<boolean> {
 }
 
 /**
+ * Check if the split views file exists.
+ */
+export async function viewsYamlExists(): Promise<boolean> {
+  const handle = FileSystemAccessService.getActiveHandle();
+  if (handle) {
+    try {
+      await handle.getFileHandle(VIEWS_FILENAME, { create: false });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  const pfs = getFSPromises();
+  try {
+    await pfs.stat(VIEWS_PATH);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Check if a directory contains a .git folder.
  */
 export async function hasGitRepo(dir: string): Promise<boolean> {

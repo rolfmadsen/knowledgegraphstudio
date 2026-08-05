@@ -1,6 +1,9 @@
 import { useMemo, useEffect, useRef, useCallback, memo } from 'react';
-import { Handle, Position, type NodeProps } from '@xyflow/react';
+import { type NodeProps } from '@xyflow/react';
 import type { Notation, NotationCanvasProps } from '../types';
+import type { NotationCanvasPolicy } from '../../features/viewport/graph/contracts/canvasPolicy';
+import { GRID_SIZE } from '../../constants/grid';
+import { FloatingEdgeHandles } from '../../features/viewport/graph/primitives/FloatingEdgeHandles';
 import { ReactFlowCanvas } from '../../features/viewport/graph/ReactFlowCanvas';
 import { dagreLayoutEngine } from '../knowledge-graph';
 import type { ConceptNode, ConceptRelation, ElementId, ConceptProperty, DataType } from '../../schema/graphSchema';
@@ -238,8 +241,7 @@ export const DcrNodeComponent = memo(function DcrNodeComponent({ data, selected 
           ? 'border-indigo-500 bg-indigo-50/5 ring-4 ring-indigo-100 shadow-sm'
           : 'border-slate-300 hover:border-slate-400 bg-transparent'}
       `}>
-        <Handle type="target" position={Position.Top} style={{ visibility: 'hidden', top: '50%', left: '50%' }} />
-        <Handle type="source" position={Position.Bottom} style={{ visibility: 'hidden', top: '50%', left: '50%' }} />
+        <FloatingEdgeHandles />
         
         <div className="flex flex-col gap-0.5 pointer-events-none select-none">
           <span className={`text-[9px] font-black uppercase tracking-wider ${selected ? 'text-indigo-600' : 'text-slate-400'}`}>
@@ -262,8 +264,7 @@ export const DcrNodeComponent = memo(function DcrNodeComponent({ data, selected 
           ? 'bg-white border-emerald-500 ring-4 ring-emerald-100 shadow-emerald-100/50'
           : 'bg-[#FAF5FF] border-[#D8B4FE] text-[#7E22CE]'}
       `}>
-        <Handle type="target" position={Position.Top} style={{ visibility: 'hidden', top: '50%', left: '50%' }} />
-        <Handle type="source" position={Position.Bottom} style={{ visibility: 'hidden', top: '50%', left: '50%' }} />
+        <FloatingEdgeHandles />
         
         <Shield size={12} className={selected ? 'text-emerald-500' : 'text-[#7E22CE]'} />
         <span className="text-[11.5px] font-extrabold tracking-tight break-all">
@@ -282,8 +283,7 @@ export const DcrNodeComponent = memo(function DcrNodeComponent({ data, selected 
           ? 'bg-white border-emerald-500 ring-4 ring-emerald-100 shadow-emerald-100/50'
           : 'bg-[#FFF7ED] border-[#FED7AA] text-[#C2410C]'}
       `}>
-        <Handle type="target" position={Position.Top} style={{ visibility: 'hidden', top: '50%', left: '50%' }} />
-        <Handle type="source" position={Position.Bottom} style={{ visibility: 'hidden', top: '50%', left: '50%' }} />
+        <FloatingEdgeHandles />
         
         <User size={12} className={selected ? 'text-emerald-500' : 'text-[#C2410C]'} />
         <span className="text-[11.5px] font-extrabold tracking-tight break-all">
@@ -351,8 +351,7 @@ export const DcrNodeComponent = memo(function DcrNodeComponent({ data, selected 
             : 'bg-[#FDFDFD] border-slate-300'}
       `}
     >
-      <Handle type="target" position={Position.Top} style={{ visibility: 'hidden', top: '50%', left: '50%' }} />
-      <Handle type="source" position={Position.Bottom} style={{ visibility: 'hidden', top: '50%', left: '50%' }} />
+      <FloatingEdgeHandles />
 
       <div className="flex justify-between items-start w-full gap-2">
         <span className={`text-[9px] font-black uppercase tracking-wider ${selected ? 'text-emerald-600' : 'text-slate-400'}`}>
@@ -662,12 +661,36 @@ function DcrInspector({
 // DCR Notation Definition
 // ============================================================
 
+export const dcrCanvasPolicy: NotationCanvasPolicy = {
+  getInitialNodeGeometry(context) {
+    if (context.isContainer || context.conceptType === 'bounded_context') {
+      return {
+        width: 14 * GRID_SIZE, // 336px
+        height: 10 * GRID_SIZE, // 240px
+        sizing: 'container',
+      };
+    }
+    return {
+      width: 12 * GRID_SIZE, // 288px
+      minHeight: 4 * GRID_SIZE, // 96px
+      sizing: 'content',
+    };
+  },
+  getNodeRole(context) {
+    return context.isContainer || context.conceptType === 'bounded_context' ? 'container' : 'leaf';
+  },
+  shouldRenderRelation() {
+    return true;
+  },
+};
+
 export const dcrNotation: Notation = {
   id: 'dcr',
   displayName: 'DCR Graphs',
   icon: '⚡',
   supportedViewTypes: ['dcr'],
   orthogonalEdges: true,
+  canvasPolicy: dcrCanvasPolicy,
   CanvasComponent: DcrCanvas,
   InspectorComponent: DcrInspector,
   layoutEngine: dagreLayoutEngine,

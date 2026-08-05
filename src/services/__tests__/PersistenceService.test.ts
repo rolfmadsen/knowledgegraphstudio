@@ -18,6 +18,7 @@ vi.mock('../../core/fileSystem', () => ({
   writeYaml: vi.fn(),
   setRepoDir: vi.fn(),
   modelYamlExists: vi.fn(),
+  viewsYamlExists: vi.fn().mockResolvedValue(false),
   readModelYaml: vi.fn(),
   readViewsYaml: vi.fn(),
   writeModelYaml: vi.fn(),
@@ -118,6 +119,26 @@ describe('PersistenceService', () => {
       await PersistenceService.saveWorkspace(state);
       
       expect(fileSystem.writeModelYaml).not.toHaveBeenCalled();
+    });
+
+    it('blocks save if views is empty but views.xarchi.yaml exists with content (Views Safety Lock)', async () => {
+      PersistenceService.resetForTesting(true);
+      vi.mocked(fileSystem.modelYamlExists).mockResolvedValue(true);
+      vi.mocked(fileSystem.viewsYamlExists).mockResolvedValue(true);
+      vi.mocked(fileSystem.readModelYaml).mockResolvedValue('valid model content');
+      vi.mocked(fileSystem.readViewsYaml).mockResolvedValue('version: "1.0"\nviews:\n  - id: view-1\n    name: My View\n    type: conceptual_model\n    nodes: []\n');
+
+      // State has concepts but empty views
+      const state = {
+        concepts: [{ id: 'c1' as any, name: 'C1', conceptType: 'class' as any, createdAt: 1, updatedAt: 1, lifecycleState: 'active' as const, aliases: [], properties: [], policies: [] }],
+        relations: [],
+        domains: [],
+        views: [],
+      };
+
+      await PersistenceService.saveWorkspace(state);
+
+      expect(fileSystem.writeViewsYaml).not.toHaveBeenCalled();
     });
   });
 

@@ -1,5 +1,7 @@
 import { useMemo, createElement } from 'react';
 import type { Notation, NotationCanvasProps } from '../types';
+import type { NotationCanvasPolicy } from '../../features/viewport/graph/contracts/canvasPolicy';
+import { GRID_SIZE } from '../../constants/grid';
 import { ReactFlowCanvas } from '../../features/viewport/graph/ReactFlowCanvas';
 import { ConceptualNodeComponent } from './sharedComponents';
 import { dagreLayoutEngine } from '../knowledge-graph';
@@ -78,12 +80,29 @@ function ConceptualInspector({ concept, updateConcept }: {
   );
 }
 
+export const conceptualCanvasPolicy: NotationCanvasPolicy = {
+  getInitialNodeGeometry() {
+    return {
+      width: 12 * GRID_SIZE, // 288px
+      minHeight: 4 * GRID_SIZE, // 96px
+      sizing: 'content',
+    };
+  },
+  getNodeRole() {
+    return 'leaf';
+  },
+  shouldRenderRelation() {
+    return true;
+  },
+};
+
 export const conceptualNotation: Notation = {
   id: 'conceptual-model',
   displayName: 'Begrebsmodel',
   icon: '🧠',
   supportedViewTypes: ['conceptual_model'],
   orthogonalEdges: true,
+  canvasPolicy: conceptualCanvasPolicy,
   CanvasComponent: ConceptualCanvas,
   layoutEngine: dagreLayoutEngine,
   defaultElement: { conceptType: 'class', name: 'Nyt Begreb' },

@@ -421,43 +421,57 @@ export function viewsToYaml(views: View[]): string {
  * Returns [] if the content is empty or malformed (safe fallback).
  */
 export function yamlToViews(yamlString: string): View[] {
-  try {
-    const parsed = yaml.load(yamlString) as ViewsYamlDocument | null;
-    if (!parsed || !Array.isArray(parsed.views)) return [];
-    
-    // Map legacy 'global_explorer' to 'knowledge_graph'
-    return (parsed.views as View[]).map((v) => {
-      const uniqueNodesMap = new Map<string, ViewNode>();
-      let autoInstCounter = 1;
-      for (const node of (v.nodes ?? [])) {
-        if (node && node.conceptId) {
-          const instanceId = node.instanceId || (uniqueNodesMap.has(node.conceptId) ? `${node.conceptId}#inst_${autoInstCounter++}` : node.conceptId);
-          const nodeWithInst: ViewNode = {
-            ...node,
-            instanceId,
-          };
-          if (!uniqueNodesMap.has(instanceId)) {
-            uniqueNodesMap.set(instanceId, nodeWithInst);
-          }
-        }
-      }
-      const deduplicatedNodes = Array.from(uniqueNodesMap.values());
-
-      const nextView = {
-        ...v,
-        nodes: deduplicatedNodes,
-      };
-
-      if ((v.type as string) === 'global_explorer') {
-        return {
-          ...nextView,
-          type: 'knowledge_graph',
-        };
-      }
-      return nextView;
-    });
-  } catch (err) {
-    console.warn('[yamlParser] Failed to parse views.xarchi.yaml:', err);
+  if (!yamlString || !yamlString.trim()) {
     return [];
   }
+
+  let parsed: ViewsYamlDocument | null = null;
+  try {
+    parsed = yaml.load(yamlString) as ViewsYamlDocument | null;
+  } catch (err) {
+    throw new YamlParseError(
+      'Failed to parse views.xarchi.yaml syntax',
+      err instanceof Error ? err.message : err,
+    );
+  }
+
+  if (!parsed || typeof parsed !== 'object') {
+    throw new YamlParseError('views.xarchi.yaml content is empty or not an object');
+  }
+
+  if (!Array.isArray(parsed.views)) {
+    throw new YamlParseError('views.xarchi.yaml content missing valid views array');
+  }
+
+  // Map legacy 'global_explorer' to 'knowledge_graph'
+  return (parsed.views as View[]).map((v) => {
+    const uniqueNodesMap = new Map<string, ViewNode>();
+    let autoInstCounter = 1;
+    for (const node of (v.nodes ?? [])) {
+      if (node && node.conceptId) {
+        const instanceId = node.instanceId || (uniqueNodesMap.has(node.conceptId) ? `${node.conceptId}#inst_${autoInstCounter++}` : node.conceptId);
+        const nodeWithInst: ViewNode = {
+          ...node,
+          instanceId,
+        };
+        if (!uniqueNodesMap.has(instanceId)) {
+          uniqueNodesMap.set(instanceId, nodeWithInst);
+        }
+      }
+    }
+    const deduplicatedNodes = Array.from(uniqueNodesMap.values());
+
+    const nextView = {
+      ...v,
+      nodes: deduplicatedNodes,
+    };
+
+    if ((v.type as string) === 'global_explorer') {
+      return {
+        ...nextView,
+        type: 'knowledge_graph',
+      };
+    }
+    return nextView;
+  });
 }

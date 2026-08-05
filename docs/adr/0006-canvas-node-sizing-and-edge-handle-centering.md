@@ -1,7 +1,8 @@
 # 6. Dynamic Canvas Node Sizing, CSS Flex Responsiveness & Edge Handle Visual Centering
 
-* Status: Accepted
-* Date: 2026-08-01
+* Status: Superseded by [ADR 0008](file:///home/rolfmadsen/Github/knowledgegraphstudio/docs/adr/0008-canvas-geometry-grid-aligned-bounds.md)
+* Date: 2026-08-01 (Superseded: 2026-08-05)
+* Note: Measured content is authoritative; height expands in 24px grid steps for bottom border dot alignment.
 
 ## Context
 

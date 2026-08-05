@@ -12,6 +12,7 @@ import {
   readModelYaml,
   readViewsYaml,
   modelYamlExists,
+  viewsYamlExists,
   ensureWorkspaceDir,
   setRepoDir,
   REPO_DIR,
@@ -26,6 +27,7 @@ import { type GraphState, toElementId } from '../schema/graphSchema';
 import { GitService } from './GitService';
 import { resetGitCache, gitReset, gitLog } from '../core/gitEngine';
 import { FileSystemAccessService } from './FileSystemAccessService';
+import { TabSyncService } from './TabSyncService';
 
 export type PersistableState = Pick<GraphState, 'domains' | 'concepts' | 'relations' | 'views'>;
 
@@ -263,7 +265,7 @@ export class PersistenceService {
    */
   static async saveWorkspace(state: PersistableState): Promise<void> {
     try {
-      // SAFETY LOCK: prevent empty-state overwrites
+      // SAFETY LOCK 1: prevent empty concept state overwrites
       if (this.isBootstrapped && state.concepts.length === 0 && await modelYamlExists()) {
         const existing = await readModelYaml();
         if (existing && existing.length > 50) {
@@ -274,7 +276,19 @@ export class PersistenceService {
         }
       }
 
+      // SAFETY LOCK 2: prevent empty view state overwrites
+      if (this.isBootstrapped && state.views.length === 0 && await viewsYamlExists()) {
+        const existingViews = await readViewsYaml();
+        if (existingViews && existingViews.length > 30) {
+          console.warn(
+            '[PersistenceService] Save blocked: views store is empty but views file has data. Protecting against silent view overwrite.',
+          );
+          return;
+        }
+      }
+
       await this.writeSplitFiles(state);
+      TabSyncService.notifyWorkspaceSaved(REPO_DIR);
       console.log(
         `[PersistenceService] Saved: model.xarchi.yaml + views.xarchi.yaml (${state.views.length} views)`,
       );

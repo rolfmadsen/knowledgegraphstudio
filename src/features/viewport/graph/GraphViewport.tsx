@@ -1,9 +1,10 @@
 import { useMemo, memo } from 'react';
 import type { NotationCanvasProps } from '../../../notations/types';
 import { ReactFlowCanvas } from './ReactFlowCanvas';
-import { Handle, Position, type NodeProps, type Node } from '@xyflow/react';
+import { type NodeProps, type Node } from '@xyflow/react';
 import type { ConceptNode } from '../../../schema/graphSchema';
 import { getConceptNodeSize } from '../../../utils/edgeRouting';
+import { FloatingEdgeHandles } from './primitives/FloatingEdgeHandles';
 
 export { getConceptNodeSize };
 
@@ -27,8 +28,7 @@ export const ConceptNodeComponent = memo(function ConceptNodeComponent({ data, s
           ? 'border-emerald-500 bg-emerald-50/5 ring-4 ring-emerald-100 shadow-sm'
           : 'border-slate-300 hover:border-slate-400 bg-transparent'}
       `}>
-        <Handle type="target" position={Position.Top} style={{ visibility: 'hidden', top: '50%', left: '50%', pointerEvents: 'none' }} />
-        <Handle type="source" position={Position.Bottom} style={{ visibility: 'hidden', top: '50%', left: '50%', pointerEvents: 'none' }} />
+        <FloatingEdgeHandles />
         
         <div className="flex flex-col gap-0.5 pointer-events-none select-none">
           <span className={`text-[9px] font-black uppercase tracking-wider ${selected ? 'text-emerald-600' : 'text-slate-400'}`}>
@@ -52,11 +52,7 @@ export const ConceptNodeComponent = memo(function ConceptNodeComponent({ data, s
           : 'border-slate-200 shadow-xl shadow-slate-200/30'}
       `}
     >
-      {/* pointerEvents: 'none' — same reason as above. Both Handles sit at top:50%,
-          left:50% (center of the node), so mousedown there triggers ReactFlow's edge
-          connection system instead of onNodeClick. */}
-      <Handle type="target" position={Position.Top} style={{ visibility: 'hidden', top: '50%', left: '50%', pointerEvents: 'none' }} />
-      <Handle type="source" position={Position.Bottom} style={{ visibility: 'hidden', top: '50%', left: '50%', pointerEvents: 'none' }} />
+      <FloatingEdgeHandles />
 
       <div className="flex flex-col gap-2 w-full">
         <div className="flex items-center justify-between gap-4 w-full">

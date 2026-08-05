@@ -1,7 +1,8 @@
 # 0007: 24px Canvas Grid Alignment & Pattern Geometry Architecture
 
-* Status: Accepted
-* Date: 2026-08-01
+* Status: Superseded by [ADR 0008](file:///home/rolfmadsen/Github/knowledgegraphstudio/docs/adr/0008-canvas-geometry-grid-aligned-bounds.md)
+* Date: 2026-08-01 (Superseded: 2026-08-05)
+* Note: Geometry initial bounds use grid units; measured bounds authoritative post-render with grid-stepped minHeight.
 
 ## Context
 

@@ -17,6 +17,7 @@
 import type { ComponentType } from 'react';
 import type { ViewType, View, ConceptType, ConceptRelation, ElementId, ConceptNode, ConceptProperty, DataType, LayoutAlgorithm } from '../schema/graphSchema';
 import type { GraphStoreState } from '../store/useGraphStore';
+import type { NotationCanvasPolicy } from '../features/viewport/graph/contracts/canvasPolicy';
 
 // ============================================================
 // Layout Engine
@@ -92,6 +93,8 @@ export interface Notation {
   readonly supportedViewTypes: ViewType[];
   /** Whether this notation uses orthogonal edge routing (90-degree lines) */
   readonly orthogonalEdges?: boolean;
+  /** Canvas interaction and geometry policy */
+  readonly canvasPolicy: NotationCanvasPolicy;
   /** The React component that renders the canvas for this notation */
   readonly CanvasComponent: ComponentType<NotationCanvasProps>;
   /**

@@ -1,6 +1,7 @@
 import { memo } from 'react';
-import { Handle, Position, type NodeProps } from '@xyflow/react';
+import type { NodeProps } from '@xyflow/react';
 import type { ConceptNode } from '../../schema/graphSchema';
+import { FloatingEdgeHandles } from '../../features/viewport/graph/primitives/FloatingEdgeHandles';
 
 // --- 1. Conceptual Model Node Component (🧠 Simple Class Box without Attributes) ---
 export const ConceptualNodeComponent = memo(function ConceptualNodeComponent({ data, selected }: NodeProps) {
@@ -18,9 +19,7 @@ export const ConceptualNodeComponent = memo(function ConceptualNodeComponent({ d
           : 'border-slate-200 hover:border-slate-300'}
       `}
     >
-      {/* Target and Source handles for FloatingEdge intersections */}
-      <Handle type="target" position={Position.Top} style={{ visibility: 'hidden', top: '50%', left: '50%' }} />
-      <Handle type="source" position={Position.Bottom} style={{ visibility: 'hidden', top: '50%', left: '50%' }} />
+      <FloatingEdgeHandles />
 
       {/* Header */}
       <div className="bg-slate-50 px-4 py-3 flex items-center justify-between border-b border-slate-100">
@@ -86,9 +85,7 @@ export const InformationNodeComponent = memo(function InformationNodeComponent({
           : 'border-slate-200 hover:border-slate-300'}
       `}
     >
-      {/* Target and Source handles for FloatingEdge intersections */}
-      <Handle type="target" position={Position.Top} style={{ visibility: 'hidden', top: '50%', left: '50%' }} />
-      <Handle type="source" position={Position.Bottom} style={{ visibility: 'hidden', top: '50%', left: '50%' }} />
+      <FloatingEdgeHandles />
 
       {/* Header */}
       <div className={`px-4 py-3 flex items-center justify-between border-b ${headerBg}`}>

@@ -24,6 +24,7 @@ import { Header } from './components/ui/Header';
 import { LayoutGrid, Code2, Columns2, PanelLeftOpen } from 'lucide-react';
 import { StatusBar } from './features/statusbar/StatusBar';
 import { useUISession, readUISession } from './hooks/useUISession';
+import { TabSyncService } from './services/TabSyncService';
 
 // Lazy load heavy views and modals for code splitting
 const CodeViewport = lazy(() => import('./features/viewport/code/CodeViewport').then(m => ({ default: m.CodeViewport })));
@@ -214,6 +215,18 @@ function App() {
       window.removeEventListener('beforeunload', handleFlush);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
+  }, []);
+
+  // --- Cross-Tab State Synchronization ---
+  useEffect(() => {
+    const unsubscribe = TabSyncService.onMessage((msg) => {
+      if (msg.type === 'WORKSPACE_SAVED') {
+        console.log('[App] Received WORKSPACE_SAVED event from another tab, reloading state...');
+        useGraphStore.getState().loadWorkspace();
+      }
+    });
+
+    return () => unsubscribe();
   }, []);
 
   // --- Observe Canvas Width for Dynamic Responsive Layout ---

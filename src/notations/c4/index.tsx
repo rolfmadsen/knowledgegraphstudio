@@ -1,6 +1,9 @@
 import { useMemo, createElement, memo } from 'react';
-import { Handle, Position, type NodeProps } from '@xyflow/react';
+import { type NodeProps } from '@xyflow/react';
 import type { Notation, NotationCanvasProps } from '../types';
+import type { NotationCanvasPolicy } from '../../features/viewport/graph/contracts/canvasPolicy';
+import { GRID_SIZE } from '../../constants/grid';
+import { FloatingEdgeHandles } from '../../features/viewport/graph/primitives/FloatingEdgeHandles';
 import { ReactFlowCanvas } from '../../features/viewport/graph/ReactFlowCanvas';
 import { dagreLayoutEngine } from '../knowledge-graph';
 import type { ConceptNode } from '../../schema/graphSchema';
@@ -31,8 +34,7 @@ export const C4NodeComponent = memo(function C4NodeComponent({ data, selected }:
           ? 'border-indigo-500 bg-indigo-50/10 ring-4 ring-indigo-100 shadow-sm'
           : 'border-slate-300/80 bg-slate-50/30 hover:border-slate-400 hover:bg-slate-50/50'}
       `}>
-        <Handle type="target" position={Position.Top} style={{ visibility: 'hidden', top: '50%', left: '50%' }} />
-        <Handle type="source" position={Position.Bottom} style={{ visibility: 'hidden', top: '50%', left: '50%' }} />
+        <FloatingEdgeHandles />
         
         <div className="flex flex-col gap-0.5 pointer-events-none select-none">
           <span className={`text-[9px] font-black uppercase tracking-wider ${selected ? 'text-indigo-600' : 'text-slate-400'}`}>
@@ -123,8 +125,7 @@ export const C4NodeComponent = memo(function C4NodeComponent({ data, selected }:
           : `${bgColor} ${borderColor}`}
       `}
     >
-      <Handle type="target" position={Position.Top} style={{ visibility: 'hidden', top: '50%', left: '50%' }} />
-      <Handle type="source" position={Position.Bottom} style={{ visibility: 'hidden', top: '50%', left: '50%' }} />
+      <FloatingEdgeHandles />
 
       {/* Header: Stereotype and Icon */}
       <div className="flex justify-between items-start w-full gap-2 select-none pointer-events-none">
@@ -156,6 +157,29 @@ function C4Canvas(props: NotationCanvasProps) {
   return createElement(ReactFlowCanvas, { ...props, nodeTypes });
 }
 
+export const c4CanvasPolicy: NotationCanvasPolicy = {
+  getInitialNodeGeometry(context) {
+    if (context.isContainer || context.conceptType === 'bounded_context') {
+      return {
+        width: 14 * GRID_SIZE, // 336px
+        height: 10 * GRID_SIZE, // 240px
+        sizing: 'container',
+      };
+    }
+    return {
+      width: 12 * GRID_SIZE, // 288px
+      minHeight: 4 * GRID_SIZE, // 96px
+      sizing: 'content',
+    };
+  },
+  getNodeRole(context) {
+    return context.isContainer || context.conceptType === 'bounded_context' ? 'container' : 'leaf';
+  },
+  shouldRenderRelation() {
+    return true;
+  },
+};
+
 // --- C4 Notation ---
 export const c4Notation: Notation = {
   id: 'c4',
@@ -163,6 +187,7 @@ export const c4Notation: Notation = {
   icon: '🎛️',
   supportedViewTypes: ['c4'],
   orthogonalEdges: true,
+  canvasPolicy: c4CanvasPolicy,
   CanvasComponent: C4Canvas,
   layoutEngine: dagreLayoutEngine,
   defaultElement: { conceptType: 'system', name: 'Hovedsystem' },
