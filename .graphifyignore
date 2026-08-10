@@ -1,6 +1,20 @@
+# Dependencies & Build Outputs
 node_modules/
 dist/
+build/
 .git/
-.memory/
-.agents/
 .venv/
+
+# Third-Party Vendor Assets (Huge Minified JS Bundles)
+public/monaco-editor/
+public/vs/
+
+# Data & Cache Directories
+data/
+scratch/
+.scratch/
+.agent-memory/
+.agents/
+.claude/
+.memory/
+graphify-out/

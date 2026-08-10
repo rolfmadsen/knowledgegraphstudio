@@ -1,0 +1,80 @@
+{
+  "project_name": "KnowledgeGraphStudio",
+  "version": "1.0.0",
+  "layers": [
+    {
+      "name": "domain",
+      "patterns": [
+        "src/core/**",
+        "src/schema/**",
+        "src/types/**",
+        "src/constants/**"
+      ],
+      "allowed_dependencies": [
+        "domain"
+      ]
+    },
+    {
+      "name": "services_and_state",
+      "patterns": [
+        "src/services/**",
+        "src/store/**",
+        "src/hooks/**",
+        "src/utils/**"
+      ],
+      "allowed_dependencies": [
+        "domain",
+        "services_and_state"
+      ]
+    },
+    {
+      "name": "ui",
+      "patterns": [
+        "src/components/**",
+        "src/features/**",
+        "src/notations/**",
+        "src/App.tsx",
+        "src/main.tsx"
+      ],
+      "allowed_dependencies": [
+        "domain",
+        "services_and_state",
+        "ui"
+      ]
+    }
+  ],
+  "boundary_rules": [
+    {
+      "source_layer": "domain",
+      "forbidden_targets": [
+        "ui",
+        "services_and_state"
+      ],
+      "description": "Core domain layer cannot import UI or state/service layer"
+    }
+  ],
+  "protected_paths": [
+    {
+      "pattern": "docs/adr/**",
+      "description": "Accepted Architecture Decision Records (ADRs) are authoritative and immutable"
+    },
+    {
+      "pattern": "package.json",
+      "description": "Core project manifest and dependencies"
+    },
+    {
+      "pattern": "tsconfig*.json",
+      "description": "TypeScript compiler configurations"
+    }
+  ],
+  "ratchets": [],
+  "allowed_commands": [
+    "npm test",
+    "npm run build",
+    "npm run dev",
+    "vitest run",
+    "git status",
+    "git diff",
+    "git log"
+  ]
+}

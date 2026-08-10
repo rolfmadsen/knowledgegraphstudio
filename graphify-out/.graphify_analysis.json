@@ -1,144 +1,330 @@
 {
   "communities": {
     "0": [
-      "src_core_filesystem",
-      "src_core_filesystem_ensureworkspacedir",
-      "src_core_filesystem_getfspromises",
-      "src_core_filesystem_getremoteurl",
-      "src_core_filesystem_hasgitrepo",
-      "src_core_filesystem_listworkspaces",
-      "src_core_filesystem_modelyamlexists",
-      "src_core_filesystem_readmodelyaml",
-      "src_core_filesystem_readviewsyaml",
-      "src_core_filesystem_readyaml",
-      "src_core_filesystem_recursivedelete",
-      "src_core_filesystem_renameworkspace",
-      "src_core_filesystem_setrepodir",
-      "src_core_filesystem_writemodelyaml",
-      "src_core_filesystem_writeviewsyaml",
-      "src_core_filesystem_writeyaml",
-      "src_core_filesystem_yamlexists",
-      "src_core_tests_filesystem_test",
-      "src_core_tests_filesystem_test_mockfs",
-      "src_core_tests_yamlparser_test",
-      "src_core_tests_yamlparser_test_makeconcept",
-      "src_core_tests_yamlparser_test_makedomain",
-      "src_core_tests_yamlparser_test_makerelation",
-      "src_core_yamlparser",
-      "src_core_yamlparser_statetoyaml",
-      "src_core_yamlparser_viewstoyaml",
-      "src_core_yamlparser_viewsyamldocument",
-      "src_core_yamlparser_yamlconcept",
-      "src_core_yamlparser_yamlgraph",
-      "src_core_yamlparser_yamlparseerror",
-      "src_core_yamlparser_yamlparseerror_constructor",
-      "src_core_yamlparser_yamltostate",
-      "src_core_yamlparser_yamltoviews",
-      "src_features_modelexplorer_workspaceswitchermodal",
-      "src_features_modelexplorer_workspaceswitchermodal_browserinfo",
-      "src_features_modelexplorer_workspaceswitchermodal_detectbrowser",
-      "src_features_modelexplorer_workspaceswitchermodal_getwsname",
-      "src_features_modelexplorer_workspaceswitchermodal_workspaceinfo",
-      "src_features_modelexplorer_workspaceswitchermodal_workspaceswitchermodal",
-      "src_features_modelexplorer_workspaceswitchermodal_workspaceswitchermodalprops",
-      "src_schema_graphschema_graphstate",
-      "src_services_filesystemaccessservice",
-      "src_services_filesystemaccessservice_db",
-      "src_services_filesystemaccessservice_filesystemaccessdatabase",
-      "src_services_filesystemaccessservice_filesystemaccessdatabase_constructor",
-      "src_services_filesystemaccessservice_filesystemaccessservice",
-      "src_services_filesystemaccessservice_filesystemaccessservice_getactivehandle",
-      "src_services_filesystemaccessservice_filesystemaccessservice_getworkspacehandlestatus",
-      "src_services_filesystemaccessservice_filesystemaccessservice_ispermissiongranted",
-      "src_services_filesystemaccessservice_filesystemaccessservice_loadhandleforworkspace",
-      "src_services_filesystemaccessservice_filesystemaccessservice_readfile",
-      "src_services_filesystemaccessservice_filesystemaccessservice_requestactivehandlepermission",
-      "src_services_filesystemaccessservice_filesystemaccessservice_setactivehandle",
-      "src_services_filesystemaccessservice_filesystemaccessservice_setactiveworkspacepath",
-      "src_services_filesystemaccessservice_filesystemaccessservice_verifypermission",
-      "src_services_filesystemaccessservice_filesystemaccessservice_writefile",
-      "src_services_filesystemaccessservice_filesystemhandlewithpermissions",
-      "src_services_filesystemaccessservice_filesystemhandlewithpermissions_querypermission",
-      "src_services_filesystemaccessservice_filesystemhandlewithpermissions_requestpermission",
-      "src_services_filesystemaccessservice_workspacehandlerow",
-      "src_services_persistenceservice",
-      "src_services_persistenceservice_persistenceservice",
-      "src_services_persistenceservice_persistenceservice_bootstrap",
-      "src_services_persistenceservice_persistenceservice_flush",
-      "src_services_persistenceservice_persistenceservice_getyaml",
-      "src_services_persistenceservice_persistenceservice_loadandmigratelegacy",
-      "src_services_persistenceservice_persistenceservice_loadsplitfiles",
-      "src_services_persistenceservice_persistenceservice_loadworkspace",
-      "src_services_persistenceservice_persistenceservice_parse",
-      "src_services_persistenceservice_persistenceservice_resetfortesting",
-      "src_services_persistenceservice_persistenceservice_saveworkspace",
-      "src_services_persistenceservice_persistenceservice_scheduleautosave",
-      "src_services_persistenceservice_persistenceservice_stringifycurrentstate",
-      "src_services_persistenceservice_persistenceservice_switchworkspace",
-      "src_services_persistenceservice_persistenceservice_writesplitfiles",
-      "src_services_tests_filesystemaccessservice_test",
-      "src_services_tests_filesystemaccessservice_test_mockdexie",
-      "src_services_tests_filesystemaccessservice_test_mockdexie_constructor",
-      "src_services_tests_filesystemaccessservice_test_mockdexie_version",
-      "src_services_tests_filesystemaccessservice_test_mocktable",
-      "src_services_tests_persistenceservice_test"
-    ],
-    "1": [
-      "src_core_monacoloader",
-      "src_features_commands_commandoverlay",
-      "src_features_commands_commandoverlay_commanditem",
-      "src_features_commands_commandoverlay_commandoverlay",
-      "src_features_commands_commandoverlay_quickfindprops",
-      "src_features_conflicts_remoteconfigmodal",
-      "src_features_conflicts_remoteconfigmodal_field",
-      "src_features_conflicts_remoteconfigmodal_remoteconfigmodal",
-      "src_features_conflicts_remoteconfigmodal_remoteconfigmodalprops",
-      "src_features_properties_inspector",
-      "src_features_properties_inspector_inspector",
-      "src_features_properties_inspector_inspectorsection",
+      "src_constants_grid",
+      "src_constants_grid_ts_docref_adr_0008",
       "src_features_properties_inspector_propertyfield",
-      "src_features_properties_policyeditor_policyeditor",
-      "src_features_statusbar_statusbar",
-      "src_features_statusbar_statusbar_pillconfig",
-      "src_features_statusbar_statusbar_statusbar",
-      "src_features_statusbar_statusbar_statusbarprops",
-      "src_features_validation_usevalidation",
-      "src_features_validation_usevalidation_calculatevalidationwarnings",
-      "src_features_validation_usevalidation_classification_levels",
-      "src_features_validation_usevalidation_getclassificationlevel",
-      "src_features_validation_usevalidation_usevalidationwarnings",
-      "src_features_validation_usevalidation_validationwarning",
-      "src_features_viewport_code_diffviewport",
-      "src_features_viewport_code_diffviewport_diffviewport",
-      "src_features_viewport_graph_deleteconceptmodal",
-      "src_features_viewport_graph_deleteconceptmodal_deleteconceptmodal",
-      "src_features_viewport_notationcanvaswrapper_notationcanvaswrapper",
+      "src_features_viewport_graph_contracts_canvaspolicy",
+      "src_features_viewport_graph_contracts_canvaspolicy_nodecontext",
+      "src_features_viewport_graph_contracts_canvaspolicy_notationcanvaspolicy",
+      "src_features_viewport_graph_contracts_canvaspolicy_notationcanvaspolicy_getinitialnodegeometry",
+      "src_features_viewport_graph_contracts_canvaspolicy_notationcanvaspolicy_getnoderole",
+      "src_features_viewport_graph_contracts_canvaspolicy_notationcanvaspolicy_shouldrenderrelation",
+      "src_features_viewport_graph_contracts_canvaspolicy_relationvisibilitycontext",
+      "src_features_viewport_graph_contracts_nodegeometry",
+      "src_features_viewport_graph_contracts_nodegeometry_initialnodegeometry",
+      "src_features_viewport_graph_contracts_nodegeometry_nodegeometrycontext",
+      "src_features_viewport_graph_contracts_nodegeometry_nodesizingmode",
+      "src_features_viewport_graph_contracts_nodegeometry_resolveeffectivenodebounds",
+      "src_features_viewport_graph_contracts_nodegeometry_snapheighttogridstep",
+      "src_features_viewport_graph_contracts_nodegeometry_ts_docref_adr_0008",
+      "src_features_viewport_graph_contracts_tests_canvaspolicy_test",
+      "src_features_viewport_graph_geometry_tests_nodegeometrycontract_test",
+      "src_features_viewport_graph_geometry_tests_nodegeometrycontract_test_getsidehandley",
+      "src_features_viewport_graph_geometry_tests_nodegeometrycontract_test_resolveeffectivebounds",
+      "src_features_viewport_graph_geometry_tests_nodegeometrycontract_test_snaptogridstep",
+      "src_features_viewport_graph_geometry_tests_nodegeometrycontract_test_ts_docref_adr_0008",
+      "src_features_viewport_graph_graphviewport",
+      "src_features_viewport_graph_graphviewport_conceptnodecomponent",
+      "src_features_viewport_graph_graphviewport_conceptnodedata",
+      "src_features_viewport_graph_graphviewport_conceptnodetype",
+      "src_features_viewport_graph_graphviewport_graphviewport",
+      "src_features_viewport_graph_primitives_floatingedgehandles",
+      "src_features_viewport_graph_primitives_floatingedgehandles_center_handle_style",
+      "src_features_viewport_graph_primitives_floatingedgehandles_floatingedgehandles",
+      "src_features_viewport_graph_primitives_floatingedgehandles_floatingedgehandlesprops",
+      "src_features_viewport_graph_primitives_tests_floatingedgehandles_test",
+      "src_main",
+      "src_notations_archimate_index",
+      "src_notations_archimate_index_archimatecanvaspolicy",
+      "src_notations_archimate_index_archimatenodecomponent",
+      "src_notations_archimate_index_archimatenotation",
+      "src_notations_archimate_tests_renderer_test",
+      "src_notations_c4_index",
+      "src_notations_c4_index_c4canvaspolicy",
+      "src_notations_c4_index_c4nodecomponent",
+      "src_notations_c4_index_c4notation",
+      "src_notations_c4_index_isconceptexternal",
+      "src_notations_c4_tests_renderer_test",
       "src_notations_core_model_conceptualnotation",
-      "src_notations_core_model_conceptualnotation_conceptualcanvas",
+      "src_notations_core_model_conceptualnotation_conceptualcanvaspolicy",
       "src_notations_core_model_conceptualnotation_conceptualinspector",
       "src_notations_core_model_conceptualnotation_conceptualnotation",
-      "src_notations_core_model_conceptualvalidator",
-      "src_notations_core_model_conceptualvalidator_conceptual_type_map",
-      "src_notations_core_model_conceptualvalidator_getavailablerelations",
-      "src_notations_core_model_conceptualvalidator_isrelationallowed",
-      "src_notations_core_model_conceptualvalidator_issubclass",
-      "src_notations_core_model_conceptualvalidator_isvalidrelation",
-      "src_notations_core_model_conceptualvalidator_mapdanishrelation",
-      "src_notations_core_model_conceptualvalidator_normalizeclassname",
-      "src_notations_core_model_conceptualvalidator_normalizedclasses",
-      "src_notations_core_model_conceptualvalidator_rationale_105",
+      "src_notations_core_model_informationnotation",
+      "src_notations_core_model_informationnotation_informationcanvaspolicy",
+      "src_notations_core_model_informationnotation_informationinspector",
+      "src_notations_core_model_informationnotation_informationnotation",
+      "src_notations_core_model_informationnotation_informationrelationinspector",
+      "src_notations_core_model_informationnotation_logicaldatanotation",
+      "src_notations_core_model_sharedcomponents",
       "src_notations_core_model_sharedcomponents_conceptualnodecomponent",
-      "src_notations_core_model_tests_conceptualontology_test",
-      "src_store_selectors",
-      "src_store_selectors_useconceptcount",
-      "src_store_selectors_useconceptrelations",
-      "src_store_selectors_usefocusedgraph",
-      "src_store_selectors_userelationcount",
-      "src_store_selectors_useselectedconcept",
-      "src_store_tests_stability_test",
-      "src_store_usegraphstore_usegraphstore"
+      "src_notations_core_model_sharedcomponents_informationnodecomponent",
+      "src_notations_core_model_tests_conceptualrenderer_test",
+      "src_notations_core_model_tests_informationrenderer_test",
+      "src_notations_core_model_tests_logicalpresentationcontract_test",
+      "src_notations_dcr_index",
+      "src_notations_dcr_index_dcrcanvas",
+      "src_notations_dcr_index_dcrcanvaspolicy",
+      "src_notations_dcr_index_dcrinspector",
+      "src_notations_dcr_index_dcrnodecomponent",
+      "src_notations_dcr_index_dcrnotation",
+      "src_notations_dcr_index_dcrsimulationcontrols",
+      "src_notations_dcr_index_dcrstate",
+      "src_notations_dcr_index_usedcrsimulationstore",
+      "src_notations_dcr_tests_renderer_test",
+      "src_notations_knowledge_graph_index",
+      "src_notations_knowledge_graph_index_dagrelayoutengine",
+      "src_notations_knowledge_graph_index_knowledgegraphcanvas",
+      "src_notations_knowledge_graph_index_knowledgegraphcanvaspolicy",
+      "src_notations_knowledge_graph_index_knowledgegraphnotation",
+      "src_notations_knowledge_graph_tests_renderer_test",
+      "src_notations_notationregistry",
+      "src_notations_notationregistry_notationregistryclass",
+      "src_notations_notationregistry_notationregistryclass_all",
+      "src_notations_notationregistry_notationregistryclass_firstnotation",
+      "src_notations_notationregistry_notationregistryclass_forviewtype",
+      "src_notations_notationregistry_notationregistryclass_get",
+      "src_notations_notationregistry_notationregistryclass_register",
+      "src_notations_tests_logicalnotationregistry_test",
+      "src_notations_types",
+      "src_notations_types_edgestyle",
+      "src_notations_types_layoutengine",
+      "src_notations_types_layoutinput",
+      "src_notations_types_layoutlink",
+      "src_notations_types_layoutnode",
+      "src_notations_types_layoutoutput",
+      "src_notations_types_notation",
+      "src_notations_types_notationcanvasprops",
+      "src_store_tests_usegraphstore_test",
+      "src_store_usegraphstore_gettemporalstate",
+      "src_test_reactflowwrapper",
+      "src_test_reactflowwrapper_reactflowtestwrapper",
+      "src_test_reactflowwrapper_reactflowtestwrapperprops",
+      "src_utils_edgerouting_getconceptnodesize"
+    ],
+    "1": [
+      "src_features_ai_components_aichatpanel",
+      "src_features_ai_components_aichatpanel_aichatpanel",
+      "src_features_ai_components_aichatpanel_browserlink",
+      "src_features_ai_components_aichatpanel_cleanmathsymbols",
+      "src_features_ai_components_aichatpanel_collapsiblechainofthought",
+      "src_features_ai_components_aichatpanel_parsechainofthought",
+      "src_features_ai_components_aichatpanel_parsedmessagecontent",
+      "src_features_ai_components_aichatpanel_parseinlinemarkdown",
+      "src_features_ai_components_aichatpanel_parsequickreplies",
+      "src_features_ai_components_aichatpanel_rendermarkdown",
+      "src_features_ai_components_aichatpanel_rendermarkdownprops",
+      "src_features_ai_components_aiconfigmodal",
+      "src_features_ai_components_aiconfigmodal_aiconfigmodal",
+      "src_features_ai_components_aiconfigmodal_aiconfigmodalprops",
+      "src_features_ai_components_aiconfigmodal_field",
+      "src_features_ai_services_aiparser",
+      "src_features_ai_services_aiparser_expandpatterns",
+      "src_features_ai_services_aiparser_extractjsonblocks",
+      "src_features_ai_services_aiparser_hasdslcommands",
+      "src_features_ai_services_aiparser_haspatterncommands",
+      "src_features_ai_services_aiparser_normalizecommand",
+      "src_features_ai_services_aiparser_normalizeconcepttype",
+      "src_features_ai_services_aiparser_normalizeidformatching",
+      "src_features_ai_services_aiparser_parsedsl",
+      "src_features_ai_services_aiparser_parsepatterndsl",
+      "src_features_ai_services_aiparser_parseproposedcommands",
+      "src_features_ai_services_aiparser_patternintent",
+      "src_features_ai_services_aiparser_repairjson",
+      "src_features_ai_services_aiparser_valid_concept_types",
+      "src_features_ai_services_aiservice",
+      "src_features_ai_services_aiservice_aichatmessage",
+      "src_features_ai_services_aiservice_aiservice",
+      "src_features_ai_services_aiservice_aiservice_cancelunloadonmount",
+      "src_features_ai_services_aiservice_aiservice_cleanresponsetext",
+      "src_features_ai_services_aiservice_aiservice_filtervalidcommands",
+      "src_features_ai_services_aiservice_aiservice_generatedefinition",
+      "src_features_ai_services_aiservice_aiservice_getengine",
+      "src_features_ai_services_aiservice_aiservice_getwebgpuhelpmessage",
+      "src_features_ai_services_aiservice_aiservice_resetinactivitytimer",
+      "src_features_ai_services_aiservice_aiservice_scheduleunloadonunmount",
+      "src_features_ai_services_aiservice_aiservice_sendchatmessage",
+      "src_features_ai_services_aiservice_aiservice_testconnection",
+      "src_features_ai_services_aiservice_aiservice_unloadengine",
+      "src_features_ai_services_aiservice_aiservice_validatecommands",
+      "src_features_ai_services_aiservice_buildoutputformatblock",
+      "src_features_ai_services_aiservice_getnotationguidelines",
+      "src_features_ai_store_useaistore",
+      "src_features_ai_store_useaistore_aistorestate",
+      "src_features_ai_store_useaistore_getorcreatesession",
+      "src_features_ai_store_useaistore_mapinputtocommand",
+      "src_features_ai_store_useaistore_message",
+      "src_features_ai_store_useaistore_proposedcommand",
+      "src_features_ai_store_useaistore_proposedcommandinput",
+      "src_features_ai_store_useaistore_viewsession",
+      "src_features_ai_tests_aiservice_test",
+      "src_services_credentialservice",
+      "src_services_credentialservice_aiconfig",
+      "src_services_credentialservice_credentialdatabase",
+      "src_services_credentialservice_credentialdatabase_constructor",
+      "src_services_credentialservice_credentialrow",
+      "src_services_credentialservice_db"
     ],
     "2": [
+      "src_notations_event_modeling_completeness",
+      "src_notations_event_modeling_completeness_completenessissue",
+      "src_notations_event_modeling_completeness_geteffectiveorigin",
+      "src_notations_event_modeling_completeness_isvalidsupplier",
+      "src_notations_event_modeling_completeness_validateinformationcompleteness",
+      "src_notations_event_modeling_index",
+      "src_notations_event_modeling_index_dcrruleselect",
+      "src_notations_event_modeling_index_dcrruleselectprops",
+      "src_notations_event_modeling_index_em_edge_colors",
+      "src_notations_event_modeling_index_em_styles",
+      "src_notations_event_modeling_index_em_type_labels",
+      "src_notations_event_modeling_index_emchapternode",
+      "src_notations_event_modeling_index_emelementnode",
+      "src_notations_event_modeling_index_emnodedata",
+      "src_notations_event_modeling_index_emnodetype",
+      "src_notations_event_modeling_index_emslicenode",
+      "src_notations_event_modeling_index_eventmodelingcanvas",
+      "src_notations_event_modeling_index_eventmodelingcanvaspolicy",
+      "src_notations_event_modeling_index_eventmodelinginspector",
+      "src_notations_event_modeling_index_eventmodelingnodecomponent",
+      "src_notations_event_modeling_index_eventmodelingnotation",
+      "src_notations_event_modeling_index_eventmodelingrelationinspector",
+      "src_notations_event_modeling_index_formatpoliciestogherkinstring",
+      "src_notations_event_modeling_index_fuzzyscore",
+      "src_notations_event_modeling_index_getnodeabsoluteposition",
+      "src_notations_event_modeling_index_gherkintexteditor",
+      "src_notations_event_modeling_index_isalreadyinpayload",
+      "src_notations_event_modeling_index_isfuzzysubsequence",
+      "src_notations_event_modeling_index_parsegherkinstringtopolicies",
+      "src_notations_event_modeling_index_propertyitem",
+      "src_notations_event_modeling_index_scorefuzzysequence",
+      "src_notations_event_modeling_lineagesyncmodal",
+      "src_notations_event_modeling_lineagesyncmodal_allowed_em_element_types",
+      "src_notations_event_modeling_lineagesyncmodal_lineagesyncmodal",
+      "src_notations_event_modeling_lineagesyncmodal_lineagesyncmodalprops",
+      "src_notations_event_modeling_payloadspecmodal",
+      "src_notations_event_modeling_payloadspecmodal_fuzzyscore",
+      "src_notations_event_modeling_payloadspecmodal_isalreadyinpayload",
+      "src_notations_event_modeling_payloadspecmodal_payloadspecmodal",
+      "src_notations_event_modeling_payloadspecmodal_payloadspecmodalprops",
+      "src_notations_event_modeling_payloadspecmodal_propertyitem",
+      "src_notations_event_modeling_tests_completeness_test",
+      "src_notations_event_modeling_tests_payloadexpandposition_test",
+      "src_notations_event_modeling_tests_renderer_test",
+      "src_notations_event_modeling_tests_validator_test",
+      "src_notations_event_modeling_validator",
+      "src_notations_event_modeling_validator_dcr_relations",
+      "src_notations_event_modeling_validator_em_element_types",
+      "src_notations_event_modeling_validator_getavailablerelations",
+      "src_notations_event_modeling_validator_isvalidrelation",
+      "src_notations_event_modeling_validator_relation_labels",
+      "src_notations_event_modeling_validator_relationsuggestion",
+      "src_notations_event_modeling_validator_valid_em_connections",
+      "src_schema_graphschema_payloadattribute",
+      "src_schema_graphschema_payloadattributeschema"
+    ],
+    "3": [
+      "src_features_viewport_graph_reactflowcanvas",
+      "src_features_viewport_graph_reactflowcanvas_filterduplicatepoints",
+      "src_features_viewport_graph_reactflowcanvas_findancestorcontainer",
+      "src_features_viewport_graph_reactflowcanvas_floatingedge",
+      "src_features_viewport_graph_reactflowcanvas_floatingedgeprops",
+      "src_features_viewport_graph_reactflowcanvas_getedgeparams",
+      "src_features_viewport_graph_reactflowcanvas_getedgepoints",
+      "src_features_viewport_graph_reactflowcanvas_getedgetypestring",
+      "src_features_viewport_graph_reactflowcanvas_getestimatedelementheight",
+      "src_features_viewport_graph_reactflowcanvas_getestimatedelementwidth",
+      "src_features_viewport_graph_reactflowcanvas_getgroupbounds",
+      "src_features_viewport_graph_reactflowcanvas_getnodeabsoluteposition",
+      "src_features_viewport_graph_reactflowcanvas_getnodepadding",
+      "src_features_viewport_graph_reactflowcanvas_getorthogonalparams",
+      "src_features_viewport_graph_reactflowcanvas_getquickactionbuttonstyle",
+      "src_features_viewport_graph_reactflowcanvas_getquickactionicon",
+      "src_features_viewport_graph_reactflowcanvas_getwaypointsfordrag",
+      "src_features_viewport_graph_reactflowcanvas_parserelationlabel",
+      "src_features_viewport_graph_reactflowcanvas_reactflowcanvas",
+      "src_features_viewport_graph_reactflowcanvas_reactflowcanvasprops",
+      "src_features_viewport_graph_reactflowcanvas_simplifycollinearpoints",
+      "src_features_viewport_graph_reactflowcanvas_snaptogridstep",
+      "src_features_viewport_graph_reactflowcanvas_truncate",
+      "src_features_viewport_graph_tests_edgeroutingparams_test",
+      "src_features_viewport_graph_tests_edgeroutingparams_test_makenode",
+      "src_features_viewport_graph_tests_gridalignment_test",
+      "src_features_viewport_graph_tests_reactflowcanvaslayout_test",
+      "src_notations_archimate_index_archimatecanvas",
+      "src_notations_c4_index_c4canvas",
+      "src_notations_core_model_conceptualnotation_conceptualcanvas",
+      "src_notations_core_model_informationnotation_informationcanvas",
+      "src_notations_event_modeling_layout",
+      "src_notations_event_modeling_layout_em_row_order",
+      "src_notations_event_modeling_layout_eventmodelinglayoutengine",
+      "src_notations_event_modeling_layout_findchapterid",
+      "src_notations_event_modeling_layout_getancestorchapterid",
+      "src_notations_event_modeling_layout_getancestorsliceid",
+      "src_notations_event_modeling_layout_getconcepttype",
+      "src_notations_event_modeling_layout_getcreatedat",
+      "src_notations_event_modeling_layout_getorder",
+      "src_notations_event_modeling_layout_getrowindex",
+      "src_notations_event_modeling_layout_iscontainer",
+      "src_notations_event_modeling_layout_rundagreonchapters",
+      "src_notations_event_modeling_tests_layout_test",
+      "src_notations_event_modeling_tests_layout_test_mockworker",
+      "src_notations_event_modeling_tests_layout_test_mockworker_postmessage",
+      "src_notations_event_modeling_tests_layout_test_mockworker_terminate",
+      "src_utils_edgerouting",
+      "src_utils_edgerouting_getclosestposition",
+      "src_utils_edgerouting_getdynamicconnection",
+      "src_utils_edgerouting_getemnodeheight",
+      "src_utils_tests_edgerouting_test",
+      "src_utils_tests_edgerouting_test_makemocknode"
+    ],
+    "4": [
+      "buffer",
+      "d3_force",
+      "dagrejs_dagre",
+      "dexie",
+      "framer_motion",
+      "fuse_js",
+      "isomorphic_git",
+      "isomorphic_git_lightning_fs",
+      "joint_core",
+      "joint_react",
+      "js_yaml",
+      "lucide_react",
+      "mlc_ai_web_llm",
+      "monaco_editor_react",
+      "n3",
+      "package_dependencies",
+      "package_dependencies_buffer",
+      "package_dependencies_d3_force",
+      "package_dependencies_dagrejs_dagre",
+      "package_dependencies_dexie",
+      "package_dependencies_framer_motion",
+      "package_dependencies_fuse_js",
+      "package_dependencies_isomorphic_git",
+      "package_dependencies_isomorphic_git_lightning_fs",
+      "package_dependencies_joint_core",
+      "package_dependencies_joint_react",
+      "package_dependencies_js_yaml",
+      "package_dependencies_lucide_react",
+      "package_dependencies_mlc_ai_web_llm",
+      "package_dependencies_monaco_editor_react",
+      "package_dependencies_n3",
+      "package_dependencies_radix_ui_react_icons",
+      "package_dependencies_react",
+      "package_dependencies_react_dom",
+      "package_dependencies_xyflow_react",
+      "package_dependencies_zod",
+      "package_dependencies_zundo",
+      "package_dependencies_zustand",
+      "radix_ui_react_icons",
+      "react",
+      "react_dom",
+      "xyflow_react",
+      "zod",
+      "zundo",
+      "zustand"
+    ],
+    "5": [
       "src_core_filesystem_getfs",
       "src_core_gitengine",
       "src_core_gitengine_default_author",
@@ -161,20 +347,8 @@
       "src_core_gitengine_resetgitcache",
       "src_core_tests_gitengine_test",
       "src_core_tests_gitengine_test_mockpfs",
-      "src_services_credentialservice",
-      "src_services_credentialservice_credentialdatabase",
-      "src_services_credentialservice_credentialdatabase_constructor",
-      "src_services_credentialservice_credentialrow",
-      "src_services_credentialservice_credentialservice",
-      "src_services_credentialservice_credentialservice_buildconfig",
-      "src_services_credentialservice_credentialservice_clearall",
-      "src_services_credentialservice_credentialservice_loadaiconfig",
       "src_services_credentialservice_credentialservice_loadpat",
       "src_services_credentialservice_credentialservice_loadremoteconfig",
-      "src_services_credentialservice_credentialservice_saveaiconfig",
-      "src_services_credentialservice_credentialservice_savepat",
-      "src_services_credentialservice_credentialservice_saveremoteconfig",
-      "src_services_credentialservice_db",
       "src_services_gitservice",
       "src_services_gitservice_gitservice",
       "src_services_gitservice_gitservice_clone",
@@ -188,239 +362,48 @@
       "src_services_gitservice_gitservice_startautofetch",
       "src_services_gitservice_gitservice_stopautofetch",
       "src_services_persistenceservice_persistablestate",
-      "src_services_persistenceservice_persistenceservice_reverttopreviouscommit",
-      "src_services_tests_gitservice_test",
-      "src_services_tests_gitservice_test_constructor"
-    ],
-    "3": [
-      "src_features_viewport_graph_graphviewport",
-      "src_features_viewport_graph_graphviewport_conceptnodecomponent",
-      "src_features_viewport_graph_graphviewport_conceptnodedata",
-      "src_features_viewport_graph_graphviewport_conceptnodetype",
-      "src_features_viewport_graph_graphviewport_graphviewport",
-      "src_notations_c4_index",
-      "src_notations_c4_index_c4canvas",
-      "src_notations_c4_index_c4nodecomponent",
-      "src_notations_c4_index_isconceptexternal",
-      "src_notations_c4_tests_ontology_test",
-      "src_notations_c4_validator",
-      "src_notations_c4_validator_c4_type_map",
-      "src_notations_c4_validator_getavailablerelations",
-      "src_notations_c4_validator_isrelationallowed",
-      "src_notations_c4_validator_issubclass",
-      "src_notations_c4_validator_isvalidrelation",
-      "src_notations_c4_validator_normalizeclassname",
-      "src_notations_c4_validator_normalizedclasses",
-      "src_notations_event_modeling_layout",
-      "src_notations_event_modeling_layout_em_row_order",
-      "src_notations_event_modeling_layout_eventmodelinglayoutengine",
-      "src_notations_event_modeling_layout_findchapterid",
-      "src_notations_event_modeling_layout_getconcepttype",
-      "src_notations_event_modeling_layout_getcreatedat",
-      "src_notations_event_modeling_layout_getrowindex",
-      "src_notations_event_modeling_layout_iscontainer",
-      "src_notations_event_modeling_layout_rundagreonchapters",
-      "src_notations_event_modeling_tests_layout_test",
-      "src_notations_event_modeling_tests_layout_test_mockworker",
-      "src_notations_event_modeling_tests_layout_test_mockworker_postmessage",
-      "src_notations_event_modeling_tests_layout_test_mockworker_terminate",
-      "src_notations_knowledge_graph_index",
-      "src_notations_knowledge_graph_index_dagrelayoutengine",
-      "src_notations_knowledge_graph_index_knowledgegraphcanvas",
-      "src_notations_knowledge_graph_index_knowledgegraphnotation",
-      "src_notations_notationregistry_notationregistryclass",
-      "src_notations_notationregistry_notationregistryclass_all",
-      "src_notations_notationregistry_notationregistryclass_firstnotation",
-      "src_notations_notationregistry_notationregistryclass_forviewtype",
-      "src_notations_notationregistry_notationregistryclass_get",
-      "src_notations_notationregistry_notationregistryclass_register",
-      "src_notations_types",
-      "src_notations_types_edgestyle",
-      "src_notations_types_layoutengine",
-      "src_notations_types_layoutinput",
-      "src_notations_types_layoutlink",
-      "src_notations_types_layoutnode",
-      "src_notations_types_layoutoutput",
-      "src_notations_types_notation",
-      "src_notations_types_quickactionconfig",
-      "src_schema_graphschema_viewtype"
-    ],
-    "4": [
-      "buffer",
-      "d3_force",
-      "dagrejs_dagre",
-      "dexie",
-      "framer_motion",
-      "fuse_js",
-      "isomorphic_git",
-      "isomorphic_git_lightning_fs",
-      "js_yaml",
-      "lucide_react",
-      "mlc_ai_web_llm",
-      "monaco_editor_react",
-      "n3",
-      "package_dependencies",
-      "package_dependencies_buffer",
-      "package_dependencies_d3_force",
-      "package_dependencies_dagrejs_dagre",
-      "package_dependencies_dexie",
-      "package_dependencies_framer_motion",
-      "package_dependencies_fuse_js",
-      "package_dependencies_isomorphic_git",
-      "package_dependencies_isomorphic_git_lightning_fs",
-      "package_dependencies_js_yaml",
-      "package_dependencies_lucide_react",
-      "package_dependencies_mlc_ai_web_llm",
-      "package_dependencies_monaco_editor_react",
-      "package_dependencies_n3",
-      "package_dependencies_radix_ui_react_icons",
-      "package_dependencies_react",
-      "package_dependencies_react_dom",
-      "package_dependencies_xyflow_react",
-      "package_dependencies_zod",
-      "package_dependencies_zundo",
-      "package_dependencies_zustand",
-      "radix_ui_react_icons",
-      "react",
-      "react_dom",
-      "scratch_inspect_graph",
-      "scratch_inspect_graph_run",
-      "xyflow_react",
-      "zod",
-      "zundo",
-      "zustand"
-    ],
-    "5": [
-      "src_app",
-      "src_app_aichatpanel",
-      "src_app_app",
-      "src_app_codeviewport",
-      "src_app_commandoverlay",
-      "src_app_conflictresolvermodal",
-      "src_app_createviewmodal",
-      "src_app_deleteconceptmodal",
-      "src_app_deleteviewmodal",
-      "src_app_diffviewport",
-      "src_app_empty_history",
-      "src_app_helpcenter",
-      "src_app_nodecreator",
-      "src_app_relationbuilder",
-      "src_app_remoteconfigmodal",
-      "src_app_workspaceswitchermodal",
-      "src_components_ui_header",
-      "src_components_ui_header_header",
-      "src_components_ui_header_headerprops",
-      "src_features_viewport_viewportcontainer",
-      "src_features_viewport_viewportcontainer_viewportcontainer",
-      "src_features_viewport_viewportcontainer_viewportcontainerprops",
-      "src_features_viewport_viewtoolbar",
-      "src_features_viewport_viewtoolbar_layout_options",
-      "src_features_viewport_viewtoolbar_viewtoolbar",
-      "src_hooks_usekeyboard",
-      "src_hooks_usekeyboard_iseditingtext",
-      "src_hooks_usekeyboard_isinputfocused",
-      "src_hooks_usekeyboard_keyboardconfig",
-      "src_hooks_usekeyboard_usekeyboard",
-      "src_hooks_useresizable",
-      "src_hooks_useresizable_useresizable",
-      "src_hooks_useuisession",
-      "src_hooks_useuisession_default_session",
-      "src_hooks_useuisession_readuisession",
-      "src_hooks_useuisession_uisession",
-      "src_hooks_useuisession_useuisession",
-      "src_hooks_useuisession_writeuisession",
-      "src_schema_graphschema_layoutalgorithm",
-      "src_store_usegraphstore_usetemporalstore",
-      "src_types_view",
-      "src_types_view_viewmode"
+      "src_services_persistenceservice_persistenceservice_reverttopreviouscommit"
     ],
     "6": [
-      "scratch_testvirtualtype_test",
+      "src_core_yamlparser_viewsyamldocument",
+      "src_features_ai_services_aiservice_aiservice_generatesystemprompt",
       "src_features_ai_services_graphdiagnostics",
+      "src_features_ai_services_graphdiagnostics_diagnosticissue",
       "src_features_ai_services_graphdiagnostics_rundiagnostics",
       "src_features_ai_tests_graphdiagnostics_test",
       "src_features_compiler_arazzogenerator",
-      "src_features_properties_policyeditor",
-      "src_features_properties_policyeditor_gherkinsection",
-      "src_features_properties_policyeditor_gherkinsectionprops",
+      "src_features_compiler_arazzogenerator_generatearazzo",
+      "src_features_compiler_arazzogenerator_tokebabcase",
       "src_features_properties_policyeditor_policyeditorprops",
-      "src_features_validation_tests_validation_test",
-      "src_notations_c4_index_c4notation",
-      "src_notations_core_model_sharedcomponents",
+      "src_features_viewport_canvassearchwidget",
+      "src_features_viewport_canvassearchwidget_canvassearchwidgetprops",
+      "src_features_viewport_cmdksearch",
+      "src_features_viewport_cmdksearch_cmdksearchdialog",
+      "src_features_viewport_cmdksearch_cmdksearchprops",
+      "src_features_viewport_cmdksearch_filterconceptsandrelations",
+      "src_features_viewport_graph_tests_includesrelations_test",
+      "src_notations_core_model_logicalvalidator",
+      "src_notations_core_model_logicalvalidator_logicalvalidationerror",
+      "src_notations_core_model_logicalvalidator_validatelogicaldatamodel",
       "src_notations_dcr_index_dcrsimulationstore",
-      "src_schema_graphschema",
-      "src_schema_graphschema_baseentity",
-      "src_schema_graphschema_classconceptnode",
+      "src_notations_event_modeling_tests_manuallayoutpositions_test",
       "src_schema_graphschema_conceptnode",
-      "src_schema_graphschema_conceptnodeexport",
       "src_schema_graphschema_conceptrelation",
-      "src_schema_graphschema_containerconceptnode",
-      "src_schema_graphschema_contextmappingpattern",
-      "src_schema_graphschema_domainconceptnode",
-      "src_schema_graphschema_enumerationconceptnode",
-      "src_schema_graphschema_generalconceptnode",
-      "src_schema_graphschema_generalconcepttypes",
-      "src_schema_graphschema_graphstateexport",
-      "src_schema_graphschema_httpmethod",
-      "src_schema_graphschema_integrationpattern",
-      "src_schema_graphschema_lifecyclestate",
-      "src_schema_graphschema_policy",
-      "src_schema_graphschema_policytype",
-      "src_schema_graphschema_toelementid",
       "src_schema_graphschema_view",
-      "src_schema_graphschema_viewedge",
-      "src_schema_graphschema_viewedgewaypoint",
-      "src_schema_tests_graphschema_test",
-      "src_schema_tests_graphschema_test_baseentity",
-      "src_schema_tests_graphschema_test_now",
-      "src_services_tests_graphservice_test",
-      "src_store_tests_usegraphstore_test",
-      "src_store_usegraphstore_gettemporalstate"
+      "src_services_derivationservice",
+      "src_services_derivationservice_derivationresult",
+      "src_services_derivationservice_derivationservice",
+      "src_services_derivationservice_derivationservice_derivelogicaldatamodel",
+      "src_services_tests_derivationservice_test",
+      "src_store_tests_selectors_focus_test",
+      "src_store_tests_selectors_focus_test_evaluatefocusedgraph"
     ],
     "7": [
-      "src_features_viewport_graph_reactflowcanvas",
-      "src_features_viewport_graph_reactflowcanvas_filterduplicatepoints",
-      "src_features_viewport_graph_reactflowcanvas_floatingedge",
-      "src_features_viewport_graph_reactflowcanvas_floatingedgeprops",
-      "src_features_viewport_graph_reactflowcanvas_getedgeparams",
-      "src_features_viewport_graph_reactflowcanvas_getedgepoints",
-      "src_features_viewport_graph_reactflowcanvas_getedgetypestring",
-      "src_features_viewport_graph_reactflowcanvas_getgroupbounds",
-      "src_features_viewport_graph_reactflowcanvas_getnodepadding",
-      "src_features_viewport_graph_reactflowcanvas_getorthogonalparams",
-      "src_features_viewport_graph_reactflowcanvas_getquickactionbuttonstyle",
-      "src_features_viewport_graph_reactflowcanvas_getquickactionicon",
-      "src_features_viewport_graph_reactflowcanvas_getwaypointsfordrag",
-      "src_features_viewport_graph_reactflowcanvas_parserelationlabel",
-      "src_features_viewport_graph_reactflowcanvas_reactflowcanvas",
-      "src_features_viewport_graph_reactflowcanvas_reactflowcanvasprops",
-      "src_features_viewport_graph_reactflowcanvas_simplifycollinearpoints",
-      "src_features_viewport_graph_reactflowcanvas_truncate",
-      "src_notations_archimate_index",
-      "src_notations_archimate_index_archimatecanvas",
-      "src_notations_archimate_index_archimatenodecomponent",
-      "src_notations_archimate_index_archimatenotation",
-      "src_notations_archimate_tests_ontology_test",
-      "src_notations_archimate_validator",
-      "src_notations_archimate_validator_archimate_type_map",
-      "src_notations_archimate_validator_getavailablerelations",
-      "src_notations_archimate_validator_isrelationallowed",
-      "src_notations_archimate_validator_issubclass",
-      "src_notations_archimate_validator_isvalidrelation",
-      "src_notations_archimate_validator_normalizeclassname",
-      "src_notations_archimate_validator_normalizedclasses",
-      "src_utils_edgerouting",
-      "src_utils_edgerouting_getclosestposition",
-      "src_utils_edgerouting_getdynamicconnection",
-      "src_utils_tests_edgerouting_test",
-      "src_utils_tests_edgerouting_test_makemocknode"
-    ],
-    "8": [
-      "scratch_testworkspacesetup_test",
-      "src_services_graphservice",
+      "src_notations_types_quickactionconfig",
+      "src_schema_graphschema_concepttype",
+      "src_schema_graphschema_elementid",
       "src_services_graphservice_graphservice",
       "src_services_graphservice_graphservice_addconcept",
-      "src_services_graphservice_graphservice_adddomain",
       "src_services_graphservice_graphservice_addpolicy",
       "src_services_graphservice_graphservice_addproperty",
       "src_services_graphservice_graphservice_addrelation",
@@ -445,185 +428,147 @@
       "src_services_graphservice_graphservice_updatepolicy",
       "src_services_graphservice_graphservice_updateproperty",
       "src_services_graphservice_graphservice_updaterelation",
-      "src_services_graphservice_graphservice_updateviewnodeparentid",
-      "src_services_graphservice_graphstatewithselection",
-      "src_services_graphservice_rationale_672"
+      "src_services_graphservice_graphservice_updateviewnodeparentid"
+    ],
+    "8": [
+      "src_core_tests_yamlparser_test",
+      "src_core_tests_yamlparser_test_makeconcept",
+      "src_core_tests_yamlparser_test_makedomain",
+      "src_core_tests_yamlparser_test_makerelation",
+      "src_core_yamlparser",
+      "src_core_yamlparser_statetoyaml",
+      "src_core_yamlparser_viewstoyaml",
+      "src_core_yamlparser_yamlparseerror",
+      "src_core_yamlparser_yamlparseerror_constructor",
+      "src_core_yamlparser_yamltostate",
+      "src_core_yamlparser_yamltoviews",
+      "src_schema_graphschema_graphstate",
+      "src_services_filesystemaccessservice_filesystemaccessservice_setactiveworkspacepath",
+      "src_services_persistenceservice_persistenceservice",
+      "src_services_persistenceservice_persistenceservice_bootstrap",
+      "src_services_persistenceservice_persistenceservice_flush",
+      "src_services_persistenceservice_persistenceservice_getyaml",
+      "src_services_persistenceservice_persistenceservice_loadandmigratelegacy",
+      "src_services_persistenceservice_persistenceservice_loadandmigratesplittypegraph",
+      "src_services_persistenceservice_persistenceservice_loadsplitfiles",
+      "src_services_persistenceservice_persistenceservice_loadworkspace",
+      "src_services_persistenceservice_persistenceservice_parse",
+      "src_services_persistenceservice_persistenceservice_resetfortesting",
+      "src_services_persistenceservice_persistenceservice_saveworkspace",
+      "src_services_persistenceservice_persistenceservice_scheduleautosave",
+      "src_services_persistenceservice_persistenceservice_stringifycurrentstate",
+      "src_services_persistenceservice_persistenceservice_switchworkspace",
+      "src_services_tests_persistenceservice_test"
     ],
     "9": [
-      "specification",
-      "specification_10_1_remote_configuration",
-      "specification_10_2_sync_operations",
-      "specification_10_3_semantisk_konfliktl\u00f8sning_non_technical_ux",
-      "specification_10_4_ui_indikatorer_statusbar",
-      "specification_10_5_data_model_extensions",
-      "specification_10_6_service_layer_contract",
-      "specification_10_7_keyboard_shortcuts_till\u00e6g_til_6",
-      "specification_10_8_sikkerhedsregler",
-      "specification_10_github_integration_remote_sync",
-      "specification_11_smart_semantic_labeling_system",
-      "specification_12_1_streng_adskillelse_af_ui_og_forretningslogik",
-      "specification_12_2_det_interne_api_service_layer",
-      "specification_12_3_envejs_datastr\u00f8m_the_service_pattern",
-      "specification_12_arkitektoniske_regler_service_layer_api_first",
-      "specification_1_terminologi_business_glossary_ssot",
-      "specification_2_teknologistak",
-      "specification_3_datamodel_typescript_specifikation",
-      "specification_4_arkitektur_state_flow_ssot_git",
-      "specification_5_1_design_tokens",
-      "specification_5_2_typografi_sk\u00e6rme",
-      "specification_5_ui_ux_design_system_sk\u00e6rm_specifikationer",
-      "specification_6_keyboard_shortcuts_specifikation_kontekstafh\u00e6ngige",
-      "specification_7_ai_guardrails_teststrategi",
-      "specification_8_implementerings_faser_ai_validation_gates",
-      "specification_9_mappestruktur_feature_sliced_design",
-      "specification_applikations_ui_zoner",
-      "specification_globale_genveje_altid_aktive",
-      "specification_navigation_n\u00e5r_input_ikke_er_aktivt",
-      "specification_system_specifikation_typegraph_local_first_knowledge_graph_concept_editor"
+      "src_core_yamlparser_yamlconcept",
+      "src_schema_graphschema",
+      "src_schema_graphschema_baseentity",
+      "src_schema_graphschema_classconceptnode",
+      "src_schema_graphschema_conceptnodeexport",
+      "src_schema_graphschema_conceptproperty",
+      "src_schema_graphschema_containerconceptnode",
+      "src_schema_graphschema_contextmappingpattern",
+      "src_schema_graphschema_coremodelrole",
+      "src_schema_graphschema_domainconceptnode",
+      "src_schema_graphschema_enumerationconceptnode",
+      "src_schema_graphschema_generalconceptnode",
+      "src_schema_graphschema_generalconcepttypes",
+      "src_schema_graphschema_graphstateexport",
+      "src_schema_graphschema_httpmethod",
+      "src_schema_graphschema_integrationpattern",
+      "src_schema_graphschema_lifecyclestate",
+      "src_schema_graphschema_payloadattributeorigin",
+      "src_schema_graphschema_payloadattributescope",
+      "src_schema_graphschema_policy",
+      "src_schema_graphschema_policytype",
+      "src_schema_graphschema_viewedge",
+      "src_schema_graphschema_viewedgewaypoint",
+      "src_schema_tests_graphschema_test",
+      "src_schema_tests_graphschema_test_baseentity",
+      "src_schema_tests_graphschema_test_now"
     ],
     "10": [
-      "src_features_concepts_nodecreator",
-      "src_features_concepts_nodecreator_nodecreator",
-      "src_features_modelexplorer_createviewmodal",
-      "src_features_modelexplorer_createviewmodal_createviewmodal",
-      "src_features_modelexplorer_createviewmodal_view_type_descriptions",
-      "src_features_modelexplorer_createviewmodal_viewtypecard",
-      "src_features_modelexplorer_createviewmodal_viewtypecardprops",
-      "src_features_modelexplorer_modelexplorer",
-      "src_features_modelexplorer_modelexplorer_getfolderlabel",
-      "src_features_modelexplorer_modelexplorer_modelexplorer",
-      "src_features_modelexplorer_modelexplorer_modelexplorerprops",
-      "src_features_modelexplorer_modelexplorer_preferred_order",
-      "src_features_modelexplorer_modelexplorer_type_headers",
-      "src_features_modelexplorer_modelexplorer_typeicon",
-      "src_features_modelexplorer_modelexplorer_viewtypeicon",
-      "src_features_relations_relationbuilder",
-      "src_features_relations_relationbuilder_concept_types",
-      "src_features_relations_relationbuilder_contextual_relations",
-      "src_features_relations_relationbuilder_default_relations",
-      "src_features_relations_relationbuilder_getdisplaylabelfortype",
-      "src_features_relations_relationbuilder_relationbuilder",
-      "src_features_relations_relationbuilder_relationoption",
-      "src_features_relations_relationbuilder_relationship_descriptions",
-      "src_notations_notationregistry",
-      "src_notations_notationregistry_notationregistry",
-      "src_schema_graphschema_concepttype",
-      "src_utils_virtualtype",
-      "src_utils_virtualtype_getvirtualtype"
+      "src_schema_graphschema_toelementid",
+      "src_schema_graphschema_viewtype",
+      "src_test_fixtures_graphfixture",
+      "src_test_fixtures_graphfixture_createbenchmarkgraph",
+      "src_test_fixtures_graphfixture_createmocknode",
+      "src_test_fixtures_graphfixture_createmockrelation",
+      "src_test_fixtures_graphfixture_createmockview",
+      "src_test_fixtures_graphfixture_createmockviewnode",
+      "src_test_fixtures_graphfixture_now",
+      "src_test_fixtures_notations_archimatefixture",
+      "src_test_fixtures_notations_archimatefixture_createarchimatefixture",
+      "src_test_fixtures_notations_c4fixture",
+      "src_test_fixtures_notations_c4fixture_createc4fixture",
+      "src_test_fixtures_notations_conceptualfixture",
+      "src_test_fixtures_notations_conceptualfixture_createconceptualmodelfixture",
+      "src_test_fixtures_notations_dcrfixture",
+      "src_test_fixtures_notations_dcrfixture_createdcrfixture",
+      "src_test_fixtures_notations_eventmodelingfixture",
+      "src_test_fixtures_notations_eventmodelingfixture_createeventmodelingfixture",
+      "src_test_fixtures_notations_informationfixture",
+      "src_test_fixtures_notations_informationfixture_createinformationmodelfixture",
+      "src_test_fixtures_notations_knowledgegraphfixture",
+      "src_test_fixtures_notations_knowledgegraphfixture_createknowledgegraphfixture",
+      "src_test_fixtures_notations_logicalfixture",
+      "src_test_fixtures_notations_logicalfixture_createlogicalmodelfixture",
+      "src_test_performance_canvasbenchmark_test"
     ],
     "11": [
-      "src_features_ai_components_aichatpanel_aichatpanel",
-      "src_features_ai_components_aichatpanel_parsechainofthought",
-      "src_features_ai_components_aichatpanel_parsequickreplies",
-      "src_features_ai_services_aiservice",
-      "src_features_ai_services_aiservice_aichatmessage",
-      "src_features_ai_services_aiservice_aiservice",
-      "src_features_ai_services_aiservice_aiservice_cancelunloadonmount",
-      "src_features_ai_services_aiservice_aiservice_cleanresponsetext",
-      "src_features_ai_services_aiservice_aiservice_generatedefinition",
-      "src_features_ai_services_aiservice_aiservice_generatesystemprompt",
-      "src_features_ai_services_aiservice_aiservice_getengine",
-      "src_features_ai_services_aiservice_aiservice_getwebgpuhelpmessage",
-      "src_features_ai_services_aiservice_aiservice_resetinactivitytimer",
-      "src_features_ai_services_aiservice_aiservice_scheduleunloadonunmount",
-      "src_features_ai_services_aiservice_aiservice_sendchatmessage",
-      "src_features_ai_services_aiservice_aiservice_unloadengine",
-      "src_features_ai_services_aiservice_aiservice_validatecommands",
-      "src_features_ai_services_aiservice_buildoutputformatblock",
-      "src_features_ai_services_aiservice_extractjsonblocks",
-      "src_features_ai_services_aiservice_getnotationguidelines",
-      "src_features_ai_services_aiservice_normalizecommand",
-      "src_features_ai_services_aiservice_normalizeconcepttype",
-      "src_features_ai_services_aiservice_parseproposedcommands",
-      "src_features_ai_services_aiservice_repairjson",
-      "src_features_ai_services_aiservice_valid_concept_types",
-      "src_features_ai_store_useaistore_proposedcommandinput",
-      "src_features_ai_tests_aiservice_test"
+      "src_app",
+      "src_app_aichatpanel",
+      "src_app_app",
+      "src_app_codeviewport",
+      "src_app_commandoverlay",
+      "src_app_conflictresolvermodal",
+      "src_app_createviewmodal",
+      "src_app_deleteconceptmodal",
+      "src_app_deleteviewmodal",
+      "src_app_diffviewport",
+      "src_app_empty_history",
+      "src_app_helpcenter",
+      "src_app_nodecreator",
+      "src_app_relationbuilder",
+      "src_app_remoteconfigmodal",
+      "src_app_workspaceswitchermodal",
+      "src_components_ui_header",
+      "src_components_ui_header_header",
+      "src_components_ui_header_headerprops",
+      "src_features_viewport_viewtoolbar",
+      "src_features_viewport_viewtoolbar_layout_options",
+      "src_features_viewport_viewtoolbar_viewtoolbar",
+      "src_schema_graphschema_layoutalgorithm",
+      "src_store_usegraphstore_usetemporalstore"
     ],
     "12": [
-      "src_notations_event_modeling_index",
-      "src_notations_event_modeling_index_dcrruleselect",
-      "src_notations_event_modeling_index_dcrruleselectprops",
-      "src_notations_event_modeling_index_em_edge_colors",
-      "src_notations_event_modeling_index_em_styles",
-      "src_notations_event_modeling_index_em_type_labels",
-      "src_notations_event_modeling_index_emchapternode",
-      "src_notations_event_modeling_index_emelementnode",
-      "src_notations_event_modeling_index_emnodedata",
-      "src_notations_event_modeling_index_emnodetype",
-      "src_notations_event_modeling_index_emslicenode",
-      "src_notations_event_modeling_index_eventmodelingcanvas",
-      "src_notations_event_modeling_index_eventmodelinginspector",
-      "src_notations_event_modeling_index_eventmodelingnodecomponent",
-      "src_notations_event_modeling_index_eventmodelingnotation",
-      "src_notations_event_modeling_index_eventmodelingrelationinspector",
-      "src_notations_event_modeling_index_formatpoliciestogherkinstring",
-      "src_notations_event_modeling_index_gherkintexteditor",
-      "src_notations_event_modeling_index_parsegherkinstringtopolicies",
-      "src_notations_event_modeling_validator",
-      "src_notations_event_modeling_validator_dcr_relations",
-      "src_notations_event_modeling_validator_em_element_types",
-      "src_notations_event_modeling_validator_getavailablerelations",
-      "src_notations_event_modeling_validator_isvalidrelation",
-      "src_notations_event_modeling_validator_relation_labels",
-      "src_notations_event_modeling_validator_relationsuggestion",
-      "src_notations_event_modeling_validator_valid_em_connections"
-    ],
-    "13": [
-      "src_features_ai_services_graphdiagnostics_diagnosticissue",
+      "src_core_monacoloader",
+      "src_features_commands_commandoverlay",
+      "src_features_commands_commandoverlay_commanditem",
+      "src_features_commands_commandoverlay_commandoverlay",
+      "src_features_commands_commandoverlay_quickfindprops",
+      "src_features_concepts_nodecreator",
+      "src_features_concepts_nodecreator_nodecreator",
+      "src_features_conflicts_remoteconfigmodal",
+      "src_features_conflicts_remoteconfigmodal_field",
+      "src_features_conflicts_remoteconfigmodal_remoteconfigmodal",
+      "src_features_conflicts_remoteconfigmodal_remoteconfigmodalprops",
       "src_features_modelexplorer_deleteviewmodal",
       "src_features_modelexplorer_deleteviewmodal_deleteviewmodal",
       "src_features_modelexplorer_deleteviewmodal_typeicon",
-      "src_features_viewport_notationcanvaswrapper",
-      "src_features_viewport_notationcanvaswrapper_notationcanvaswrapperprops",
-      "src_notations_types_notationcanvasprops",
-      "src_schema_graphschema_baseconceptnode",
-      "src_schema_graphschema_conceptproperty",
-      "src_schema_graphschema_dataclassification",
-      "src_schema_graphschema_datatype",
-      "src_schema_graphschema_elementid",
-      "src_schema_graphschema_viewnode",
-      "src_services_credentialservice_remoteconfig",
-      "src_services_gitservice_pullresult",
-      "src_services_persistenceservice_bootstrapresult",
-      "src_store_usegraphstore",
-      "src_store_usegraphstore_graphstorestate",
-      "src_store_usegraphstore_graphstorewithtemporal",
-      "src_store_usegraphstore_lastsavedstate",
-      "src_store_usegraphstore_navigatetoolbar",
-      "src_store_usegraphstore_persistedstate",
-      "src_store_usegraphstore_rationale_1832",
-      "src_store_usegraphstore_window",
-      "src_types_sync",
-      "src_types_sync_syncstatus"
+      "src_features_properties_policyeditor",
+      "src_features_properties_policyeditor_gherkinsection",
+      "src_features_properties_policyeditor_gherkinsectionprops",
+      "src_features_properties_policyeditor_policyeditor",
+      "src_features_viewport_code_diffviewport",
+      "src_features_viewport_code_diffviewport_diffviewport",
+      "src_features_viewport_graph_deleteconceptmodal",
+      "src_features_viewport_graph_deleteconceptmodal_deleteconceptmodal",
+      "src_store_tests_stability_test",
+      "src_store_usegraphstore_usegraphstore"
     ],
-    "14": [
-      "readme",
-      "readme_2_dynamiske_relationer",
-      "readme_4_fundamentale_grundregler",
-      "readme_archimate",
-      "readme_architektur_notationer",
-      "readme_authentication_guide",
-      "readme_begrebsmodel",
-      "readme_bpmn_er_et_flowchart_imperativt",
-      "readme_c4",
-      "readme_dcr_er_et_regels\u00e6t_deklarativt_og_h\u00e6ndelsesdrevet",
-      "readme_dynamic_response_condition_graph_dcr_graph",
-      "readme_getting_started",
-      "readme_github_fine_grained_tokens",
-      "readme_gitlab_fine_grained_tokens_beta",
-      "readme_how_to_sync",
-      "readme_informationsmodel",
-      "readme_key_features",
-      "readme_keyboard_first_modeling",
-      "readme_knowledge_graph_studio",
-      "readme_local_first_persistence",
-      "readme_multi_dimensional_viewports",
-      "readme_remote_git_sync",
-      "readme_tech_stack",
-      "readme_the_vision"
-    ],
-    "15": [
+    "13": [
       "ref_dom",
       "ref_src",
       "ref_vite_client",
@@ -648,7 +593,32 @@
       "tsconfig_app_include",
       "tsconfig_app_json_ref_es2023"
     ],
-    "16": [
+    "14": [
+      "src_core_filesystem",
+      "src_core_filesystem_deletelegacyfiles",
+      "src_core_filesystem_ensureworkspacedir",
+      "src_core_filesystem_getfspromises",
+      "src_core_filesystem_legacymodelyamlexists",
+      "src_core_filesystem_legacyyamlexists",
+      "src_core_filesystem_modelyamlexists",
+      "src_core_filesystem_readlegacymodelyaml",
+      "src_core_filesystem_readlegacyviewsyaml",
+      "src_core_filesystem_readlegacyyaml",
+      "src_core_filesystem_readmodelyaml",
+      "src_core_filesystem_readviewsyaml",
+      "src_core_filesystem_readyaml",
+      "src_core_filesystem_viewsyamlexists",
+      "src_core_filesystem_writemodelyaml",
+      "src_core_filesystem_writeviewsyaml",
+      "src_core_filesystem_writeyaml",
+      "src_core_filesystem_yamlexists",
+      "src_services_filesystemaccessservice_filesystemaccessservice_getactivehandle",
+      "src_services_filesystemaccessservice_filesystemaccessservice_readfile",
+      "src_services_filesystemaccessservice_filesystemaccessservice_writefile",
+      "src_services_persistenceservice",
+      "src_services_persistenceservice_persistenceservice_writesplitfiles"
+    ],
+    "15": [
       "ref_node",
       "ref_vite_config_ts",
       "tsconfig_node",
@@ -672,56 +642,248 @@
       "tsconfig_node_include",
       "tsconfig_node_json_ref_es2023"
     ],
+    "16": [
+      "src_services_filesystemaccessservice",
+      "src_services_filesystemaccessservice_db",
+      "src_services_filesystemaccessservice_filesystemaccessdatabase",
+      "src_services_filesystemaccessservice_filesystemaccessdatabase_constructor",
+      "src_services_filesystemaccessservice_filesystemaccessservice",
+      "src_services_filesystemaccessservice_filesystemaccessservice_getworkspacehandlestatus",
+      "src_services_filesystemaccessservice_filesystemaccessservice_ispermissiongranted",
+      "src_services_filesystemaccessservice_filesystemaccessservice_loadhandleforworkspace",
+      "src_services_filesystemaccessservice_filesystemaccessservice_requestactivehandlepermission",
+      "src_services_filesystemaccessservice_filesystemaccessservice_setactivehandle",
+      "src_services_filesystemaccessservice_filesystemaccessservice_verifypermission",
+      "src_services_filesystemaccessservice_filesystemhandlewithpermissions",
+      "src_services_filesystemaccessservice_filesystemhandlewithpermissions_querypermission",
+      "src_services_filesystemaccessservice_filesystemhandlewithpermissions_requestpermission",
+      "src_services_filesystemaccessservice_workspacehandlerow",
+      "src_services_tests_filesystemaccessservice_test",
+      "src_services_tests_filesystemaccessservice_test_mockdexie",
+      "src_services_tests_filesystemaccessservice_test_mockdexie_constructor",
+      "src_services_tests_filesystemaccessservice_test_mockdexie_version",
+      "src_services_tests_filesystemaccessservice_test_mocktable"
+    ],
     "17": [
-      "src_features_ai_components_aichatpanel",
-      "src_features_ai_components_aichatpanel_browserlink",
-      "src_features_ai_components_aichatpanel_cleanmathsymbols",
-      "src_features_ai_components_aichatpanel_collapsiblechainofthought",
-      "src_features_ai_components_aichatpanel_parsedmessagecontent",
-      "src_features_ai_components_aichatpanel_parseinlinemarkdown",
-      "src_features_ai_components_aichatpanel_rendermarkdown",
-      "src_features_ai_components_aichatpanel_rendermarkdownprops",
-      "src_features_ai_components_aiconfigmodal",
-      "src_features_ai_components_aiconfigmodal_aiconfigmodal",
-      "src_features_ai_components_aiconfigmodal_aiconfigmodalprops",
-      "src_features_ai_components_aiconfigmodal_field",
-      "src_features_ai_store_useaistore",
-      "src_features_ai_store_useaistore_aistorestate",
-      "src_features_ai_store_useaistore_getorcreatesession",
-      "src_features_ai_store_useaistore_mapinputtocommand",
-      "src_features_ai_store_useaistore_message",
-      "src_features_ai_store_useaistore_proposedcommand",
-      "src_features_ai_store_useaistore_useaistore",
-      "src_features_ai_store_useaistore_viewsession",
-      "src_services_credentialservice_aiconfig"
+      "src_notations_archimate_tests_ontology_test",
+      "src_notations_archimate_validator",
+      "src_notations_archimate_validator_archimate_type_map",
+      "src_notations_archimate_validator_getavailablerelations",
+      "src_notations_archimate_validator_isrelationallowed",
+      "src_notations_archimate_validator_issubclass",
+      "src_notations_archimate_validator_isvalidrelation",
+      "src_notations_archimate_validator_normalizeclassname",
+      "src_notations_archimate_validator_normalizedclasses",
+      "src_notations_c4_tests_ontology_test",
+      "src_notations_c4_validator",
+      "src_notations_c4_validator_c4_type_map",
+      "src_notations_c4_validator_getavailablerelations",
+      "src_notations_c4_validator_isrelationallowed",
+      "src_notations_c4_validator_issubclass",
+      "src_notations_c4_validator_isvalidrelation",
+      "src_notations_c4_validator_normalizeclassname",
+      "src_notations_c4_validator_normalizedclasses"
     ],
     "18": [
-      "agent_skills_wizard_template",
-      "agent_skills_wizard_template_ask",
-      "agent_skills_wizard_template_ask_secret",
-      "agent_skills_wizard_template_banner",
-      "agent_skills_wizard_template_clear",
-      "agent_skills_wizard_template_confirm",
-      "agent_skills_wizard_template_existing",
-      "agent_skills_wizard_template_finish",
-      "agent_skills_wizard_template_note",
-      "agent_skills_wizard_template_open_url",
-      "agent_skills_wizard_template_pause",
-      "agent_skills_wizard_template_say",
-      "agent_skills_wizard_template_set_secret",
-      "agent_skills_wizard_template_set_var",
-      "agent_skills_wizard_template_sh__entry",
-      "agent_skills_wizard_template_stage",
-      "agent_skills_wizard_template_step",
-      "agent_skills_wizard_template_warn",
-      "agent_skills_wizard_template_write_env"
+      "src_features_compiler_index",
+      "src_features_compiler_rdfgenerator",
+      "src_features_compiler_rdfgenerator_emitconceptualmodelprofile",
+      "src_features_compiler_rdfgenerator_emitinformationmodelprofile",
+      "src_features_compiler_rdfgenerator_emitlogicaldatamodelprofile",
+      "src_features_compiler_rdfgenerator_generaterdf",
+      "src_features_compiler_rdfgenerator_mapxsddatatype",
+      "src_features_compiler_rdfgenerator_rdfgeneratoroptions",
+      "src_features_compiler_rdfgenerator_sanitizeiriidentifier",
+      "src_features_compiler_rdfgenerator_tocamelcase",
+      "src_features_compiler_rdfgenerator_topascalcase",
+      "src_features_compiler_tests_logicalrdfgenerator_test",
+      "src_features_compiler_tests_rdfgenerator_test",
+      "src_schema_tests_logicalschema_test",
+      "src_utils_provenance",
+      "src_utils_provenance_entitywithprovenance",
+      "src_utils_provenance_getderivedfrom"
     ],
     "19": [
-      "src_notations_core_model_informationnotation",
-      "src_notations_core_model_informationnotation_informationcanvas",
-      "src_notations_core_model_informationnotation_informationinspector",
-      "src_notations_core_model_informationnotation_informationnotation",
-      "src_notations_core_model_informationnotation_informationrelationinspector",
+      "src_features_properties_inspector",
+      "src_features_properties_inspector_inspector",
+      "src_features_properties_inspector_inspectorsection",
+      "src_features_statusbar_statusbar",
+      "src_features_statusbar_statusbar_pillconfig",
+      "src_features_statusbar_statusbar_statusbar",
+      "src_features_statusbar_statusbar_statusbarprops",
+      "src_features_validation_tests_validation_test",
+      "src_features_validation_usevalidation",
+      "src_features_validation_usevalidation_calculatevalidationwarnings",
+      "src_features_validation_usevalidation_classification_levels",
+      "src_features_validation_usevalidation_getclassificationlevel",
+      "src_features_validation_usevalidation_usevalidationwarnings",
+      "src_features_validation_usevalidation_validationwarning",
+      "src_schema_graphschema_datatype",
+      "src_store_usegraphstore_isedgevisibleforinstances",
+      "src_store_usegraphstore_normalizeviewnodes"
+    ],
+    "20": [
+      "wiki_ref_ontology_archimate",
+      "wiki_ref_ontology_archimate_1_kernestruktur_og_lag_layers",
+      "wiki_ref_ontology_archimate_2_elementklassifikation",
+      "wiki_ref_ontology_archimate_3_relationstyper_og_regler",
+      "wiki_ref_ontology_archimate_4_visuelle_notationstegn_styling",
+      "wiki_ref_ontology_archimate_application_layer",
+      "wiki_ref_ontology_archimate_archimate_3_2_ontologi_metamodelspecifikation",
+      "wiki_ref_ontology_archimate_business_layer",
+      "wiki_ref_ontology_archimate_dependency_relationships_afh\u00e6ngigheder",
+      "wiki_ref_ontology_archimate_dynamic_relationships_dynamiske_relationer",
+      "wiki_ref_ontology_archimate_implementation_migration_layer",
+      "wiki_ref_ontology_archimate_motivation_layer",
+      "wiki_ref_ontology_archimate_other_relationships_andre_relationer",
+      "wiki_ref_ontology_archimate_strategy_layer",
+      "wiki_ref_ontology_archimate_structural_relationships_strukturelle_relationer",
+      "wiki_ref_ontology_archimate_technology_physical_layer"
+    ],
+    "21": [
+      "src_core_filesystem_getremoteurl",
+      "src_core_filesystem_hasgitrepo",
+      "src_core_filesystem_listworkspaces",
+      "src_core_filesystem_recursivedelete",
+      "src_core_filesystem_renameworkspace",
+      "src_core_filesystem_setrepodir",
+      "src_core_tests_filesystem_test",
+      "src_core_tests_filesystem_test_mockfs",
+      "src_features_modelexplorer_workspaceswitchermodal",
+      "src_features_modelexplorer_workspaceswitchermodal_browserinfo",
+      "src_features_modelexplorer_workspaceswitchermodal_detectbrowser",
+      "src_features_modelexplorer_workspaceswitchermodal_getwsname",
+      "src_features_modelexplorer_workspaceswitchermodal_workspaceinfo",
+      "src_features_modelexplorer_workspaceswitchermodal_workspaceswitchermodal",
+      "src_features_modelexplorer_workspaceswitchermodal_workspaceswitchermodalprops"
+    ],
+    "22": [
+      "src_features_ai_store_useaistore_useaistore",
+      "src_features_viewport_canvassearchwidget_canvassearchwidget",
+      "src_features_viewport_canvaszoomcontrols",
+      "src_features_viewport_canvaszoomcontrols_canvaszoomcontrols",
+      "src_features_viewport_canvaszoomcontrols_canvaszoomcontrolsprops",
+      "src_features_viewport_gridmatrixlayout",
+      "src_features_viewport_gridmatrixlayout_calculategridmatrixpositions",
+      "src_features_viewport_gridmatrixlayout_gridnodeinput",
+      "src_features_viewport_gridmatrixlayout_gridnodeposition",
+      "src_features_viewport_notationcanvaswrapper",
+      "src_features_viewport_notationcanvaswrapper_notationcanvaswrapper",
+      "src_features_viewport_notationcanvaswrapper_notationcanvaswrapperprops",
+      "src_schema_graphschema_viewnode",
+      "src_store_selectors",
+      "src_store_selectors_usefocusedgraph"
+    ],
+    "23": [
+      "docs_dkuni_sis_convert_sis_to_yaml",
+      "docs_dkuni_sis_convert_sis_to_yaml_find_column_index",
+      "docs_dkuni_sis_convert_sis_to_yaml_generate_element_id",
+      "docs_dkuni_sis_convert_sis_to_yaml_get_row_val",
+      "docs_dkuni_sis_convert_sis_to_yaml_main",
+      "docs_dkuni_sis_convert_sis_to_yaml_parse_aliases",
+      "docs_dkuni_sis_convert_sis_to_yaml_parse_classification",
+      "docs_dkuni_sis_convert_sis_to_yaml_rationale_25",
+      "docs_dkuni_sis_convert_sis_to_yaml_rationale_29",
+      "docs_dkuni_sis_convert_sis_to_yaml_rationale_39",
+      "docs_dkuni_sis_convert_sis_to_yaml_rationale_48",
+      "docs_dkuni_sis_convert_sis_to_yaml_rationale_56",
+      "docs_dkuni_sis_convert_sis_to_yaml_rationale_63",
+      "docs_dkuni_sis_convert_sis_to_yaml_sanitize_slug"
+    ],
+    "24": [
+      "docs_task",
+      "docs_task_phase_0_baseline_test_harness_infrastructure",
+      "docs_task_phase_10_legacy_cleanup_final_verification",
+      "docs_task_phase_1_common_canvas_policy_contracts_compatibility_adapter",
+      "docs_task_phase_2_shared_floating_handles_conceptual_model_migration",
+      "docs_task_phase_3_information_model_migration",
+      "docs_task_phase_4_logical_data_model_migration",
+      "docs_task_phase_5_knowledge_graph_migration",
+      "docs_task_phase_6_c4_model_migration",
+      "docs_task_phase_7_archimate_migration",
+      "docs_task_phase_8_dcr_model_migration",
+      "docs_task_phase_9_event_modeling_migration",
+      "docs_task_pr_0a_canvas_geometry_adr_supersession_executable_contract",
+      "docs_task_task_breakdown_architecture_notations_refactoring_implementation_plan"
+    ],
+    "25": [
+      "src_schema_graphschema_baseconceptnode",
+      "src_schema_graphschema_dataclassification",
+      "src_services_credentialservice_remoteconfig",
+      "src_services_gitservice_pullresult",
+      "src_services_persistenceservice_bootstrapresult",
+      "src_store_usegraphstore",
+      "src_store_usegraphstore_graphstorestate",
+      "src_store_usegraphstore_graphstorewithtemporal",
+      "src_store_usegraphstore_lastsavedstate",
+      "src_store_usegraphstore_navigatetoolbar",
+      "src_store_usegraphstore_persistedstate",
+      "src_store_usegraphstore_rationale_2544",
+      "src_store_usegraphstore_sanitizerelations",
+      "src_store_usegraphstore_window"
+    ],
+    "26": [
+      "task",
+      "task_phase_0_baseline_test_harness_infrastructure",
+      "task_phase_10_legacy_cleanup_final_verification",
+      "task_phase_1_common_canvas_policy_contracts_compatibility_adapter",
+      "task_phase_2_shared_floating_handles_conceptual_model_migration",
+      "task_phase_3_information_model_migration",
+      "task_phase_4_logical_data_model_migration",
+      "task_phase_5_knowledge_graph_migration",
+      "task_phase_6_c4_model_migration",
+      "task_phase_7_archimate_migration",
+      "task_phase_8_dcr_model_migration",
+      "task_phase_9_event_modeling_migration",
+      "task_pr_0a_canvas_geometry_adr_supersession_executable_contract",
+      "task_task_breakdown_architecture_notations_refactoring_implementation_plan"
+    ],
+    "27": [
+      "docs_adr_0001_contract_first_service_pattern",
+      "docs_adr_0001_contract_first_service_pattern_0001_contract_first_service_pattern",
+      "docs_adr_0001_contract_first_service_pattern_consequences",
+      "docs_adr_0001_contract_first_service_pattern_context",
+      "docs_adr_0001_contract_first_service_pattern_decision",
+      "docs_adr_0001_contract_first_service_pattern_status",
+      "docs_architecture",
+      "docs_architecture_ai_arkitektur_webgpu_lokal_llm",
+      "docs_architecture_contract_first_service_pattern",
+      "docs_architecture_feature_sliced_design_fsd_struktur",
+      "docs_architecture_oversigt_over_xarchi",
+      "docs_architecture_systemarkitektur",
+      "docs_architecture_tilstandsorkestrering_zustand_boundaries"
+    ],
+    "28": [
+      "eslint",
+      "eslint_js",
+      "eslint_plugin_react_refresh",
+      "package_devdependencies",
+      "package_devdependencies_eslint",
+      "package_devdependencies_eslint_js",
+      "package_devdependencies_eslint_plugin_react_refresh",
+      "package_devdependencies_types_d3_force",
+      "package_devdependencies_types_js_yaml",
+      "package_devdependencies_vite",
+      "types_d3_force",
+      "types_js_yaml",
+      "vite"
+    ],
+    "29": [
+      "src_features_compiler_asyncapigenerator",
+      "src_features_compiler_asyncapigenerator_generateasyncapi",
+      "src_features_compiler_asyncapigenerator_mapdatatypetojsonschema",
+      "src_features_compiler_asyncapigenerator_tokebabcase",
+      "src_features_compiler_openapigenerator",
+      "src_features_compiler_openapigenerator_formatgherkindesc",
+      "src_features_compiler_openapigenerator_generateopenapi",
+      "src_features_compiler_openapigenerator_mapdatatypetojsonschema",
+      "src_features_compiler_openapigenerator_tokebabcase",
+      "src_features_compiler_tests_viewfilteredgenerators_test",
+      "src_features_viewport_code_codeviewport",
+      "src_features_viewport_code_codeviewport_codeviewport",
+      "src_features_viewport_code_codeviewport_codeviewportprops"
+    ],
+    "30": [
       "src_notations_core_model_informationvalidator",
       "src_notations_core_model_informationvalidator_conceptual_type_map",
       "src_notations_core_model_informationvalidator_getavailablerelations",
@@ -734,141 +896,38 @@
       "src_notations_core_model_informationvalidator_normalizeclassname",
       "src_notations_core_model_informationvalidator_normalizedconceptualclasses",
       "src_notations_core_model_informationvalidator_normalizedinfoclasses",
-      "src_notations_core_model_sharedcomponents_informationnodecomponent",
       "src_notations_core_model_tests_informationontology_test"
     ],
-    "20": [
-      "agent_wiki_archimate_3_2_ontology",
-      "agent_wiki_archimate_3_2_ontology_10_tilladte_relationsregler_derivation_rules",
-      "agent_wiki_archimate_3_2_ontology_1_kernestruktur_og_lag_layers",
-      "agent_wiki_archimate_3_2_ontology_2_motivationselementer_motivation_elements",
-      "agent_wiki_archimate_3_2_ontology_3_strategilag_strategy_layer",
-      "agent_wiki_archimate_3_2_ontology_4_forretningslag_business_layer",
-      "agent_wiki_archimate_3_2_ontology_5_applikationslag_application_layer",
-      "agent_wiki_archimate_3_2_ontology_6_teknologi_og_fysisk_lag_technology_physical_layer",
-      "agent_wiki_archimate_3_2_ontology_7_implementerings_og_migrationslag_implementation_migration_layer",
-      "agent_wiki_archimate_3_2_ontology_8_sammensatte_og_andre_elementer_composite_other_elements",
-      "agent_wiki_archimate_3_2_ontology_9_relationer_relationships",
-      "agent_wiki_archimate_3_2_ontology_afh\u00e6ngighedsrelationer_dependency",
-      "agent_wiki_archimate_3_2_ontology_andre_relationer",
-      "agent_wiki_archimate_3_2_ontology_archimate_3_2_ontologi_metamodelspecifikation",
-      "agent_wiki_archimate_3_2_ontology_dynamiske_relationer_dynamic",
-      "agent_wiki_archimate_3_2_ontology_fysiske_elementer_physical_layer",
-      "agent_wiki_archimate_3_2_ontology_strukturelle_relationer_structural",
-      "agent_wiki_archimate_3_2_ontology_teknologi_infrastruktur"
+    "31": [
+      "wiki_ref_notation_mapping_matrix",
+      "wiki_ref_notation_mapping_matrix_application_layer_elements",
+      "wiki_ref_notation_mapping_matrix_business_layer_elements",
+      "wiki_ref_notation_mapping_matrix_concept_type_overlap_matrix",
+      "wiki_ref_notation_mapping_matrix_conceptual_logical_data_elements",
+      "wiki_ref_notation_mapping_matrix_core_common_elements",
+      "wiki_ref_notation_mapping_matrix_implementation_migration_layer_elements",
+      "wiki_ref_notation_mapping_matrix_key_overlaps_and_semantic_bridging",
+      "wiki_ref_notation_mapping_matrix_motivation_layer_elements",
+      "wiki_ref_notation_mapping_matrix_notation_and_concept_type_mapping_matrix",
+      "wiki_ref_notation_mapping_matrix_strategy_layer_elements",
+      "wiki_ref_notation_mapping_matrix_technology_physical_layer_elements",
+      "wiki_ref_notation_mapping_matrix_validation_and_constraint_rules"
     ],
-    "21": [
-      "src_notations_dcr_index",
-      "src_notations_dcr_index_dcrcanvas",
-      "src_notations_dcr_index_dcrinspector",
-      "src_notations_dcr_index_dcrnodecomponent",
-      "src_notations_dcr_index_dcrnotation",
-      "src_notations_dcr_index_dcrsimulationcontrols",
-      "src_notations_dcr_index_dcrstate",
-      "src_notations_dcr_index_usedcrsimulationstore",
-      "src_notations_dcr_tests_ontology_test",
-      "src_notations_dcr_validator",
-      "src_notations_dcr_validator_dcr_type_map",
-      "src_notations_dcr_validator_getavailablerelations",
-      "src_notations_dcr_validator_isrelationallowed",
-      "src_notations_dcr_validator_issubclass",
-      "src_notations_dcr_validator_isvalidrelation",
-      "src_notations_dcr_validator_normalizeclassname",
-      "src_notations_dcr_validator_normalizedclasses"
+    "32": [
+      "docs_adr_0005_secure_credentials_handling",
+      "docs_adr_0005_secure_credentials_handling_0005_secure_credentials_handling",
+      "docs_adr_0005_secure_credentials_handling_consequences",
+      "docs_adr_0005_secure_credentials_handling_context",
+      "docs_adr_0005_secure_credentials_handling_decision",
+      "docs_adr_0005_secure_credentials_handling_status",
+      "src_services_readme",
+      "src_services_readme_git_engine_og_commits",
+      "src_services_readme_semantisk_konfliktl\u00f8sning",
+      "src_services_readme_sikker_h\u00e5ndtering_af_credentials",
+      "src_services_readme_sync_git_services_reference",
+      "src_services_readme_virtuelt_filsystem_lightning_fs"
     ],
-    "22": [
-      "src_features_compiler_arazzogenerator_generatearazzo",
-      "src_features_compiler_arazzogenerator_tokebabcase",
-      "src_features_compiler_asyncapigenerator",
-      "src_features_compiler_asyncapigenerator_generateasyncapi",
-      "src_features_compiler_asyncapigenerator_mapdatatypetojsonschema",
-      "src_features_compiler_asyncapigenerator_tokebabcase",
-      "src_features_compiler_openapigenerator",
-      "src_features_compiler_openapigenerator_formatgherkindesc",
-      "src_features_compiler_openapigenerator_generateopenapi",
-      "src_features_compiler_openapigenerator_mapdatatypetojsonschema",
-      "src_features_compiler_openapigenerator_tokebabcase",
-      "src_features_viewport_code_codeviewport",
-      "src_features_viewport_code_codeviewport_codeviewport",
-      "src_features_viewport_code_codeviewport_codeviewportprops",
-      "src_utils_debounce",
-      "src_utils_debounce_debounce"
-    ],
-    "23": [
-      "agent_wiki_concept_type_matrix",
-      "agent_wiki_concept_type_matrix_application_layer_elements",
-      "agent_wiki_concept_type_matrix_business_layer_elements",
-      "agent_wiki_concept_type_matrix_concept_type_overlap_matrix",
-      "agent_wiki_concept_type_matrix_conceptual_logical_data_elements",
-      "agent_wiki_concept_type_matrix_core_common_elements",
-      "agent_wiki_concept_type_matrix_implementation_migration_layer_elements",
-      "agent_wiki_concept_type_matrix_key_overlaps_and_semantic_bridging",
-      "agent_wiki_concept_type_matrix_motivation_layer_elements",
-      "agent_wiki_concept_type_matrix_notation_and_concept_type_mapping_matrix",
-      "agent_wiki_concept_type_matrix_strategy_layer_elements",
-      "agent_wiki_concept_type_matrix_technology_physical_layer_elements",
-      "agent_wiki_concept_type_matrix_validation_and_constraint_rules"
-    ],
-    "24": [
-      "agent_wiki_dcr_graphs_ontology",
-      "agent_wiki_dcr_graphs_ontology_compiler_and_validation",
-      "agent_wiki_dcr_graphs_ontology_core_classes",
-      "agent_wiki_dcr_graphs_ontology_core_relations",
-      "agent_wiki_dcr_graphs_ontology_dcr_graphs_ontology_notation_plugin",
-      "agent_wiki_dcr_graphs_ontology_enabling_rules",
-      "agent_wiki_dcr_graphs_ontology_interactive_simulator_engine",
-      "agent_wiki_dcr_graphs_ontology_ontology_structure",
-      "agent_wiki_dcr_graphs_ontology_overview",
-      "agent_wiki_dcr_graphs_ontology_propagation_rules",
-      "agent_wiki_dcr_graphs_ontology_runtime_marking_state",
-      "agent_wiki_dcr_graphs_ontology_state_management",
-      "agent_wiki_dcr_graphs_ontology_visual_notation_css"
-    ],
-    "25": [
-      "eslint_js",
-      "eslint_plugin_react_hooks",
-      "eslint_plugin_react_refresh",
-      "package_devdependencies",
-      "package_devdependencies_eslint_js",
-      "package_devdependencies_eslint_plugin_react_hooks",
-      "package_devdependencies_eslint_plugin_react_refresh",
-      "package_devdependencies_types_d3_force",
-      "package_devdependencies_types_js_yaml",
-      "package_devdependencies_vite",
-      "types_d3_force",
-      "types_js_yaml",
-      "vite"
-    ],
-    "26": [
-      "src_features_conflicts_conflictresolvermodal",
-      "src_features_conflicts_conflictresolvermodal_buildconflictitems",
-      "src_features_conflicts_conflictresolvermodal_buildmergedstate",
-      "src_features_conflicts_conflictresolvermodal_conceptcard",
-      "src_features_conflicts_conflictresolvermodal_conflictitem",
-      "src_features_conflicts_conflictresolvermodal_conflictresolvermodal",
-      "src_features_conflicts_conflictresolvermodal_conflictresolvermodalprops",
-      "src_features_conflicts_conflictresolvermodal_emptyslot",
-      "src_features_conflicts_conflictresolvermodal_getdifffields",
-      "src_features_conflicts_conflictresolvermodal_parsedstate",
-      "src_features_conflicts_conflictresolvermodal_parseornull",
-      "src_features_conflicts_conflictresolvermodal_side",
-      "src_schema_graphschema_domain"
-    ],
-    "27": [
-      "implementation_plan",
-      "implementation_plan_automated_tests",
-      "implementation_plan_component_git_engine",
-      "implementation_plan_component_git_service",
-      "implementation_plan_component_tests",
-      "implementation_plan_implementation_plan_versioning_staging_views_in_git",
-      "implementation_plan_manual_verification",
-      "implementation_plan_modify_gitengine_test_ts_file_home_rolfmadsen_github_knowledgegraphstudio_src_core_tests_gitengine_test_ts",
-      "implementation_plan_modify_gitengine_ts_file_home_rolfmadsen_github_knowledgegraphstudio_src_core_gitengine_ts",
-      "implementation_plan_modify_gitservice_ts_file_home_rolfmadsen_github_knowledgegraphstudio_src_services_gitservice_ts",
-      "implementation_plan_proposed_changes",
-      "implementation_plan_verification_plan"
-    ],
-    "28": [
+    "33": [
       "package_scripts",
       "package_scripts_build",
       "package_scripts_copy_monaco",
@@ -881,32 +940,20 @@
       "package_scripts_start",
       "package_scripts_test"
     ],
-    "29": [
-      "wiki_event_modeling_navigation",
-      "wiki_event_modeling_navigation_1_swimlane_layout_rows",
-      "wiki_event_modeling_navigation_2_toolbar_spatial_quick_actions_sibling_slices",
-      "wiki_event_modeling_navigation_3_keyboard_navigation_controls",
-      "wiki_event_modeling_navigation_automation_row_5",
-      "wiki_event_modeling_navigation_command_row_1",
-      "wiki_event_modeling_navigation_event_modeling_spatial_relationships_keyboard_navigation",
-      "wiki_event_modeling_navigation_event_row_2",
-      "wiki_event_modeling_navigation_integration_event_row_4",
-      "wiki_event_modeling_navigation_read_model_row_3",
-      "wiki_event_modeling_navigation_screen_row_0"
+    "34": [
+      "src_features_conflicts_conflictresolvermodal",
+      "src_features_conflicts_conflictresolvermodal_buildconflictitems",
+      "src_features_conflicts_conflictresolvermodal_buildmergedstate",
+      "src_features_conflicts_conflictresolvermodal_conceptcard",
+      "src_features_conflicts_conflictresolvermodal_conflictitem",
+      "src_features_conflicts_conflictresolvermodal_conflictresolvermodal",
+      "src_features_conflicts_conflictresolvermodal_conflictresolvermodalprops",
+      "src_features_conflicts_conflictresolvermodal_emptyslot",
+      "src_features_conflicts_conflictresolvermodal_getdifffields",
+      "src_features_conflicts_conflictresolvermodal_parseornull",
+      "src_features_conflicts_conflictresolvermodal_side"
     ],
-    "30": [
-      "agent_wiki_specifications_reference",
-      "agent_wiki_specifications_reference_arazzo_specification",
-      "agent_wiki_specifications_reference_asyncapi_specification_v3_0_0",
-      "agent_wiki_specifications_reference_core_arazzo_structure",
-      "agent_wiki_specifications_reference_core_asyncapi_structure",
-      "agent_wiki_specifications_reference_core_openapi_structure",
-      "agent_wiki_specifications_reference_dcr_mapping_rules",
-      "agent_wiki_specifications_reference_event_modeling_mapping_rules",
-      "agent_wiki_specifications_reference_openapi_specification_v3_2_0",
-      "agent_wiki_specifications_reference_specifications_reference"
-    ],
-    "31": [
+    "35": [
       "src_features_help_helpcenter",
       "src_features_help_helpcenter_dcrmatrixstep",
       "src_features_help_helpcenter_dcrmatrixstepprops",
@@ -916,97 +963,169 @@
       "src_features_help_helpcenter_gitguidestepprops",
       "src_features_help_helpcenter_helpcenter",
       "src_features_help_helpcenter_shortcutgroup",
-      "src_features_help_helpcenter_shortcutgroupprops"
-    ],
-    "32": [
-      "agent_wiki_c4_model_ontology",
-      "agent_wiki_c4_model_ontology_c4_model_ontology_notation_plugin",
-      "agent_wiki_c4_model_ontology_compiler_and_validation",
-      "agent_wiki_c4_model_ontology_core_classes",
-      "agent_wiki_c4_model_ontology_core_relations",
-      "agent_wiki_c4_model_ontology_element_attributes_data_properties",
-      "agent_wiki_c4_model_ontology_ontology_structure",
-      "agent_wiki_c4_model_ontology_overview",
-      "agent_wiki_c4_model_ontology_rules_enforced"
-    ],
-    "33": [
-      "agent_wiki_troubleshooting",
-      "agent_wiki_troubleshooting_fastl\u00e5ste_og_hoppende_edge_segmenter_under_tr\u00e6kning_sticky_segment_snapping",
-      "agent_wiki_troubleshooting_fejlfinding_og_erfaringer_troubleshooting_learnings",
-      "agent_wiki_troubleshooting_json_parsing_reflection_loop_i_ai_service",
-      "agent_wiki_troubleshooting_konflikt_loop_og_tabte_visninger_yaml_parser_code_viewport",
-      "agent_wiki_troubleshooting_lighthouse_performance_animation_udfordringer",
-      "agent_wiki_troubleshooting_manglende_synkronisering_af_forretningsmetadata_p\u00e5_canvasset",
-      "agent_wiki_troubleshooting_navnekollision_ved_hurtig_oprettelse_af_noder_via_nodetoolbar",
-      "agent_wiki_troubleshooting_react_flow_parent_node_advarsel"
-    ],
-    "34": [
-      "roadmap",
-      "roadmap_1_semantisk_r\u00e6sonnering_afledte_relationer_archimate_inferences",
-      "roadmap_2_notationsspecifikke_auto_layouts_layout_engines_per_notation",
-      "roadmap_3_informationsmodel_owl_ontologi_validering",
-      "roadmap_4_f\u00f8dereret_over_ontologi_til_knowledge_graph_global_explorer",
-      "roadmap_anvendelsesscenarier",
-      "roadmap_beskrivelse",
-      "roadmap_tekniske_overvejelser",
-      "roadmap_typegraph_roadmap"
-    ],
-    "35": [
-      "agent_wiki_data_modeling_ontologies",
-      "agent_wiki_data_modeling_ontologies_1_conceptual_model_begrebsmodel",
-      "agent_wiki_data_modeling_ontologies_2_information_model_informationsmodel",
-      "agent_wiki_data_modeling_ontologies_data_modeling_ontologies_begrebsmodel_informationsmodel",
-      "agent_wiki_data_modeling_ontologies_ontology_structure_conceptual_ontology_ttl",
-      "agent_wiki_data_modeling_ontologies_ontology_structure_information_ontology_ttl",
-      "agent_wiki_data_modeling_ontologies_validation_rules_conceptualvalidator_ts",
-      "agent_wiki_data_modeling_ontologies_validation_rules_informationvalidator_ts"
+      "src_features_help_helpcenter_shortcutgroupprops",
+      "src_features_help_tests_helpcenter_test"
     ],
     "36": [
-      "agent_wiki_architecture",
-      "agent_wiki_architecture_ai_arkitektur_webgpu_lokal_llm",
-      "agent_wiki_architecture_contract_first_service_pattern",
-      "agent_wiki_architecture_feature_sliced_design_fsd_struktur",
-      "agent_wiki_architecture_oversigt_over_typegraph",
-      "agent_wiki_architecture_systemarkitektur",
-      "agent_wiki_architecture_tilstandsorkestrering_zustand_boundaries"
+      "src_features_modelexplorer_modelexplorer",
+      "src_features_modelexplorer_modelexplorer_getfolderlabel",
+      "src_features_modelexplorer_modelexplorer_modelexplorer",
+      "src_features_modelexplorer_modelexplorer_modelexplorerprops",
+      "src_features_modelexplorer_modelexplorer_preferred_order",
+      "src_features_modelexplorer_modelexplorer_type_headers",
+      "src_features_modelexplorer_modelexplorer_typeicon",
+      "src_features_modelexplorer_modelexplorer_viewtypeicon",
+      "src_notations_notationregistry_notationregistry",
+      "src_utils_virtualtype",
+      "src_utils_virtualtype_getvirtualtype"
     ],
     "37": [
-      "agent_wiki_conventions",
-      "agent_wiki_conventions_kode_og_udviklingskonventioner",
-      "agent_wiki_conventions_skema_og_datamodel_regler",
-      "agent_wiki_conventions_test_og_kvalitetssikrings_workflow",
-      "agent_wiki_conventions_typescript_standarder_og_imports",
-      "agent_wiki_conventions_ui_komponent_retningslinjer",
-      "agent_wiki_conventions_zustand_zundo_state_management"
+      "src_notations_core_model_conceptualvalidator",
+      "src_notations_core_model_conceptualvalidator_conceptual_type_map",
+      "src_notations_core_model_conceptualvalidator_getavailablerelations",
+      "src_notations_core_model_conceptualvalidator_isrelationallowed",
+      "src_notations_core_model_conceptualvalidator_issubclass",
+      "src_notations_core_model_conceptualvalidator_isvalidrelation",
+      "src_notations_core_model_conceptualvalidator_mapdanishrelation",
+      "src_notations_core_model_conceptualvalidator_normalizeclassname",
+      "src_notations_core_model_conceptualvalidator_normalizedclasses",
+      "src_notations_core_model_conceptualvalidator_rationale_105",
+      "src_notations_core_model_tests_conceptualontology_test"
     ],
     "38": [
-      "agent_wiki_dcr_ui_wizard_wireframe",
-      "agent_wiki_dcr_ui_wizard_wireframe_case_1_prerequisites_conditions",
-      "agent_wiki_dcr_ui_wizard_wireframe_case_2_triggers_responses",
-      "agent_wiki_dcr_ui_wizard_wireframe_dcr_ui_wizard_ux_wireframe_data_mapping",
-      "agent_wiki_dcr_ui_wizard_wireframe_inspector_ui_layout_wireframe",
-      "agent_wiki_dcr_ui_wizard_wireframe_interaction_flow_zustand_mutations",
-      "agent_wiki_dcr_ui_wizard_wireframe_why_this_approach_succeeds"
+      "wiki_guide_event_modeling",
+      "wiki_guide_event_modeling_1_swimlane_layout_rows",
+      "wiki_guide_event_modeling_2_toolbar_spatial_quick_actions_sibling_slices",
+      "wiki_guide_event_modeling_3_keyboard_navigation_controls",
+      "wiki_guide_event_modeling_automation_row_5",
+      "wiki_guide_event_modeling_command_row_1",
+      "wiki_guide_event_modeling_event_modeling_spatial_relationships_keyboard_navigation",
+      "wiki_guide_event_modeling_event_row_2",
+      "wiki_guide_event_modeling_integration_event_row_4",
+      "wiki_guide_event_modeling_read_model_row_3",
+      "wiki_guide_event_modeling_screen_row_0"
     ],
     "39": [
-      "agent_wiki_federated_over_ontology",
-      "agent_wiki_federated_over_ontology_consistency_rules_enforced",
-      "agent_wiki_federated_over_ontology_federated_over_ontology_global_validation",
-      "agent_wiki_federated_over_ontology_global_validation_engine_usevalidation_ts",
-      "agent_wiki_federated_over_ontology_over_ontology_structure_global_ontology_ttl",
-      "agent_wiki_federated_over_ontology_overview",
-      "agent_wiki_federated_over_ontology_ui_components"
+      "src_features_compiler_readme",
+      "src_features_compiler_readme_arazzo_specification",
+      "src_features_compiler_readme_asyncapi_specification_v3_0_0",
+      "src_features_compiler_readme_compiler_specifications_reference",
+      "src_features_compiler_readme_core_arazzo_structure",
+      "src_features_compiler_readme_core_asyncapi_structure",
+      "src_features_compiler_readme_core_openapi_structure",
+      "src_features_compiler_readme_dcr_mapping_rules",
+      "src_features_compiler_readme_event_modeling_mapping_rules",
+      "src_features_compiler_readme_openapi_specification_v3_2_0"
     ],
     "40": [
-      "agent_wiki_ui_and_shortcuts",
-      "agent_wiki_ui_and_shortcuts_brugergr\u00e6nseflade_keyboard_first",
-      "agent_wiki_ui_and_shortcuts_keyboard_navigation_genveje",
-      "agent_wiki_ui_and_shortcuts_monaco_editor_integration_focus_escape",
-      "agent_wiki_ui_and_shortcuts_node_oprettelse_nodecreator_modal",
-      "agent_wiki_ui_and_shortcuts_sk\u00e6rmzoner_zone_1_4",
-      "agent_wiki_ui_and_shortcuts_smart_semantisk_labeling_system"
+      "src_schema_readme",
+      "src_schema_readme_base_entities",
+      "src_schema_readme_concept_node_concepts",
+      "src_schema_readme_concept_property",
+      "src_schema_readme_concept_relation_relations",
+      "src_schema_readme_domain",
+      "src_schema_readme_element_identifiers",
+      "src_schema_readme_logical_data_model_schema_reference",
+      "src_schema_readme_policy",
+      "src_schema_readme_typescript_interfaces"
     ],
     "41": [
+      "docs_adr_0006_canvas_node_sizing_and_edge_handle_centering",
+      "docs_adr_0006_canvas_node_sizing_and_edge_handle_centering_1_native_css_flexbox_auto_expansion_minheight",
+      "docs_adr_0006_canvas_node_sizing_and_edge_handle_centering_2_reactflow_measured_height_exact_handle_center_anchoring",
+      "docs_adr_0006_canvas_node_sizing_and_edge_handle_centering_3_gutter_based_multi_slice_edge_routing",
+      "docs_adr_0006_canvas_node_sizing_and_edge_handle_centering_4_single_source_of_truth_sizing_helpers_src_utils_edgerouting_ts",
+      "docs_adr_0006_canvas_node_sizing_and_edge_handle_centering_6_dynamic_canvas_node_sizing_css_flex_responsiveness_edge_handle_visual_centering",
+      "docs_adr_0006_canvas_node_sizing_and_edge_handle_centering_consequences",
+      "docs_adr_0006_canvas_node_sizing_and_edge_handle_centering_context",
+      "docs_adr_0006_canvas_node_sizing_and_edge_handle_centering_decision"
+    ],
+    "42": [
+      "docs_troubleshooting",
+      "docs_troubleshooting_fastl\u00e5ste_og_hoppende_edge_segmenter_under_tr\u00e6kning_sticky_segment_snapping",
+      "docs_troubleshooting_fejlfinding_og_erfaringer_troubleshooting_learnings",
+      "docs_troubleshooting_json_parsing_reflection_loop_i_ai_service",
+      "docs_troubleshooting_konflikt_loop_og_tabte_visninger_yaml_parser_code_viewport",
+      "docs_troubleshooting_lighthouse_performance_animation_udfordringer",
+      "docs_troubleshooting_manglende_synkronisering_af_forretningsmetadata_p\u00e5_canvasset",
+      "docs_troubleshooting_navnekollision_ved_hurtig_oprettelse_af_noder_via_nodetoolbar",
+      "docs_troubleshooting_react_flow_parent_node_advarsel"
+    ],
+    "43": [
+      "src_core_yamlparser_yamlgraph",
+      "src_features_conflicts_conflictresolvermodal_parsedstate",
+      "src_schema_graphschema_domain",
+      "src_services_graphservice",
+      "src_services_graphservice_graphservice_adddomain",
+      "src_services_graphservice_graphstatewithselection",
+      "src_services_graphservice_rationale_709",
+      "src_services_tests_graphservice_includes_test",
+      "src_services_tests_graphservice_test"
+    ],
+    "44": [
+      "src_notations_dcr_tests_ontology_test",
+      "src_notations_dcr_validator",
+      "src_notations_dcr_validator_dcr_type_map",
+      "src_notations_dcr_validator_getavailablerelations",
+      "src_notations_dcr_validator_isrelationallowed",
+      "src_notations_dcr_validator_issubclass",
+      "src_notations_dcr_validator_isvalidrelation",
+      "src_notations_dcr_validator_normalizeclassname",
+      "src_notations_dcr_validator_normalizedclasses"
+    ],
+    "45": [
+      "src_services_credentialservice_credentialservice",
+      "src_services_credentialservice_credentialservice_buildconfig",
+      "src_services_credentialservice_credentialservice_clearall",
+      "src_services_credentialservice_credentialservice_loadaiconfig",
+      "src_services_credentialservice_credentialservice_saveaiconfig",
+      "src_services_credentialservice_credentialservice_savepat",
+      "src_services_credentialservice_credentialservice_saveremoteconfig",
+      "src_services_tests_gitservice_test",
+      "src_services_tests_gitservice_test_constructor"
+    ],
+    "46": [
+      "src_services_tabsyncservice",
+      "src_services_tabsyncservice_syncmessage",
+      "src_services_tabsyncservice_tabsyncservice",
+      "src_services_tabsyncservice_tabsyncservice_getchannel",
+      "src_services_tabsyncservice_tabsyncservice_getlastsavedtimestamp",
+      "src_services_tabsyncservice_tabsyncservice_notifyworkspacesaved",
+      "src_services_tabsyncservice_tabsyncservice_onmessage",
+      "src_services_tabsyncservice_tabsyncservice_resetfortesting",
+      "src_services_tests_tabsyncservice_test"
+    ],
+    "47": [
+      "src_features_relations_relationbuilder",
+      "src_features_relations_relationbuilder_concept_types",
+      "src_features_relations_relationbuilder_contextual_relations",
+      "src_features_relations_relationbuilder_default_relations",
+      "src_features_relations_relationbuilder_getdisplaylabelfortype",
+      "src_features_relations_relationbuilder_relationbuilder",
+      "src_features_relations_relationbuilder_relationoption",
+      "src_features_relations_relationbuilder_relationship_descriptions"
+    ],
+    "48": [
+      "src_hooks_useuisession",
+      "src_hooks_useuisession_default_session",
+      "src_hooks_useuisession_readuisession",
+      "src_hooks_useuisession_uisession",
+      "src_hooks_useuisession_useuisession",
+      "src_hooks_useuisession_writeuisession",
+      "src_types_view",
+      "src_types_view_viewmode"
+    ],
+    "49": [
+      "wiki_ref_ontology_c4_model",
+      "wiki_ref_ontology_c4_model_1_kernestruktur_og_lag",
+      "wiki_ref_ontology_c4_model_2_elementklassifikation",
+      "wiki_ref_ontology_c4_model_3_relationstyper",
+      "wiki_ref_ontology_c4_model_akt\u00f8rer",
+      "wiki_ref_ontology_c4_model_c4_model_ontologi_metamodelspecifikation",
+      "wiki_ref_ontology_c4_model_indkapsling_boundaries",
+      "wiki_ref_ontology_c4_model_software_elementer"
+    ],
+    "50": [
       "package",
       "package_name",
       "package_overrides",
@@ -1015,1709 +1134,582 @@
       "package_type",
       "package_version"
     ],
-    "42": [
-      "agent_wiki_git_and_sync",
-      "agent_wiki_git_and_sync_git_engine_og_commits",
-      "agent_wiki_git_and_sync_semantisk_konfliktl\u00f8sning",
-      "agent_wiki_git_and_sync_sikker_h\u00e5ndtering_af_credentials",
-      "agent_wiki_git_and_sync_versionering_synkronisering",
-      "agent_wiki_git_and_sync_virtuelt_filsystem_lightning_fs"
+    "51": [
+      "src_features_validation_readme",
+      "src_features_validation_readme_consistency_rules_enforced",
+      "src_features_validation_readme_federated_over_ontology_global_validation",
+      "src_features_validation_readme_global_validation_engine_usevalidation_ts",
+      "src_features_validation_readme_over_ontology_structure_global_ontology_ttl",
+      "src_features_validation_readme_overview",
+      "src_features_validation_readme_ui_components"
     ],
-    "43": [
-      "scratch_semantic_extractor",
-      "scratch_semantic_extractor_get_file_stem",
-      "scratch_semantic_extractor_main",
-      "scratch_semantic_extractor_normalize_name",
-      "scratch_semantic_extractor_parse_markdown"
+    "52": [
+      "wiki_guide_ui_and_shortcuts",
+      "wiki_guide_ui_and_shortcuts_brugergr\u00e6nseflade_keyboard_first",
+      "wiki_guide_ui_and_shortcuts_keyboard_navigation_genveje",
+      "wiki_guide_ui_and_shortcuts_monaco_editor_integration_focus_escape",
+      "wiki_guide_ui_and_shortcuts_node_oprettelse_nodecreator_modal",
+      "wiki_guide_ui_and_shortcuts_sk\u00e6rmzoner_zone_1_4",
+      "wiki_guide_ui_and_shortcuts_smart_semantisk_labeling_system"
     ],
-    "44": [
+    "53": [
+      "context",
+      "context_arkitektoniske_tekniske_begreber_architectural_glossary",
+      "context_glossary",
+      "context_language",
+      "context_modellerings_og_dom\u00e6nebegreber_business_glossary",
+      "context_ui_og_visningsbegreber_ui_layout_glossary"
+    ],
+    "54": [
+      "docs_adr_0002_typescript_module_syntax_and_strict_types",
+      "docs_adr_0002_typescript_module_syntax_and_strict_types_0002_strict_type_safe_module_resolution_verbatimmodulesyntax",
+      "docs_adr_0002_typescript_module_syntax_and_strict_types_consequences",
+      "docs_adr_0002_typescript_module_syntax_and_strict_types_context",
+      "docs_adr_0002_typescript_module_syntax_and_strict_types_decision",
+      "docs_adr_0002_typescript_module_syntax_and_strict_types_status"
+    ],
+    "55": [
+      "docs_adr_0003_state_history_exclusion_zundo",
+      "docs_adr_0003_state_history_exclusion_zundo_0003_decoupled_layout_state_and_undo_history",
+      "docs_adr_0003_state_history_exclusion_zundo_consequences",
+      "docs_adr_0003_state_history_exclusion_zundo_context",
+      "docs_adr_0003_state_history_exclusion_zundo_decision",
+      "docs_adr_0003_state_history_exclusion_zundo_status"
+    ],
+    "56": [
+      "docs_adr_0004_datamodel_schema_constraints",
+      "docs_adr_0004_datamodel_schema_constraints_0004_strict_datamodel_schema_constraints",
+      "docs_adr_0004_datamodel_schema_constraints_consequences",
+      "docs_adr_0004_datamodel_schema_constraints_context",
+      "docs_adr_0004_datamodel_schema_constraints_decision",
+      "docs_adr_0004_datamodel_schema_constraints_status"
+    ],
+    "57": [
+      "docs_spec",
+      "docs_spec_1_domain_boundaries_separation_of_responsibilities",
+      "docs_spec_2_superseded_adr_contract_adr_0008",
+      "docs_spec_3_phased_opt_in_migration_architecture",
+      "docs_spec_executive_overview",
+      "docs_spec_specification_architecture_notations_refactoring_canvas_policy_unification"
+    ],
+    "58": [
+      "spec",
+      "spec_acceptance_criteria",
+      "spec_architecture_schemas",
+      "spec_functional_requirements",
+      "spec_specification_architecture_notations_refactoring_canvas_policy_unification",
+      "spec_user_stories_requirements"
+    ],
+    "59": [
+      "wiki_ref_ontology_data_modeling",
+      "wiki_ref_ontology_data_modeling_1_begrebsmodel_conceptual_model",
+      "wiki_ref_ontology_data_modeling_2_informationsmodel_informationsmodel",
+      "wiki_ref_ontology_data_modeling_data_modeling_ontologies_begrebsmodel_informationsmodel",
+      "wiki_ref_ontology_data_modeling_elementklassifikation",
+      "wiki_ref_ontology_data_modeling_relationstyper"
+    ],
+    "60": [
+      "docs_adr_0007_canvas_grid_alignment_architecture",
+      "docs_adr_0007_canvas_grid_alignment_architecture_0007_24px_canvas_grid_alignment_pattern_geometry_architecture",
+      "docs_adr_0007_canvas_grid_alignment_architecture_consequences",
+      "docs_adr_0007_canvas_grid_alignment_architecture_context",
+      "docs_adr_0007_canvas_grid_alignment_architecture_decision"
+    ],
+    "61": [
+      "docs_adr_0008_canvas_geometry_grid_aligned_bounds",
+      "docs_adr_0008_canvas_geometry_grid_aligned_bounds_8_canvas_geometry_grid_aligned_initial_bounds_with_grid_stepped_measured_bounds",
+      "docs_adr_0008_canvas_geometry_grid_aligned_bounds_consequences",
+      "docs_adr_0008_canvas_geometry_grid_aligned_bounds_context",
+      "docs_adr_0008_canvas_geometry_grid_aligned_bounds_decision"
+    ],
+    "62": [
+      "docs_dkuni_sis_readme",
+      "docs_dkuni_sis_readme_inds\u00e6t_i_knowledgegraph_studio_hele_repositoriet",
+      "docs_dkuni_sis_readme_k\u00f8rsel_af_scriptet",
+      "docs_dkuni_sis_readme_l\u00f8sninger_p\u00e5_canvas_layout_s\u00f8gbarhed",
+      "docs_dkuni_sis_readme_sis_multi_excel_to_knowledgegraph_studio_yaml_views_converter"
+    ],
+    "63": [
       "scripts_copy_monaco",
       "scripts_copy_monaco_dest",
       "scripts_copy_monaco_dirname",
       "scripts_copy_monaco_root",
       "scripts_copy_monaco_src"
     ],
-    "45": [
+    "64": [
+      "src_features_modelexplorer_createviewmodal",
+      "src_features_modelexplorer_createviewmodal_createviewmodal",
+      "src_features_modelexplorer_createviewmodal_view_type_descriptions",
+      "src_features_modelexplorer_createviewmodal_viewtypecard",
+      "src_features_modelexplorer_createviewmodal_viewtypecardprops"
+    ],
+    "65": [
       "src_features_viewport_graph_layout_worker",
       "src_features_viewport_graph_layout_worker_layoutlink",
       "src_features_viewport_graph_layout_worker_layoutnode",
       "src_features_viewport_graph_layout_worker_layoutrequest",
       "src_features_viewport_graph_layout_worker_layoutresult"
     ],
-    "46": [
+    "66": [
+      "src_hooks_usekeyboard",
+      "src_hooks_usekeyboard_iseditingtext",
+      "src_hooks_usekeyboard_isinputfocused",
+      "src_hooks_usekeyboard_keyboardconfig",
+      "src_hooks_usekeyboard_usekeyboard"
+    ],
+    "67": [
       "tsconfig",
       "tsconfig_compileroptions",
       "tsconfig_compileroptions_strict",
       "tsconfig_files",
       "tsconfig_references"
     ],
-    "47": [
-      "agent_skills_diagnosing_bugs_scripts_hitl_loop_template",
-      "agent_skills_diagnosing_bugs_scripts_hitl_loop_template_capture",
-      "agent_skills_diagnosing_bugs_scripts_hitl_loop_template_sh__entry",
-      "agent_skills_diagnosing_bugs_scripts_hitl_loop_template_step"
+    "68": [
+      "walkthrough",
+      "walkthrough_1_resolved_node_instance_id_mappings_in_reactflowcanvas_tsx",
+      "walkthrough_2_verified_complete_edge_visibility_toggle",
+      "walkthrough_technical_resolution",
+      "walkthrough_walkthrough_store_wide_instance_id_canvas_bounds_fix"
     ],
-    "48": [
+    "69": [
+      "wiki_ref_ontology_dcr_graphs",
+      "wiki_ref_ontology_dcr_graphs_1_elementklassifikation",
+      "wiki_ref_ontology_dcr_graphs_2_relationstyper",
+      "wiki_ref_ontology_dcr_graphs_3_runtime_tilstand_simulation_engine",
+      "wiki_ref_ontology_dcr_graphs_dcr_graphs_ontology_metamodelspecifikation"
+    ],
+    "70": [
+      "claude",
+      "claude_claude_development_guide",
+      "claude_coding_rules_architecture_guidelines",
+      "claude_commands"
+    ],
+    "71": [
       "src_core_idgenerator",
       "src_core_idgenerator_generateid",
       "src_core_idgenerator_regenerateid",
       "src_core_tests_idgenerator_test"
     ],
-    "49": [
-      "agent_rules_rules",
-      "agent_rules_rules_architecture_rule_contract_first_service_pattern",
-      "agent_rules_rules_review_quality_assurance_workflow"
+    "72": [
+      "src_features_viewport_graph_useviewportlod",
+      "src_features_viewport_graph_useviewportlod_lodlevel",
+      "src_features_viewport_graph_useviewportlod_useviewportlod",
+      "src_features_viewport_graph_useviewportlod_useviewportlodoptions"
     ],
-    "50": [
-      "scratch_label_generator",
-      "scratch_label_generator_get_clean_name",
-      "scratch_label_generator_main"
-    ],
-    "51": [
+    "73": [
       "scripts_compile_ontology",
       "scripts_compile_ontology_compileontology",
       "scripts_compile_ontology_ontologies"
     ],
-    "52": [
+    "74": [
+      "src_features_viewport_viewportcontainer",
+      "src_features_viewport_viewportcontainer_viewportcontainer",
+      "src_features_viewport_viewportcontainer_viewportcontainerprops"
+    ],
+    "75": [
       "vite_config",
       "vite_config_manualchunks",
       "vite_config_onwarn"
     ],
-    "53": [
-      "agent_skills_git_guardrails_claude_code_scripts_block_dangerous_git",
-      "agent_skills_git_guardrails_claude_code_scripts_block_dangerous_git_sh__entry"
+    "76": [
+      "docs_dkuni_sis_verify_isolated_begreber",
+      "docs_dkuni_sis_verify_isolated_begreber_main"
     ],
-    "54": [
-      "eslint",
-      "package_devdependencies_eslint"
+    "77": [
+      "eslint_plugin_react_hooks",
+      "package_devdependencies_eslint_plugin_react_hooks"
     ],
-    "55": [
+    "78": [
       "globals",
       "package_devdependencies_globals"
     ],
-    "56": [
+    "79": [
       "package_devdependencies_tailwindcss",
       "tailwindcss"
     ],
-    "57": [
+    "80": [
       "package_devdependencies_tailwindcss_vite",
       "tailwindcss_vite"
     ],
-    "58": [
+    "81": [
       "package_devdependencies_types_node",
       "types_node"
     ],
-    "59": [
+    "82": [
       "package_devdependencies_types_react",
       "types_react"
     ],
-    "60": [
+    "83": [
       "package_devdependencies_types_react_dom",
       "types_react_dom"
     ],
-    "61": [
+    "84": [
       "package_devdependencies_typescript",
       "typescript"
     ],
-    "62": [
+    "85": [
       "package_devdependencies_typescript_eslint",
       "typescript_eslint"
     ],
-    "63": [
+    "86": [
       "package_devdependencies_vite_plugin_node_polyfills",
       "vite_plugin_node_polyfills"
     ],
-    "64": [
+    "87": [
       "package_devdependencies_vitejs_plugin_react",
       "vitejs_plugin_react"
     ],
-    "65": [
+    "88": [
       "package_devdependencies_vitest",
       "vitest"
     ],
-    "66": [
-      "scratch_check_architecture",
-      "scratch_check_architecture_main"
-    ],
-    "67": [
+    "89": [
       "src_features_ai_workers_ai_worker",
       "src_features_ai_workers_ai_worker_handler"
     ],
-    "68": [
-      "agent_rules_rules_development_workflow"
-    ],
-    "69": [
-      "agent_rules_rules_explicit_contracts_internal_api"
-    ],
-    "70": [
-      "agent_rules_rules_self_review_checklist_under_kodning"
-    ],
-    "71": [
-      "agent_rules_rules_state_ui_boundaries"
-    ],
-    "72": [
-      "agent_rules_rules_strict_decoupling_categorization"
-    ],
-    "73": [
-      "agent_skills_servicearchitecture_skill"
-    ],
-    "74": [
-      "agent_skills_servicearchitecture_skill_arkitektonisk_review_tjek"
-    ],
-    "75": [
-      "agent_skills_servicearchitecture_skill_det_interne_api_service_layer"
-    ],
-    "76": [
-      "agent_skills_servicearchitecture_skill_envejs_datastr_m"
-    ],
-    "77": [
-      "agent_skills_setup_ts_deep_modules_dependency_cruiser_config"
-    ],
-    "78": [
-      "agent_wiki_archimate_3_2_ontology_adf_rd_og_aktiv_struktur"
-    ],
-    "79": [
-      "agent_wiki_archimate_3_2_ontology_adgang_access"
-    ],
-    "80": [
-      "agent_wiki_archimate_3_2_ontology_aggregering_aggregation"
-    ],
-    "81": [
-      "agent_wiki_archimate_3_2_ontology_applikationsfunktion"
-    ],
-    "82": [
-      "agent_wiki_archimate_3_2_ontology_applikationsgr_nseflade"
-    ],
-    "83": [
-      "agent_wiki_archimate_3_2_ontology_applikationsh_ndelse"
-    ],
-    "84": [
-      "agent_wiki_archimate_3_2_ontology_applikationsinteraktion"
-    ],
-    "85": [
-      "agent_wiki_archimate_3_2_ontology_applikationskomponent"
-    ],
-    "86": [
-      "agent_wiki_archimate_3_2_ontology_applikationslag"
-    ],
-    "87": [
-      "agent_wiki_archimate_3_2_ontology_applikationsproces"
-    ],
-    "88": [
-      "agent_wiki_archimate_3_2_ontology_applikationssamarbejde"
-    ],
-    "89": [
-      "agent_wiki_archimate_3_2_ontology_applikationsservice"
-    ],
     "90": [
-      "agent_wiki_archimate_3_2_ontology_arbejdspakke"
+      "src_features_viewport_graph_tests_useviewportlod_test",
+      "src_features_viewport_graph_tests_useviewportlod_test_getnextlod"
     ],
     "91": [
-      "agent_wiki_archimate_3_2_ontology_archimate_3_2"
+      "src_hooks_useresizable",
+      "src_hooks_useresizable_useresizable"
     ],
     "92": [
-      "agent_wiki_archimate_3_2_ontology_artefakt"
+      "src_types_sync",
+      "src_types_sync_syncstatus"
     ],
     "93": [
-      "agent_wiki_archimate_3_2_ontology_associering_association"
+      "src_utils_debounce",
+      "src_utils_debounce_debounce"
     ],
     "94": [
-      "agent_wiki_archimate_3_2_ontology_begr_nsning"
+      "docs_dkuni_sis_inspect_all_columns"
     ],
     "95": [
-      "agent_wiki_archimate_3_2_ontology_beskrivelse"
+      "docs_dkuni_sis_inspect_begrebsliste"
     ],
     "96": [
-      "agent_wiki_archimate_3_2_ontology_betjening_serving"
+      "docs_dkuni_sis_inspect_columns"
     ],
     "97": [
-      "agent_wiki_archimate_3_2_ontology_betydning"
+      "docs_dkuni_sis_inspect_sheets"
     ],
     "98": [
-      "agent_wiki_archimate_3_2_ontology_dataobjekt"
+      "docs_dkuni_sis_print_headers"
     ],
     "99": [
-      "agent_wiki_archimate_3_2_ontology_derivationsreglen"
-    ],
-    "100": [
-      "agent_wiki_archimate_3_2_ontology_distributionsnetv_rk"
-    ],
-    "101": [
-      "agent_wiki_archimate_3_2_ontology_drivkraft"
-    ],
-    "102": [
-      "agent_wiki_archimate_3_2_ontology_enhed"
-    ],
-    "103": [
-      "agent_wiki_archimate_3_2_ontology_evne"
-    ],
-    "104": [
-      "agent_wiki_archimate_3_2_ontology_facilitet"
-    ],
-    "105": [
-      "agent_wiki_archimate_3_2_ontology_forgrening"
-    ],
-    "106": [
-      "agent_wiki_archimate_3_2_ontology_forretning"
-    ],
-    "107": [
-      "agent_wiki_archimate_3_2_ontology_forretningsakt_r"
-    ],
-    "108": [
-      "agent_wiki_archimate_3_2_ontology_forretningsfunktion"
-    ],
-    "109": [
-      "agent_wiki_archimate_3_2_ontology_forretningsgr_nseflade"
-    ],
-    "110": [
-      "agent_wiki_archimate_3_2_ontology_forretningsh_ndelse"
-    ],
-    "111": [
-      "agent_wiki_archimate_3_2_ontology_forretningsinteraktion"
-    ],
-    "112": [
-      "agent_wiki_archimate_3_2_ontology_forretningslag"
-    ],
-    "113": [
-      "agent_wiki_archimate_3_2_ontology_forretningsobjekt"
-    ],
-    "114": [
-      "agent_wiki_archimate_3_2_ontology_forretningsproces"
-    ],
-    "115": [
-      "agent_wiki_archimate_3_2_ontology_forretningsrolle"
-    ],
-    "116": [
-      "agent_wiki_archimate_3_2_ontology_forretningssamarbejde"
-    ],
-    "117": [
-      "agent_wiki_archimate_3_2_ontology_forretningsservice"
-    ],
-    "118": [
-      "agent_wiki_archimate_3_2_ontology_gab"
-    ],
-    "119": [
-      "agent_wiki_archimate_3_2_ontology_gruppering"
-    ],
-    "120": [
-      "agent_wiki_archimate_3_2_ontology_implementeringsh_ndelse"
-    ],
-    "121": [
-      "agent_wiki_archimate_3_2_ontology_interessent"
-    ],
-    "122": [
-      "agent_wiki_archimate_3_2_ontology_knude"
-    ],
-    "123": [
-      "agent_wiki_archimate_3_2_ontology_kommunikationsnetv_rk"
-    ],
-    "124": [
-      "agent_wiki_archimate_3_2_ontology_kontrakt"
-    ],
-    "125": [
-      "agent_wiki_archimate_3_2_ontology_krav"
-    ],
-    "126": [
-      "agent_wiki_archimate_3_2_ontology_lag_forbindelser"
-    ],
-    "127": [
-      "agent_wiki_archimate_3_2_ontology_leverance"
-    ],
-    "128": [
-      "agent_wiki_archimate_3_2_ontology_lokation"
-    ],
-    "129": [
-      "agent_wiki_archimate_3_2_ontology_m_l"
-    ],
-    "130": [
-      "agent_wiki_archimate_3_2_ontology_materiale"
-    ],
-    "131": [
-      "agent_wiki_archimate_3_2_ontology_motivation"
-    ],
-    "132": [
-      "agent_wiki_archimate_3_2_ontology_notation"
-    ],
-    "133": [
-      "agent_wiki_archimate_3_2_ontology_p_virkning_influence"
-    ],
-    "134": [
-      "agent_wiki_archimate_3_2_ontology_plateau"
-    ],
-    "135": [
-      "agent_wiki_archimate_3_2_ontology_princip"
-    ],
-    "136": [
-      "agent_wiki_archimate_3_2_ontology_produkt"
-    ],
-    "137": [
-      "agent_wiki_archimate_3_2_ontology_realisering_realization"
-    ],
-    "138": [
-      "agent_wiki_archimate_3_2_ontology_repr_sentation"
-    ],
-    "139": [
-      "agent_wiki_archimate_3_2_ontology_ressource"
-    ],
-    "140": [
-      "agent_wiki_archimate_3_2_ontology_resultat"
-    ],
-    "141": [
-      "agent_wiki_archimate_3_2_ontology_sammens_tning_composition"
-    ],
-    "142": [
-      "agent_wiki_archimate_3_2_ontology_specialisering_specialization"
-    ],
-    "143": [
-      "agent_wiki_archimate_3_2_ontology_sti"
-    ],
-    "144": [
-      "agent_wiki_archimate_3_2_ontology_str_m_flow"
-    ],
-    "145": [
-      "agent_wiki_archimate_3_2_ontology_strategi"
-    ],
-    "146": [
-      "agent_wiki_archimate_3_2_ontology_strategisk_kurs"
-    ],
-    "147": [
-      "agent_wiki_archimate_3_2_ontology_strukturel_overf_rsel"
-    ],
-    "148": [
-      "agent_wiki_archimate_3_2_ontology_teknologifunktion"
-    ],
-    "149": [
-      "agent_wiki_archimate_3_2_ontology_teknologigr_nseflade"
-    ],
-    "150": [
-      "agent_wiki_archimate_3_2_ontology_teknologih_ndelse"
-    ],
-    "151": [
-      "agent_wiki_archimate_3_2_ontology_teknologiinteraktion"
-    ],
-    "152": [
-      "agent_wiki_archimate_3_2_ontology_teknologilag"
-    ],
-    "153": [
-      "agent_wiki_archimate_3_2_ontology_teknologiproces"
-    ],
-    "154": [
-      "agent_wiki_archimate_3_2_ontology_teknologisamarbejde"
-    ],
-    "155": [
-      "agent_wiki_archimate_3_2_ontology_teknologiservice"
-    ],
-    "156": [
-      "agent_wiki_archimate_3_2_ontology_tildeling_assignment"
-    ],
-    "157": [
-      "agent_wiki_archimate_3_2_ontology_udl_sning_triggering"
-    ],
-    "158": [
-      "agent_wiki_archimate_3_2_ontology_udstyr"
-    ],
-    "159": [
-      "agent_wiki_archimate_3_2_ontology_v_rdi"
-    ],
-    "160": [
-      "agent_wiki_archimate_3_2_ontology_v_rdistr_m"
-    ],
-    "161": [
-      "agent_wiki_archimate_3_2_ontology_vurdering"
-    ],
-    "162": [
-      "agent_wiki_architecture_grace_timer_p_faneskift"
-    ],
-    "163": [
-      "agent_wiki_architecture_inaktivitetstimer"
-    ],
-    "164": [
-      "agent_wiki_architecture_moduleret_indl_sning_fejlsikring"
-    ],
-    "165": [
-      "agent_wiki_architecture_src_components_ui"
-    ],
-    "166": [
-      "agent_wiki_architecture_src_core"
-    ],
-    "167": [
-      "agent_wiki_architecture_src_features"
-    ],
-    "168": [
-      "agent_wiki_architecture_src_schema"
-    ],
-    "169": [
-      "agent_wiki_architecture_src_services"
-    ],
-    "170": [
-      "agent_wiki_architecture_src_store"
-    ],
-    "171": [
-      "agent_wiki_architecture_storen_som_orkestrator"
-    ],
-    "172": [
-      "agent_wiki_architecture_uafh_ngige_services"
-    ],
-    "173": [
-      "agent_wiki_architecture_ui_og_features_er_dumme"
-    ],
-    "174": [
-      "agent_wiki_architecture_webgpu_inference"
-    ],
-    "175": [
-      "agent_wiki_c4_model_ontology_behavioral_relationships"
-    ],
-    "176": [
-      "agent_wiki_c4_model_ontology_boundary"
-    ],
-    "177": [
-      "agent_wiki_c4_model_ontology_c4_element"
-    ],
-    "178": [
-      "agent_wiki_c4_model_ontology_c4_model"
-    ],
-    "179": [
-      "agent_wiki_c4_model_ontology_compiler"
-    ],
-    "180": [
-      "agent_wiki_c4_model_ontology_component"
-    ],
-    "181": [
-      "agent_wiki_c4_model_ontology_container"
-    ],
-    "182": [
-      "agent_wiki_c4_model_ontology_contains"
-    ],
-    "183": [
-      "agent_wiki_c4_model_ontology_delivers_to"
-    ],
-    "184": [
-      "agent_wiki_c4_model_ontology_deployed_on"
-    ],
-    "185": [
-      "agent_wiki_c4_model_ontology_description"
-    ],
-    "186": [
-      "agent_wiki_c4_model_ontology_flexible_labels"
-    ],
-    "187": [
-      "agent_wiki_c4_model_ontology_person"
-    ],
-    "188": [
-      "agent_wiki_c4_model_ontology_protocol"
-    ],
-    "189": [
-      "agent_wiki_c4_model_ontology_software_element"
-    ],
-    "190": [
-      "agent_wiki_c4_model_ontology_software_system"
-    ],
-    "191": [
-      "agent_wiki_c4_model_ontology_strict_containment"
-    ],
-    "192": [
-      "agent_wiki_c4_model_ontology_technology"
-    ],
-    "193": [
-      "agent_wiki_c4_model_ontology_uses"
-    ],
-    "194": [
-      "agent_wiki_c4_model_ontology_validation_rules"
-    ],
-    "195": [
-      "agent_wiki_concept_type_matrix_actor"
-    ],
-    "196": [
-      "agent_wiki_concept_type_matrix_akt_r_metadata_synkronisering"
-    ],
-    "197": [
-      "agent_wiki_concept_type_matrix_akt_rer_og_roller_p_tv_rs_af_niveauer"
-    ],
-    "198": [
-      "agent_wiki_concept_type_matrix_application_collaboration"
-    ],
-    "199": [
-      "agent_wiki_concept_type_matrix_application_component"
-    ],
-    "200": [
-      "agent_wiki_concept_type_matrix_application_event"
-    ],
-    "201": [
-      "agent_wiki_concept_type_matrix_application_function"
-    ],
-    "202": [
-      "agent_wiki_concept_type_matrix_application_interface"
-    ],
-    "203": [
-      "agent_wiki_concept_type_matrix_application_process"
-    ],
-    "204": [
-      "agent_wiki_concept_type_matrix_application_service"
-    ],
-    "205": [
-      "agent_wiki_concept_type_matrix_artifact"
-    ],
-    "206": [
-      "agent_wiki_concept_type_matrix_assessment"
-    ],
-    "207": [
-      "agent_wiki_concept_type_matrix_boundary"
-    ],
-    "208": [
-      "agent_wiki_concept_type_matrix_bounded_context"
-    ],
-    "209": [
-      "agent_wiki_concept_type_matrix_business_actor"
-    ],
-    "210": [
-      "agent_wiki_concept_type_matrix_business_collaboration"
-    ],
-    "211": [
-      "agent_wiki_concept_type_matrix_business_function"
-    ],
-    "212": [
-      "agent_wiki_concept_type_matrix_business_interaction"
-    ],
-    "213": [
-      "agent_wiki_concept_type_matrix_business_interface"
-    ],
-    "214": [
-      "agent_wiki_concept_type_matrix_business_object"
-    ],
-    "215": [
-      "agent_wiki_concept_type_matrix_business_process"
-    ],
-    "216": [
-      "agent_wiki_concept_type_matrix_business_role"
-    ],
-    "217": [
-      "agent_wiki_concept_type_matrix_business_service"
-    ],
-    "218": [
-      "agent_wiki_concept_type_matrix_capability"
-    ],
-    "219": [
-      "agent_wiki_concept_type_matrix_class"
-    ],
-    "220": [
-      "agent_wiki_concept_type_matrix_communication_network"
-    ],
-    "221": [
-      "agent_wiki_concept_type_matrix_component"
-    ],
-    "222": [
-      "agent_wiki_concept_type_matrix_constraint"
-    ],
-    "223": [
-      "agent_wiki_concept_type_matrix_container"
-    ],
-    "224": [
-      "agent_wiki_concept_type_matrix_contract"
-    ],
-    "225": [
-      "agent_wiki_concept_type_matrix_course_of_action"
-    ],
-    "226": [
-      "agent_wiki_concept_type_matrix_datatype"
-    ],
-    "227": [
-      "agent_wiki_concept_type_matrix_deliverable"
-    ],
-    "228": [
-      "agent_wiki_concept_type_matrix_device"
-    ],
-    "229": [
-      "agent_wiki_concept_type_matrix_distribution_network"
-    ],
-    "230": [
-      "agent_wiki_concept_type_matrix_driver"
-    ],
-    "231": [
-      "agent_wiki_concept_type_matrix_entity"
-    ],
-    "232": [
-      "agent_wiki_concept_type_matrix_enumeration"
-    ],
-    "233": [
-      "agent_wiki_concept_type_matrix_equipment"
-    ],
-    "234": [
-      "agent_wiki_concept_type_matrix_event"
-    ],
-    "235": [
-      "agent_wiki_concept_type_matrix_facility"
-    ],
-    "236": [
-      "agent_wiki_concept_type_matrix_gap"
-    ],
-    "237": [
-      "agent_wiki_concept_type_matrix_goal"
-    ],
-    "238": [
-      "agent_wiki_concept_type_matrix_grouping"
-    ],
-    "239": [
-      "agent_wiki_concept_type_matrix_implementation_event"
-    ],
-    "240": [
-      "agent_wiki_concept_type_matrix_junction"
-    ],
-    "241": [
-      "agent_wiki_concept_type_matrix_komponenter_og_systemstrukturer"
-    ],
-    "242": [
-      "agent_wiki_concept_type_matrix_livscyklus_synkronisering"
-    ],
-    "243": [
-      "agent_wiki_concept_type_matrix_location"
-    ],
-    "244": [
-      "agent_wiki_concept_type_matrix_material"
-    ],
-    "245": [
-      "agent_wiki_concept_type_matrix_meaning"
-    ],
-    "246": [
-      "agent_wiki_concept_type_matrix_navnesammenfald_collisions"
-    ],
-    "247": [
-      "agent_wiki_concept_type_matrix_node"
-    ],
-    "248": [
-      "agent_wiki_concept_type_matrix_outcome"
-    ],
-    "249": [
-      "agent_wiki_concept_type_matrix_path"
-    ],
-    "250": [
-      "agent_wiki_concept_type_matrix_person"
-    ],
-    "251": [
-      "agent_wiki_concept_type_matrix_plateau"
-    ],
-    "252": [
-      "agent_wiki_concept_type_matrix_principal"
-    ],
-    "253": [
-      "agent_wiki_concept_type_matrix_principle"
-    ],
-    "254": [
-      "agent_wiki_concept_type_matrix_procesforl_b_vs_procesregler"
-    ],
-    "255": [
-      "agent_wiki_concept_type_matrix_process"
-    ],
-    "256": [
-      "agent_wiki_concept_type_matrix_product"
-    ],
-    "257": [
-      "agent_wiki_concept_type_matrix_representation"
-    ],
-    "258": [
-      "agent_wiki_concept_type_matrix_requirement"
-    ],
-    "259": [
-      "agent_wiki_concept_type_matrix_resource"
-    ],
-    "260": [
-      "agent_wiki_concept_type_matrix_sikkerheds_og_gdpr_l_kager"
-    ],
-    "261": [
-      "agent_wiki_concept_type_matrix_stakeholder"
-    ],
-    "262": [
-      "agent_wiki_concept_type_matrix_subgraph"
-    ],
-    "263": [
-      "agent_wiki_concept_type_matrix_system"
-    ],
-    "264": [
-      "agent_wiki_concept_type_matrix_system_software"
-    ],
-    "265": [
-      "agent_wiki_concept_type_matrix_systemgr_nser_og_namespaces"
-    ],
-    "266": [
-      "agent_wiki_concept_type_matrix_technology_collaboration"
-    ],
-    "267": [
-      "agent_wiki_concept_type_matrix_technology_event"
-    ],
-    "268": [
-      "agent_wiki_concept_type_matrix_technology_function"
-    ],
-    "269": [
-      "agent_wiki_concept_type_matrix_technology_interaction"
-    ],
-    "270": [
-      "agent_wiki_concept_type_matrix_technology_interface"
-    ],
-    "271": [
-      "agent_wiki_concept_type_matrix_technology_process"
-    ],
-    "272": [
-      "agent_wiki_concept_type_matrix_technology_service"
-    ],
-    "273": [
-      "agent_wiki_concept_type_matrix_tv_rg_ende_globale_konsistensregler"
-    ],
-    "274": [
-      "agent_wiki_concept_type_matrix_validering_ved_oprettelse"
-    ],
-    "275": [
-      "agent_wiki_concept_type_matrix_value"
-    ],
-    "276": [
-      "agent_wiki_concept_type_matrix_value_stream"
-    ],
-    "277": [
-      "agent_wiki_concept_type_matrix_work_package"
-    ],
-    "278": [
-      "agent_wiki_conventions_dumb_ui_princippet"
-    ],
-    "279": [
-      "agent_wiki_conventions_historik_rydning_history_cleardown"
-    ],
-    "280": [
-      "agent_wiki_conventions_ingen_dom_tests_for_canvas"
-    ],
-    "281": [
-      "agent_wiki_conventions_obligatorisk_qa_check"
-    ],
-    "282": [
-      "agent_wiki_conventions_strikt_type_sikkerhed"
-    ],
-    "283": [
-      "agent_wiki_conventions_styling_design_tokens"
-    ],
-    "284": [
-      "agent_wiki_conventions_tdd_p_parser_services"
-    ],
-    "285": [
-      "agent_wiki_conventions_zundo"
-    ],
-    "286": [
-      "agent_wiki_data_modeling_ontologies_aggregates"
-    ],
-    "287": [
-      "agent_wiki_data_modeling_ontologies_associates_with"
-    ],
-    "288": [
-      "agent_wiki_data_modeling_ontologies_composed_of"
-    ],
-    "289": [
-      "agent_wiki_data_modeling_ontologies_conceptual_class"
-    ],
-    "290": [
-      "agent_wiki_data_modeling_ontologies_conceptual_model_begrebsmodel"
-    ],
-    "291": [
-      "agent_wiki_data_modeling_ontologies_datatype"
-    ],
-    "292": [
-      "agent_wiki_data_modeling_ontologies_enumeration"
-    ],
-    "293": [
-      "agent_wiki_data_modeling_ontologies_generalizes"
-    ],
-    "294": [
-      "agent_wiki_data_modeling_ontologies_has_type"
-    ],
-    "295": [
-      "agent_wiki_data_modeling_ontologies_information_class"
-    ],
-    "296": [
-      "agent_wiki_data_modeling_ontologies_information_model_informationsmodel"
-    ],
-    "297": [
-      "agent_wiki_data_modeling_ontologies_uml_relations"
-    ],
-    "298": [
-      "agent_wiki_data_modeling_ontologies_wasderivedfrom"
-    ],
-    "299": [
-      "agent_wiki_dcr_graphs_ontology_compiler"
-    ],
-    "300": [
-      "agent_wiki_dcr_graphs_ontology_condition"
-    ],
-    "301": [
-      "agent_wiki_dcr_graphs_ontology_dcr_graphs_dynamic_condition_response"
-    ],
-    "302": [
-      "agent_wiki_dcr_graphs_ontology_enabled"
-    ],
-    "303": [
-      "agent_wiki_dcr_graphs_ontology_event"
-    ],
-    "304": [
-      "agent_wiki_dcr_graphs_ontology_exclude"
-    ],
-    "305": [
-      "agent_wiki_dcr_graphs_ontology_include"
-    ],
-    "306": [
-      "agent_wiki_dcr_graphs_ontology_is_executed"
-    ],
-    "307": [
-      "agent_wiki_dcr_graphs_ontology_is_included"
-    ],
-    "308": [
-      "agent_wiki_dcr_graphs_ontology_is_pending_response"
-    ],
-    "309": [
-      "agent_wiki_dcr_graphs_ontology_milestone"
-    ],
-    "310": [
-      "agent_wiki_dcr_graphs_ontology_principal"
-    ],
-    "311": [
-      "agent_wiki_dcr_graphs_ontology_reset"
-    ],
-    "312": [
-      "agent_wiki_dcr_graphs_ontology_response"
-    ],
-    "313": [
-      "agent_wiki_dcr_graphs_ontology_role"
-    ],
-    "314": [
-      "agent_wiki_dcr_graphs_ontology_simulation_mode_on"
-    ],
-    "315": [
-      "agent_wiki_dcr_graphs_ontology_subgraph"
-    ],
-    "316": [
-      "agent_wiki_dcr_graphs_ontology_validation"
-    ],
-    "317": [
-      "agent_wiki_dcr_ui_wizard_wireframe_canvas_remains_pristine"
-    ],
-    "318": [
-      "agent_wiki_dcr_ui_wizard_wireframe_command"
-    ],
-    "319": [
-      "agent_wiki_dcr_ui_wizard_wireframe_compiler_integration"
-    ],
-    "320": [
-      "agent_wiki_dcr_ui_wizard_wireframe_egenskaber_inspector"
-    ],
-    "321": [
-      "agent_wiki_dcr_ui_wizard_wireframe_kunde_ordre_oprettet"
-    ],
-    "322": [
-      "agent_wiki_dcr_ui_wizard_wireframe_kunde_send_faktura"
-    ],
-    "323": [
-      "agent_wiki_dcr_ui_wizard_wireframe_mutation"
-    ],
-    "324": [
-      "agent_wiki_dcr_ui_wizard_wireframe_source_node"
-    ],
-    "325": [
-      "agent_wiki_dcr_ui_wizard_wireframe_standardized_ontology"
-    ],
-    "326": [
-      "agent_wiki_dcr_ui_wizard_wireframe_target_node"
-    ],
-    "327": [
-      "agent_wiki_federated_over_ontology_equivalent_actor_alignment"
-    ],
-    "328": [
-      "agent_wiki_federated_over_ontology_federated_over_ontology"
-    ],
-    "329": [
-      "agent_wiki_federated_over_ontology_gdpr_data_classification_leaks"
-    ],
-    "330": [
-      "agent_wiki_federated_over_ontology_global_consistency_validation"
-    ],
-    "331": [
-      "agent_wiki_federated_over_ontology_globalactor"
-    ],
-    "332": [
-      "agent_wiki_federated_over_ontology_globaldataentity"
-    ],
-    "333": [
-      "agent_wiki_federated_over_ontology_globalsoftwarecomponent"
-    ],
-    "334": [
-      "agent_wiki_federated_over_ontology_inspector_warnings"
-    ],
-    "335": [
-      "agent_wiki_federated_over_ontology_lifecycle_state_sync"
-    ],
-    "336": [
-      "agent_wiki_federated_over_ontology_realizesconcept"
-    ],
-    "337": [
-      "agent_wiki_federated_over_ontology_status_bar_indicator"
-    ],
-    "338": [
-      "agent_wiki_git_and_sync_aldrig"
-    ],
-    "339": [
-      "agent_wiki_git_and_sync_auto_commit"
-    ],
-    "340": [
-      "agent_wiki_git_and_sync_cors_proxy"
-    ],
-    "341": [
-      "agent_wiki_git_and_sync_debounced_auto_save"
-    ],
-    "342": [
-      "agent_wiki_git_and_sync_dexie_js"
-    ],
-    "343": [
-      "agent_wiki_git_and_sync_dexie_js_indexeddb"
-    ],
-    "344": [
-      "agent_wiki_git_and_sync_isomorphic_git"
-    ],
-    "345": [
-      "agent_wiki_git_and_sync_koncept_niveau_diff"
-    ],
-    "346": [
-      "agent_wiki_git_and_sync_lightning_fs_vfs_namespace"
-    ],
-    "347": [
-      "agent_wiki_git_and_sync_monaco_fallback_conflict_mode"
-    ],
-    "348": [
-      "agent_wiki_git_and_sync_remote_url"
-    ],
-    "349": [
-      "agent_wiki_git_and_sync_silent_auto_merge"
-    ],
-    "350": [
-      "agent_wiki_raw_archimate_specification3_2"
-    ],
-    "351": [
-      "agent_wiki_specifications_reference_arazzo"
-    ],
-    "352": [
-      "agent_wiki_specifications_reference_asyncapi"
-    ],
-    "353": [
-      "agent_wiki_specifications_reference_channels"
-    ],
-    "354": [
-      "agent_wiki_specifications_reference_command_nodes"
-    ],
-    "355": [
-      "agent_wiki_specifications_reference_components"
-    ],
-    "356": [
-      "agent_wiki_specifications_reference_dcr_conditions_has_condition"
-    ],
-    "357": [
-      "agent_wiki_specifications_reference_dcr_responses_has_response"
-    ],
-    "358": [
-      "agent_wiki_specifications_reference_dependson"
-    ],
-    "359": [
-      "agent_wiki_specifications_reference_event_nodes"
-    ],
-    "360": [
-      "agent_wiki_specifications_reference_get"
-    ],
-    "361": [
-      "agent_wiki_specifications_reference_gherkin_policies"
-    ],
-    "362": [
-      "agent_wiki_specifications_reference_id"
-    ],
-    "363": [
-      "agent_wiki_specifications_reference_info"
-    ],
-    "364": [
-      "agent_wiki_specifications_reference_messages"
-    ],
-    "365": [
-      "agent_wiki_specifications_reference_openapi"
-    ],
-    "366": [
-      "agent_wiki_specifications_reference_operationid"
-    ],
-    "367": [
-      "agent_wiki_specifications_reference_operations"
-    ],
-    "368": [
-      "agent_wiki_specifications_reference_parameters"
-    ],
-    "369": [
-      "agent_wiki_specifications_reference_paths"
-    ],
-    "370": [
-      "agent_wiki_specifications_reference_post"
-    ],
-    "371": [
-      "agent_wiki_specifications_reference_publishers"
-    ],
-    "372": [
-      "agent_wiki_specifications_reference_read_model_nodes"
-    ],
-    "373": [
-      "agent_wiki_specifications_reference_receive"
-    ],
-    "374": [
-      "agent_wiki_specifications_reference_schemas"
-    ],
-    "375": [
-      "agent_wiki_specifications_reference_send"
-    ],
-    "376": [
-      "agent_wiki_specifications_reference_sourcedescriptions"
-    ],
-    "377": [
-      "agent_wiki_specifications_reference_stepid"
-    ],
-    "378": [
-      "agent_wiki_specifications_reference_steps"
-    ],
-    "379": [
-      "agent_wiki_specifications_reference_subscribers"
-    ],
-    "380": [
-      "agent_wiki_specifications_reference_successcriteria"
-    ],
-    "381": [
-      "agent_wiki_specifications_reference_workflows"
-    ],
-    "382": [
-      "agent_wiki_troubleshooting_bevaring_af_visninger"
-    ],
-    "383": [
-      "agent_wiki_troubleshooting_bottom"
-    ],
-    "384": [
-      "agent_wiki_troubleshooting_cykelsikker_sortering"
-    ],
-    "385": [
-      "agent_wiki_troubleshooting_dublerede_react_flow_node_id_er"
-    ],
-    "386": [
-      "agent_wiki_troubleshooting_fleksibel_gendannelse"
-    ],
-    "387": [
-      "agent_wiki_troubleshooting_ikke_komponerede_css_transitions"
-    ],
-    "388": [
-      "agent_wiki_troubleshooting_json_kommando"
-    ],
-    "389": [
-      "agent_wiki_troubleshooting_json_kommandoer"
-    ],
-    "390": [
-      "agent_wiki_troubleshooting_komponerede_css_transitions"
-    ],
-    "391": [
-      "agent_wiki_troubleshooting_l_sning"
-    ],
-    "392": [
-      "agent_wiki_troubleshooting_lazy_mounting_mount_on_demand"
-    ],
-    "393": [
-      "agent_wiki_troubleshooting_lighthouse_parser_crash"
-    ],
-    "394": [
-      "agent_wiki_troubleshooting_navne_unikhed_i_model_store"
-    ],
-    "395": [
-      "agent_wiki_troubleshooting_oprydning_ved_sletning"
-    ],
-    "396": [
-      "agent_wiki_troubleshooting_oprydning_ved_type_ndring"
-    ],
-    "397": [
-      "agent_wiki_troubleshooting_problem"
-    ],
-    "398": [
-      "agent_wiki_troubleshooting_robuste_standardv_rdier"
-    ],
-    "399": [
-      "agent_wiki_troubleshooting_rsag"
-    ],
-    "400": [
-      "agent_wiki_troubleshooting_standardiseret_rensning"
-    ],
-    "401": [
-      "agent_wiki_troubleshooting_syntaks_validering_reflection"
-    ],
-    "402": [
-      "agent_wiki_troubleshooting_top"
-    ],
-    "403": [
-      "agent_wiki_troubleshooting_typescript_type_narrowing_i_tests"
-    ],
-    "404": [
-      "agent_wiki_troubleshooting_udbredelse_og_visning_af_fejl"
-    ],
-    "405": [
-      "agent_wiki_troubleshooting_validering_af_parentid"
-    ],
-    "406": [
-      "agent_wiki_ui_and_shortcuts_actor_rightarrow_process"
-    ],
-    "407": [
-      "agent_wiki_ui_and_shortcuts_actor_rightarrow_system"
-    ],
-    "408": [
-      "agent_wiki_ui_and_shortcuts_auto_valgt"
-    ],
-    "409": [
-      "agent_wiki_ui_and_shortcuts_entity_rightarrow_capability"
-    ],
-    "410": [
-      "agent_wiki_ui_and_shortcuts_esc_trap_og_focus_escape"
-    ],
-    "411": [
-      "agent_wiki_ui_and_shortcuts_event_rightarrow_process"
-    ],
-    "412": [
-      "agent_wiki_ui_and_shortcuts_fuzzy_s_gning"
-    ],
-    "413": [
-      "agent_wiki_ui_and_shortcuts_globale_genveje_altid_aktive"
-    ],
-    "414": [
-      "agent_wiki_ui_and_shortcuts_mouse_hover"
-    ],
-    "415": [
-      "agent_wiki_ui_and_shortcuts_piletast_navigation"
-    ],
-    "416": [
-      "agent_wiki_ui_and_shortcuts_process_rightarrow_entity"
-    ],
-    "417": [
-      "agent_wiki_ui_and_shortcuts_process_rightarrow_event"
-    ],
-    "418": [
-      "agent_wiki_ui_and_shortcuts_read_only_standard"
-    ],
-    "419": [
-      "agent_wiki_ui_and_shortcuts_type_navn"
-    ],
-    "420": [
-      "agent_wiki_ui_and_shortcuts_zone_1_index_view"
-    ],
-    "421": [
-      "agent_wiki_ui_and_shortcuts_zone_2_canvas_view_code_view"
-    ],
-    "422": [
-      "agent_wiki_ui_and_shortcuts_zone_3_command_hub"
-    ],
-    "423": [
-      "agent_wiki_ui_and_shortcuts_zone_4_node_properties"
-    ],
-    "424": [
       "eslint_config"
     ],
-    "425": [
+    "100": [
       "implementation_plan_getheadyaml"
     ],
-    "426": [
+    "101": [
       "implementation_plan_gitcommit"
     ],
-    "427": [
+    "102": [
       "implementation_plan_gitdiffhead"
     ],
-    "428": [
+    "103": [
       "implementation_plan_gitmergefastforward"
     ],
-    "429": [
+    "104": [
       "implementation_plan_gitstatus"
     ],
-    "430": [
+    "105": [
       "implementation_plan_modify_gitengine_test_ts"
     ],
-    "431": [
+    "106": [
       "implementation_plan_modify_gitengine_ts"
     ],
-    "432": [
+    "107": [
       "implementation_plan_modify_gitservice_ts"
     ],
-    "433": [
+    "108": [
       "index"
     ],
-    "434": [
+    "109": [
       "public_favicon"
     ],
-    "435": [
+    "110": [
       "public_icons"
     ],
-    "436": [
+    "111": [
       "readme_access"
     ],
-    "437": [
+    "112": [
       "readme_access_tokens"
     ],
-    "438": [
+    "113": [
       "readme_add_permissions"
     ],
-    "439": [
+    "114": [
       "readme_auto_save"
     ],
-    "440": [
+    "115": [
       "readme_classic_alternative"
     ],
-    "441": [
+    "116": [
       "readme_clone_the_repository"
     ],
-    "442": [
+    "117": [
       "readme_code"
     ],
-    "443": [
+    "118": [
       "readme_code_view"
     ],
-    "444": [
+    "119": [
       "readme_command_hub"
     ],
-    "445": [
+    "120": [
       "readme_commit"
     ],
-    "446": [
+    "121": [
       "readme_configure"
     ],
-    "447": [
+    "122": [
       "readme_contents"
     ],
-    "448": [
+    "123": [
       "readme_core"
     ],
-    "449": [
+    "124": [
       "readme_credentials"
     ],
-    "450": [
+    "125": [
       "readme_d3_force"
     ],
-    "451": [
+    "126": [
       "readme_developer_settings"
     ],
-    "452": [
+    "127": [
       "readme_diff_mode"
     ],
-    "453": [
+    "128": [
       "readme_drill_edit"
     ],
-    "454": [
+    "129": [
       "readme_edit_profile"
     ],
-    "455": [
+    "130": [
       "readme_editor"
     ],
-    "456": [
+    "131": [
       "readme_embedded_git"
     ],
-    "457": [
+    "132": [
       "readme_execute"
     ],
-    "458": [
+    "133": [
       "readme_fine_grained_token_beta"
     ],
-    "459": [
+    "134": [
       "readme_fine_grained_tokens"
     ],
-    "460": [
+    "135": [
       "readme_generate"
     ],
-    "461": [
+    "136": [
       "readme_generate_new_token"
     ],
-    "462": [
+    "137": [
       "readme_generate_token"
     ],
-    "463": [
+    "138": [
       "readme_graph_view"
     ],
-    "464": [
+    "139": [
       "readme_group_and_project_access"
     ],
-    "465": [
+    "140": [
       "readme_indexeddb_vfs"
     ],
-    "466": [
+    "141": [
       "readme_install_dependencies"
     ],
-    "467": [
+    "142": [
       "readme_launch_the_studio"
     ],
-    "468": [
+    "143": [
       "readme_local_first_privacy"
     ],
-    "469": [
+    "144": [
       "readme_monaco_editor"
     ],
-    "470": [
+    "145": [
       "readme_open_settings"
     ],
-    "471": [
+    "146": [
       "readme_open_user_settings"
     ],
-    "472": [
+    "147": [
       "readme_pat"
     ],
-    "473": [
+    "148": [
       "readme_permissions"
     ],
-    "474": [
+    "149": [
       "readme_persistence"
     ],
-    "475": [
+    "150": [
       "readme_personal_access_tokens"
     ],
-    "476": [
+    "151": [
       "readme_precision"
     ],
-    "477": [
+    "152": [
       "readme_pull"
     ],
-    "478": [
+    "153": [
       "readme_push"
     ],
-    "479": [
+    "154": [
       "readme_react_flow"
     ],
-    "480": [
+    "155": [
       "readme_read_and_write"
     ],
-    "481": [
+    "156": [
       "readme_remote_https_url"
     ],
-    "482": [
+    "157": [
       "readme_remote_sync_settings"
     ],
-    "483": [
+    "158": [
       "readme_repository"
     ],
-    "484": [
+    "159": [
       "readme_repository_access"
     ],
-    "485": [
+    "160": [
       "readme_resource_permissions"
     ],
-    "486": [
+    "161": [
       "readme_selection"
     ],
-    "487": [
+    "162": [
       "readme_settings"
     ],
-    "488": [
+    "163": [
       "readme_spatial_walking"
     ],
-    "489": [
+    "164": [
       "readme_speed"
     ],
-    "490": [
+    "165": [
       "readme_split_mode"
     ],
-    "491": [
+    "166": [
       "readme_state"
     ],
-    "492": [
+    "167": [
       "readme_universal_escape"
     ],
-    "493": [
+    "168": [
       "readme_visuals"
     ],
-    "494": [
-      "roadmap_automatisk_invers_oprettelse"
-    ],
-    "495": [
-      "roadmap_datatype_sikring_og_validering"
-    ],
-    "496": [
-      "roadmap_ortogonale_layouts_til_archimate"
-    ],
-    "497": [
-      "roadmap_procesforl_b_i_dcr"
-    ],
-    "498": [
-      "roadmap_sporbarhed_til_begrebsmodellen"
-    ],
-    "499": [
-      "roadmap_status"
-    ],
-    "500": [
-      "roadmap_tv_rg_ende_konsistens_validering"
-    ],
-    "501": [
-      "roadmap_visuel_hj_lp_p_l_rredet"
-    ],
-    "502": [
-      "specification_actor_process"
-    ],
-    "503": [
-      "specification_actor_system"
-    ],
-    "504": [
-      "specification_aldrig"
-    ],
-    "505": [
-      "specification_auth_status"
-    ],
-    "506": [
-      "specification_authentication"
-    ],
-    "507": [
-      "specification_auto_commit"
-    ],
-    "508": [
-      "specification_auto_fetch"
-    ],
-    "509": [
-      "specification_auto_merges_stille"
-    ],
-    "510": [
-      "specification_bounded_context_bounded_context"
-    ],
-    "511": [
-      "specification_bruger_interaktion"
-    ],
-    "512": [
-      "specification_capability_bounded_context"
-    ],
-    "513": [
-      "specification_center_slot"
-    ],
-    "514": [
-      "specification_clone"
-    ],
-    "515": [
-      "specification_clone_workflow"
-    ],
-    "516": [
-      "specification_cors_proxy"
-    ],
-    "517": [
-      "specification_credentialservice"
-    ],
-    "518": [
-      "specification_datamigrerings_lag"
-    ],
-    "519": [
-      "specification_dexie_js"
-    ],
-    "520": [
-      "specification_entity_capability"
-    ],
-    "521": [
-      "specification_event_process"
-    ],
-    "522": [
-      "specification_fallback"
-    ],
-    "523": [
-      "specification_features_components"
-    ],
-    "524": [
-      "specification_forl_b_ved_non_fast_forward_merge"
-    ],
-    "525": [
-      "specification_h_jre_slot"
-    ],
-    "526": [
-      "specification_html5_file_system_access_api"
-    ],
-    "527": [
-      "specification_indexeddb_via_dexie_js"
-    ],
-    "528": [
-      "specification_ingen_infrastruktur_i_ui"
-    ],
-    "529": [
-      "specification_non_temporal_ui_state"
-    ],
-    "530": [
-      "specification_nyt_navngivet_workspace"
-    ],
-    "531": [
-      "specification_placering"
-    ],
-    "532": [
-      "specification_position"
-    ],
-    "533": [
-      "specification_process_entity"
-    ],
-    "534": [
-      "specification_process_event"
-    ],
-    "535": [
-      "specification_pull"
-    ],
-    "536": [
-      "specification_push"
-    ],
-    "537": [
-      "specification_re_render"
-    ],
-    "538": [
-      "specification_regler"
-    ],
-    "539": [
-      "specification_remote_url"
-    ],
-    "540": [
-      "specification_scope"
-    ],
-    "541": [
-      "specification_semantisk_conflict_resolver"
-    ],
-    "542": [
-      "specification_service_eksekvering"
-    ],
-    "543": [
-      "specification_skrives_aldrig"
-    ],
-    "544": [
-      "specification_state_opdatering"
-    ],
-    "545": [
-      "specification_statusbar"
-    ],
-    "546": [
-      "specification_succesfuldt_pull"
-    ],
-    "547": [
-      "specification_uafh_ngighed"
-    ],
-    "548": [
-      "specification_venstre_slot"
-    ],
-    "549": [
-      "specification_zod_validering"
-    ],
-    "550": [
+    "169": [
       "src_components_ui_index"
     ],
-    "551": [
+    "170": [
       "src_features_index_datagrid"
     ],
-    "552": [
+    "171": [
       "src_features_index_indextable"
     ],
-    "553": [
+    "172": [
+      "src_features_viewport_graph_contracts_legacycanvasadapter"
+    ],
+    "173": [
+      "src_features_viewport_graph_reactflowcanvas_grid_step"
+    ],
+    "174": [
       "src_features_viewport_graph_workerpolyfill"
     ],
-    "554": [
-      "src_main"
-    ],
-    "555": [
+    "175": [
       "src_main_eventtarget_addeventlistener"
     ],
-    "556": [
-      "task"
-    ],
-    "557": [
-      "wiki_event_modeling_navigation_bottom"
-    ],
-    "558": [
-      "wiki_event_modeling_navigation_dismiss"
-    ],
-    "559": [
-      "wiki_event_modeling_navigation_event_modeling_em"
-    ],
-    "560": [
-      "wiki_event_modeling_navigation_execute"
-    ],
-    "561": [
-      "wiki_event_modeling_navigation_focus_node"
-    ],
-    "562": [
-      "wiki_event_modeling_navigation_focus_toolbar"
-    ],
-    "563": [
-      "wiki_event_modeling_navigation_left"
-    ],
-    "564": [
-      "wiki_event_modeling_navigation_left_to_right"
-    ],
-    "565": [
-      "wiki_event_modeling_navigation_right"
-    ],
-    "566": [
-      "wiki_event_modeling_navigation_top"
+    "176": [
+      "src_types_jointjs_shim_d"
     ]
   },
   "cohesion": {
-    "0": 0.06296296296296296,
-    "1": 0.06531204644412192,
-    "2": 0.08597285067873303,
-    "3": 0.07450980392156863,
-    "4": 0.046511627906976744,
-    "5": 0.07200929152148665,
-    "6": 0.09024390243902439,
-    "7": 0.11587301587301588,
-    "8": 0.07661290322580645,
-    "9": 0.06666666666666667,
-    "10": 0.1349206349206349,
-    "11": 0.16524216524216523,
-    "12": 0.09401709401709402,
-    "13": 0.12307692307692308,
-    "14": 0.08333333333333333,
-    "15": 0.08695652173913043,
-    "16": 0.09090909090909091,
-    "17": 0.13333333333333333,
-    "18": 0.21637426900584794,
-    "19": 0.19298245614035087,
-    "20": 0.1111111111111111,
-    "21": 0.22058823529411764,
-    "22": 0.225,
-    "23": 0.15384615384615385,
-    "24": 0.15384615384615385,
-    "25": 0.15384615384615385,
-    "26": 0.23076923076923078,
-    "27": 0.16666666666666666,
-    "28": 0.18181818181818182,
-    "29": 0.18181818181818182,
-    "30": 0.2222222222222222,
-    "31": 0.2,
-    "32": 0.2222222222222222,
-    "33": 0.2222222222222222,
-    "34": 0.4166666666666667,
-    "35": 0.25,
-    "36": 0.2857142857142857,
-    "37": 0.2857142857142857,
-    "38": 0.2857142857142857,
-    "39": 0.2857142857142857,
-    "40": 0.2857142857142857,
-    "41": 0.2857142857142857,
-    "42": 0.3333333333333333,
-    "43": 0.9,
-    "44": 0.4,
-    "45": 0.4,
-    "46": 0.4,
-    "47": 0.8333333333333334,
-    "48": 0.8333333333333334,
-    "49": 0.6666666666666666,
-    "50": 1.0,
-    "51": 0.6666666666666666,
-    "52": 0.6666666666666666,
-    "53": 1.0,
-    "54": 1.0,
-    "55": 1.0,
-    "56": 1.0,
-    "57": 1.0,
-    "58": 1.0,
-    "59": 1.0,
-    "60": 1.0,
-    "61": 1.0,
-    "62": 1.0,
-    "63": 1.0,
-    "64": 1.0,
-    "65": 1.0,
-    "66": 1.0,
-    "67": 1.0,
-    "68": 1.0,
-    "69": 1.0,
-    "70": 1.0,
-    "71": 1.0,
-    "72": 1.0,
-    "73": 1.0,
-    "74": 1.0,
-    "75": 1.0,
+    "0": 0.050101010101010104,
+    "1": 0.06775956284153005,
+    "2": 0.05589225589225589,
+    "3": 0.07039187227866474,
+    "4": 0.044444444444444446,
+    "5": 0.13086770981507823,
+    "6": 0.12096774193548387,
+    "7": 0.135632183908046,
+    "8": 0.16137566137566137,
+    "9": 0.09538461538461539,
+    "10": 0.3384615384615385,
+    "11": 0.09420289855072464,
+    "12": 0.11231884057971014,
+    "13": 0.08695652173913043,
+    "14": 0.30434782608695654,
+    "15": 0.09090909090909091,
+    "16": 0.1368421052631579,
+    "17": 0.19607843137254902,
+    "18": 0.2426470588235294,
+    "19": 0.19852941176470587,
+    "20": 0.125,
+    "21": 0.21904761904761905,
+    "22": 0.19047619047619047,
+    "23": 0.21978021978021978,
+    "24": 0.14285714285714285,
+    "25": 0.1978021978021978,
+    "26": 0.14285714285714285,
+    "27": 0.15384615384615385,
+    "28": 0.15384615384615385,
+    "29": 0.3076923076923077,
+    "30": 0.3076923076923077,
+    "31": 0.15384615384615385,
+    "32": 0.16666666666666666,
+    "33": 0.18181818181818182,
+    "34": 0.2545454545454545,
+    "35": 0.2,
+    "36": 0.3090909090909091,
+    "37": 0.36363636363636365,
+    "38": 0.18181818181818182,
+    "39": 0.2222222222222222,
+    "40": 0.2,
+    "41": 0.2222222222222222,
+    "42": 0.2222222222222222,
+    "43": 0.25,
+    "44": 0.4166666666666667,
+    "45": 0.2222222222222222,
+    "46": 0.3055555555555556,
+    "47": 0.2857142857142857,
+    "48": 0.39285714285714285,
+    "49": 0.25,
+    "50": 0.2857142857142857,
+    "51": 0.2857142857142857,
+    "52": 0.2857142857142857,
+    "53": 0.3333333333333333,
+    "54": 0.3333333333333333,
+    "55": 0.3333333333333333,
+    "56": 0.3333333333333333,
+    "57": 0.3333333333333333,
+    "58": 0.3333333333333333,
+    "59": 0.4666666666666667,
+    "60": 0.4,
+    "61": 0.4,
+    "62": 0.4,
+    "63": 0.4,
+    "64": 0.4,
+    "65": 0.4,
+    "66": 0.7,
+    "67": 0.4,
+    "68": 0.4,
+    "69": 0.4,
+    "70": 0.5,
+    "71": 0.8333333333333334,
+    "72": 0.5,
+    "73": 0.6666666666666666,
+    "74": 0.6666666666666666,
+    "75": 0.6666666666666666,
     "76": 1.0,
     "77": 1.0,
     "78": 1.0,
@@ -2818,461 +1810,71 @@
     "173": 1.0,
     "174": 1.0,
     "175": 1.0,
-    "176": 1.0,
-    "177": 1.0,
-    "178": 1.0,
-    "179": 1.0,
-    "180": 1.0,
-    "181": 1.0,
-    "182": 1.0,
-    "183": 1.0,
-    "184": 1.0,
-    "185": 1.0,
-    "186": 1.0,
-    "187": 1.0,
-    "188": 1.0,
-    "189": 1.0,
-    "190": 1.0,
-    "191": 1.0,
-    "192": 1.0,
-    "193": 1.0,
-    "194": 1.0,
-    "195": 1.0,
-    "196": 1.0,
-    "197": 1.0,
-    "198": 1.0,
-    "199": 1.0,
-    "200": 1.0,
-    "201": 1.0,
-    "202": 1.0,
-    "203": 1.0,
-    "204": 1.0,
-    "205": 1.0,
-    "206": 1.0,
-    "207": 1.0,
-    "208": 1.0,
-    "209": 1.0,
-    "210": 1.0,
-    "211": 1.0,
-    "212": 1.0,
-    "213": 1.0,
-    "214": 1.0,
-    "215": 1.0,
-    "216": 1.0,
-    "217": 1.0,
-    "218": 1.0,
-    "219": 1.0,
-    "220": 1.0,
-    "221": 1.0,
-    "222": 1.0,
-    "223": 1.0,
-    "224": 1.0,
-    "225": 1.0,
-    "226": 1.0,
-    "227": 1.0,
-    "228": 1.0,
-    "229": 1.0,
-    "230": 1.0,
-    "231": 1.0,
-    "232": 1.0,
-    "233": 1.0,
-    "234": 1.0,
-    "235": 1.0,
-    "236": 1.0,
-    "237": 1.0,
-    "238": 1.0,
-    "239": 1.0,
-    "240": 1.0,
-    "241": 1.0,
-    "242": 1.0,
-    "243": 1.0,
-    "244": 1.0,
-    "245": 1.0,
-    "246": 1.0,
-    "247": 1.0,
-    "248": 1.0,
-    "249": 1.0,
-    "250": 1.0,
-    "251": 1.0,
-    "252": 1.0,
-    "253": 1.0,
-    "254": 1.0,
-    "255": 1.0,
-    "256": 1.0,
-    "257": 1.0,
-    "258": 1.0,
-    "259": 1.0,
-    "260": 1.0,
-    "261": 1.0,
-    "262": 1.0,
-    "263": 1.0,
-    "264": 1.0,
-    "265": 1.0,
-    "266": 1.0,
-    "267": 1.0,
-    "268": 1.0,
-    "269": 1.0,
-    "270": 1.0,
-    "271": 1.0,
-    "272": 1.0,
-    "273": 1.0,
-    "274": 1.0,
-    "275": 1.0,
-    "276": 1.0,
-    "277": 1.0,
-    "278": 1.0,
-    "279": 1.0,
-    "280": 1.0,
-    "281": 1.0,
-    "282": 1.0,
-    "283": 1.0,
-    "284": 1.0,
-    "285": 1.0,
-    "286": 1.0,
-    "287": 1.0,
-    "288": 1.0,
-    "289": 1.0,
-    "290": 1.0,
-    "291": 1.0,
-    "292": 1.0,
-    "293": 1.0,
-    "294": 1.0,
-    "295": 1.0,
-    "296": 1.0,
-    "297": 1.0,
-    "298": 1.0,
-    "299": 1.0,
-    "300": 1.0,
-    "301": 1.0,
-    "302": 1.0,
-    "303": 1.0,
-    "304": 1.0,
-    "305": 1.0,
-    "306": 1.0,
-    "307": 1.0,
-    "308": 1.0,
-    "309": 1.0,
-    "310": 1.0,
-    "311": 1.0,
-    "312": 1.0,
-    "313": 1.0,
-    "314": 1.0,
-    "315": 1.0,
-    "316": 1.0,
-    "317": 1.0,
-    "318": 1.0,
-    "319": 1.0,
-    "320": 1.0,
-    "321": 1.0,
-    "322": 1.0,
-    "323": 1.0,
-    "324": 1.0,
-    "325": 1.0,
-    "326": 1.0,
-    "327": 1.0,
-    "328": 1.0,
-    "329": 1.0,
-    "330": 1.0,
-    "331": 1.0,
-    "332": 1.0,
-    "333": 1.0,
-    "334": 1.0,
-    "335": 1.0,
-    "336": 1.0,
-    "337": 1.0,
-    "338": 1.0,
-    "339": 1.0,
-    "340": 1.0,
-    "341": 1.0,
-    "342": 1.0,
-    "343": 1.0,
-    "344": 1.0,
-    "345": 1.0,
-    "346": 1.0,
-    "347": 1.0,
-    "348": 1.0,
-    "349": 1.0,
-    "350": 1.0,
-    "351": 1.0,
-    "352": 1.0,
-    "353": 1.0,
-    "354": 1.0,
-    "355": 1.0,
-    "356": 1.0,
-    "357": 1.0,
-    "358": 1.0,
-    "359": 1.0,
-    "360": 1.0,
-    "361": 1.0,
-    "362": 1.0,
-    "363": 1.0,
-    "364": 1.0,
-    "365": 1.0,
-    "366": 1.0,
-    "367": 1.0,
-    "368": 1.0,
-    "369": 1.0,
-    "370": 1.0,
-    "371": 1.0,
-    "372": 1.0,
-    "373": 1.0,
-    "374": 1.0,
-    "375": 1.0,
-    "376": 1.0,
-    "377": 1.0,
-    "378": 1.0,
-    "379": 1.0,
-    "380": 1.0,
-    "381": 1.0,
-    "382": 1.0,
-    "383": 1.0,
-    "384": 1.0,
-    "385": 1.0,
-    "386": 1.0,
-    "387": 1.0,
-    "388": 1.0,
-    "389": 1.0,
-    "390": 1.0,
-    "391": 1.0,
-    "392": 1.0,
-    "393": 1.0,
-    "394": 1.0,
-    "395": 1.0,
-    "396": 1.0,
-    "397": 1.0,
-    "398": 1.0,
-    "399": 1.0,
-    "400": 1.0,
-    "401": 1.0,
-    "402": 1.0,
-    "403": 1.0,
-    "404": 1.0,
-    "405": 1.0,
-    "406": 1.0,
-    "407": 1.0,
-    "408": 1.0,
-    "409": 1.0,
-    "410": 1.0,
-    "411": 1.0,
-    "412": 1.0,
-    "413": 1.0,
-    "414": 1.0,
-    "415": 1.0,
-    "416": 1.0,
-    "417": 1.0,
-    "418": 1.0,
-    "419": 1.0,
-    "420": 1.0,
-    "421": 1.0,
-    "422": 1.0,
-    "423": 1.0,
-    "424": 1.0,
-    "425": 1.0,
-    "426": 1.0,
-    "427": 1.0,
-    "428": 1.0,
-    "429": 1.0,
-    "430": 1.0,
-    "431": 1.0,
-    "432": 1.0,
-    "433": 1.0,
-    "434": 1.0,
-    "435": 1.0,
-    "436": 1.0,
-    "437": 1.0,
-    "438": 1.0,
-    "439": 1.0,
-    "440": 1.0,
-    "441": 1.0,
-    "442": 1.0,
-    "443": 1.0,
-    "444": 1.0,
-    "445": 1.0,
-    "446": 1.0,
-    "447": 1.0,
-    "448": 1.0,
-    "449": 1.0,
-    "450": 1.0,
-    "451": 1.0,
-    "452": 1.0,
-    "453": 1.0,
-    "454": 1.0,
-    "455": 1.0,
-    "456": 1.0,
-    "457": 1.0,
-    "458": 1.0,
-    "459": 1.0,
-    "460": 1.0,
-    "461": 1.0,
-    "462": 1.0,
-    "463": 1.0,
-    "464": 1.0,
-    "465": 1.0,
-    "466": 1.0,
-    "467": 1.0,
-    "468": 1.0,
-    "469": 1.0,
-    "470": 1.0,
-    "471": 1.0,
-    "472": 1.0,
-    "473": 1.0,
-    "474": 1.0,
-    "475": 1.0,
-    "476": 1.0,
-    "477": 1.0,
-    "478": 1.0,
-    "479": 1.0,
-    "480": 1.0,
-    "481": 1.0,
-    "482": 1.0,
-    "483": 1.0,
-    "484": 1.0,
-    "485": 1.0,
-    "486": 1.0,
-    "487": 1.0,
-    "488": 1.0,
-    "489": 1.0,
-    "490": 1.0,
-    "491": 1.0,
-    "492": 1.0,
-    "493": 1.0,
-    "494": 1.0,
-    "495": 1.0,
-    "496": 1.0,
-    "497": 1.0,
-    "498": 1.0,
-    "499": 1.0,
-    "500": 1.0,
-    "501": 1.0,
-    "502": 1.0,
-    "503": 1.0,
-    "504": 1.0,
-    "505": 1.0,
-    "506": 1.0,
-    "507": 1.0,
-    "508": 1.0,
-    "509": 1.0,
-    "510": 1.0,
-    "511": 1.0,
-    "512": 1.0,
-    "513": 1.0,
-    "514": 1.0,
-    "515": 1.0,
-    "516": 1.0,
-    "517": 1.0,
-    "518": 1.0,
-    "519": 1.0,
-    "520": 1.0,
-    "521": 1.0,
-    "522": 1.0,
-    "523": 1.0,
-    "524": 1.0,
-    "525": 1.0,
-    "526": 1.0,
-    "527": 1.0,
-    "528": 1.0,
-    "529": 1.0,
-    "530": 1.0,
-    "531": 1.0,
-    "532": 1.0,
-    "533": 1.0,
-    "534": 1.0,
-    "535": 1.0,
-    "536": 1.0,
-    "537": 1.0,
-    "538": 1.0,
-    "539": 1.0,
-    "540": 1.0,
-    "541": 1.0,
-    "542": 1.0,
-    "543": 1.0,
-    "544": 1.0,
-    "545": 1.0,
-    "546": 1.0,
-    "547": 1.0,
-    "548": 1.0,
-    "549": 1.0,
-    "550": 1.0,
-    "551": 1.0,
-    "552": 1.0,
-    "553": 1.0,
-    "554": 1.0,
-    "555": 1.0,
-    "556": 1.0,
-    "557": 1.0,
-    "558": 1.0,
-    "559": 1.0,
-    "560": 1.0,
-    "561": 1.0,
-    "562": 1.0,
-    "563": 1.0,
-    "564": 1.0,
-    "565": 1.0,
-    "566": 1.0
+    "176": 1.0
   },
   "gods": [
     {
-      "id": "src_store_usegraphstore_usegraphstore",
-      "label": "useGraphStore",
-      "degree": 65
+      "id": "src_schema_graphschema_elementid",
+      "label": "ElementId",
+      "degree": 70
     },
     {
       "id": "src_schema_graphschema_conceptnode",
       "label": "ConceptNode",
-      "degree": 39
+      "degree": 66
     },
     {
-      "id": "src_services_graphservice_graphservice",
-      "label": "GraphService",
-      "degree": 32
+      "id": "src_store_usegraphstore_usegraphstore",
+      "label": "useGraphStore",
+      "degree": 60
     },
     {
-      "id": "src_schema_graphschema_concepttype",
-      "label": "ConceptType",
-      "degree": 25
+      "id": "src_schema_graphschema_toelementid",
+      "label": "toElementId()",
+      "degree": 52
     },
     {
       "id": "src_schema_graphschema_conceptrelation",
       "label": "ConceptRelation",
-      "degree": 25
+      "degree": 45
     },
     {
-      "id": "src_notations_notationregistry_notationregistry",
-      "label": "NotationRegistry",
-      "degree": 22
+      "id": "src_schema_graphschema_view",
+      "label": "View",
+      "degree": 35
     },
     {
-      "id": "src_schema_graphschema_elementid",
-      "label": "ElementId",
-      "degree": 22
+      "id": "src_schema_graphschema_concepttype",
+      "label": "ConceptType",
+      "degree": 32
+    },
+    {
+      "id": "src_services_graphservice_graphservice",
+      "label": "GraphService",
+      "degree": 31
     },
     {
       "id": "src_core_filesystem_getfspromises",
       "label": "getFSPromises()",
-      "degree": 21
+      "degree": 28
     },
     {
       "id": "src_notations_types_notation",
       "label": "Notation",
-      "degree": 21
-    },
-    {
-      "id": "src_features_viewport_graph_reactflowcanvas_reactflowcanvas",
-      "label": "ReactFlowCanvas()",
-      "degree": 19
+      "degree": 23
     }
   ],
   "surprises": [
     {
-      "source": "run()",
-      "target": "dexie",
+      "source": "DiagnosticIssue",
+      "target": "ElementId",
       "source_files": [
-        "scratch/inspect-graph.js",
-        "package.json"
+        "src/features/ai/services/GraphDiagnostics.ts",
+        "src/schema/graphSchema.ts"
       ],
       "confidence": "EXTRACTED",
       "relation": "references",
-      "why": "connects across different repos/directories"
+      "why": "bridges separate communities; peripheral node `DiagnosticIssue` unexpectedly reaches hub `ElementId`"
     },
     {
       "source": "CreateViewModal()",
@@ -3297,6 +1899,17 @@
       "why": "bridges separate communities; peripheral node `ConceptNodeData` unexpectedly reaches hub `ConceptNode`"
     },
     {
+      "source": "ArchimateCanvas()",
+      "target": "ReactFlowCanvas()",
+      "source_files": [
+        "src/notations/archimate/index.tsx",
+        "src/features/viewport/graph/ReactFlowCanvas.tsx"
+      ],
+      "confidence": "INFERRED",
+      "relation": "indirect_call",
+      "why": "inferred connection - not explicitly stated in source; peripheral node `ArchimateCanvas()` unexpectedly reaches hub `ReactFlowCanvas()`"
+    },
+    {
       "source": "C4Canvas()",
       "target": "ReactFlowCanvas()",
       "source_files": [
@@ -3305,18 +1918,7 @@
       ],
       "confidence": "INFERRED",
       "relation": "indirect_call",
-      "why": "inferred connection - not explicitly stated in source; bridges separate communities"
-    },
-    {
-      "source": "ConceptualCanvas()",
-      "target": "ReactFlowCanvas()",
-      "source_files": [
-        "src/notations/core-model/conceptualNotation.tsx",
-        "src/features/viewport/graph/ReactFlowCanvas.tsx"
-      ],
-      "confidence": "INFERRED",
-      "relation": "indirect_call",
-      "why": "inferred connection - not explicitly stated in source; bridges separate communities"
+      "why": "inferred connection - not explicitly stated in source; peripheral node `C4Canvas()` unexpectedly reaches hub `ReactFlowCanvas()`"
     }
   ],
   "tokens": {
