@@ -1,3 +1,11 @@
+---
+type: Architectural Decision Record
+title: "ADR 0001: Contract-First Service Pattern"
+description: "Strict separation between pure computational services, asynchronous I/O services, and reactive Zustand store state"
+status: stable
+tags: [architecture, services, zustand, fsd, adr]
+---
+
 # 0001: Contract-First Service Pattern
 
 ## Status

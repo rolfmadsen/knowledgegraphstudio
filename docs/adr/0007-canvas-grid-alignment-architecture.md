@@ -1,3 +1,11 @@
+---
+type: Architectural Decision Record
+title: "ADR 0007: 24px Canvas Grid Alignment & Pattern Geometry Architecture"
+description: "24px grid alignment invariants and SVG pattern offset configuration (superseded by ADR 0008)"
+status: deprecated
+tags: [canvas, grid, alignment, geometry, react-flow, adr]
+---
+
 # 0007: 24px Canvas Grid Alignment & Pattern Geometry Architecture
 
 * Status: Superseded by [ADR 0008](file:///home/rolfmadsen/Github/knowledgegraphstudio/docs/adr/0008-canvas-geometry-grid-aligned-bounds.md)

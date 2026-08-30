@@ -1,3 +1,11 @@
+---
+type: Domain Glossary
+title: "Ubiquitous Language & Domain Glossary"
+description: "Definitioner af projektets begreber efter Aristoteles' metode (definitio per genus et differentiam)"
+status: stable
+tags: [domain-glossary, ubiquitous-language, context, okf]
+---
+
 # CONTEXT.md
 
 Dette dokument indeholder projektets **Ubikvitære Sprog** (ordbog).

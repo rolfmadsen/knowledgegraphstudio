@@ -200,6 +200,10 @@ export function yamlToState(yamlString: string): {
 
   const graph = parsed as Record<string, unknown>;
 
+  if (!('concepts' in graph) && !('domains' in graph)) {
+    throw new YamlParseError('Invalid Model YAML: missing concepts or domains structure');
+  }
+
   // Extract domains with default fallback values
   const rawDomains = (graph.domains as Domain[]) ?? [];
   const now = Date.now();

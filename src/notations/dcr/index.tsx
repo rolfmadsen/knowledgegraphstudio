@@ -228,11 +228,41 @@ export const DcrNodeComponent = memo(function DcrNodeComponent({ data, selected 
   const { isSimulating, markings, executeEvent } = useDcrSimulationStore();
   const relations = useGraphStore((s) => s.relations);
 
+  const state = markings[concept?.id];
+  const isExcluded = isSimulating && state && !state.isIncluded;
+  const isExecuted = isSimulating && state && state.isExecuted;
+  const isPending = isSimulating && state && state.isPendingResponse;
+
+  // Compute enabled state (must be called unconditionally before early returns)
+  const isEnabled = useMemo(() => {
+    if (!isSimulating || isExcluded || !state || !concept?.id) return false;
+
+    // e is enabled iff e.In AND all its included condition sources are executed AND all its included milestone sources are not pending
+    const incoming = relations.filter((r) => r.targetConceptId === concept.id);
+
+    for (const r of incoming) {
+      const srcId = r.sourceConceptId;
+      const srcState = markings[srcId];
+      if (!srcState || !srcState.isIncluded) continue; // Excluded sources do not restrict
+
+      const relType = r.name.toLowerCase().trim();
+
+      // Condition constraint: source must be executed
+      if (relType.includes('condition') && !srcState.isExecuted) {
+        return false;
+      }
+
+      // Milestone constraint: source must NOT be pending response
+      if (relType.includes('milestone') && srcState.isPendingResponse) {
+        return false;
+      }
+    }
+
+    return true;
+  }, [isSimulating, isExcluded, state, markings, relations, concept?.id]);
+
   // SubGraph rendering (dashed container)
   if (conceptType === 'bounded_context') {
-    const state = markings[concept.id];
-    const isExcluded = isSimulating && state && !state.isIncluded;
-
     return (
       <div className={`
         w-full h-full p-5 border-2 border-dotted rounded-3xl font-sans text-left transition-all duration-300
@@ -292,40 +322,6 @@ export const DcrNodeComponent = memo(function DcrNodeComponent({ data, selected 
       </div>
     );
   }
-
-  // Event rendering (main activity box)
-  const state = markings[concept.id];
-  const isExcluded = isSimulating && state && !state.isIncluded;
-  const isExecuted = isSimulating && state && state.isExecuted;
-  const isPending = isSimulating && state && state.isPendingResponse;
-
-  // Compute enabled state
-  const isEnabled = useMemo(() => {
-    if (!isSimulating || isExcluded || !state) return false;
-
-    // e is enabled iff e.In AND all its included condition sources are executed AND all its included milestone sources are not pending
-    const incoming = relations.filter((r) => r.targetConceptId === concept.id);
-
-    for (const r of incoming) {
-      const srcId = r.sourceConceptId;
-      const srcState = markings[srcId];
-      if (!srcState || !srcState.isIncluded) continue; // Excluded sources do not restrict
-
-      const relType = r.name.toLowerCase().trim();
-
-      // Condition constraint: source must be executed
-      if (relType.includes('condition') && !srcState.isExecuted) {
-        return false;
-      }
-
-      // Milestone constraint: source must NOT be pending response
-      if (relType.includes('milestone') && srcState.isPendingResponse) {
-        return false;
-      }
-    }
-
-    return true;
-  }, [isSimulating, isExcluded, state, markings, relations, concept.id]);
 
   const handleExecute = (e: React.MouseEvent) => {
     if (!isSimulating || !isEnabled) return;

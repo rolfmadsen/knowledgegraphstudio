@@ -1,0 +1,35 @@
+# agent-gauntlet configuration for typescript
+stack = "typescript"
+save_evidence = true
+evidence_file = "evidence.json"
+evidence_markdown_file = "evidence.md"
+
+[[layers]]
+name = "lint"
+command = ["npx", "eslint", "."]
+optional = true
+timeout_seconds = 30.0
+
+[[layers]]
+name = "types"
+command = ["npx", "tsc", "--noEmit"]
+optional = true
+timeout_seconds = 60.0
+
+[[layers]]
+name = "unit"
+command = ["npm", "test"]
+optional = false
+timeout_seconds = 60.0
+
+[[layers]]
+name = "invariants"
+command = ["npm", "run", "test:invariants"]
+optional = true
+timeout_seconds = 60.0
+
+[[layers]]
+name = "mutation-testing-gauntlet"
+command = ["npx", "stryker", "run"]
+optional = true
+timeout_seconds = 120.0

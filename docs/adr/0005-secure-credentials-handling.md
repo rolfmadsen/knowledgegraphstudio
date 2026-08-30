@@ -1,3 +1,11 @@
+---
+type: Architectural Decision Record
+title: "ADR 0005: Secure Credentials Handling"
+description: "Isolation of Git credentials in Dexie.js IndexedDB and restriction to HTTPS remote URLs"
+status: stable
+tags: [security, credentials, dexie, indexeddb, git, adr]
+---
+
 # 0005: Secure Credentials Handling
 
 ## Status

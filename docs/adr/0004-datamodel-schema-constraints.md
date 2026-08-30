@@ -1,3 +1,11 @@
+---
+type: Architectural Decision Record
+title: "ADR 0004: Strict Datamodel Schema Constraints"
+description: "Zod schema constraints and self-healing parser rules for concept types, properties, and enumerators"
+status: stable
+tags: [schema, zod, datamodel, yaml, validation, adr]
+---
+
 # 0004: Strict Datamodel Schema Constraints
 
 ## Status

@@ -1,3 +1,11 @@
+---
+type: Architectural Decision Record
+title: "ADR 0006: Dynamic Canvas Node Sizing, CSS Flex Responsiveness & Edge Handle Visual Centering"
+description: "Native CSS flexbox auto-expansion and exact handle center anchoring (superseded by ADR 0008)"
+status: deprecated
+tags: [canvas, react-flow, node-sizing, edge-routing, adr]
+---
+
 # 6. Dynamic Canvas Node Sizing, CSS Flex Responsiveness & Edge Handle Visual Centering
 
 * Status: Superseded by [ADR 0008](file:///home/rolfmadsen/Github/knowledgegraphstudio/docs/adr/0008-canvas-geometry-grid-aligned-bounds.md)

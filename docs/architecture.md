@@ -1,44 +1,81 @@
-# Systemarkitektur
+---
+type: Architectural Documentation
+title: "System Architecture & Component Blueprint"
+description: "High-level architecture overview, Feature-Sliced Design layers, state boundaries, and cross-cutting ADR index for xArchi"
+status: stable
+tags: [architecture, blueprint, fsd, state, system-overview, okf]
+---
 
-Dette dokument beskriver den overordnede arkitektur for xArchi (Knowledge Graph Studio), herunder mappestruktur, forretningslogik og tilstandsstyring.
+# System Architecture & Component Blueprint
 
-## Oversigt over xArchi
+Dette dokument giver et overblik over den overordnede systemarkitektur for xArchi (Knowledge Graph Studio), kildekodens modulære lagdeling og henviser til de autoritative arkitekturbeslutninger (ADR'er).
 
-xArchi er et lokalt ("local-first") og tastaturbaseret ("keyboard-first") modelleringsmiljø til semantiske vidensgrafer (Knowledge Graphs) og forretningskoncepter. Applikationen kører udelukkende i brugerens browser og gemmer data lokalt i et virtuelt filsystem (VFS) understøttet af Git. Formålet er at muliggøre hurtig og præcis indtastning af domæneviden, relationer og forretningsregler, understøttet af en interaktiv grafvisualisering samt en read-only YAML-kodetekst (til Git-versionering og diffs).
+---
 
-## Feature-Sliced Design (FSD) Struktur
+## 🎯 Oversigt over xArchi
+
+xArchi er et lokalt ("local-first") og tastaturbaseret ("keyboard-first") modelleringsmiljø til semantiske vidensgrafer (Knowledge Graphs), begrebsmodeller og virksomhedsarkitektur. Applikationen afvikles i browseren og gemmer data i et virtuelt filsystem (VFS) understøttet af Git.
+
+```mermaid
+graph TD
+    UI["Dumb UI Components<br/>(React Flow, Inspector, Command Hub)"]
+    Store["State Orchestration<br/>(Zustand / useGraphStore)"]
+    CompService["Computational Services<br/>(Pure Graph & Layout Math)"]
+    IOService["I/O Services<br/>(VFS, Git, AI)"]
+    Core["Core Engines<br/>(Lightning-FS, Isomorphic-Git, WebGPU Worker)"]
+
+    UI -->|Dispatches Actions| Store
+    Store -->|Delegates Transformations| CompService
+    Store -->|Triggers Async Operations| IOService
+    IOService -->|Executes IO| Core
+```
+
+---
+
+## 📐 Modulær Struktur (Feature-Sliced Design)
 
 Kildekoden er organiseret efter Feature-Sliced Design (FSD) principper under `src/` for at sikre klar adskillelse af ansvarsområder:
 
-*   **`src/schema/`**: Indeholder datavalidering og schemas (primært via Zod i `graphSchema.ts`).
-*   **`src/core/`**: De basale, lavniveaus motorer og util-filer:
-    *   `fileSystem.ts`: Konfigurerer det virtuelle filsystem (VFS) via `lightning-fs`.
-    *   `gitEngine.ts`: Lavniveaus Git-operationer ved hjælp af `isomorphic-git`.
-    *   `yamlParser.ts`: To-vejs parser og transformer mellem Zustand-state og den serialiserede YAML-struktur.
-*   **`src/store/`**: Central tilstandsbeholder via Zustand (`useGraphStore.ts`) og bootstrapper-logik.
-*   **`src/services/`**: Det interne API og forretningslag (Service Layer), som forbinder UI, store og kerne-motorer.
-*   **`src/features/`**: Domænespecifikke slices og komponenter (fx `viewport/` med graf og kode, `properties/` med detaljevisning, `commands/` til Command Hub).
-*   **`src/components/ui/`**: Fælles UI-komponenter og styling-primitiver.
+* **`src/schema/`**: Datavalidering og schemas (primært Zod schemas i `graphSchema.ts`).
+* **`src/core/`**: Lavniveaus motorer og infrastruktur (`fileSystem.ts`, `gitEngine.ts`, `yamlParser.ts`).
+* **`src/store/`**: Central tilstandsbeholder via Zustand (`useGraphStore.ts`).
+* **`src/services/`**: Forretningslag med skarpt opdelte Computational Services og I/O Services.
+* **`src/features/`**: Domænespecifikke slices (`viewport/` med graf/kode, `properties/` med detaljevisning, `commands/` med Command Hub, `ai/` med model-worker).
+* **`src/components/ui/`**: Fælles præsentationskomponenter og styling-primitiver.
 
-## Contract-First Service Pattern
+> 🏛️ *For de formelle regler om lagdeling og tilladte afhængigheder, se [ADR 0009: Feature-Sliced Design Package Structure](./adr/0009-feature-sliced-design-package-structure.md).*
 
-For at beskytte applikationen mod tæt kobling og gøre den forberedt på fremtidige integrationsgrænseflader (som fx CLI eller MCP) anvendes et strengt service-lag i `src/services/`.
-* For de specifikke regler, begrænsninger og tilladte importer, se det formelle **[ADR 0001: Contract-First Service Pattern](./adr/0001-contract-first-service-pattern.md)**.
-* Services opdeles skarpt i **Computational Services** (rene synkrone datatransformere uden sideeffekter) og **I/O Services** (asynkrone motorer der håndterer disk/netværks-sideeffekter).
+---
 
-## Tilstandsorkestrering & Zustand Boundaries
+## 🏛️ Gældende Arkitekturbeslutninger (ADR Indeks)
 
-Zustand fungerer som applikationens absolutte "Source of Truth" (SSOT) i hukommelsen for brugerfladen (UI).
-* **Dumb UI:** UI-komponenter og features må kun håndtere præsentation, brugerinteraktion og lokal tilstand. De må aldrig tilgå filsystemet eller git-motoren direkte.
-* **Zustand som orkestrator:** Storen modtager kald fra UI, uddelegerer domænemutationerne til Computational Services, og trigger asynkrome I/O-services perifert (se [ADR 0001](./adr/0001-contract-first-service-pattern.md) for detaljerede grænser).
+Følgende Architecture Decision Records er gældende for systemets implementation og skal overholdes:
 
-## AI Arkitektur & WebGPU (Lokal LLM)
+| ADR | Titel & Nøgleprincip |
+| :--- | :--- |
+| **[ADR 0001](./adr/0001-contract-first-service-pattern.md)** | **Contract-First Service Pattern**: Skarp opdeling mellem Computational Services (rene synkrone funktioner) og I/O Services (asynkrone sideeffekter). |
+| **[ADR 0002](./adr/0002-typescript-module-syntax-and-strict-types.md)** | **Strict TypeScript & Type-Only Imports**: Eksplicit type-sikkerhed uden `as any` og isolerede moduler. |
+| **[ADR 0003](./adr/0003-state-history-exclusion-zundo.md)** | **State History Exclusion**: Zundo undo/redo-historik med eksklusion af flygtig UI-tilstand (zoom, pan, selection). |
+| **[ADR 0004](./adr/0004-datamodel-schema-constraints.md)** | **Datamodel Schema Constraints**: Zod-baseret schema runtime-validering for semantiske noder og kanter. |
+| **[ADR 0005](./adr/0005-secure-credentials-handling.md)** | **Secure Credentials Handling**: Sikker opbevaring af git- og AI-nøgler i browser-session uden log-lækager. |
+| **[ADR 0008](./adr/0008-canvas-geometry-grid-aligned-bounds.md)** | **Canvas Geometry Contract**: Grid-justerede initial bounds med grid-steppede ($24\text{px}$) DOM-målte højder og side-centrerede handles. |
+| **[ADR 0009](./adr/0009-feature-sliced-design-package-structure.md)** | **Feature-Sliced Design Layout**: Modul- og pakkestruktur der forhindrer cirkulære afhængigheder. |
+| **[ADR 0010](./adr/0010-in-browser-webgpu-ai-worker-and-memory-lifecycle.md)** | **In-Browser WebGPU AI Worker**: Lokal LLM-inferens i isoleret Web Worker med 5-minutters inaktivitet og 15-sekunders grace-timer for GPU-RAM frigivelse. |
 
-For at tilbyde lokale AI-funktioner uden eksterne afhængigheder (som f.eks. en kørende Ollama-instans) understøtter xArchi kørsel af en browser-baseret LLM via WebGPU.
+---
 
-*   **WebGPU Inference:** Vi anvender `@mlc-ai/web-llm` to køre modeller (såsom `Qwen2.5-1.5B`) direkte i browseren.
-*   **Web Worker Tråd (`src/features/ai/workers/ai.worker.ts`):** For at undgå at blokere hovedtråden og fryse brugerfladen under tekstgenerering og modelindlæsning, køres hele WebLLM-motoren i en baggrundstråd (Web Worker) ved hjælp af `WebWorkerMLCEngineHandler`.
-*   **Moduleret Indlæsning & Fejlsikring:** Forbindelsen oprettes asynkront via `CreateWebWorkerMLCEngine` i `AIService.ts`. Hvis browseren ikke understøtter WebGPU (`navigator.gpu` er udefineret), kastes en klar og hjælpsom fejlmeddelelse, og systemet falder tilbage på ekstern API.
-*   **Automatisk GPU-RAM Oprydning (Lifecycle Management):** For at forhindre at modellen optager unødig hukommelse (GPU RAM) på brugerens maskine, styres Web Workerens levetid med to timere:
-    1.  **Inaktivitetstimer:** Hvis motoren er ubenyttet i 5 minutter, lukkes workeren.
-    2.  **Grace-timer på faneskift:** Hvis panelet lukkes eller brugeren skifter fane, startes en grace-timer på 15 sekunder. Hvis panelet ikke genåbnes, lukkes workeren for at frigøre 100% af dens GPU RAM.
+## 🎨 Notationsspecifikationer & Domænemodeller
+
+For dybdegående dokumentation og ontologier for de enkelte visningsprofiler:
+* **[Notationsindeks & Metamodeller](./architecture-notations/README.md)**: Oversigt over ArchiMate 3.2, C4, DCR Graphs, Event Modeling, Begrebsmodel og Informationsmodel.
+* **[Semantisk Mapping Matrix](./architecture-notations/mapping-matrix.md)**: Komplet mapping mellem `ConceptType` og stereotyper.
+* **[UI & Tastaturnavigation](./architecture-notations/ui-and-shortcuts.md)**: Guide til de fire zoner og spatial walking.
+
+---
+
+## 🧪 Verifikation & Kvalitetssikring
+
+Systemet overholder projektets Evidence-First gauntlet-standard:
+* **Unit & Contract Tests**: `npm run test`
+* **Type-sikkerhed**: `npx tsc --noEmit`
+* **Gauntlet Verifikation**: `npx @agent-gauntlet/cli verify`

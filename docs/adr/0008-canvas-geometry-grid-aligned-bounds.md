@@ -1,3 +1,11 @@
+---
+type: Architectural Decision Record
+title: "ADR 0008: Canvas Geometry: Grid-Aligned Initial Bounds with Grid-Stepped Measured Bounds"
+description: "Unified canvas geometry contract combining grid-aligned initial bounds and grid-stepped measured bounds"
+status: stable
+tags: [canvas, geometry, grid, react-flow, layout, adr]
+---
+
 # 8. Canvas Geometry: Grid-Aligned Initial Bounds with Grid-Stepped Measured Bounds
 
 * Status: Accepted

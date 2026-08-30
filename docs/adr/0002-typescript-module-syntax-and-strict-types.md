@@ -1,3 +1,11 @@
+---
+type: Architectural Decision Record
+title: "ADR 0002: Strict Type-Safe Module Resolution (verbatimModuleSyntax)"
+description: "Enforcement of verbatimModuleSyntax, explicit type imports, and prohibition of any in production and tests"
+status: stable
+tags: [typescript, strict-types, verbatim-module-syntax, adr]
+---
+
 # 0002: Strict Type-Safe Module Resolution (verbatimModuleSyntax)
 
 ## Status

@@ -25,6 +25,7 @@ import { LayoutGrid, Code2, Columns2, PanelLeftOpen } from 'lucide-react';
 import { StatusBar } from './features/statusbar/StatusBar';
 import { useUISession, readUISession } from './hooks/useUISession';
 import { TabSyncService } from './services/TabSyncService';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 // Lazy load heavy views and modals for code splitting
 const CodeViewport = lazy(() => import('./features/viewport/code/CodeViewport').then(m => ({ default: m.CodeViewport })));
@@ -567,11 +568,13 @@ function App() {
             <ViewportContainer
               diffMode={diffMode}
               graphViewport={
-                <NotationCanvasWrapper
-                  focusMode={focusMode}
-                  isAIPanelActive={propertiesOpen && activeTab === 'ai'}
-                  onHelpClick={() => setIsHelpOpen(true)}
-                />
+                <ErrorBoundary fallbackTitle="Grafvisning fejlede" fallbackMessage="Der opstod en fejl under rendering af diagrammet.">
+                  <NotationCanvasWrapper
+                    focusMode={focusMode}
+                    isAIPanelActive={propertiesOpen && activeTab === 'ai'}
+                    onHelpClick={() => setIsHelpOpen(true)}
+                  />
+                </ErrorBoundary>
               }
               diffViewport={
                 diffLoaded ? (
@@ -593,9 +596,11 @@ function App() {
 
             <div className="flex-1 min-h-0 relative">
               {codeLoaded && (
-                <Suspense fallback={<div className="flex-1 flex items-center justify-center"><div className="animate-pulse text-xs text-slate-400">Loading Code Editor...</div></div>}>
-                  <CodeViewport isConflict={isConflict} />
-                </Suspense>
+                <ErrorBoundary fallbackTitle="Kodevisning fejlede" fallbackMessage="Der opstod en fejl i kildekode-visningen.">
+                  <Suspense fallback={<div className="flex-1 flex items-center justify-center"><div className="animate-pulse text-xs text-slate-400">Loading Code Editor...</div></div>}>
+                    <CodeViewport isConflict={isConflict} />
+                  </Suspense>
+                </ErrorBoundary>
               )}
             </div>
           </div>
@@ -615,9 +620,11 @@ function App() {
 
               <div className="flex-1 min-h-0 relative">
                 {codeLoaded && (
-                  <Suspense fallback={<div className="flex-1 flex items-center justify-center"><div className="animate-pulse text-xs text-slate-400">Loading Code Editor...</div></div>}>
-                    <CodeViewport isConflict={isConflict} />
-                  </Suspense>
+                  <ErrorBoundary fallbackTitle="Kodevisning fejlede" fallbackMessage="Der opstod en fejl i kildekode-visningen.">
+                    <Suspense fallback={<div className="flex-1 flex items-center justify-center"><div className="animate-pulse text-xs text-slate-400">Loading Code Editor...</div></div>}>
+                      <CodeViewport isConflict={isConflict} />
+                    </Suspense>
+                  </ErrorBoundary>
                 )}
               </div>
             </aside>

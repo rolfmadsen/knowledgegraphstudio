@@ -1,3 +1,11 @@
+---
+type: Troubleshooting Guide
+title: "Troubleshooting & Architectural Learnings"
+description: "Solutions to common technical challenges, React Flow warnings, AI reflections, and canvas metadata sync"
+status: stable
+tags: [troubleshooting, react-flow, ai, sync, learnings, okf]
+---
+
 # Fejlfinding og Erfaringer (Troubleshooting & Learnings)
 
 Dette dokument opsummerer løsninger på tekniske udfordringer, fejl og vigtige læringer i xArchi.

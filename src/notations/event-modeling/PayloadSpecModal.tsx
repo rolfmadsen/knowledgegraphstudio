@@ -64,8 +64,6 @@ export function PayloadSpecModal({
   addProperty,
   onOpenSyncModal,
 }: PayloadSpecModalProps) {
-  if (!isOpen) return null;
-
   const conceptId = currentNode.id;
   const conceptType = currentNode.conceptType;
 
@@ -652,6 +650,8 @@ export function PayloadSpecModal({
       </div>
     </div>
   );
+
+  if (!isOpen) return null;
 
   return createPortal(modalContent, document.body);
 }

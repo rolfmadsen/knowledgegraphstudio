@@ -1,45 +1,99 @@
-# Local Agent
+# Agent Guidelines: agent-gauntlet
 
-## Antigravity Toolchain Guardrail Rules
+This repository follows the **Evidence-First Development & Clean Craftsmanship** methodology.
 
-> [!IMPORTANT]
-> Du er underlagt en streng proces-guardrail (toolchain-guardrail).
-> 
-> 1. Før du foretager NOGEN form for kildekodeændringer eller opretter nye filer (undtagen dokumentationsfiler som `CONTEXT.md`, `spec.md` og `task.md`), SKAL du kalde `validate_state(intent=...)` værktøjet med den relevante intent (`query`, `bugfix`, `feature`, `enhancement`).
-> 2. Hvis `validate_state()` returnerer et `STOP` direktiv (f.eks. fordi `spec.md` eller `task.md` mangler), er det strengt forbudt at skrive eller modificere kildekodefiler. Du skal stoppe og følge direktivets instruktioner (f.eks. køre en grill-session eller nedbryde opgaver).
-> 3. Du skal respektere og følge de foreskrevne faser nøje.
+---
 
-### 🧠 Git-Versioned Agent Memory [MCP: agentmemory]
-- **Recall Context:** Søg i projektets hukommelse i `./.memory/` ved hjælp af `memory_smart_search` eller `memory_recall` ved opstart af komplekse opgaver.
-- **Persist Learnings:** Gem arkitektoniske beslutninger, komplekse fejlrettelser og projektkonventioner i `./.memory/` ved hjælp af `memory_save`, så de versionsstyres sammen med Git.
+## 📊 Standard Response HUD Protocol
+Always format the top of every visible agent response with the transparent Task HUD card:
+> ### 🛡️ [Task: <Task Title / Intent>] `[<Task Type>: <Phase>]`
+> **Status**: `Phase: <SPEC | RED | GREEN | REFACTOR | GAUNTLET | DONE>` | `Gauntlet: <PASS | FAIL | PENDING>`
+> 📋 [Task](tasks/) • 📄 [Spec](spec.md) • 📖 [Glossary](CONTEXT.md) • 🏛️ [ADR](docs/adr/) • 🧪 [Evidence](evidence.md)
 
-### 📖 Regler for Ordbogsdefinitioner (CONTEXT.md)
-Når du opretter eller opdaterer begreber i `CONTEXT.md`, skal du overholde følgende regler:
-1. **Aristoteles' Definitio per genus et differentiam**: Hvert begreb defineres efter formlen:
-   - **"En [X] er en [Y], der [Z]"** (hvor Y er den generelle kategori, og Z er den adskillelige egenskab).
-   - *Eksempel*: "**Faktura**: En betalingsanmodning (genus), der sendes til en kunde efter levering (differentia)."
-2. **Ren Semantik**: Definitionerne skal beskrive hvad begrebet *er*, ikke hvordan det implementeres eller fungerer i koden.
+---
 
-### 🛠️ Strict TDD Protocol & Execution Strategy
+## 🛠️ Bundled Agent Skills (`.agents/skills/`)
+The agent has direct access to bundled skills located in [.agents/skills/](.agents/skills/) (and packaged under [plugins/agent-gauntlet/skills/](plugins/agent-gauntlet/skills/)). When a skill is invoked, the agent MUST view its `SKILL.md` before proceeding:
 
-For any task involving **Core Business Logic, APIs, or State Management** (unless explicitly overridden by the user with the keywords **"quick fix"**, **"skip tests"**, or **"spike"**), you **MUST** follow this step-by-step protocol. Editing source code files before completing Phase 1 is a safety violation.
+1. **[old-coder](.agents/skills/old-coder/SKILL.md)**:
+   * *Purpose*: Evidence-first development methodology (SPEC $\to$ RED $\to$ GREEN $\to$ REFACTOR $\to$ GAUNTLET $\to$ EVIDENCE).
+2. **[grill-me](.agents/skills/grill-me/SKILL.md)**:
+   * *Purpose*: Socratic interview to stress-test designs and resolve the decision tree before writing code.
+3. **[grill-with-docs](.agents/skills/grill-with-docs/SKILL.md)**:
+   * *Purpose*: Challenges plans against domain concepts in [CONTEXT.md](CONTEXT.md) and creates/updates ADRs in [docs/adr/](docs/adr/).
+4. **[diagnose](.agents/skills/diagnose/SKILL.md)**:
+   * *Purpose*: Disciplined root-cause diagnosis loop (Reproduce $\to$ Minimize $\to$ Hypothesize $\to$ Instrument $\to$ Fix $\to$ Regression-test).
+5. **[code-review](.agents/skills/code-review/SKILL.md)**:
+   * *Purpose*: Two-axis review (Standards vs Spec) running parallel sub-agents with Fowler code smells baseline.
 
-#### 1. Plan & Checklist Integration
-When creating or updating `task.md` (or the planning artifact), you **MUST** explicitly list the TDD phases as sequential checklist items:
-- [ ] `[ ]` Write failing unit test in `src/.../__tests__/` reproducing the issue or specifying the new feature.
-- [ ] `[ ]` Run the test command and verify it fails (**RED** phase).
-- [ ] `[ ]` Implement source changes in `src/store/` or `src/services/`.
-- [ ] `[ ]` Run the test command and verify it passes (**GREEN** phase).
-- [ ] `[ ]` Refactor and ensure tests remain green (**REFACTOR** phase).
+---
 
-#### 2. Phase Execution Flow
-1. **PHASE 1 (RED)**: Write the test code first. Run the test command (e.g. `npm run test` or `vitest run <test-file>`). **You must print the failing test output in your chat response** before you are allowed to edit any non-test files under `src/`.
-2. **PHASE 2 (GREEN)**: Modify the source files. Run the test command again and print the passing output.
-3. **PHASE 3 (REFACTOR)**: Refactor the code for clean architecture, running tests after each modification.
+## 📄 Specification Governance (`spec.md`)
+1. **Macro System Specification:** `spec.md` represents the repository's high-level executable specification, system-wide invariants, and capabilities (whereas `tasks/` tracks individual, isolated work packages).
+2. **Standard `spec.md` Structure:**
+   * `# Specification: <System / Feature Name>`
+   * `## 🎯 Philosophy & Core Capabilities`: Overordnede systemegenskaber og domæneprincipper.
+   * `## 📐 Architecture & Feature Modules`: Modul- og pakkestruktur (`Package-by-Feature`).
+   * `## 🚫 Must NOT (System Invariants)`: Globale sikkerheds- og arkitektur-invarianter, der gælder på tværs af alle opgaver.
+   * `## 🧪 Multi-Layer Verification Contracts`: Makro-verifikationskriterier og test-dækning.
+3. **Hvornår `spec.md` udfyldes & opdateres:**
+   * **`🚀 NEW FEATURE` & `🔄 ARCHITECTURAL REFACTOR`:** Før kodning påbegyndes, SKAL agenten sikre, at `spec.md` er opdateret og godkendt af brugeren i SPEC-fasen.
+   * **`🐛 BUG FIX` & `🔍 QUERY`:** Udføres mod de eksisterende specifikationsinvarianter uden behov for omskrivning af `spec.md`.
 
-#### 3. Smart Defaults (No TDD required)
-- **UI Layouts, CSS, HTML, Config files, Docs, and Scripts**: Direct implementation without TDD is allowed and recommended.
-- **User Overrides**: If the user uses the keywords **"test first"** or **"TDD"**, this strict protocol is enforced even for UI/layout code.
+---
 
-### 🧩 Modular Rules & Extensions
-- **[Graphify AST Knowledge Graph](file://.agents/rules/graphify.md):** Regler for AST-indeksering, undergraf-forespørgsler og automatisk `graphify update .` efter kildekodeændringer.
+## 🗂️ Task Management Protocol (`tasks/`)
+1. **Curated Scope:** Every non-trivial work item is tracked as a concise markdown file in `tasks/<number>-<title>.md`.
+2. **Standard Task Structure:**
+   * `# Task <number>: <Title>` (Header with `Status: ACTIVE | DONE`, `Intent: 🚀 NEW FEATURE | 🐛 BUG FIX | 🔄 REFACTOR`)
+   * `## 🎯 Formål`: Konkret målsætning og afgrænsning.
+   * `## 📋 Acceptance Criteria`: Eksekverbare `- [ ]` punkter med klare forventede inputs og outputs.
+   * `## 🚫 Must NOT`: Negative begrænsninger og arkitektur-invarianter, der under ingen omstændigheder må brydes.
+   * `## 📝 Revisions`: Append-only ændringslog for mid-task ændringer og afviste forslag (hvad brugeren sagde nej til).
+   * `## 🧪 Verifikation`: Konkrete kommandoer til afprøvning og validering.
+3. **Clean Session Handoffs:** A new chat session starts by reading the designated `tasks/<task>.md` and `CONTEXT.md`.
+4. **No Memory Rot:** Completed tasks are marked `DONE` and remain frozen; persistent domain knowledge is distilled into `CONTEXT.md` and `docs/adr/`.
+
+---
+
+## 🏛️ Architecture Decisions & ADR Governance (`docs/adr/`)
+1. **Strict ADR Adherence:** The agent MUST strictly comply with all accepted Architecture Decision Records in `docs/adr/`.
+2. **Active Sparring on Conflicts:** If a user prompt, new task, or proposed code contradicts existing ADRs or gauntlet invariants, the agent MUST immediately challenge the contradiction, surface the trade-off, and resolve the decision before proceeding.
+3. **Lazy Creation:** New ADRs in `docs/adr/` are created only for irreversible, non-obvious trade-offs.
+
+---
+
+## 🎯 Intent Classification & Discovery
+Before writing code, classify intent and align with domain terminology:
+- 🔍 **QUERY / DIAGNOSIS:** Information request or root-cause discovery (read-only; use `diagnose`).
+- 🚀 **NEW FEATURE / REFACTOR:** Run `grill-me` or `grill-with-docs` to resolve decisions and update `CONTEXT.md` before coding.
+- 🐛 **BUG FIX:** Reproduce failure in a red test before changing production code.
+- 🧐 **CODE REVIEW / AUDIT:** Independent two-axis evaluation of changes against repository standards and spec invariants (use `code-review`).
+
+---
+
+## 🔄 Core Development Loop
+```text
+SPEC / GRILL → (Human Approval) → RED → GREEN → REFACTOR → GAUNTLET → EVIDENCE
+```
+
+1. **SPEC / GRILL**: Concrete executable criteria in `tasks/<task>.md` and `spec.md`, aligned with `CONTEXT.md`.
+2. **RED**: Write black-box acceptance tests first, prove they fail with expected behavior.
+3. **GREEN**: Minimal implementation to make the tests pass.
+4. **REFACTOR**: Clean up code while assertions remain frozen.
+5. **GAUNTLET**: Execute multi-layer verification via `agent-gauntlet verify` / `sh tools/gauntlet.sh`:
+   - Linters & Static Analysis
+   - Type Checks (`pyright`, `tsc`, `cargo check`)
+   - Acceptance & Unit Tests
+   - Invariant & Property Tests (`hypothesis`, `proptest`)
+   - Mutation Testing Gauntlet (`mutants.py`)
+6. **EVIDENCE**: Persist verification report in `verification-report.json` and `evidence.md`.
+7. **SESSION HANDOFF**: Display the clean `🏁 SESSION HANDOFF` card with the copy-paste starter prompt and inferred engineering role in the final user-facing response:
+   > ### 🏁 SESSION HANDOFF • `<task_id>`
+   > **Status**: `TASK: DONE` | **Evidens**: `FORSEGLET (Two-Tier Model)` | **Næste Rolle**: `<inferred_role>`
+   > 💡 *Start venligst en frisk chat-session for at bevare et skarpt kontekstvindue uden context rot.*
+   >
+   > 📋 **Kopiér og indsæt følgende starter-prompt i en ny chat:**
+   > ```text
+   > <handoff_prompt>
+   > ```

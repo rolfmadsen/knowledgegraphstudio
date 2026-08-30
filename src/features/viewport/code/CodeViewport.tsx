@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback, useEffect } from 'react';
+import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import '../../../core/monacoLoader'; // Self-host Monaco — must run before Editor mounts
 import Editor from '@monaco-editor/react';
 import { useGraphStore } from '../../../store/useGraphStore';
@@ -30,6 +30,14 @@ export function CodeViewport({ isConflict = false }: CodeViewportProps) {
   const [localYaml, setLocalYaml] = useState<string | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+
+  const activeCodeTabRef = useRef(activeCodeTab);
+  const isConflictRef = useRef(isConflict);
+
+  useEffect(() => {
+    activeCodeTabRef.current = activeCodeTab;
+    isConflictRef.current = isConflict;
+  }, [activeCodeTab, isConflict]);
 
   const activeView = useMemo(() => views.find((v) => v.id === activeViewId), [views, activeViewId]);
 
@@ -72,11 +80,29 @@ export function CodeViewport({ isConflict = false }: CodeViewportProps) {
     return stringifyState ? stringifyState() : '';
   }, [domains, concepts, relations, views, isConflict, rawYaml, stringifyState, activeCodeTab, activeViewId]);
 
-  // Clear any dirty local edits and errors when switching tabs or active views
+  // Debounced sync function to update the global store from YAML input
+  const syncToStore = useMemo(() => {
+    return debounce((value: string) => {
+      // Strictly prevent hydrating unless on full editable tab
+      if (activeCodeTabRef.current !== 'full' || isConflictRef.current) return;
+      try {
+        if (hydrateFromYaml) hydrateFromYaml(value);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Invalid YAML syntax');
+      }
+    }, 500);
+  }, [hydrateFromYaml]);
+
+  // Clear any dirty local edits, pending debounced syncs, and errors when switching tabs or active views
   useEffect(() => {
+    syncToStore.cancel();
     setLocalYaml(undefined);
     setError(null);
-  }, [activeCodeTab, activeViewId]);
+    return () => {
+      syncToStore.cancel();
+    };
+  }, [activeCodeTab, activeViewId, syncToStore]);
 
   // Auto-switch back if active view is lost or current tab is disallowed
   useEffect(() => {
@@ -85,28 +111,18 @@ export function CodeViewport({ isConflict = false }: CodeViewportProps) {
     }
   }, [allowedTabs, activeCodeTab, activeViewId, setActiveCodeTab]);
 
-  // Debounced sync function to update the global store from YAML input
-  const syncToStore = useCallback(
-    debounce((value: string) => {
-      try {
-        if (hydrateFromYaml) hydrateFromYaml(value);
-        setError(null);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Invalid YAML syntax');
+  const handleEditorChange = useCallback(
+    (value: string | undefined) => {
+      // Only capture local edits when on editable 'full' tab and not in conflict
+      if (activeCodeTabRef.current === 'full' && !isConflictRef.current) {
+        setLocalYaml(value);
+        if (value) {
+          syncToStore(value);
+        }
       }
-    }, 500),
-    [hydrateFromYaml]
+    },
+    [syncToStore]
   );
-
-  const handleEditorChange = (value: string | undefined) => {
-    // Only capture local edits when on editable 'full' tab
-    if (activeCodeTab === 'full') {
-      setLocalYaml(value);
-      if (value && !isConflict) {
-        syncToStore(value);
-      }
-    }
-  };
 
   const handleFix = async () => {
     const yamlToResolve = localYaml ?? yamlContent;
@@ -293,7 +309,7 @@ export function CodeViewport({ isConflict = false }: CodeViewportProps) {
           height="100%"
           language={activeCodeTab === 'rdf' ? 'turtle' : 'yaml'}
           value={activeCodeTab === 'full' ? (localYaml ?? yamlContent) : yamlContent}
-          onChange={handleEditorChange}
+          onChange={activeCodeTab === 'full' && !isConflict ? handleEditorChange : undefined}
           theme="vs-light"
           options={{
             readOnly: activeCodeTab !== 'full',

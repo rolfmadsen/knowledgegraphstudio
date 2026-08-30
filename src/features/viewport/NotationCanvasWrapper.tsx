@@ -508,41 +508,6 @@ const HIDE_EDGES_IN_NOTATION: Record<string, Set<string>> = {
     runLayout,
   ]);
 
-  if (!activeView) {
-    return (
-      <div className="flex-1 flex items-center justify-center bg-slate-50 text-slate-400 font-sans text-xs">
-        No active view. Select or create one from the Model Explorer.
-      </div>
-    );
-  }
-
-  if (!notation) {
-    return (
-      <div className="flex-1 flex items-center justify-center bg-slate-50 text-red-500 font-sans text-xs font-bold">
-        Error: No notation registered for ViewType "{activeView.type}"
-      </div>
-    );
-  }
-
-  const CanvasComponent = notation.CanvasComponent;
-
-  // Prepare standard props with filtered concepts & relations
-  const canvasProps = {
-    view: viewWithProposals || activeView,
-    storeState: {
-      concepts: conceptsWithProposals,
-      relations: relationsWithProposals,
-      selectedConceptId,
-      selectedRelationId,
-    },
-    onNodePositionChange: (conceptId: ElementId, x: number, y: number) => {
-      updateViewNodePosition(activeView.id, conceptId, x, y);
-    },
-    onNodeSelect: selectConcept,
-    onRelationSelect: selectRelation,
-    onConnect: addRelation,
-  };
-
   const handleSelectAndPan = useCallback(
     (id: ElementId, type: 'concept' | 'relation') => {
       if (type === 'concept') {
@@ -611,6 +576,41 @@ const HIDE_EDGES_IN_NOTATION: Record<string, Set<string>> = {
     },
     [selectConcept, selectRelation, activeView, viewWithProposals, reactFlow]
   );
+
+  if (!activeView) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-slate-50 text-slate-400 font-sans text-xs">
+        No active view. Select or create one from the Model Explorer.
+      </div>
+    );
+  }
+
+  if (!notation) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-slate-50 text-red-500 font-sans text-xs font-bold">
+        Error: No notation registered for ViewType "{activeView.type}"
+      </div>
+    );
+  }
+
+  const CanvasComponent = notation.CanvasComponent;
+
+  // Prepare standard props with filtered concepts & relations
+  const canvasProps = {
+    view: viewWithProposals || activeView,
+    storeState: {
+      concepts: conceptsWithProposals,
+      relations: relationsWithProposals,
+      selectedConceptId,
+      selectedRelationId,
+    },
+    onNodePositionChange: (conceptId: ElementId, x: number, y: number) => {
+      updateViewNodePosition(activeView.id, conceptId, x, y);
+    },
+    onNodeSelect: selectConcept,
+    onRelationSelect: selectRelation,
+    onConnect: addRelation,
+  };
 
   return (
     <div className="flex-1 relative w-full h-full min-h-0 overflow-hidden">

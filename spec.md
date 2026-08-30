@@ -1,3 +1,11 @@
+---
+type: Architectural Specification
+title: "Specification: Architecture Notations Refactoring & Canvas Policy Unification"
+description: "Explicit NotationCanvasPolicy architecture unifying node, edge, handle, grid, and canvas interaction mechanics"
+status: stable
+tags: [specification, canvas, notations, architecture, okf]
+---
+
 # Specification: Architecture Notations Refactoring & Canvas Policy Unification
 
 ## User Stories & Requirements

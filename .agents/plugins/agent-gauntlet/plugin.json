@@ -1,0 +1,27 @@
+{
+  "name": "agent-gauntlet",
+  "version": "0.5.0",
+  "description": "High-assurance multi-stack verification engine, actionable diagnostics harness, and gauntlet runner for Antigravity",
+  "author": "Antigravity Team",
+  "skills": [
+    "old-coder",
+    "grill-me",
+    "grill-with-docs",
+    "diagnose",
+    "code-review"
+  ],
+  "entrypoints": {
+    "gauntlet_runner": "agent_gauntlet.features.gauntlet.runner:run_gauntlet",
+    "evidence_authority": "agent_gauntlet.features.evidence.authority:EvidenceAuthority",
+    "diagnostic_parser": "agent_gauntlet.features.diagnostics.parser:DiagnosticParser",
+    "config_loader": "agent_gauntlet.features.config.loader:load_config",
+    "stack_detector": "agent_gauntlet.features.stacks.detector:detect_stack",
+    "gatekeeper": "agent_gauntlet.features.hooks.gatekeeper:main_hook_entrypoint",
+    "antigravity_hook": "agent_gauntlet.features.adapters.antigravity.hook:main_hook_entrypoint"
+  },
+  "scripts": {
+    "gauntlet": "sh tools/gauntlet.sh",
+    "mutants": "python3 tools/mutants.py",
+    "source_state": "python3 tools/source_state.py"
+  }
+}

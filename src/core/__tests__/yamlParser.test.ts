@@ -261,6 +261,35 @@ concepts:
     expect(() => yamlToState(invalidYaml)).toThrow('schema');
   });
 
+  it('throws YamlParseError on OpenAPI YAML documents', () => {
+    const openapiYaml = `
+openapi: 3.2.0
+info:
+  title: Test API
+  version: 1.0.0
+paths:
+  /orders:
+    post:
+      summary: Create Order
+`;
+    expect(() => yamlToState(openapiYaml)).toThrow(YamlParseError);
+    expect(() => yamlToState(openapiYaml)).toThrow('missing concepts or domains');
+  });
+
+  it('throws YamlParseError on AsyncAPI YAML documents', () => {
+    const asyncapiYaml = `
+asyncapi: 3.0.0
+info:
+  title: Test AsyncAPI
+  version: 1.0.0
+channels:
+  userSignedUp:
+    address: user/signedup
+`;
+    expect(() => yamlToState(asyncapiYaml)).toThrow(YamlParseError);
+    expect(() => yamlToState(asyncapiYaml)).toThrow('missing concepts or domains');
+  });
+
   it('throws YamlParseError when views.xarchi.yaml contains invalid YAML syntax', () => {
     expect(() => yamlToViews('{ invalid: yaml: [')).toThrow(YamlParseError);
   });

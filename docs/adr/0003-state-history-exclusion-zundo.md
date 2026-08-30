@@ -1,3 +1,11 @@
+---
+type: Architectural Decision Record
+title: "ADR 0003: Decoupled Layout State and Undo History"
+description: "Exclusion of coordinate changes from Zundo history and clearing history on external store hydration"
+status: stable
+tags: [zustand, zundo, undo-redo, state-management, adr]
+---
+
 # 0003: Decoupled Layout State and Undo History
 
 ## Status

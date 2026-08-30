@@ -1,0 +1,31 @@
+{
+  "project_name": "agent-gauntlet",
+  "version": "0.5.0",
+  "layers": [
+    {
+      "name": "core",
+      "patterns": ["src/**"],
+      "allowed_dependencies": ["core"]
+    }
+  ],
+  "boundary_rules": [],
+  "protected_paths": [
+    {
+      "pattern": "docs/adr/**",
+      "description": "Accepted Architecture Decision Records (ADRs) are authoritative and immutable"
+    },
+    {
+      "pattern": "spec.md",
+      "description": "Macro system specification and invariants"
+    }
+  ],
+  "allowed_commands": [
+    "sh tools/gauntlet.sh",
+    "python3 tools/mutants.py",
+    "python3 -m unittest",
+    "agent-gauntlet verify",
+    "git status",
+    "git diff",
+    "git log"
+  ]
+}

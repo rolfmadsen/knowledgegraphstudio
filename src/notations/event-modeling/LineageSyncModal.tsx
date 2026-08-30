@@ -35,8 +35,6 @@ export function LineageSyncModal({
   activeViewId,
   updateConcept,
 }: LineageSyncModalProps) {
-  if (!isOpen) return null;
-
   const activeView = (graphState.views || []).find((v) => v.id === activeViewId);
   const conceptMap = useMemo(() => new Map(allConcepts.map((c) => [c.id, c])), [allConcepts]);
 
@@ -248,6 +246,8 @@ export function LineageSyncModal({
 
     onClose();
   };
+
+  if (!isOpen) return null;
 
   return createPortal(
     <div
