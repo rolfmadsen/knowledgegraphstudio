@@ -18,11 +18,19 @@ function mapDataTypeToJsonSchema(type: string): string {
   return 'type: string';
 }
 
+export interface AsyncApiOptions {
+  title?: string;
+  version?: string;
+  description?: string;
+  serverUrl?: string;
+}
+
 export function generateAsyncAPI(
   concepts: ConceptNode[],
   relations: ConceptRelation[],
   views?: View[],
-  activeViewId?: ElementId | null
+  activeViewId?: ElementId | null,
+  options?: AsyncApiOptions
 ): string {
   let targetConcepts = concepts;
   let targetRelations = relations;
@@ -39,16 +47,18 @@ export function generateAsyncAPI(
     }
   }
 
-  const title = activeView?.name ? `${activeView.name} AsyncAPI` : 'Event Modeling Compiled AsyncAPI';
+  const title = options?.title || (activeView?.name ? `${activeView.name} AsyncAPI` : 'Event Modeling Compiled AsyncAPI');
+  const version = options?.version || (activeView as any)?.version || '1.0.0';
   const description =
+    options?.description ||
     activeView?.description ||
-    'Autogenereret AsyncAPI specifikation baseret på Event Modeling events og topics.';
+    `Autogenereret AsyncAPI 3.0 specifikation for ${title}.`;
 
   let yaml = '';
   yaml += 'asyncapi: 3.0.0\n';
   yaml += 'info:\n';
   yaml += `  title: ${title}\n`;
-  yaml += '  version: 1.0.0\n';
+  yaml += `  version: ${version}\n`;
   yaml += `  description: ${description}\n`;
 
   const isAsyncEvent = (c: ConceptNode) => {
@@ -60,6 +70,21 @@ export function generateAsyncAPI(
   };
 
   const events = targetConcepts.filter(isAsyncEvent);
+
+  const serverUrl = options?.serverUrl || (activeView as any)?.serverUrl;
+  if (serverUrl && serverUrl.trim()) {
+    const firstTech = events.find((e) => e.technology)?.technology;
+    let proto = 'kafka';
+    if (firstTech === 'AMQP / RabbitMQ') proto = 'amqp';
+    else if (firstTech === 'MQTT') proto = 'mqtt';
+    else if (firstTech === 'WebSocket') proto = 'ws';
+    else if (firstTech?.toLowerCase().includes('kafka')) proto = 'kafka';
+
+    yaml += 'servers:\n';
+    yaml += '  production:\n';
+    yaml += `    host: ${serverUrl.trim()}\n`;
+    yaml += `    protocol: ${proto}\n`;
+  }
 
   yaml += 'channels:\n';
   
@@ -304,7 +329,13 @@ export function generateAsyncAPISpecs(
       singleChapterConcepts,
       targetRelations,
       views,
-      activeViewId
+      activeViewId,
+      {
+        title: chapTitle,
+        version: chapVersion,
+        description: chapDesc,
+        serverUrl: chapter?.serverUrl,
+      }
     );
 
     items.push({
