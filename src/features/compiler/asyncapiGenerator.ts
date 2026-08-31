@@ -52,13 +52,10 @@ export function generateAsyncAPI(
   yaml += `  description: ${description}\n`;
 
   const isAsyncEvent = (c: ConceptNode) => {
-    if (c.conceptType === 'event') return true;
-    if (c.conceptType === 'integration_event') {
-      if (c.integrationPattern === 'PubSub') return true;
-      if (c.technology && ['WebSocket', 'Kafka', 'AMQP / RabbitMQ', 'MQTT'].includes(c.technology)) return true;
-      if (!c.technology && !c.httpMethod) return true;
-      return false;
-    }
+    if (c.conceptType !== 'integration_event') return false;
+    if (c.integrationPattern === 'PubSub') return true;
+    if (c.technology && ['WebSocket', 'Kafka', 'AMQP / RabbitMQ', 'MQTT'].includes(c.technology)) return true;
+    if (!c.technology && !c.httpMethod) return true;
     return false;
   };
 
@@ -235,13 +232,10 @@ export function generateAsyncAPISpecs(
   }
 
   const isAsyncEvent = (c: ConceptNode) => {
-    if (c.conceptType === 'event') return true;
-    if (c.conceptType === 'integration_event') {
-      if (c.integrationPattern === 'PubSub') return true;
-      if (c.technology && ['WebSocket', 'Kafka', 'AMQP / RabbitMQ', 'MQTT'].includes(c.technology)) return true;
-      if (!c.technology && !c.httpMethod) return true;
-      return false;
-    }
+    if (c.conceptType !== 'integration_event') return false;
+    if (c.integrationPattern === 'PubSub') return true;
+    if (c.technology && ['WebSocket', 'Kafka', 'AMQP / RabbitMQ', 'MQTT'].includes(c.technology)) return true;
+    if (!c.technology && !c.httpMethod) return true;
     return false;
   };
 

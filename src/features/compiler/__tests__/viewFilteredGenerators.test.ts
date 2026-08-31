@@ -67,7 +67,7 @@ describe('View-filtered specification generators', () => {
 
   it('generateAsyncAPI should filter concepts when activeViewId is provided', () => {
     const asyncapiFiltered = generateAsyncAPI([concept1, concept2, concept3], relations, views, toElementId('v:em-1'));
-    expect(asyncapiFiltered).toContain('BestillingOprettet');
+    expect(asyncapiFiltered).toContain('BestillingModtaget');
     expect(asyncapiFiltered).not.toContain('BestillingAnnulleret');
   });
 });
