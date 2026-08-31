@@ -27,8 +27,9 @@ export function generateAsyncAPI(
   let targetConcepts = concepts;
   let targetRelations = relations;
 
+  let activeView: View | undefined;
   if (activeViewId && views && views.length > 0) {
-    const activeView = views.find((v) => v.id === activeViewId);
+    activeView = views.find((v) => v.id === activeViewId);
     if (activeView) {
       const viewConceptIds = new Set(activeView.nodes.map((n) => n.conceptId));
       targetConcepts = concepts.filter((c) => viewConceptIds.has(c.id));
@@ -38,14 +39,30 @@ export function generateAsyncAPI(
     }
   }
 
+  const title = activeView?.name ? `${activeView.name} AsyncAPI` : 'Event Modeling Compiled AsyncAPI';
+  const description =
+    activeView?.description ||
+    'Autogenereret AsyncAPI specifikation baseret på Event Modeling events og topics.';
+
   let yaml = '';
   yaml += 'asyncapi: 3.0.0\n';
   yaml += 'info:\n';
-  yaml += '  title: Event Modeling Compiled AsyncAPI\n';
+  yaml += `  title: ${title}\n`;
   yaml += '  version: 1.0.0\n';
-  yaml += '  description: Autogenereret AsyncAPI specifikation baseret på Event Modeling events og topics.\n';
+  yaml += `  description: ${description}\n`;
 
-  const events = targetConcepts.filter((c) => c.conceptType === 'event' || c.conceptType === 'integration_event');
+  const isAsyncEvent = (c: ConceptNode) => {
+    if (c.conceptType === 'event') return true;
+    if (c.conceptType === 'integration_event') {
+      if (c.integrationPattern === 'PubSub') return true;
+      if (c.technology && ['WebSocket', 'Kafka', 'AMQP / RabbitMQ', 'MQTT'].includes(c.technology)) return true;
+      if (!c.technology && !c.httpMethod) return true;
+      return false;
+    }
+    return false;
+  };
+
+  const events = targetConcepts.filter(isAsyncEvent);
 
   yaml += 'channels:\n';
   
@@ -57,7 +74,7 @@ export function generateAsyncAPI(
     const rel = targetRelations.find(
       (r) => (r.sourceConceptId === ev.id || r.targetConceptId === ev.id) && r.topicName
     );
-    const topic = rel?.topicName || `events.${toKebabCase(ev.name)}`;
+    const topic = ev.topicName || rel?.topicName || `events.${toKebabCase(ev.name)}`;
     eventChannelMap.set(ev.id, { topic, event: ev });
 
     yaml += `  ${toKebabCase(ev.name)}Channel:\n`;
@@ -92,60 +109,231 @@ export function generateAsyncAPI(
     const channelRef = `#/channels/${toKebabCase(ev.name)}Channel`;
 
     // 1. Publishers (Commands -> triggers -> Event)
-    const publisherRelations = targetRelations.filter(
-      (r) => r.targetConceptId === ev.id && r.name === 'triggers'
-    );
+    const publishers = targetRelations
+      .filter(r => r.targetConceptId === ev.id)
+      .map(r => targetConcepts.find(c => c.id === r.sourceConceptId))
+      .filter((c): c is ConceptNode => c !== undefined && (c.conceptType === 'command' || c.conceptType === 'automation'));
 
-    publisherRelations.forEach((r) => {
-      const commandNode = targetConcepts.find(c => c.id === r.sourceConceptId);
-      if (commandNode) {
-        const actor = getActorForNode(commandNode.id);
-        const opId = `publish_${toKebabCase(commandNode.name).replace(/-/g, '_')}`;
+    if (publishers.length > 0) {
+      publishers.forEach(pub => {
+        const opId = `publish_${toKebabCase(pub.name)}_${toKebabCase(ev.name)}`;
+        const actor = getActorForNode(pub.id);
         yaml += `  ${opId}:\n`;
         yaml += `    action: send\n`;
-        yaml += `    channel: \n`;
+        yaml += `    channel:\n`;
         yaml += `      $ref: '${channelRef}'\n`;
-        yaml += `    summary: ${actor} sender hændelsen ${ev.name} efter kommandoen ${commandNode.name}\n`;
-      }
-    });
+        yaml += `    summary: ${actor} udgiver ${ev.name} via ${pub.name}\n`;
+        yaml += `    messages:\n`;
+        yaml += `      - $ref: '#/components/messages/${toKebabCase(ev.name)}Message'\n`;
+      });
+    } else {
+      // Default send operation
+      const opId = `publish_${toKebabCase(ev.name)}`;
+      yaml += `  ${opId}:\n`;
+      yaml += `    action: send\n`;
+      yaml += `    channel:\n`;
+      yaml += `      $ref: '${channelRef}'\n`;
+      yaml += `    summary: Systemet udgiver ${ev.name}\n`;
+      yaml += `    messages:\n`;
+      yaml += `      - $ref: '#/components/messages/${toKebabCase(ev.name)}Message'\n`;
+    }
 
-    // 2. Subscribers (Event -> feeds/triggers/notifies -> Target)
-    const subscriberRelations = targetRelations.filter(
-      (r) => r.sourceConceptId === ev.id && (r.name === 'feeds' || r.name === 'triggers' || r.name === 'notifies')
-    );
+    // 2. Subscribers (Event -> triggers -> ReadModel or Automation)
+    const subscribers = targetRelations
+      .filter(r => r.sourceConceptId === ev.id)
+      .map(r => targetConcepts.find(c => c.id === r.targetConceptId))
+      .filter((c): c is ConceptNode => c !== undefined && (c.conceptType === 'read_model' || c.conceptType === 'automation'));
 
-    subscriberRelations.forEach((r) => {
-      const targetNode = targetConcepts.find(c => c.id === r.targetConceptId);
-      if (targetNode && targetNode.conceptType !== 'integration_event') {
-        const actor = getActorForNode(targetNode.id);
-        const opId = `subscribe_${toKebabCase(targetNode.name).replace(/-/g, '_')}_to_${toKebabCase(ev.name).replace(/-/g, '_')}`;
+    if (subscribers.length > 0) {
+      subscribers.forEach(sub => {
+        const opId = `subscribe_${toKebabCase(sub.name)}_${toKebabCase(ev.name)}`;
+        const actor = getActorForNode(sub.id);
         yaml += `  ${opId}:\n`;
         yaml += `    action: receive\n`;
-        yaml += `    channel: \n`;
+        yaml += `    channel:\n`;
         yaml += `      $ref: '${channelRef}'\n`;
-        yaml += `    summary: ${actor} lytter til ${ev.name} i ${targetNode.name}\n`;
-      }
-    });
+        yaml += `    summary: ${actor} lytter på ${ev.name} for at opdatere ${sub.name}\n`;
+        yaml += `    messages:\n`;
+        yaml += `      - $ref: '#/components/messages/${toKebabCase(ev.name)}Message'\n`;
+      });
+    }
   });
 
-  // Reusable message components
+  // Components: Messages and Schemas
   yaml += 'components:\n';
   yaml += '  messages:\n';
   events.forEach((ev) => {
     yaml += `    ${toKebabCase(ev.name)}Message:\n`;
     yaml += `      name: ${toKebabCase(ev.name)}Message\n`;
     yaml += `      title: ${ev.name}\n`;
+    yaml += `      summary: Event payload for ${ev.name}\n`;
     yaml += `      payload:\n`;
-    yaml += `        type: object\n`;
-    
+    yaml += `        $ref: '#/components/schemas/${toKebabCase(ev.name)}Payload'\n`;
+  });
+
+  yaml += '  schemas:\n';
+  events.forEach((ev) => {
+    yaml += `    ${toKebabCase(ev.name)}Payload:\n`;
+    yaml += `      type: object\n`;
+    yaml += `      properties:\n`;
+    yaml += `        id:\n`;
+    yaml += `          type: string\n`;
+    yaml += `        timestamp:\n`;
+    yaml += `          type: string\n`;
+    yaml += `          format: date-time\n`;
+
     if ('properties' in ev && ev.properties && ev.properties.length > 0) {
-      yaml += `        properties:\n`;
-      ev.properties.forEach((p: ConceptProperty) => {
-        yaml += `          ${p.name}:\n`;
-        yaml += `            ${mapDataTypeToJsonSchema(String(p.type)).split('\n').join('\n            ')}\n`;
+      ev.properties.forEach((prop: ConceptProperty) => {
+        yaml += `        ${prop.name}:\n`;
+        yaml += `          ${mapDataTypeToJsonSchema(prop.type)}\n`;
+        const desc = (prop as any).description;
+        if (desc) {
+          yaml += `          description: ${desc}\n`;
+        }
       });
     }
   });
 
   return yaml;
+}
+
+export interface AsyncApiSpecItem {
+  id: string;
+  title: string;
+  version: string;
+  serverUrl?: string;
+  description?: string;
+  chapterName?: string;
+  channelCount: number;
+  yaml: string;
+}
+
+/**
+ * Generates an array of individual AsyncAPI 3.0 specifications grouped by Chapter / Server Base URI.
+ */
+export function generateAsyncAPISpecs(
+  concepts: ConceptNode[],
+  relations: ConceptRelation[],
+  views?: View[],
+  activeViewId?: ElementId | null
+): AsyncApiSpecItem[] {
+  let targetConcepts = concepts;
+  let targetRelations = relations;
+  let activeView: View | undefined;
+
+  if (activeViewId && views && views.length > 0) {
+    activeView = views.find((v) => v.id === activeViewId);
+    if (activeView) {
+      const viewConceptIds = new Set(activeView.nodes.map((n) => n.conceptId));
+      targetConcepts = concepts.filter((c) => viewConceptIds.has(c.id));
+      targetRelations = relations.filter(
+        (r) =>
+          (r.sourceConceptId && viewConceptIds.has(r.sourceConceptId)) ||
+          (r.targetConceptId && viewConceptIds.has(r.targetConceptId))
+      );
+    }
+  }
+
+  const isAsyncEvent = (c: ConceptNode) => {
+    if (c.conceptType === 'event') return true;
+    if (c.conceptType === 'integration_event') {
+      if (c.integrationPattern === 'PubSub') return true;
+      if (c.technology && ['WebSocket', 'Kafka', 'AMQP / RabbitMQ', 'MQTT'].includes(c.technology)) return true;
+      if (!c.technology && !c.httpMethod) return true;
+      return false;
+    }
+    return false;
+  };
+
+  const events = targetConcepts.filter(isAsyncEvent);
+
+  const findParentChapter = (concept: ConceptNode): ConceptNode | undefined => {
+    let currentParentId = concept.parentId;
+    if (!currentParentId && activeView) {
+      const vn = activeView.nodes.find((n) => n.conceptId === concept.id);
+      currentParentId = vn?.parentId;
+    }
+    while (currentParentId) {
+      const parent = targetConcepts.find((c) => c.id === currentParentId);
+      if (!parent) break;
+      if (parent.conceptType === 'em_chapter') return parent;
+      let nextParentId = parent.parentId;
+      if (!nextParentId && activeView) {
+        const pvn = activeView.nodes.find((n) => n.conceptId === parent.id);
+        nextParentId = pvn?.parentId;
+      }
+      currentParentId = nextParentId;
+    }
+    return undefined;
+  };
+
+  const chapterEventMap = new Map<string, { chapter?: ConceptNode; events: ConceptNode[] }>();
+
+  events.forEach((ev) => {
+    const parentChap = findParentChapter(ev);
+    const key = parentChap ? parentChap.id : 'no-chapter';
+    if (!chapterEventMap.has(key)) {
+      chapterEventMap.set(key, { chapter: parentChap, events: [] });
+    }
+    chapterEventMap.get(key)!.events.push(ev);
+  });
+
+  const items: AsyncApiSpecItem[] = [];
+
+  chapterEventMap.forEach(({ chapter, events }, key) => {
+    const chapTitle = chapter ? `${chapter.name} Event Mesh` : (activeView?.name || 'AsyncAPI Mesh');
+    const chapVersion = chapter?.version || '1.0.0';
+    const chapDesc = chapter?.definition || `AsyncAPI 3.0 specifikation for ${chapTitle}.`;
+
+    const singleChapterConcepts = targetConcepts.filter((c) => {
+      if (chapter && c.id === chapter.id) return true;
+      if (events.some((e) => e.id === c.id)) return true;
+      if (
+        c.conceptType === 'em_slice' &&
+        chapter &&
+        (c.parentId === chapter.id || activeView?.nodes.find((n) => n.conceptId === c.id)?.parentId === chapter.id)
+      ) {
+        return true;
+      }
+      if (c.conceptType === 'command' || c.conceptType === 'read_model' || c.conceptType === 'automation') {
+        const isConnected = targetRelations.some(
+          (r) =>
+            (events.some((e) => e.id === r.sourceConceptId) && r.targetConceptId === c.id) ||
+            (events.some((e) => e.id === r.targetConceptId) && r.sourceConceptId === c.id)
+        );
+        if (isConnected) return true;
+      }
+      return false;
+    });
+
+    const yamlOutput = generateAsyncAPI(
+      singleChapterConcepts,
+      targetRelations,
+      views,
+      activeViewId
+    );
+
+    items.push({
+      id: key,
+      title: chapTitle,
+      version: chapVersion,
+      serverUrl: chapter?.serverUrl,
+      description: chapDesc,
+      chapterName: chapter?.name,
+      channelCount: events.length,
+      yaml: yamlOutput,
+    });
+  });
+
+  if (items.length === 0) {
+    items.push({
+      id: 'default',
+      title: activeView?.name || 'AsyncAPI Broker',
+      version: '1.0.0',
+      channelCount: 0,
+      yaml: generateAsyncAPI(concepts, relations, views, activeViewId),
+    });
+  }
+
+  return items;
 }

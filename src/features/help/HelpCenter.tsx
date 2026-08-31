@@ -773,6 +773,81 @@ export function HelpCenter({ isOpen, onClose, initialTab = 'shortcuts' }: { isOp
                 </div>
               </div>
 
+              {/* API & System Integrations (OpenAPI & AsyncAPI) */}
+              <div className="flex flex-col gap-6 p-8 bg-gradient-to-br from-indigo-50/60 via-purple-50/40 to-slate-50/60 rounded-[2rem] border border-indigo-100 shadow-sm">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-md shadow-indigo-200">
+                    <Globe size={18} strokeWidth={2.5} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black uppercase tracking-widest text-indigo-950">API & Systemintegrationer (OpenAPI & AsyncAPI)</h3>
+                    <p className="text-[11px] text-indigo-600 font-medium">Sådan modelleres synkrone REST API'er og asynkrone hændelsesstrømme</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Synkron REST / OpenAPI */}
+                  <div className="p-5 rounded-2xl border border-indigo-100 bg-white/80 shadow-sm flex flex-col gap-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[12px] font-black uppercase tracking-wider text-indigo-900 flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm" />
+                        Synkrone REST API'er (OpenAPI 3.1)
+                      </span>
+                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-md">HTTP REST</span>
+                    </div>
+                    <p className="text-[11.5px] text-slate-600 leading-relaxed">
+                      Ifølge <strong>Martin Dilgers</strong> principper for systemgrænser modelleres offentlige REST API'er via grænsefladeelementer:
+                    </p>
+                    <ul className="text-[11px] text-slate-600 space-y-2 list-disc pl-4 leading-normal">
+                      <li>
+                        <strong className="text-emerald-700">Read Model (GET):</strong> Eksterne systemer eller frontend-klienter forespørger tilstand synkront. Svarets JSON Schema udledes automatisk fra Read Modellens <em>Payload</em> eller <em>Attributter</em>.
+                      </li>
+                      <li>
+                        <strong className="text-purple-700">Integration Event (POST/PUT/Webhook):</strong> Eksterne systemer leverer data ind i systemet via Ingress endpoints.
+                      </li>
+                      <li>
+                        <strong className="text-blue-700">Command (POST/PUT):</strong> Direkte forretningshandlinger udløst af klienter eller partnere.
+                      </li>
+                    </ul>
+                  </div>
+
+                  {/* Asynkron Pub/Sub / AsyncAPI */}
+                  <div className="p-5 rounded-2xl border border-indigo-100 bg-white/80 shadow-sm flex flex-col gap-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[12px] font-black uppercase tracking-wider text-indigo-900 flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-purple-500 shadow-sm" />
+                        Asynkrone Hændelser (AsyncAPI 3.0)
+                      </span>
+                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 bg-purple-50 text-purple-700 border border-purple-200 rounded-md">Event Broker</span>
+                    </div>
+                    <p className="text-[11.5px] text-slate-600 leading-relaxed">
+                      Når systemet udveksler hændelser med andre mikrotjenester og eksterne partnere uden synkron blokering:
+                    </p>
+                    <ul className="text-[11px] text-slate-600 space-y-2 list-disc pl-4 leading-normal">
+                      <li>
+                        <strong className="text-purple-700">Integration Event (Topics/Channels):</strong> Publiceres til en message broker (fx Kafka, RabbitMQ, Azure Event Grid), hvor andre systemer lytter.
+                      </li>
+                      <li>
+                        <strong className="text-amber-700">Domain Event (Privat log):</strong> Forbliver internt i mikrotjenestens egen event-store og udstilles ikke direkte for at undgå tæt kobling.
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+
+                {/* Practical workflow tip */}
+                <div className="p-4 bg-indigo-50/70 border border-indigo-100 rounded-xl flex items-start gap-3">
+                  <span className="text-lg shrink-0">💡</span>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[11px] font-black uppercase tracking-wider text-indigo-900">Praktisk arbejdsgang i studiet</span>
+                    <p className="text-[11px] text-indigo-800/90 leading-relaxed">
+                      1. Vælg en relation eller et element og konfigurér <code>Endpoint Path</code> (fx <code>/api/v1/orders</code>) eller <code>Kafka Topic</code> i <strong>Egenskaber</strong>-panelet.<br />
+                      2. Klik på <strong>🚀 Åbn Payload Specifikation</strong> for at definere felter, datatyper og valideringsregler.<br />
+                      3. Åbn <strong>Code Viewport</strong> og vælg fanen <strong>OpenAPI</strong> eller <strong>AsyncAPI</strong> for at se den fulde, syntaktisk valide specifikation genereret direkte fra din model.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               {/* The 4 Anti-Patterns (Overcomplication) */}
               <div className="flex flex-col gap-6">
                 <h3 className="text-sm font-black uppercase tracking-widest text-rose-800 px-1 flex items-center gap-2">

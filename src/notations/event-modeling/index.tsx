@@ -28,7 +28,7 @@ import { LineageSyncModal } from './LineageSyncModal';
 import { PayloadSpecModal } from './PayloadSpecModal';
 import { isValidRelation, getAvailableRelations } from './validator';
 import { InspectorSection } from '../../features/properties/Inspector';
-import { type Policy } from '../../schema/graphSchema';
+import { type Policy, STANDARD_INTEGRATION_TECHNOLOGIES, getValidMethodsForTechnology } from '../../schema/graphSchema';
 import type {
   ConceptNode,
   ConceptProperty,
@@ -1045,91 +1045,92 @@ function EventModelingRelationInspector({
 
   if (!source || !target) return null;
 
-  const isProjection = source.conceptType === 'event' && target.conceptType === 'read_model';
+  const isProjection = (source.conceptType === 'event' || source.conceptType === 'integration_event') && target.conceptType === 'read_model';
   const isCommandTrigger =
-    (source.conceptType === 'screen' || source.conceptType === 'automation') &&
+    (source.conceptType === 'screen' || source.conceptType === 'automation' || source.conceptType === 'integration_event') &&
     target.conceptType === 'command';
+  const isIntegration = source.conceptType === 'integration_event' || target.conceptType === 'integration_event';
 
-  if (!isProjection && !isCommandTrigger) return null;
+  if (!isProjection && !isCommandTrigger && !isIntegration) return null;
+
+  const methodConfig = getValidMethodsForTechnology(relation.technology);
 
   return (
     <InspectorSection title="Integrations-metadata">
       <div className="flex flex-col gap-4">
-        {/* Pattern */}
+        {/* Technology */}
         <div className="flex flex-col gap-1.5">
-          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">Mønster</label>
+          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">Protokol / Teknologi</label>
           <div className="relative">
             <select
-              value={relation.integrationPattern ?? 'Local'}
-              onChange={(e) => updateRelation(relation.id, { integrationPattern: e.target.value as any })}
+              value={relation.technology ?? 'REST / HTTP'}
+              onChange={(e) => {
+                const newTech = e.target.value;
+                const newConfig = getValidMethodsForTechnology(newTech);
+                const isCurrentValid = newConfig.options.some((o) => o.value === relation.httpMethod);
+                updateRelation(relation.id, {
+                  technology: newTech,
+                  httpMethod: isCurrentValid ? relation.httpMethod : (newConfig.options[0].value as any),
+                });
+              }}
               className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[12px] font-semibold text-slate-700 hover:border-slate-300 focus:bg-white focus:border-emerald-500 outline-none appearance-none cursor-pointer transition-all pr-8"
             >
-              <option value="Local">Local (In-Memory)</option>
-              <option value="PubSub">PubSub (Kafka, EventHubs)</option>
-              <option value="RequestResponse">RequestResponse (REST API, gRPC)</option>
-              <option value="OrchestratedPush">OrchestratedPush (ESB, Gravitee)</option>
+              {STANDARD_INTEGRATION_TECHNOLOGIES.map((tech) => (
+                <option key={tech} value={tech}>
+                  {tech}
+                </option>
+              ))}
             </select>
             <span className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 text-[10px]">▼</span>
           </div>
         </div>
 
-        {/* Technology */}
+        {/* Dynamic Method */}
         <div className="flex flex-col gap-1.5">
-          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">Teknologi</label>
-          <input
-            type="text"
-            value={relation.technology ?? ''}
-            onChange={(e) => updateRelation(relation.id, { technology: e.target.value })}
-            placeholder="f.eks. Kafka, Gravitee, Mule"
-            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[12px] font-semibold text-slate-700 hover:border-slate-300 focus:bg-white focus:border-emerald-500 outline-none transition-all"
-          />
+          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">{methodConfig.label}</label>
+          <div className="relative">
+            <select
+              value={relation.httpMethod ?? methodConfig.options[0].value}
+              onChange={(e) => updateRelation(relation.id, { httpMethod: e.target.value as any })}
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[12px] font-semibold text-slate-700 hover:border-slate-300 focus:bg-white focus:border-emerald-500 outline-none appearance-none cursor-pointer transition-all pr-8"
+            >
+              {methodConfig.options.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 text-[10px]">▼</span>
+          </div>
         </div>
 
-        {/* Topic Name (PubSub) */}
-        {(relation.integrationPattern === 'PubSub' || !relation.integrationPattern) && (
+        {/* Endpoint Path */}
+        {!methodConfig.isAsync && (
           <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">Kafka Topic</label>
+            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">Endpoint Path</label>
             <input
               type="text"
-              value={relation.topicName ?? ''}
-              onChange={(e) => updateRelation(relation.id, { topicName: e.target.value })}
-              placeholder="f.eks. ordre-oprettet-topic"
+              value={relation.endpointPath ?? ''}
+              onChange={(e) => updateRelation(relation.id, { endpointPath: e.target.value })}
+              placeholder="f.eks. /api/v1/orders"
               className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[12px] font-semibold text-slate-700 hover:border-slate-300 focus:bg-white focus:border-emerald-500 outline-none transition-all"
             />
           </div>
         )}
 
-        {/* HTTP Method and Path (RequestResponse) */}
-        {relation.integrationPattern === 'RequestResponse' && (
-          <>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">HTTP Metode</label>
-              <div className="relative">
-                <select
-                  value={relation.httpMethod ?? 'POST'}
-                  onChange={(e) => updateRelation(relation.id, { httpMethod: e.target.value as any })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[12px] font-semibold text-slate-700 hover:border-slate-300 focus:bg-white focus:border-emerald-500 outline-none appearance-none cursor-pointer transition-all pr-8"
-                >
-                  <option value="GET">GET</option>
-                  <option value="POST">POST</option>
-                  <option value="PUT">PUT</option>
-                  <option value="DELETE">DELETE</option>
-                </select>
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 text-[10px]">▼</span>
-              </div>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">Endpoint Path</label>
-              <input
-                type="text"
-                value={relation.endpointPath ?? ''}
-                onChange={(e) => updateRelation(relation.id, { endpointPath: e.target.value })}
-                placeholder="f.eks. /api/v1/orders"
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[12px] font-semibold text-slate-700 hover:border-slate-300 focus:bg-white focus:border-emerald-500 outline-none transition-all"
-              />
-            </div>
-          </>
-        )}
+        {/* Topic Name */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">
+            {methodConfig.isAsync ? 'Topic Navn / Kanal' : 'Message Broker / Topic'}
+          </label>
+          <input
+            type="text"
+            value={relation.topicName ?? ''}
+            onChange={(e) => updateRelation(relation.id, { topicName: e.target.value })}
+            placeholder="f.eks. ordre-oprettet-topic"
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[12px] font-semibold text-slate-700 hover:border-slate-300 focus:bg-white focus:border-emerald-500 outline-none transition-all"
+          />
+        </div>
       </div>
     </InspectorSection>
   );

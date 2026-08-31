@@ -5,9 +5,9 @@ import { type ConceptNode, type ConceptRelation, type View, toElementId } from '
 
 describe('View-filtered specification generators', () => {
   const concept1: ConceptNode = {
-    id: toElementId('c:command-1'),
-    name: 'OpretBestilling',
-    conceptType: 'command',
+    id: toElementId('c:int-event-1'),
+    name: 'BestillingModtaget',
+    conceptType: 'integration_event',
     createdAt: Date.now(),
     updatedAt: Date.now(),
     lifecycleState: 'active',
@@ -29,9 +29,9 @@ describe('View-filtered specification generators', () => {
   };
 
   const concept3: ConceptNode = {
-    id: toElementId('c:command-2'),
-    name: 'AnnullerBestilling',
-    conceptType: 'command',
+    id: toElementId('c:int-event-2'),
+    name: 'BestillingAnnulleret',
+    conceptType: 'integration_event',
     createdAt: Date.now(),
     updatedAt: Date.now(),
     lifecycleState: 'active',
@@ -51,7 +51,7 @@ describe('View-filtered specification generators', () => {
     updatedAt: Date.now(),
     lifecycleState: 'active',
     nodes: [
-      { conceptId: toElementId('c:command-1'), x: 0, y: 0 },
+      { conceptId: toElementId('c:int-event-1'), x: 0, y: 0 },
       { conceptId: toElementId('c:event-1'), x: 100, y: 0 },
     ],
     edges: [],
@@ -61,13 +61,13 @@ describe('View-filtered specification generators', () => {
 
   it('generateOpenAPI should filter concepts when activeViewId is provided', () => {
     const openapiFiltered = generateOpenAPI([concept1, concept2, concept3], relations, views, toElementId('v:em-1'));
-    expect(openapiFiltered).toContain('OpretBestilling');
-    expect(openapiFiltered).not.toContain('AnnullerBestilling');
+    expect(openapiFiltered).toContain('BestillingModtaget');
+    expect(openapiFiltered).not.toContain('BestillingAnnulleret');
   });
 
   it('generateAsyncAPI should filter concepts when activeViewId is provided', () => {
     const asyncapiFiltered = generateAsyncAPI([concept1, concept2, concept3], relations, views, toElementId('v:em-1'));
     expect(asyncapiFiltered).toContain('BestillingOprettet');
-    expect(asyncapiFiltered).not.toContain('AnnullerBestilling');
+    expect(asyncapiFiltered).not.toContain('BestillingAnnulleret');
   });
 });

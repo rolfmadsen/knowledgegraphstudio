@@ -195,7 +195,21 @@ export const eventModelingLayoutEngine: LayoutEngine = async (
     cy: number,
     chapterId?: string
   ) => {
-    if (groupSlicesRaw.length === 0) return;
+    if (groupSlicesRaw.length === 0) {
+      if (chapterId) {
+        const chapterIndex = chapters.findIndex((c) => c.id === chapterId);
+        const computedChapterHeight = 20 * GRID_SIZE + 4 * GRID_SIZE;
+        positions.push({
+          conceptId: chapterId,
+          x: Math.round(cx / GRID_SIZE) * GRID_SIZE,
+          y: Math.round(cy / GRID_SIZE) * GRID_SIZE,
+          order: chapterIndex >= 0 ? chapterIndex + 1 : undefined,
+          width: 16 * GRID_SIZE,
+          height: computedChapterHeight,
+        } as any);
+      }
+      return;
+    }
 
     const hasExplicitOrder = groupSlicesRaw.some((s) => getOrder(s) !== undefined);
     let groupSlices: LayoutNode[];
@@ -384,10 +398,11 @@ export const eventModelingLayoutEngine: LayoutEngine = async (
   };
 
   // Run layout for each chapter
-  for (const chapter of chapters) {
+  for (let ci = 0; ci < chapters.length; ci++) {
+    const chapter = chapters[ci];
     const chapterPos = chapterPositions.get(chapter.id);
-    const cx = chapterPos?.x ?? 0;
-    const cy = chapterPos?.y ?? 0;
+    const cx = chapterPos?.x ?? 4 * GRID_SIZE;
+    const cy = chapterPos?.y ?? 4 * GRID_SIZE;
     const chapterSlicesRaw = slices.filter((s) => s.parentId === chapter.id);
     layoutSliceGroup(chapterSlicesRaw, cx, cy, chapter.id);
   }
@@ -492,7 +507,7 @@ async function runDagreOnChapters(
     );
 
     const workerNodes = chapters.map((c) => {
-      const sliceCount = sliceCountPerChapter.get(c.id) ?? 1;
+      const sliceCount = sliceCountPerChapter.get(c.id) ?? 0;
 
       // Calculate max row index of elements in this chapter's slices
       const chapterSlices = slices.filter(s => s.parentId === c.id);
@@ -507,13 +522,13 @@ async function runDagreOnChapters(
 
       // Dynamic height matching KGS event modeling guidelines
       const height = Math.max(CHAPTER_MIN_HEIGHT, 11 * GRID_SIZE + maxRow * ROW_HEIGHT);
+      const width = sliceCount > 0
+        ? CHAPTER_PADDING * 2 + sliceCount * SLICE_WIDTH + (sliceCount - 1) * SLICE_GAP
+        : 16 * GRID_SIZE;
 
       return {
         id: c.id,
-        width:
-          CHAPTER_PADDING * 2 +
-          sliceCount * SLICE_WIDTH +
-          (sliceCount - 1) * SLICE_GAP,
+        width,
         height,
       };
     });

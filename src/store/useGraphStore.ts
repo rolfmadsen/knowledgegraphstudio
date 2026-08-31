@@ -304,7 +304,8 @@ export interface GraphStoreState {
   addConceptToView: (viewId: ElementId, conceptId: ElementId, x: number, y: number, parentId?: ElementId, instanceId?: string) => void;
   removeConceptFromView: (viewId: ElementId, conceptId: ElementId) => void;
   removeConceptsFromView: (viewId: ElementId, conceptIds: ElementId[]) => void;
-  createView: (name: string, type?: View['type'], layoutAlgorithm?: View['layoutAlgorithm'], skipDefaultElements?: boolean) => View;
+  createView: (name: string, type?: View['type'], layoutAlgorithm?: View['layoutAlgorithm'], skipDefaultElements?: boolean, description?: string) => View;
+  updateView: (viewId: ElementId, updates: Partial<Pick<View, 'name' | 'description' | 'version' | 'serverUrl' | 'layoutAlgorithm'>>) => void;
   deleteView: (viewId: ElementId, deleteConceptIds?: ElementId[]) => void;
   addAllConceptsToActiveView: () => void;
   addConceptsToActiveView: (conceptIds: ElementId[]) => void;
@@ -1026,7 +1027,7 @@ export const useGraphStore = create<GraphStoreState>()(
         PersistenceService.scheduleAutoSave(get());
       },
 
-      createView: (name, type = 'knowledge_graph', layoutAlgorithm = 'force_directed', skipDefaultElements = false) => {
+      createView: (name, type = 'knowledge_graph', layoutAlgorithm = 'force_directed', skipDefaultElements = false, description?: string) => {
         const viewId = toElementId(`view:${crypto.randomUUID()}`);
         
         const notation = NotationRegistry.forViewType(type as any);
@@ -1105,6 +1106,7 @@ export const useGraphStore = create<GraphStoreState>()(
         const newView: View = {
           id: viewId,
           name,
+          description,
           type,
           layoutAlgorithm,
           nodes,
@@ -1123,6 +1125,21 @@ export const useGraphStore = create<GraphStoreState>()(
 
         PersistenceService.scheduleAutoSave(get());
         return newView;
+      },
+
+      updateView: (viewId, updates) => {
+        set((s) => ({
+          views: s.views.map((v) =>
+            v.id === viewId
+              ? {
+                  ...v,
+                  ...updates,
+                  updatedAt: Date.now(),
+                }
+              : v
+          ),
+        }));
+        PersistenceService.scheduleAutoSave(get());
       },
 
       deleteView: (viewId: ElementId, deleteConceptIds: ElementId[] = []) => {

@@ -16,12 +16,18 @@ export function generateArazzo(
   views: View[],
   activeViewId: ElementId | null
 ): string {
+  const activeView = views.find((v) => v.id === activeViewId);
+  const title = activeView?.name ? `${activeView.name} Workflow` : 'Event Modeling Compiled Workflow';
+  const description =
+    activeView?.description ||
+    'Autogenereret Arazzo specifikation baseret på Event Modeling + DCR regler.';
+
   let yaml = '';
   yaml += 'arazzo: 1.0.1\n';
   yaml += 'info:\n';
-  yaml += '  title: Event Modeling Compiled Workflow\n';
+  yaml += `  title: ${title}\n`;
   yaml += '  version: 1.0.0\n';
-  yaml += '  description: Autogenereret Arazzo specifikation baseret på Event Modeling + DCR regler.\n';
+  yaml += `  description: ${description}\n`;
   yaml += 'sourceDescriptions:\n';
   yaml += '  - name: compiled-openapi\n';
   yaml += '    url: ./openapi.yaml\n';
@@ -42,7 +48,6 @@ export function generateArazzo(
   
   // Sort commands chronologically based on slice X positions in the active view
   let orderedCommands = [...commands];
-  const activeView = views.find((v) => v.id === activeViewId);
   
   if (activeView) {
     const sliceNodes = activeView.nodes.filter(vn => {

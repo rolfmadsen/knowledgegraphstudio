@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { useGraphStore, isEdgeVisibleForInstances, normalizeViewNodes } from '../../store/useGraphStore';
 import { useShallow } from 'zustand/react/shallow';
-import { LifecycleState, ConceptType, DataType, type ConceptProperty, type ConceptNode, type ElementId } from '../../schema/graphSchema';
+import { LifecycleState, ConceptType, DataType, STANDARD_INTEGRATION_TECHNOLOGIES, getValidMethodsForTechnology, type ConceptProperty, type ConceptNode, type ElementId } from '../../schema/graphSchema';
 import { NotationRegistry } from '../../notations/NotationRegistry';
 import { useValidationWarnings, type ValidationWarning } from '../validation/useValidation';
 import { 
@@ -46,7 +46,8 @@ export function Inspector() {
     setSelectedConceptIds,
     setActiveViewId,
     selectConcept,
-    selectRelation
+    selectRelation,
+    updateView
   } = useGraphStore(
     useShallow((s) => ({
       concepts: s?.concepts || [],
@@ -74,7 +75,8 @@ export function Inspector() {
       setSelectedConceptIds: s?.setSelectedConceptIds,
       setActiveViewId: s?.setActiveViewId,
       selectConcept: s?.selectConcept,
-      selectRelation: s?.selectRelation
+      selectRelation: s?.selectRelation,
+      updateView: s?.updateView
     }))
   );
 
@@ -314,17 +316,48 @@ export function Inspector() {
 
       return (
         <div className="flex flex-col gap-8">
-          <div className="flex flex-col items-center gap-5 p-6 bg-white border border-slate-200/60 rounded-[24px] shadow-sm text-center">
-            <div className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 shadow-sm animate-in fade-in zoom-in duration-300">
-               <Info size={18} strokeWidth={2} />
+          {activeView ? (
+            <InspectorSection
+              title="Aktiv Visning"
+              rightAction={
+                <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-md font-mono">
+                  {activeNotation?.displayName || activeView.type}
+                </span>
+              }
+            >
+              <div className="flex flex-col gap-4">
+                <PropertyField
+                  label="Visningsnavn"
+                  value={activeView.name}
+                  onChange={(v) => updateView(activeView.id, { name: v })}
+                />
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">
+                    Beskrivelse
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={activeView.description ?? ''}
+                    placeholder="Beskriv denne visning og dens formål..."
+                    onChange={(e) => updateView(activeView.id, { description: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[12px] font-semibold text-slate-700 hover:border-slate-300 focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/5 outline-none transition-all resize-none"
+                  />
+                </div>
+              </div>
+            </InspectorSection>
+          ) : (
+            <div className="flex flex-col items-center gap-5 p-6 bg-white border border-slate-200/60 rounded-[24px] shadow-sm text-center">
+              <div className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 shadow-sm animate-in fade-in zoom-in duration-300">
+                <Info size={18} strokeWidth={2} />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-[13px] font-black text-slate-900 tracking-tight">Intet valgt</h3>
+                <p className="text-[11px] text-slate-400 leading-relaxed max-w-[200px] mx-auto">
+                  Vælg et element på canvasset for at se og redigere dets egenskaber.
+                </p>
+              </div>
             </div>
-            <div className="space-y-1">
-              <h3 className="text-[13px] font-black text-slate-900 tracking-tight">Intet valgt</h3>
-              <p className="text-[11px] text-slate-400 leading-relaxed max-w-[200px] mx-auto">
-                Vælg et element på canvasset for at se og redigere dets egenskaber.
-              </p>
-            </div>
-          </div>
+          )}
 
           <InspectorSection title={`Vidensgraf Validering (${warnings.length})`}>
             {warnings.length === 0 ? (
@@ -515,8 +548,133 @@ export function Inspector() {
                                 <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400" />
                             </div>
                         </div>
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">
+                            Beskrivelse (OpenAPI Description)
+                          </label>
+                          <textarea
+                            rows={2}
+                            value={concept.definition ?? ''}
+                            placeholder="Beskriv dette elements formål i specifikationen..."
+                            onChange={(e) => updateConcept(concept.id, { definition: e.target.value })}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-[12px] font-semibold text-slate-700 hover:border-slate-300 focus:bg-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/5 outline-none transition-all resize-none"
+                          />
+                        </div>
                     </div>
                 </InspectorSection>
+
+                {concept.conceptType === 'em_chapter' && (
+                  <InspectorSection title="Chapter API Specifikation">
+                    <div className="flex flex-col gap-4">
+                      <PropertyField
+                        label="Chapter API Version (info.version)"
+                        value={concept.version ?? ''}
+                        placeholder="f.eks. 1.0.0"
+                        onChange={(v) => updateConcept(concept.id, { version: v })}
+                      />
+                      <PropertyField
+                        label="Chapter Server Base URL (servers)"
+                        value={concept.serverUrl ?? ''}
+                        placeholder="f.eks. https://api.domain.dk/v1"
+                        onChange={(v) => updateConcept(concept.id, { serverUrl: v })}
+                      />
+                    </div>
+                  </InspectorSection>
+                )}
+
+                {concept.conceptType === 'integration_event' && (() => {
+                  const methodConfig = getValidMethodsForTechnology(concept.technology);
+
+                  return (
+                    <InspectorSection title="Integrations- & API Konfiguration">
+                      <div className="flex flex-col gap-4">
+                        {/* Technology Dropdown */}
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">
+                            Protokol / Teknologi
+                          </label>
+                          <div className="relative">
+                            <select
+                              value={concept.technology ?? 'REST / HTTP'}
+                              onChange={(e) => {
+                                const newTech = e.target.value;
+                                const newConfig = getValidMethodsForTechnology(newTech);
+                                const isCurrentMethodValid = newConfig.options.some((o) => o.value === concept.httpMethod);
+                                updateConcept(concept.id, {
+                                  technology: newTech,
+                                  httpMethod: isCurrentMethodValid ? concept.httpMethod : (newConfig.options[0].value as any),
+                                });
+                              }}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[12px] font-semibold text-slate-700 hover:border-slate-300 focus:bg-white focus:border-emerald-500 outline-none appearance-none cursor-pointer transition-all pr-8"
+                            >
+                              {STANDARD_INTEGRATION_TECHNOLOGIES.map((tech) => (
+                                <option key={tech} value={tech}>
+                                  {tech}
+                                </option>
+                              ))}
+                            </select>
+                            <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400" />
+                          </div>
+                        </div>
+
+                        {/* Dynamic Method / Operation Dropdown */}
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">
+                            {methodConfig.label}
+                          </label>
+                          <div className="relative">
+                            <select
+                              value={concept.httpMethod ?? methodConfig.options[0].value}
+                              onChange={(e) => updateConcept(concept.id, { httpMethod: e.target.value as any })}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[12px] font-semibold text-slate-700 hover:border-slate-300 focus:bg-white focus:border-emerald-500 outline-none appearance-none cursor-pointer transition-all pr-8"
+                            >
+                              {methodConfig.options.map((opt) => (
+                                <option key={opt.value} value={opt.value}>
+                                  {opt.label}
+                                </option>
+                              ))}
+                            </select>
+                            <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400" />
+                          </div>
+                        </div>
+
+                        {/* Endpoint Path (Shown for synchronous protocols) */}
+                        {!methodConfig.isAsync && (
+                          <PropertyField
+                            label="Endpoint Path / Rute"
+                            value={concept.endpointPath ?? ''}
+                            placeholder="/api/v1/events/..."
+                            onChange={(v) => updateConcept(concept.id, { endpointPath: v })}
+                          />
+                        )}
+
+                        {/* Message Topic */}
+                        <PropertyField
+                          label={methodConfig.isAsync ? 'Topic Navn / Kanal (AsyncAPI)' : 'Message Broker / Topic (valgfri)'}
+                          value={concept.topicName ?? ''}
+                          placeholder={methodConfig.isAsync ? 'f.eks. orders.v1.created' : 'f.eks. orders.v1.events'}
+                          onChange={(v) => updateConcept(concept.id, { topicName: v })}
+                        />
+
+                        {/* Routing Indicator */}
+                        <div
+                          className={`p-2.5 rounded-xl text-[11px] font-medium border flex items-center gap-2 ${
+                            methodConfig.isAsync
+                              ? 'bg-blue-50/70 border-blue-200/60 text-blue-800'
+                              : 'bg-emerald-50/70 border-emerald-200/60 text-emerald-800'
+                          }`}
+                        >
+                          <span className="text-[14px]">{methodConfig.isAsync ? '📨' : '🌐'}</span>
+                          <span>
+                            {methodConfig.isAsync
+                              ? 'Genererer automatisk kanal & operation i AsyncAPI 3.0'
+                              : 'Genererer automatisk endpoint & schema i OpenAPI 3.1'}
+                          </span>
+                        </div>
+                      </div>
+                    </InspectorSection>
+                  );
+                })()}
 
                 {activeViewId && concept.conceptType !== 'bounded_context' && concept.conceptType !== 'em_chapter' && !activeNotation?.hideParentGroupSection && (
                   <InspectorSection title="Forældregruppe">
@@ -1224,7 +1382,7 @@ export function InspectorSection({ title, rightAction, children }: { title: stri
     );
 }
 
-export function PropertyField({ label, value, onChange, readOnly, inputRef }: { label: string, value: string, onChange?: (v: string) => void, readOnly?: boolean, inputRef?: React.RefObject<HTMLInputElement | null> }) {
+export function PropertyField({ label, value, onChange, readOnly, inputRef, placeholder }: { label: string, value: string, onChange?: (v: string) => void, readOnly?: boolean, inputRef?: React.RefObject<HTMLInputElement | null>, placeholder?: string }) {
     return (
         <div className="flex flex-col gap-2">
             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">{label}</label>
@@ -1232,6 +1390,7 @@ export function PropertyField({ label, value, onChange, readOnly, inputRef }: { 
                 ref={inputRef}
                 type="text" 
                 value={value} 
+                placeholder={placeholder}
                 readOnly={readOnly}
                 onChange={(e) => onChange?.(e.target.value)}
                 onFocus={(e) => e.target.select()}

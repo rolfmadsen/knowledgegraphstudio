@@ -2399,8 +2399,8 @@ export function ReactFlowCanvas({
       const childIds = groupChildrenMap.get(vnInstId) || groupChildrenMap.get(vn.conceptId) || [];
 
       if (childIds.length === 0) {
-        let w = vn.width ?? (view.type === 'event_modeling' ? (c.conceptType === 'em_chapter' ? 600 : (emSliceWidths.get(vnInstId) ?? SLICE_WIDTH)) : (view.type === 'c4' ? 280 : 240));
-        let h = vn.height ?? (view.type === 'event_modeling' ? (c.conceptType === 'em_chapter' ? 600 : (emSliceHeights.get(vnInstId) ?? 350)) : (view.type === 'c4' ? 160 : 140));
+        let w = vn.width ?? (view.type === 'event_modeling' ? (c.conceptType === 'em_chapter' ? 16 * GRID_SIZE : (emSliceWidths.get(vnInstId) ?? SLICE_WIDTH)) : (view.type === 'c4' ? 280 : 240));
+        let h = vn.height ?? (view.type === 'event_modeling' ? (c.conceptType === 'em_chapter' ? (emChapterHeights.get(vnInstId) ?? 600) : (emSliceHeights.get(vnInstId) ?? 350)) : (view.type === 'c4' ? 160 : 140));
 
         if (view.type === 'event_modeling') {
           if (c.conceptType === 'em_slice') {
@@ -2408,7 +2408,7 @@ export function ReactFlowCanvas({
             w = emSliceWidths.get(vnInstId) ?? SLICE_WIDTH;
           } else if (c.conceptType === 'em_chapter') {
             h = emChapterHeights.get(vnInstId) ?? 600;
-            w = 600;
+            w = vn.width ?? 16 * GRID_SIZE;
           }
         }
 

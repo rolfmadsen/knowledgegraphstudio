@@ -292,6 +292,148 @@ export const PayloadAttributeSchema = z.object({
 });
 export type PayloadAttribute = z.infer<typeof PayloadAttributeSchema>;
 
+export const IntegrationPattern = z.enum([
+  'PubSub',
+  'OrchestratedPush',
+  'RequestResponse',
+  'Local',
+]);
+export type IntegrationPattern = z.infer<typeof IntegrationPattern>;
+
+export const HttpMethod = z.enum(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']);
+export type HttpMethod = z.infer<typeof HttpMethod>;
+
+export const STANDARD_INTEGRATION_TECHNOLOGIES = [
+  'REST / HTTP',
+  'Webhooks',
+  'gRPC',
+  'GraphQL',
+  'OData',
+  'Kafka',
+  'AMQP / RabbitMQ',
+  'MQTT',
+  'WebSocket',
+] as const;
+export type StandardIntegrationTechnology = typeof STANDARD_INTEGRATION_TECHNOLOGIES[number];
+
+export interface ProtocolMethodOption {
+  value: string;
+  label: string;
+}
+
+export function getValidMethodsForTechnology(technology?: string): {
+  label: string;
+  isAsync: boolean;
+  options: ProtocolMethodOption[];
+} {
+  const tech = technology ?? 'REST / HTTP';
+
+  switch (tech) {
+    case 'REST / HTTP':
+      return {
+        label: 'HTTP Metode',
+        isAsync: false,
+        options: [
+          { value: 'GET', label: 'GET (Forespørgsel / Query)' },
+          { value: 'POST', label: 'POST (Indtag / Ingress / Opret)' },
+          { value: 'PUT', label: 'PUT (Erstat / Opdater)' },
+          { value: 'PATCH', label: 'PATCH (Delvis opdatering)' },
+          { value: 'DELETE', label: 'DELETE (Slet)' },
+        ],
+      };
+    case 'Webhooks':
+      return {
+        label: 'Webhook Leveringsmetode',
+        isAsync: false,
+        options: [
+          { value: 'POST', label: 'POST (Webhook Ingress / Levering)' },
+          { value: 'PUT', label: 'PUT (Webhook Opdatering)' },
+          { value: 'GET', label: 'GET (Webhook Challenge / Verifikation)' },
+        ],
+      };
+    case 'gRPC':
+      return {
+        label: 'gRPC Kaldstype',
+        isAsync: false,
+        options: [
+          { value: 'POST', label: 'POST (Unary RPC Call)' },
+          { value: 'GET', label: 'GET (Server Streaming)' },
+          { value: 'PUT', label: 'PUT (Client Streaming)' },
+          { value: 'PATCH', label: 'PATCH (Bidirectional Streaming)' },
+        ],
+      };
+    case 'GraphQL':
+      return {
+        label: 'GraphQL Operation',
+        isAsync: false,
+        options: [
+          { value: 'POST', label: 'POST (Mutation / Query)' },
+          { value: 'GET', label: 'GET (Cacheable Query)' },
+        ],
+      };
+    case 'OData':
+      return {
+        label: 'OData HTTP Metode',
+        isAsync: false,
+        options: [
+          { value: 'GET', label: 'GET (OData EntitySet / Query)' },
+          { value: 'POST', label: 'POST (OData Create Entity)' },
+          { value: 'PUT', label: 'PUT (OData Replace)' },
+          { value: 'PATCH', label: 'PATCH (OData Delta / Merge)' },
+          { value: 'DELETE', label: 'DELETE (OData Delete)' },
+        ],
+      };
+    case 'Kafka':
+      return {
+        label: 'Kafka Topic Handling (Mønster)',
+        isAsync: true,
+        options: [
+          { value: 'POST', label: 'PUBLISH / PRODUCE (Send til topic)' },
+          { value: 'GET', label: 'SUBSCRIBE / CONSUME (Lyt på topic)' },
+        ],
+      };
+    case 'AMQP / RabbitMQ':
+      return {
+        label: 'AMQP / RabbitMQ Handling',
+        isAsync: true,
+        options: [
+          { value: 'POST', label: 'PUBLISH (Send til Exchange / Queue)' },
+          { value: 'GET', label: 'SUBSCRIBE (Konsumér fra Queue)' },
+        ],
+      };
+    case 'MQTT':
+      return {
+        label: 'MQTT Handling',
+        isAsync: true,
+        options: [
+          { value: 'POST', label: 'PUBLISH (Udgiv til MQTT Topic)' },
+          { value: 'GET', label: 'SUBSCRIBE (Abonnér på MQTT Topic)' },
+        ],
+      };
+    case 'WebSocket':
+      return {
+        label: 'WebSocket Kanalmønster',
+        isAsync: true,
+        options: [
+          { value: 'POST', label: 'SEND / EMIT (Klient → Server)' },
+          { value: 'GET', label: 'SUBSCRIBE / LISTEN (Server → Klient)' },
+        ],
+      };
+    default:
+      return {
+        label: 'HTTP Metode',
+        isAsync: false,
+        options: [
+          { value: 'POST', label: 'POST' },
+          { value: 'GET', label: 'GET' },
+          { value: 'PUT', label: 'PUT' },
+          { value: 'PATCH', label: 'PATCH' },
+          { value: 'DELETE', label: 'DELETE' },
+        ],
+      };
+  }
+}
+
 // ============================================================
 // Concept Node — PURELY SEMANTIC (no layout fields)
 // ============================================================
@@ -324,6 +466,13 @@ export const BaseConceptNode = BaseEntity.extend({
   derivedFrom: z.array(ElementId).optional(),
   createdBy: z.enum(['user', 'ai']).optional(),
   payload: z.array(PayloadAttributeSchema).optional(),
+  integrationPattern: IntegrationPattern.optional(),
+  technology: z.string().optional(),
+  endpointPath: z.string().optional(),
+  topicName: z.string().optional(),
+  httpMethod: HttpMethod.optional(),
+  version: z.string().optional(),
+  serverUrl: z.string().optional(),
 });
 export type BaseConceptNode = z.infer<typeof BaseConceptNode>;
 
@@ -380,17 +529,6 @@ export type ConceptNode = z.infer<typeof ConceptNode>;
  */
 export const ConceptNodeExport = ConceptNode;
 export type ConceptNodeExport = ConceptNode;
-
-export const IntegrationPattern = z.enum([
-  'PubSub',
-  'OrchestratedPush',
-  'RequestResponse',
-  'Local',
-]);
-export type IntegrationPattern = z.infer<typeof IntegrationPattern>;
-
-export const HttpMethod = z.enum(['GET', 'POST', 'PUT', 'DELETE']);
-export type HttpMethod = z.infer<typeof HttpMethod>;
 
 // ============================================================
 // Concept Relation
@@ -466,6 +604,9 @@ export type ViewEdge = z.infer<typeof ViewEdge>;
 
 export const View = BaseEntity.extend({
   name: z.string().min(1),
+  description: z.string().optional(),
+  version: z.string().optional(),
+  serverUrl: z.string().optional(),
   type: ViewType,
   layoutAlgorithm: LayoutAlgorithm,
   derivedFrom: z.array(ElementId).optional(),

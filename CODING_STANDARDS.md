@@ -6,6 +6,7 @@ This repository follows the **Google TypeScript Style Guide** and modern **Funct
 
 ## 1. Type Safety & TypeScript Disciplines
 - **Strict Mode:** Code must compile with `strict: true` and zero compiler warnings.
+- **Full Typecheck & Project References:** In modern TypeScript/Vite/Solution architectures (where root `tsconfig.json` contains `"files": []` and `"references": [...]`), blind `tsc --noEmit` exits with code 0 without checking source files. Verification layers MUST use `tsc -b` (build mode) or `tsc --noEmit -p tsconfig.app.json` to ensure full type validation across all composite sub-projects.
 - **No `any`:** `any` is strictly prohibited. Use `unknown` combined with type narrowing, type predicates (`is`), or validation libraries (`zod`) at runtime I/O boundaries.
 - **Interfaces vs Types:** Use `interface` for public API object shapes and extensible contracts; use `type` for unions, intersections, tuple types, and utility types.
 - **Discriminated Unions:** Model state machines and mutually exclusive states using discriminated unions (e.g. `{ status: 'success'; data: T } | { status: 'error'; error: Error }`) rather than parallel optional boolean flags.

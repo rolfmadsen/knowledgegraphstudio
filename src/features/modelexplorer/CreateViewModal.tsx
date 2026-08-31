@@ -79,6 +79,7 @@ export function CreateViewModal() {
   const close = useCallback(() => setCreateViewModalOpen(false), [setCreateViewModalOpen]);
 
   const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
   const [viewType, setViewType] = useState<string>('knowledge_graph');
   const [typeQuery, setTypeQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -93,6 +94,7 @@ export function CreateViewModal() {
   useEffect(() => {
     if (isOpen) {
       setName('');
+      setDescription('');
       setViewType('knowledge_graph');
       setTypeQuery('');
       setSelectedIndex(0);
@@ -103,10 +105,11 @@ export function CreateViewModal() {
   const handleCreate = useCallback(() => {
     const trimmed = name.trim();
     const finalName = trimmed || `View ${Date.now().toString().slice(-4)}`;
-    const view = createView(finalName, viewType as View['type']);
+    const trimmedDesc = description.trim() || undefined;
+    const view = createView(finalName, viewType as View['type'], undefined, false, trimmedDesc);
     setActiveViewId(view.id);
     close();
-  }, [name, viewType, createView, setActiveViewId, close]);
+  }, [name, description, viewType, createView, setActiveViewId, close]);
 
   const notations = NotationRegistry.all();
 
@@ -306,6 +309,20 @@ export function CreateViewModal() {
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Application Architecture"
               className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-[13px] font-semibold text-slate-800 placeholder-slate-300 focus:bg-white focus:border-emerald-400 focus:ring-4 focus:ring-emerald-400/10 outline-none transition-all"
+            />
+          </div>
+
+          {/* Description */}
+          <div className="flex flex-col gap-2">
+            <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
+              Description (OpenAPI / Dokumentation)
+            </label>
+            <input
+              type="text"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="e.g. REST API og Event Model for bestillingsflow"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-[12px] font-medium text-slate-700 placeholder-slate-300 focus:bg-white focus:border-emerald-400 focus:ring-4 focus:ring-emerald-400/10 outline-none transition-all"
             />
           </div>
 

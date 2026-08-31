@@ -4,24 +4,26 @@ This document serves as a reference for the core APIs and schema structures used
 
 ---
 
-## OpenAPI Specification (v3.2.0)
+## OpenAPI Specification (v3.1.0)
 
-URL: https://github.com/OAI/OpenAPI-Specification/blob/main/versions/3.2.0.md
+URL: https://github.com/OAI/OpenAPI-Specification/blob/main/versions/3.1.0.md
 
 ### Core OpenAPI Structure
-The compiler targets OpenAPI 3.2.0. Key structural elements:
-- **`openapi`**: `"3.2.0"`
-- **`info`**: Title, version, and description of the API.
-- **`paths`**: Map of endpoints (e.g. `/orders`).
-  - **`get`** (from ReadModel): Query operations.
-  - **`post`** (from Command): Action / Write operations.
-- **`components`**: Shared schemas and parameters.
-  - **`schemas`**: JSON Schema definitions mapped from concept node properties.
+The compiler targets OpenAPI 3.1.0 with JSON Schema 2020-12 support. Key structural elements:
+- **`openapi`**: `"3.1.0"`
+- **`info`**: Dynamically extracted from View (`name`, `description`) and Domain.
+- **`paths`**: Map of endpoints aggregated by path (e.g. `/api/v1/orders`).
+  - **`get`** (from ReadModel): Query operations returning response payload schemas.
+  - **`post`/`put`** (from IntegrationEvent): Ingress / Webhook operations receiving request payloads.
+  - **`post`/`put`** (from Command): Action operations executing user / client intent.
+- **`components`**: Reusable schemas and parameters.
+- **Path Parameters**: Automatically extracted from path templates (e.g. `{orderId}`).
 
-### Event Modeling Mapping Rules
-- **Command Nodes:** Generate a `POST` operation at `endpointPath` (or derived path `/commands/kebab-name`). The request body is derived from the Command node's `properties` array.
-- **Read Model Nodes:** Generate a `GET` operation at `endpointPath` (or derived path `/queries/kebab-name`). The response schema is derived from the Read Model node's `properties` array.
-- **Gherkin Policies:** Added to the endpoint's `description` field formatted as code blocks:
+### Event Modeling & Integration Mapping Rules
+- **Read Model Nodes:** Generate a `GET` operation at `endpointPath` (or derived path `/queries/kebab-name`). The response schema is derived from the Read Model's `payload` or `properties` array.
+- **Integration Event Nodes:** Generate `POST`/`PUT` operations at `endpointPath` (or derived path `/events/kebab-name`) representing ingress / webhook data ingestion boundaries.
+- **Command Nodes:** Generate `POST`/`PUT` operations at `endpointPath` (or derived path `/commands/kebab-name`). The request body is derived from the Command's `payload` or `properties` array.
+- **Gherkin Policies:** Added to the endpoint's `description` field formatted cleanly in Markdown:
   ```gherkin
   Scenario: [Scenario Name]
     Given [Given conditions]
